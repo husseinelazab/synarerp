@@ -18,7 +18,11 @@
       {% if obj.is_draft %}
         <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل القيود؟')">{% csrf_token %}<button class="btn btn-success">اعتماد</button></form>
       {% elif obj.is_submitted %}
+        {% if obj.einvoice %}
+        <span class="muted small" title="الفاتورة صدرت إلكترونياً لدى الهيئة">لا يمكن الإلغاء بعد الإصدار الإلكتروني — استخدم «إنشاء مرتجع»</span>
+        {% else %}
         <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'cancel' %}" onsubmit="return confirm('إلغاء المستند وعكس القيود؟')">{% csrf_token %}<button class="btn btn-danger">إلغاء المستند</button></form>
+        {% endif %}
         {% if dt.slug == 'sales-invoice' and obj.outstanding_amount > 0 %}
           <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive&customer={{ obj.customer_id }}&sales_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount }}">تسجيل سند قبض</a>
         {% elif dt.slug == 'sales-invoice' and obj.outstanding_amount < 0 %}
@@ -99,6 +103,27 @@
   </table>
 </div>
 {% endif %}
+
+{% if obj.einvoice %}{% with e=obj.einvoice %}
+<div class="card">
+  <div class="card-head"><h3>الفاتورة الإلكترونية (منصة فاتورة)</h3>
+    <span class="badge badge-lg {% if e.is_final %}status-1{% elif e.status == 'pending' %}status-0{% else %}status-2{% endif %}">{{ e.get_status_display }}</span></div>
+  <dl class="detail-grid">
+    <div><dt>النوع</dt><dd>{{ e.get_invoice_type_display }}</dd></div>
+    <div><dt>عداد الفاتورة (ICV)</dt><dd>{{ e.icv }}</dd></div>
+    <div><dt>المعرف الفريد (UUID)</dt><dd class="small break" dir="ltr">{{ e.uuid }}</dd></div>
+    <div><dt>هاش الفاتورة</dt><dd class="small break" dir="ltr">{{ e.invoice_hash }}</dd></div>
+    <div><dt>وقت الإصدار</dt><dd>{{ e.issue_datetime|date:"Y-m-d H:i:s" }}</dd></div>
+    <div><dt>محاولات الإرسال</dt><dd>{{ e.attempts }}</dd></div>
+  </dl>
+  {% if e.response.messages %}<div class="alert {% if e.is_final %}alert-warning{% else %}alert-error{% endif %}" style="margin-top:12px">{% for m in e.response.messages %}<div>{{ m }}</div>{% endfor %}</div>{% endif %}
+  <div class="actions" style="margin-top:12px">
+    <a class="btn" href="{% url 'einvoice_xml' e.pk %}">تنزيل XML الموقّع</a>
+    {% if e.cleared_xml %}<a class="btn" href="{% url 'einvoice_xml' e.pk %}?cleared=1">تنزيل XML المعتمد من الهيئة</a>{% endif %}
+    {% if not e.is_final %}<form method="post" action="{% url 'einvoice_resubmit' e.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-primary">إرسال للهيئة الآن</button></form>{% endif %}
+  </div>
+</div>
+{% endwith %}{% endif %}
 
 {% if gl_entries %}
 <div class="card">

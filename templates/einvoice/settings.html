@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}الربط مع منصة فاتورة{% endblock %}
+{% block heading %}الفوترة الإلكترونية — الربط مع منصة فاتورة (المرحلة الثانية){% endblock %}
+{% block content %}
+<div class="card">
+  <p>يربط {{ ERP_NAME }} فواتيرك بمنصة «فاتورة» لدى هيئة الزكاة والضريبة والجمارك: تُصدر كل فاتورة معتمدة بصيغة XML موقّعة رقمياً
+    مع رمز QR وسلسلة هاش، ثم <strong>تُعتمد</strong> الفواتير الضريبية (B2B) قبل مشاركتها مع العميل، و<strong>يُبلَّغ</strong> عن المبسطة (B2C) خلال 24 ساعة.</p>
+  <div class="steps-bar">
+    {% for value, label in steps.choices %}
+      <span class="step-chip {% if settings.status == value %}current{% endif %}">{{ forloop.counter }}. {{ label }}</span>
+    {% endfor %}
+    {% if settings.is_active %}<span class="badge badge-lg status-1">✓ الفوترة الإلكترونية تعمل</span>{% elif settings.status == 'active' %}<span class="badge badge-lg status-0">موقوفة مؤقتاً</span>{% endif %}
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <h3>١. بيانات البائع ووحدة إصدار الفواتير</h3>
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+    <div class="form-actions" style="margin-top:14px"><button class="btn btn-primary" name="action" value="save">حفظ البيانات</button></div>
+  </div>
+</form>
+
+{% if settings.pk %}
+<div class="grid-2">
+  <div class="card">
+    <h3>٢. شهادة الامتثال (Compliance CSID)</h3>
+    <p class="muted">من بوابة فاتورة (fatoora.zatca.gov.sa) ← «إضافة جهاز جديد» احصل على رمز التحقق (OTP) وأدخله هنا.
+      {% if settings.environment == 'sandbox' %}في بيئة المطورين التجريبية يمكن استخدام الرمز <code>123345</code>.{% endif %}</p>
+    <form method="post" class="filters">{% csrf_token %}
+      <label>رمز OTP <input name="otp" class="form-control" required inputmode="numeric" autocomplete="one-time-code"></label>
+      <button class="btn btn-primary" name="action" value="compliance" onclick="return confirm('سيتم إنشاء مفتاح تشفير جديد وطلب شهادة امتثال. متابعة؟')">{% if settings.status == 'not_started' %}طلب الشهادة{% else %}إعادة الربط بمفتاح جديد{% endif %}</button>
+    </form>
+    {% if settings.egs_serial %}<p class="muted small">الرقم التسلسلي للوحدة: <code>{{ settings.egs_serial }}</code></p>{% endif %}
+  </div>
+  <div class="card">
+    <h3>٣. فحوص الامتثال ← ٤. التفعيل</h3>
+    <p class="muted">يرسل النظام فواتير وإشعارات دائنة ومدينة تجريبية للهيئة للتحقق منها، ثم يطلب شهادة الإنتاج.</p>
+    <div class="actions">
+      <form method="post">{% csrf_token %}<button class="btn" name="action" value="checks" {% if settings.status == 'not_started' %}disabled{% endif %}>تشغيل فحوص الامتثال</button></form>
+      <form method="post">{% csrf_token %}<button class="btn btn-success" name="action" value="activate" {% if settings.status != 'checked' %}disabled{% endif %}>طلب شهادة الإنتاج والتفعيل</button></form>
+      {% if settings.status == 'active' %}<form method="post">{% csrf_token %}<button class="btn btn-danger-outline" name="action" value="toggle">{% if settings.enabled %}إيقاف مؤقت{% else %}إعادة التشغيل{% endif %}</button></form>{% endif %}
+    </div>
+    {% if settings.compliance_results.results %}
+    <table class="table" style="margin-top:12px">
+      <thead><tr><th>المستند التجريبي</th><th>النتيجة</th><th>الرسائل</th></tr></thead>
+      <tbody>{% for r in settings.compliance_results.results %}<tr><td>{{ r.label }}</td><td>{% if r.passed %}<span class="ok">✓ ناجح</span>{% else %}<span class="neg">✗ لم يجتز ({{ r.http_status }})</span>{% endif %}</td><td class="small">{{ r.messages|join:" · " }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% if settings.status == 'active' %}
+<div class="card muted">عداد الفواتير الحالي (ICV): <strong>{{ settings.last_icv }}</strong> · هاش آخر فاتورة: <code class="small">{{ settings.last_hash|truncatechars:24 }}</code></div>
+{% endif %}
+{% endif %}
+{% endblock %}

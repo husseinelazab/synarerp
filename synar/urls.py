@@ -13,6 +13,7 @@ urlpatterns = [
     path("reports/accounts/", include("accounts.urls")),
     path("reports/stock/", include("stock.urls")),
     path("pos/", include("pos.urls")),
+    path("einvoice/", include("einvoice.urls")),
     path("", include("saas.urls")),
     path("", include("core.urls")),
 ]

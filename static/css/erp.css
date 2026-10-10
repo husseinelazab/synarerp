@@ -233,3 +233,8 @@ a.column-chip:hover { text-decoration: none; filter: brightness(.95); }
 .step-num { width: 34px; height: 34px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .step-status { display: flex; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 1000px) { .opening-steps { grid-template-columns: 1fr; } }
+.steps-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.step-chip { padding: 6px 14px; border-radius: 20px; background: #eef2f6; color: var(--muted); font-size: 13px; }
+.step-chip.current { background: var(--primary); color: #fff; font-weight: 700; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.break { word-break: break-all; text-align: right; }

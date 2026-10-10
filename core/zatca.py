@@ -47,6 +47,10 @@ def qr_svg(data):
 
 
 def invoice_qr_svg(invoice):
+    """رمز QR للمرحلة الثانية إن صدرت الفاتورة إلكترونياً، وإلا رمز المرحلة الأولى."""
+    einvoice = getattr(invoice, "einvoice", None) if invoice.pk else None
+    if einvoice is not None:
+        return qr_svg(einvoice.qr_for_print)
     company = invoice.company
     if not company.tax_id:
         return ""

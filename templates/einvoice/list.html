@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}الفواتير الإلكترونية{% endblock %}
+{% block heading %}الفواتير الإلكترونية{% endblock %}
+{% block content %}
+{% if not settings or not settings.is_active %}
+<div class="alert alert-warning">الفوترة الإلكترونية غير مفعّلة بعد. {% if current_membership.can_manage %}<a href="{% url 'einvoice_settings' %}">ابدأ الربط مع منصة فاتورة</a>.{% endif %}</div>
+{% endif %}
+<div class="toolbar">
+  <div class="column-chips">
+    <a class="column-chip {% if not status %}req-col{% endif %}" href="?">الكل</a>
+    {% for value, label, count in counts %}<a class="column-chip {% if status == value %}req-col{% endif %}" href="?status={{ value }}">{{ label }} ({{ count }})</a>{% endfor %}
+  </div>
+  <form method="post" action="{% url 'einvoice_resubmit_all' %}">{% csrf_token %}<button class="btn btn-primary">إرسال المعلّق والفاشل</button></form>
+</div>
+<div class="card">
+<table class="table table-hover">
+  <thead><tr><th>ICV</th><th>الفاتورة</th><th>النوع</th><th>العميل</th><th>وقت الإصدار</th><th class="num">الإجمالي</th><th>الحالة</th><th></th></tr></thead>
+  <tbody>{% for e in einvoices %}<tr>
+    <td>{{ e.icv }}</td><td><a href="{{ e.sales_invoice.get_absolute_url }}">{{ e.sales_invoice.name }}</a></td>
+    <td>{{ e.get_invoice_type_display }}</td><td>{{ e.sales_invoice.customer }}</td><td>{{ e.issue_datetime|date:"Y-m-d H:i" }}</td>
+    <td class="num">{{ e.sales_invoice.grand_total|abs|cur:e.sales_invoice.currency }}</td>
+    <td><span class="badge {% if e.is_final %}status-1{% elif e.status == 'pending' %}status-0{% else %}status-2{% endif %}">{{ e.get_status_display }}</span></td>
+    <td><a href="{% url 'einvoice_xml' e.pk %}">XML</a></td></tr>
+  {% empty %}<tr><td colspan="8" class="muted center">لا توجد فواتير إلكترونية بعد</td></tr>{% endfor %}</tbody>
+</table>
+</div>
+{% endblock %}

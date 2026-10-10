@@ -23,6 +23,11 @@ class Customer(TenantModel):
     email = models.EmailField("البريد الإلكتروني", blank=True)
     city = models.CharField("المدينة", max_length=100, blank=True)
     address = models.TextField("العنوان", blank=True)
+    street = models.CharField("الشارع", max_length=100, blank=True)
+    building_number = models.CharField("رقم المبنى", max_length=4, blank=True)
+    district = models.CharField("الحي", max_length=100, blank=True)
+    postal_code = models.CharField("الرمز البريدي", max_length=5, blank=True)
+    country_code = models.CharField("رمز الدولة", max_length=2, default="SA")
     credit_limit = models.DecimalField("حد الائتمان", max_digits=18, decimal_places=2, default=0)
     disabled = models.BooleanField("موقوف", default=False)
 
@@ -120,6 +125,9 @@ class SalesInvoice(InvoiceDocument):
         self.apply_return_to_original()
         if self.is_pos:
             self._post_pos_payment()
+        from einvoice.services import on_invoice_submitted
+
+        on_invoice_submitted(self)
 
     def _original_cost(self, item):
         """تكلفة الصنف كما خرج في الفاتورة الأصلية، ليعود المخزون بنفس التكلفة."""
@@ -144,6 +152,9 @@ class SalesInvoice(InvoiceDocument):
         self.save(update_fields=["outstanding_amount"])
 
     def before_cancel(self):
+        from einvoice.services import assert_cancellable
+
+        assert_cancellable(self)
         super().before_cancel()
         if self.is_pos and not self.pos_shift.is_open:
             raise ValidationError("لا يمكن إلغاء فاتورة نقطة بيع من وردية مغلقة.")

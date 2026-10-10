@@ -182,6 +182,9 @@ class SalesInvoice(InvoiceDocument):
     paid_cash = models.DecimalField("المدفوع نقداً", max_digits=18, decimal_places=2, default=0, editable=False)
     paid_card = models.DecimalField("المدفوع بالبطاقة", max_digits=18, decimal_places=2, default=0, editable=False)
     change_amount = models.DecimalField("المبلغ المرتجع (الباقي)", max_digits=18, decimal_places=2, default=0, editable=False)
+    # معرّف البيع لدى جهاز نقطة البيع عند البيع دون اتصال؛ يمنع تكرار الفاتورة عند إعادة المزامنة
+    offline_id = models.CharField("معرّف البيع دون اتصال", max_length=64, blank=True, editable=False, db_index=True)
+    offline_at = models.DateTimeField("وقت البيع دون اتصال", null=True, blank=True, editable=False)
 
     # الإشعار المدين: زيادة على فاتورة سابقة (فرق سعر، رسوم إضافية...) دون حركة مخزون
     is_debit_note = models.BooleanField("إشعار مدين", default=False, editable=False)

@@ -230,3 +230,49 @@ class POSReturnTests(TestCase):
         self.assertContains(receipt, "إشعار دائن مبسط")
         self.assertContains(receipt, self.sale.name)
         self.assertEqual(self.client.get("/pos/api/invoice/", {"name": "x"}).status_code, 404)
+
+
+class OfflineSyncTests(POSTests):
+    """تُعاد اختبارات نقطة البيع أعلاه أيضاً، ثم اختبارات المزامنة."""
+
+    def sale(self, client_id, qty=1, created_at="2026-10-10T09:15:00+03:00"):
+        return {"client_id": client_id, "created_at": created_at, "paid_cash": qty * 200,
+                "items": [{"item": self.item.id, "qty": qty}]}
+
+    def sync(self, sales):
+        self.client.force_login(self.user)
+        return self.client.post("/pos/api/sync/", data=json.dumps({"sales": sales}), content_type="application/json")
+
+    def test_sync_creates_invoices_once(self):
+        response = self.sync([self.sale("dev-1"), self.sale("dev-2", qty=2)])
+        results = response.json()["results"]
+        self.assertTrue(all(r["ok"] for r in results))
+        first = SalesInvoice.objects.get(offline_id="dev-1")
+        self.assertEqual((first.pos_shift, first.posting_date.isoformat(), first.is_submitted),
+                         (self.shift, "2026-10-10", True))
+        # إعادة الإرسال (انقطع الرد مثلاً) لا تكرر الفاتورة
+        again = self.sync([self.sale("dev-1")]).json()["results"][0]
+        self.assertEqual(again["name"], first.name)
+        self.assertEqual(SalesInvoice.objects.filter(offline_id="dev-1").count(), 1)
+        self.assertEqual(Bin.objects.get(item=self.item).actual_qty, 7)
+
+    def test_failed_sale_is_reported_and_others_continue(self):
+        results = self.sync([self.sale("big", qty=500), self.sale("small")]).json()["results"]
+        self.assertFalse(results[0]["ok"])
+        self.assertIn("الرصيد غير كافٍ", results[0]["error"])
+        self.assertTrue(results[1]["ok"])
+        self.assertFalse(SalesInvoice.objects.filter(offline_id="big").exists())
+
+    def test_sync_needs_open_shift(self):
+        self.shift.close(200)
+        self.assertEqual(self.sync([self.sale("x")]).status_code, 409)
+
+    def test_service_worker_and_terminal_config(self):
+        self.client.force_login(self.user)
+        sw = self.client.get("/pos/sw.js")
+        self.assertEqual(sw["Content-Type"], "application/javascript")
+        self.assertIn("synar-pos-", sw.content.decode())
+        self.assertIn("/static/js/pos.js", sw.content.decode())
+        page = self.client.get("/pos/")
+        self.assertContains(page, "pending-btn")
+        self.assertContains(page, "/pos/api/sync/")

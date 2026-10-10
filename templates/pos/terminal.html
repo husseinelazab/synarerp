@@ -15,6 +15,8 @@
   <div class="pos-brand">{{ ERP_NAME }} <span>· {{ profile.name }}</span></div>
   <div class="pos-shift">الكاشير: {{ shift.user.get_full_name|default:shift.user.username }} · وردية #{{ shift.pk }} منذ {{ shift.opened_at|date:"H:i" }}</div>
   <div class="pos-nav">
+    <span class="net-status" id="net-status" title="حالة الاتصال">● متصل</span>
+    <button class="btn btn-warning" id="pending-btn" hidden>بانتظار المزامنة: <b id="pending-count">0</b></button>
     <button class="btn" id="open-return">مرتجع (F8)</button>
     <a class="btn" href="{% url 'pos_shift_report' shift.pk %}" target="_blank">ملخص الوردية</a>
     <a class="btn" href="{% url 'pos_close_shift' %}">إغلاق الوردية</a>
@@ -105,6 +107,19 @@
     <div class="cart-actions">
       <button class="btn" id="r-cancel">إغلاق</button>
       <button class="btn btn-danger pay-btn" id="r-confirm" disabled>تأكيد المرتجع</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="pending-modal" hidden>
+  <div class="modal-box">
+    <h2>مبيعات دون اتصال بانتظار المزامنة</h2>
+    <p class="muted small">تُرسل تلقائياً عند عودة الاتصال. المبيعات التي رفضها الخادم (مثل نقص الرصيد) تبقى هنا لتعيد المحاولة
+      بعد معالجة السبب أو تحذفها بعد تسويتها يدوياً.</p>
+    <table class="table"><thead><tr><th>الوقت</th><th>الإجمالي</th><th>الحالة</th><th></th></tr></thead><tbody id="pending-list"></tbody></table>
+    <div class="cart-actions">
+      <button class="btn" id="pending-close">إغلاق</button>
+      <button class="btn btn-primary" id="pending-sync">مزامنة الآن</button>
     </div>
   </div>
 </div>

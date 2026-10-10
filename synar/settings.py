@@ -128,6 +128,8 @@ LOGOUT_REDIRECT_URL = "login"
 # اسم النظام المعروض في الواجهة
 ERP_NAME = "سِينار"
 ERP_NAME_EN = "Synar ERP"
+# يتغير مع كل إصدار ليحدّث عامل خدمة نقطة البيع الملفات المخزنة على الأجهزة
+SYNAR_POS_CACHE_VERSION = os.environ.get("SYNAR_POS_CACHE_VERSION", "2026-10-1")
 
 # تعليمات الدفع التي تظهر للعملاء في صفحة الاشتراك (حساب بنكي، رقم تواصل...)
 SYNAR_BILLING_INSTRUCTIONS = os.environ.get(

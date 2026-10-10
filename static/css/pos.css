@@ -63,3 +63,8 @@
 .return-lookup { display: flex; gap: 8px; }
 .return-lookup .btn { white-space: nowrap; }
 #r-items input { width: 90px; }
+
+.net-status { font-size: 13px; font-weight: 700; color: #1a7f37; align-self: center; }
+.net-status.offline { color: #c62828; }
+.btn-warning { background: #fff3cd; border-color: #e0a800; color: #6b4e00; }
+.offline-note { background: #fff3cd; color: #6b4e00; border-radius: 6px; padding: 8px 10px; font-size: 13px; }

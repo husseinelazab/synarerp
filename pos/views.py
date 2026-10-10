@@ -39,6 +39,12 @@ def terminal(request):
         "allowRateChange": profile.allow_rate_change,
         "defaultCustomer": profile.default_customer_id,
         "currencyHtml": currency_symbol_html(profile.company.currency),
+        "syncUrl": reverse("pos_sync"),
+        "swUrl": reverse("pos_sw"),
+        "queueKey": f"synar-pos-queue-{profile.company_id}-{request.user.pk}",
+        "companyName": profile.company.name,
+        "taxId": profile.company.tax_id,
+        "cashier": request.user.get_full_name() or request.user.username,
     }
     return render(request, "pos/terminal.html", {
         "shift": shift, "profile": profile, "config": config,
@@ -191,3 +197,55 @@ def return_api(request):
         "refund_cash": str(-ret.paid_cash), "refund_card": str(-ret.paid_card),
         "receipt_url": reverse("pos_receipt", args=[ret.pk]),
     })
+
+
+@login_required
+@require_POST
+def sync_api(request):
+    """مزامنة مبيعات تمت دون اتصال: كل بيع مستقل، والمكرر (نفس المعرّف) يعيد فاتورته دون إنشاء جديدة."""
+    from django.utils.dateparse import parse_datetime
+
+    try:
+        data = json.loads(request.body or "{}")
+        sales = data.get("sales") or []
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({"error": "بيانات غير صالحة."}, status=400)
+    shift = POSShift.current_for(request.user)
+    if shift is None:
+        return JsonResponse({"error": "افتح وردية لمزامنة المبيعات المعلقة."}, status=409)
+    results = []
+    for sale in sales[:200]:
+        client_id = str(sale.get("client_id") or "")[:64]
+        if not client_id:
+            results.append({"client_id": "", "ok": False, "error": "معرّف البيع مفقود."})
+            continue
+        created = parse_datetime(sale.get("created_at") or "") if sale.get("created_at") else None
+        try:
+            invoice = checkout(
+                shift, request.user, sale.get("items") or [], customer_id=sale.get("customer"),
+                discount=sale.get("discount") or 0, paid_cash=sale.get("paid_cash") or 0,
+                paid_card=sale.get("paid_card") or 0, offline_id=client_id, offline_at=created,
+            )
+        except (ValidationError, Customer.DoesNotExist) as exc:
+            results.append({"client_id": client_id, "ok": False,
+                            "error": _error(exc) if isinstance(exc, ValidationError) else "العميل غير موجود."})
+            continue
+        results.append({"client_id": client_id, "ok": True, "name": invoice.name,
+                        "receipt_url": reverse("pos_receipt", args=[invoice.pk])})
+    return JsonResponse({"results": results})
+
+
+def service_worker(request):
+    """عامل الخدمة لنقطة البيع (نطاقه /pos/) — يخزن الشاشة والأصناف للعمل دون اتصال."""
+    from django.conf import settings
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
+    from django.templatetags.static import static
+
+    assets = [static(path) for path in ("css/erp.css", "css/currency.css", "css/pos.css", "js/pos.js",
+                                         "fonts/saudi-riyal/saudi_riyal.woff2", "fonts/saudi-riyal/saudi_riyal_bold.woff2")]
+    body = render_to_string("pos/sw.js", {"assets": assets, "version": settings.SYNAR_POS_CACHE_VERSION})
+    response = HttpResponse(body, content_type="application/javascript")
+    response["Cache-Control"] = "no-cache"
+    response["Service-Worker-Allowed"] = "/pos/"
+    return response

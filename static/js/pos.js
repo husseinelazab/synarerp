@@ -35,6 +35,7 @@
   function loadItems() {
     return fetch(config.itemsUrl, { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
+      .catch(function () { return { items: items }; })  // دون اتصال: تبقى القائمة الحالية
       .then(function (data) {
         items = data.items || [];
         byId = {};
@@ -209,6 +210,7 @@
     busy = true;
     errEl.hidden = true;
     var t = totals();
+    if (!navigator.onLine) { saveOffline(t); busy = false; return; }
     fetch(config.checkoutUrl, {
       method: "POST",
       credentials: "same-origin",
@@ -230,20 +232,143 @@
         $("d-name").textContent = res.data.name;
         $("d-change").innerHTML = fmt(num(res.data.change)) + config.currencyHtml;
         $("d-print").href = res.data.receipt_url + "?print=1";
+        $("d-print").onclick = null;
         $("done-modal").hidden = false;
         $("d-new").focus();
         loadItems();
       })
-      .catch(function () { errEl.textContent = "خطأ في الاتصال بالخادم."; errEl.hidden = false; })
+      .catch(function () { saveOffline(t); })  // انقطع الاتصال أثناء الإرسال: يُحفظ البيع في الجهاز
       .finally(function () { busy = false; });
   });
 
   $("d-new").addEventListener("click", function () { $("done-modal").hidden = true; resetSale(); });
 
+  // ---------- العمل دون اتصال ----------
+  function readQueue() {
+    try { return JSON.parse(localStorage.getItem(config.queueKey) || "[]"); } catch (e) { return []; }
+  }
+  function writeQueue(q) { localStorage.setItem(config.queueKey, JSON.stringify(q)); renderPending(); }
+  function newId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+  }
+
+  function saveOffline(t) {
+    var sale = {
+      client_id: newId(), created_at: new Date().toISOString(), customer: $("customer").value,
+      customer_name: $("customer").selectedOptions[0] ? $("customer").selectedOptions[0].text : "",
+      discount: t.discount, paid_cash: num(cashEl.value), paid_card: num(cardEl.value),
+      items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, name: l.name }; }),
+      totals: t, status: "pending", error: "",
+    };
+    var q = readQueue();
+    q.push(sale);
+    writeQueue(q);
+    // خصم الكميات محلياً حتى يظهر الرصيد التقريبي
+    cart.forEach(function (l) { var i = byId[l.id]; if (i && i.stock) i.qty = round2(i.qty - l.qty); });
+    renderGrid();
+    payModal.hidden = true;
+    var change = round2(sale.paid_cash + sale.paid_card - t.grand);
+    $("d-title").textContent = "✓ حُفظ البيع دون اتصال";
+    $("d-change-label").textContent = "الباقي للعميل: ";
+    $("d-name").textContent = "مؤقت " + sale.client_id.slice(0, 8).toUpperCase();
+    $("d-change").innerHTML = fmt(Math.max(change, 0)) + config.currencyHtml;
+    $("d-print").removeAttribute("href");
+    $("d-print").onclick = function (e) { e.preventDefault(); printProvisional(sale); };
+    $("done-modal").hidden = false;
+    $("d-new").focus();
+  }
+
+  function printProvisional(sale) {
+    var t = sale.totals, rows = sale.items.map(function (l) {
+      return "<tr><td>" + esc(l.name) + "</td><td>" + l.qty + "</td><td>" + fmt(round2(l.qty * l.rate)) + "</td></tr>";
+    }).join("");
+    var w = window.open("", "_blank", "width=380,height=640");
+    if (!w) return;
+    w.document.write('<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>إيصال مؤقت</title>' +
+      '<style>body{font-family:Tahoma,sans-serif;font-size:13px;margin:12px}table{width:100%;border-collapse:collapse}' +
+      'td,th{padding:3px;border-bottom:1px dashed #999;text-align:right}.c{text-align:center}.b{font-weight:bold}</style></head><body>' +
+      '<div class="c b">' + esc(config.companyName) + "</div>" +
+      (config.taxId ? '<div class="c">الرقم الضريبي: ' + esc(config.taxId) + "</div>" : "") +
+      '<div class="c b" style="margin:8px 0">إيصال مؤقت — بيع دون اتصال</div>' +
+      "<div>المرجع: " + sale.client_id.slice(0, 8).toUpperCase() + "</div><div>الوقت: " + new Date(sale.created_at).toLocaleString("ar-SA") +
+      "</div><div>الكاشير: " + esc(config.cashier) + "</div>" +
+      "<table><thead><tr><th>الصنف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      "<p>الإجمالي قبل الضريبة: " + fmt(t.net) + "<br>الضريبة: " + fmt(t.tax) + '<br><span class="b">الإجمالي: ' + fmt(t.grand) + "</span></p>" +
+      '<p style="font-size:11px">هذا إيصال مؤقت. تصدر الفاتورة الضريبية المبسطة برمز QR عند عودة الاتصال، ويمكن طباعتها من ملخص الوردية.</p>' +
+      "<script>window.print()<\/script></body></html>");
+    w.document.close();
+  }
+
+  var syncing = false;
+  function syncQueue(force) {
+    var q = readQueue();
+    var toSend = q.filter(function (s) { return force || s.status !== "failed"; });
+    if (syncing || !toSend.length || !navigator.onLine) return;
+    syncing = true;
+    fetch(config.syncUrl, {
+      method: "POST", credentials: "same-origin", redirect: "error",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ sales: toSend }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { setStatus(true, res.data.error || "تعذرت المزامنة"); return; }
+        var results = {};
+        (res.data.results || []).forEach(function (x) { results[x.client_id] = x; });
+        var remaining = readQueue().filter(function (s) {
+          var r = results[s.client_id];
+          if (!r) return true;
+          if (r.ok) return false;
+          s.status = "failed"; s.error = r.error;
+          return true;
+        });
+        writeQueue(remaining);
+        loadItems();
+      })
+      .catch(function () { /* ما زال الاتصال منقطعاً أو انتهت الجلسة؛ تبقى المبيعات محفوظة */ })
+      .finally(function () { syncing = false; });
+  }
+
+  function renderPending() {
+    var q = readQueue();
+    $("pending-btn").hidden = !q.length;
+    $("pending-count").textContent = q.length;
+    $("pending-list").innerHTML = q.map(function (s, idx) {
+      return "<tr><td>" + new Date(s.created_at).toLocaleString("ar-SA") + "</td><td>" + fmt(s.totals.grand) + "</td><td>" +
+        (s.status === "failed" ? '<span class="text-danger">' + esc(s.error) + "</span>" : "بانتظار الاتصال") + "</td><td>" +
+        (s.status === "failed" ? '<button class="btn btn-sm" data-discard="' + idx + '">حذف</button>' : "") + "</td></tr>";
+    }).join("");
+  }
+
+  function setStatus(online, message) {
+    var el = $("net-status");
+    el.textContent = online ? (message ? "● " + message : "● متصل") : "● دون اتصال — المبيعات تُحفظ في الجهاز";
+    el.classList.toggle("offline", !online);
+  }
+
+  window.addEventListener("online", function () { setStatus(true); syncQueue(); });
+  window.addEventListener("offline", function () { setStatus(false); });
+  $("pending-btn").addEventListener("click", function () { renderPending(); $("pending-modal").hidden = false; });
+  $("pending-close").addEventListener("click", function () { $("pending-modal").hidden = true; });
+  $("pending-sync").addEventListener("click", function () { syncQueue(true); });
+  $("pending-list").addEventListener("click", function (e) {
+    var idx = e.target.dataset.discard;
+    if (idx === undefined || !confirm("حذف هذا البيع من الجهاز نهائياً؟ تأكد من تسويته يدوياً أولاً.")) return;
+    var q = readQueue();
+    q.splice(parseInt(idx, 10), 1);
+    writeQueue(q);
+  });
+  setInterval(function () { syncQueue(false); }, 20000);
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register(config.swUrl, { scope: "/pos/" }).catch(function () {});
+  }
+
   // ---------- المرتجعات ----------
   var returnModal = $("return-modal"), rError = $("r-error"), rInvoice = null;
 
   function openReturn() {
+    if (!navigator.onLine) { alert("المرتجعات تحتاج اتصالاً بالخادم للتحقق من الفاتورة الأصلية."); return; }
     returnModal.hidden = false;
     $("r-body").hidden = true;
     $("r-confirm").disabled = true;
@@ -318,6 +443,7 @@
         $("d-change-label").textContent = num(res.data.refund_card) > 0 ? "مبلغ الرد للبطاقة: " : "مبلغ الرد نقداً للعميل: ";
         $("d-change").innerHTML = fmt(num(res.data.refund)) + config.currencyHtml;
         $("d-print").href = res.data.receipt_url + "?print=1";
+        $("d-print").onclick = null;
         $("done-modal").hidden = false;
         $("d-new").focus();
         loadItems();
@@ -339,4 +465,7 @@
 
   renderCart();
   loadItems();
+  setStatus(navigator.onLine);
+  renderPending();
+  syncQueue(false);
 })();

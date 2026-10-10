@@ -1,14 +1,23 @@
 """منطق البيع في نقطة البيع: إنشاء فاتورة مبيعات مبسطة واعتمادها في عملية واحدة."""
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from core.utils import flt
 from selling.models import Customer, SalesInvoice
 from stock.models import Item
 
 
-def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid_card=0):
-    """lines: قائمة من {"item": id, "qty": رقم, "rate": رقم اختياري}."""
+def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid_card=0, offline_id="",
+             offline_at=None):
+    """lines: قائمة من {"item": id, "qty": رقم, "rate": رقم اختياري}.
+
+    offline_id: معرّف البيع من الجهاز عند البيع دون اتصال؛ إن سبقت مزامنته تُعاد نفس الفاتورة.
+    """
+    if offline_id:
+        existing = SalesInvoice.objects.filter(offline_id=offline_id, is_pos=True).exclude(docstatus=2).first()
+        if existing is not None:
+            return existing
     if not shift or not shift.is_open:
         raise ValidationError("يجب فتح وردية قبل البيع.")
     if shift.user_id != user.id:
@@ -24,6 +33,8 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
             company=profile.company, customer=customer, is_pos=True, pos_shift=shift, created_by=user,
             update_stock=True, warehouse=profile.warehouse, tax_rate=profile.tax_rate, cost_center=profile.cost_center,
             prices_include_tax=profile.prices_include_tax, discount_amount=discount,
+            offline_id=offline_id or "", offline_at=offline_at,
+            **({"posting_date": timezone.localtime(offline_at).date()} if offline_at else {}),
         )
         for line in lines:
             try:

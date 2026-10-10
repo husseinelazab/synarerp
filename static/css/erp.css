@@ -222,3 +222,8 @@ td.num, th.num { direction: ltr; text-align: left !important; }
 .chev { font-style: normal; color: #9fb6cc; transition: transform .15s; width: 14px; text-align: center; }
 .chev::before { content: "‹"; font-size: 20px; line-height: 1; }
 .nav-module[open] .chev { transform: rotate(-90deg); }
+.import-tips { line-height: 2; color: var(--muted); padding-inline-start: 18px; }
+.column-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.column-chip { background: var(--primary-light); color: var(--primary); border-radius: 16px; padding: 4px 12px; font-size: 13px; }
+.column-chip.req-col { background: #fde2e4; color: #8b1f2a; font-weight: 700; }
+a.column-chip:hover { text-decoration: none; filter: brightness(.95); }

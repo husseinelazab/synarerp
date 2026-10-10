@@ -1,7 +1,10 @@
 {% extends "base.html" %}{% load erp %}
 {% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
 {% block content %}
-<div class="toolbar"><span></span><a class="btn btn-primary" href="{% url 'doc_new' 'account' %}">+ حساب جديد</a></div>
+<div class="toolbar"><span></span><div class="actions">
+  <a class="btn" href="{% url 'doc_import' 'account' %}">استيراد</a>
+  <a class="btn" href="{% url 'doc_export' 'account' %}">تصدير Excel</a>
+  <a class="btn btn-primary" href="{% url 'doc_new' 'account' %}">+ حساب جديد</a></div></div>
 <div class="card">
 <table class="table report tree">
   <thead><tr><th>الحساب</th><th>النوع</th><th>الرصيد (مدين + / دائن −)</th></tr></thead>

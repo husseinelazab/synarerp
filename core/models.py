@@ -298,3 +298,30 @@ class Membership(models.Model):
     @property
     def can_manage(self):
         return self.role in (Role.OWNER, Role.ADMIN)
+
+
+class ImportStatus(models.TextChoices):
+    PREVIEWED = "previewed", "تمت المعاينة"
+    DONE = "done", "تم الاستيراد"
+    FAILED = "failed", "فشل"
+
+
+class DataImport(TenantModel):
+    """سجل عمليات الاستيراد مع الملف ونتيجة المعاينة والتنفيذ."""
+
+    doctype_slug = models.CharField("نوع البيانات", max_length=50)
+    file_name = models.CharField("اسم الملف", max_length=255)
+    content = models.BinaryField("محتوى الملف")
+    mode = models.CharField("طريقة الاستيراد", max_length=10, default="insert",
+                            choices=[("insert", "إضافة سجلات جديدة"), ("update", "إضافة وتحديث الموجود")])
+    submit_after = models.BooleanField("اعتماد المستندات بعد الاستيراد", default=False)
+    valid_only = models.BooleanField("استيراد الصفوف الصحيحة فقط", default=False)
+    status = models.CharField("الحالة", max_length=10, choices=ImportStatus.choices, default=ImportStatus.PREVIEWED)
+    result = models.JSONField("النتيجة", default=dict, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField("التاريخ", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "عملية استيراد"
+        verbose_name_plural = "سجل الاستيراد"
+        ordering = ["-created_at"]

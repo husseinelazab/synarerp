@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}استيراد {{ dt.label_plural }}{% endblock %}
+{% block heading %}استيراد {{ dt.label_plural }}{% endblock %}
+{% block content %}
+<div class="toolbar"><a class="btn" href="{% url 'doc_list' dt.slug %}">رجوع إلى {{ dt.label_plural }}</a><span></span></div>
+<div class="grid-2">
+  <div class="card">
+    <h3>1. حمّل القالب</h3>
+    <p>قالب جاهز بأعمدة {{ dt.label_plural }} وبعناوين عربية، مع ورقة «تعليمات» تشرح كل عمود والقيم المسموحة.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="{% url 'doc_import_template' dt.slug 'xlsx' %}">تحميل قالب Excel</a>
+      <a class="btn" href="{% url 'doc_import_template' dt.slug 'csv' %}">قالب CSV</a>
+    </div>
+    <ul class="import-tips">
+      <li>الأعمدة المعلّمة بـ * مطلوبة، والباقي اختياري ويمكن حذفه من الملف.</li>
+      <li>الروابط مثل العميل أو الصنف أو الحساب تُكتب بالكود أو الرقم أو الاسم كما في النظام.</li>
+      {% if dt.child %}<li>الأسطر التي تحمل نفس «المرجع» تصبح مستنداً واحداً ببنوده (مثلاً فاتورة بثلاثة أصناف = ثلاثة أسطر بنفس المرجع).</li>{% endif %}
+      {% if key %}<li>عند اختيار «إضافة وتحديث الموجود» يُطابق السجل بعمود «{{ key }}».</li>{% endif %}
+      <li>يمكنك أيضاً «تصدير Excel» من القائمة، والتعديل عليه، ثم استيراده.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>2. ارفع الملف وعاين النتيجة</h3>
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="form-grid" style="grid-template-columns:1fr">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+      <p class="muted">لن يُحفظ شيء الآن: سيتحقق النظام من كل الصفوف ويعرض النتيجة والأخطاء قبل التنفيذ.</p>
+      <button class="btn btn-primary btn-lg">رفع ومعاينة</button>
+    </form>
+  </div>
+</div>
+<div class="card">
+  <h3>أعمدة القالب</h3>
+  <div class="column-chips">{% for c in columns %}<span class="column-chip {% if c.required %}req-col{% endif %}">{{ c.label }}{% if c.required %} *{% endif %}</span>{% endfor %}</div>
+</div>
+{% if history %}
+<div class="card">
+  <h3>آخر عمليات الاستيراد</h3>
+  <table class="table table-hover">
+    <thead><tr><th>التاريخ</th><th>الملف</th><th>المستخدم</th><th>الحالة</th><th>النتيجة</th></tr></thead>
+    <tbody>{% for job in history %}<tr class="clickable" data-href="{% url 'doc_import_job' dt.slug job.pk %}">
+      <td><a href="{% url 'doc_import_job' dt.slug job.pk %}">{{ job.created_at|date:"Y-m-d H:i" }}</a></td><td>{{ job.file_name }}</td><td>{{ job.created_by|default:"" }}</td>
+      <td>{{ job.get_status_display }}</td><td>{{ job.result.created|default:0 }} جديد · {{ job.result.updated|default:0 }} محدّث · {{ job.result.failed|default:0 }} خطأ</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

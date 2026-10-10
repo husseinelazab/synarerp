@@ -39,11 +39,8 @@ def module_page(request, module):
     return render(request, "core/module.html", {"section": section, "module_label": MODULES[module]})
 
 
-@login_required
-def doc_list(request, slug):
-    if slug == "account":
-        return redirect("chart_of_accounts")
-    dt = get_doctype(slug)
+def filtered_queryset(request, dt):
+    """القائمة بعد تطبيق البحث وفلاتر الحالة والنوع (تُستخدم في العرض والتصدير)."""
     qs = dt.model.objects.all()
     query = request.GET.get("q", "").strip()
     if query and dt.search_fields:
@@ -60,6 +57,15 @@ def doc_list(request, slug):
     status = request.GET.get("status", "")
     if dt.is_submittable and status in ("0", "1", "2"):
         qs = qs.filter(docstatus=int(status))
+    return qs, query, status, choice_filters
+
+
+@login_required
+def doc_list(request, slug):
+    if slug == "account":
+        return redirect("chart_of_accounts")
+    dt = get_doctype(slug)
+    qs, query, status, choice_filters = filtered_queryset(request, dt)
     page = Paginator(qs, 25).get_page(request.GET.get("page"))
     rows = [
         {"obj": obj, "cells": [display_value(obj, f) for f in dt.list_fields]}

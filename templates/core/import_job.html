@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}استيراد {{ dt.label_plural }}{% endblock %}
+{% block heading %}استيراد {{ dt.label_plural }}: {{ job.file_name }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div class="actions"><a class="btn" href="{% url 'doc_import' dt.slug %}">استيراد ملف آخر</a><a class="btn" href="{% url 'doc_list' dt.slug %}">{{ dt.label_plural }}</a></div>
+  <span class="badge badge-lg {% if job.status == 'done' %}status-1{% elif job.status == 'failed' %}status-2{% else %}status-0{% endif %}">{{ job.get_status_display }}</span>
+</div>
+
+<div class="journal-summary card">
+  <div><span class="muted">{% if dt.child %}المستندات{% else %}السجلات{% endif %} في الملف</span><strong>{{ result.total|default:0 }}</strong></div>
+  {% if job.status == 'previewed' %}
+  <div><span class="muted">جاهزة للاستيراد</span><strong class="ok">{{ result.created|add:result.updated }}</strong></div>
+  {% else %}
+  <div><span class="muted">تمت إضافتها / تحديثها</span><strong class="ok">{{ result.created|default:0 }} / {{ result.updated|default:0 }}</strong></div>
+  {% endif %}
+  <div><span class="muted">بها أخطاء</span><strong class="{% if result.failed %}neg{% endif %}">{{ result.failed|default:0 }}</strong></div>
+  <div><span class="muted">الخيارات</span><strong style="font-size:13px">{{ job.get_mode_display }}{% if job.submit_after %} · مع الاعتماد{% endif %}{% if job.valid_only %} · الصحيح فقط{% endif %}</strong></div>
+</div>
+
+{% if result.unknown_columns %}<div class="alert alert-warning">أعمدة غير معروفة سيتم تجاهلها: {{ result.unknown_columns|join:"، " }}</div>{% endif %}
+
+{% if job.status == 'previewed' %}
+  {% if can_execute %}
+  <div class="posting-banner posted">
+    <div><strong>المعاينة ناجحة.</strong> {% if result.failed %}سيتم تجاهل {{ result.failed }} صف به أخطاء.{% endif %} اضغط «تنفيذ الاستيراد» لحفظ البيانات فعلياً.</div>
+    <form method="post">{% csrf_token %}<button class="btn btn-success btn-lg">تنفيذ الاستيراد</button></form>
+  </div>
+  {% else %}
+  <div class="posting-banner draft"><div><strong>لا يمكن التنفيذ قبل تصحيح الأخطاء.</strong> صحّح الملف وارفعه من جديد، أو اختر «استيراد الصفوف الصحيحة فقط».</div></div>
+  {% endif %}
+{% elif job.status == 'done' and result.documents %}
+<div class="card">
+  <h3>ما تم استيراده</h3>
+  <div class="column-chips">{% for d in result.documents %}<a class="column-chip" href="{% url 'doc_detail' dt.slug d.pk %}">{{ d.label }}</a>{% endfor %}</div>
+</div>
+{% endif %}
+
+{% if result.errors %}
+<div class="card">
+  <h3>الأخطاء ({{ result.errors|length }})</h3>
+  <table class="table">
+    <thead><tr><th>رقم الصف في الملف</th><th>العمود</th><th>الخطأ</th></tr></thead>
+    <tbody>{% for e in result.errors %}<tr><td>{{ e.row }}</td><td>{{ e.column }}</td><td class="neg">{{ e.message }}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

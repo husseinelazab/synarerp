@@ -14,7 +14,11 @@
     {% endif %}
     <button class="btn">تصفية</button>
   </form>
+  <div class="actions">
+  <a class="btn" href="{% url 'doc_import' dt.slug %}">استيراد</a>
+  <a class="btn" href="{% url 'doc_export' dt.slug %}?{{ request.GET.urlencode }}">تصدير Excel</a>
   <a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}{% if filter_query %}?{{ filter_query }}{% endif %}">+ {% if filter_label %}{{ filter_label }}{% else %}{{ dt.label }}{% endif %} جديد</a>
+  </div>
 </div>
 <div class="card">
   <table class="table table-hover">

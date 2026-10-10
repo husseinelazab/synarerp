@@ -238,3 +238,11 @@ a.column-chip:hover { text-decoration: none; filter: brightness(.95); }
 .step-chip.current { background: var(--primary); color: #fff; font-weight: 700; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 .break { word-break: break-all; text-align: right; }
+.doc-status { background: #e8eef5; color: var(--primary); }
+.st-to_bill, .st-open { background: #fff3cd; color: #7a5800; }
+.st-partly_billed { background: #e0ecff; color: #1d4f91; }
+.st-billed, .st-ordered { background: #d4edda; color: #1e6b31; }
+.st-closed, .st-cancelled { background: #eceff3; color: var(--muted); }
+.billing-bar { display: inline-block; width: 120px; height: 8px; background: #e7ebf0; border-radius: 4px; overflow: hidden; vertical-align: middle; margin-inline-start: 8px; }
+.billing-bar i { display: block; height: 100%; background: var(--success); }
+.chip-alert.info { background: #e0ecff; color: #1d4f91; }

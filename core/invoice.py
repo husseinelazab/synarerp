@@ -11,6 +11,17 @@ from core.models import SubmittableDocument
 from core.utils import flt
 
 
+def tax_totals(total, discount, rate, inclusive):
+    """الصافي قبل الضريبة والضريبة والإجمالي، لأسعار شاملة أو غير شاملة للضريبة."""
+    if inclusive:
+        grand = flt(total - flt(discount))
+        tax = flt(grand * flt(rate) / (100 + flt(rate)))
+        return grand - tax, tax, grand
+    net = flt(total - flt(discount))
+    tax = flt(net * flt(rate) / 100)
+    return net, tax, flt(net + tax)
+
+
 class CurrencyMixin:
     """عملة المستند وسعر صرفه؛ القيود تُسجل دائماً بعملة الشركة."""
 
@@ -174,14 +185,12 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
         if original:
             # الخصم في المرتجع يُحسب تلقائياً بنسبة ما أُرجع من الفاتورة الأصلية
             self.discount_amount = flt(original.discount_amount * total / original.total) if original.total else flt(0)
-        if self.prices_include_tax:
-            self.grand_total = flt(total - flt(self.discount_amount))
-            self.tax_amount = flt(self.grand_total * flt(self.tax_rate) / (100 + flt(self.tax_rate)))
-            self.net_total = self.grand_total - self.tax_amount
-        else:
-            self.net_total = flt(total - flt(self.discount_amount))
-            self.tax_amount = flt(self.net_total * flt(self.tax_rate) / 100)
-            self.grand_total = flt(self.net_total + self.tax_amount)
+        elif getattr(self, "order_id", None) and self.order.discount_amount and self.order.total:
+            # الفاتورة المرتبطة بأمر تأخذ من خصمه بنسبة قيمة بنود الأمر التي تفوترها، فلا يتكرر الخصم
+            billed = sum((flt(r.qty * r.rate) for r in self.items.all() if r.order_item_id), flt(0))
+            self.discount_amount = flt(self.order.discount_amount * billed / self.order.total)
+        self.net_total, self.tax_amount, self.grand_total = tax_totals(
+            total, self.discount_amount, self.tax_rate, self.prices_include_tax)
         if self.is_draft:
             self.outstanding_amount = self.grand_total
         self.ensure_currency()

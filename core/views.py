@@ -160,6 +160,7 @@ def doc_form(request, slug, pk=None):
 
     return render(request, "core/form.html", {
         "dt": dt, "form": form, "formset": formset, "empty_form": empty_form, "instance": instance, "is_return": is_return,
+        "posts_to_ledger": getattr(dt.model, "posts_to_ledger", True),
     })
 
 
@@ -255,6 +256,19 @@ def doc_action(request, slug, pk, action):
         return redirect("doc_list", slug=slug)
     if action in ("submit", "cancel") and dt.is_submittable:
         return _run_action(request, dt, obj, action)
+    allowed = dict(getattr(obj, "available_actions", []))
+    if action in allowed:
+        try:
+            with transaction.atomic():
+                result = getattr(obj, action)(request.user)
+        except ValidationError as exc:
+            messages.error(request, _error_text(exc))
+            return redirect(obj.get_absolute_url())
+        if result is not None and hasattr(result, "doctype_slug"):
+            messages.info(request, f"تم إنشاء {result._meta.verbose_name} كمسودة من {obj}. راجع الكميات ثم اعتمد.")
+            return redirect("doc_edit", slug=result.doctype_slug, pk=result.pk)
+        messages.success(request, f"تم: {allowed[action]}.")
+        return redirect(obj.get_absolute_url())
     if action == "return" and hasattr(obj, "make_return"):
         try:
             ret = obj.make_return(request.user)

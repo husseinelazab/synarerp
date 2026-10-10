@@ -249,8 +249,13 @@ class SubmittableDocument(TenantModel):
     def on_cancel(self):
         pass
 
+    # المستندات التي لا تُرحّل قيوداً (عروض الأسعار والأوامر) لا تتقيد بالسنة المالية
+    posts_to_ledger = True
+
     def validate_posting_period(self):
         """الترحيل مسموح فقط داخل سنة مالية مفتوحة للشركة."""
+        if not self.posts_to_ledger:
+            return
         year = FiscalYear.all_objects.filter(
             company=self.company, start_date__lte=self.posting_date, end_date__gte=self.posting_date,
         ).first()

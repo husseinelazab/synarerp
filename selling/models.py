@@ -3,6 +3,8 @@ from django.db import models
 from django.db.models import Sum
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
+from core.commercial import (CommercialDocument, CommercialItem, CommercialStatus, OrderDocument, OrderItem,
+                             update_order_billing)
 from core.invoice import InvoiceDocument, InvoiceItem
 from core.models import TenantModel
 from core.tenancy import tenant_unique
@@ -41,6 +43,112 @@ class Customer(TenantModel):
         return self.name
 
 
+class Quotation(CommercialDocument):
+    naming_prefix = "QTN"
+
+    customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
+    valid_till = models.DateField("صالح حتى", null=True, blank=True)
+
+    class Meta(CommercialDocument.Meta):
+        verbose_name = "عرض سعر"
+        verbose_name_plural = "عروض الأسعار"
+
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+
+        return self.status == CommercialStatus.OPEN and self.valid_till and self.valid_till < timezone.localdate()
+
+    @property
+    def available_actions(self):
+        if self.is_submitted and self.status == CommercialStatus.OPEN:
+            return [("make_sales_order", "إنشاء أمر بيع"), ("make_invoice", "إنشاء فاتورة مبيعات")]
+        return []
+
+    @property
+    def linked_documents(self):
+        return list(self.sales_orders.all()) + list(self.invoices.all())
+
+    def _check_convertible(self):
+        if not (self.is_submitted and self.status == CommercialStatus.OPEN):
+            raise ValidationError("يمكن تحويل عروض الأسعار المعتمدة المفتوحة فقط.")
+
+    def make_sales_order(self, user=None):
+        self._check_convertible()
+        return self._copy_to(SalesOrder, user, {row: row.qty for row in self.items.all()}, extra={"quotation": self})
+
+    def make_invoice(self, user=None):
+        self._check_convertible()
+        return self._copy_to(SalesInvoice, user, {row: row.qty for row in self.items.all()}, extra={"quotation": self})
+
+    def refresh_status(self):
+        """العرض «تم التحويل» ما دام له أمر بيع أو فاتورة معتمدة."""
+        if not self.is_submitted:
+            return
+        converted = self.sales_orders.filter(docstatus=1).exists() or self.invoices.filter(docstatus=1).exists()
+        self.status = CommercialStatus.ORDERED if converted else CommercialStatus.OPEN
+        self.save(update_fields=["status"])
+
+
+class QuotationItem(CommercialItem):
+    parent = models.ForeignKey(Quotation, models.CASCADE, related_name="items")
+
+    class Meta:
+        verbose_name = "بند عرض سعر"
+        verbose_name_plural = "الأصناف"
+
+
+class SalesOrder(OrderDocument):
+    naming_prefix = "SO"
+
+    customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
+    delivery_date = models.DateField("تاريخ التسليم المتوقع", null=True, blank=True)
+    warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+",
+                                  verbose_name="المستودع")
+    cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True, related_name="+",
+                                    limit_choices_to={"is_group": False, "disabled": False},
+                                    verbose_name="مركز التكلفة / الفرع")
+    quotation = models.ForeignKey(Quotation, models.PROTECT, null=True, blank=True, related_name="sales_orders",
+                                  editable=False, verbose_name="عرض السعر")
+
+    class Meta(OrderDocument.Meta):
+        verbose_name = "أمر بيع"
+        verbose_name_plural = "أوامر البيع"
+
+    def invoice_model(self):
+        return SalesInvoice
+
+    @property
+    def available_actions(self):
+        if self.is_open_for_billing:
+            return [("make_invoice", "إنشاء فاتورة مبيعات"), ("close_order", "إغلاق الأمر")]
+        if self.status == CommercialStatus.CLOSED:
+            return [("reopen_order", "إعادة فتح الأمر")]
+        return []
+
+    @property
+    def linked_documents(self):
+        return ([self.quotation] if self.quotation_id else []) + list(self.invoices.all())
+
+    def on_submit(self):
+        super().on_submit()
+        if self.quotation_id:
+            self.quotation.refresh_status()
+
+    def on_cancel(self):
+        super().on_cancel()
+        if self.quotation_id:
+            self.quotation.refresh_status()
+
+
+class SalesOrderItem(OrderItem):
+    parent = models.ForeignKey(SalesOrder, models.CASCADE, related_name="items")
+
+    class Meta:
+        verbose_name = "بند أمر بيع"
+        verbose_name_plural = "الأصناف"
+
+
 class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
     return_prefix = "SRET"
@@ -50,6 +158,10 @@ class SalesInvoice(InvoiceDocument):
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)
+    order = models.ForeignKey(SalesOrder, models.PROTECT, null=True, blank=True, related_name="invoices",
+                              editable=False, verbose_name="أمر البيع")
+    quotation = models.ForeignKey(Quotation, models.PROTECT, null=True, blank=True, related_name="invoices",
+                                  editable=False, verbose_name="عرض السعر")
 
     # حقول نقاط البيع
     is_pos = models.BooleanField("فاتورة نقطة بيع", default=False, editable=False)
@@ -94,7 +206,14 @@ class SalesInvoice(InvoiceDocument):
             if flt(self.paid_cash + self.paid_card) < self.grand_total:
                 raise ValidationError("المبلغ المدفوع أقل من إجمالي الفاتورة.")
 
+    @property
+    def linked_documents(self):
+        return [doc for doc in (self.quotation, self.order) if doc is not None]
+
     def on_submit(self):
+        update_order_billing(self, +1)
+        if self.quotation_id:
+            self.quotation.refresh_status()
         company = self.company
         entries = [{
             "account": company.require_account("default_receivable_account"),
@@ -163,6 +282,9 @@ class SalesInvoice(InvoiceDocument):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
         self.unapply_return_from_original()
+        update_order_billing(self, -1)
+        if self.quotation_id:
+            self.quotation.refresh_status()
         if self.is_pos:
             self.outstanding_amount = self.grand_total
             self.save(update_fields=["outstanding_amount"])
@@ -170,6 +292,8 @@ class SalesInvoice(InvoiceDocument):
 
 class SalesInvoiceItem(InvoiceItem):
     parent = models.ForeignKey(SalesInvoice, models.CASCADE, related_name="items")
+    order_item = models.ForeignKey(SalesOrderItem, models.PROTECT, null=True, blank=True, editable=False,
+                                   related_name="invoice_items", verbose_name="بند أمر البيع")
 
     class Meta:
         verbose_name = "بند فاتورة مبيعات"

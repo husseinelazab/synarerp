@@ -11,7 +11,10 @@
   <details class="dropdown">
     <summary class="btn btn-primary">+ إنشاء جديد</summary>
     <div class="dropdown-menu">
+      <a href="{% url 'doc_new' 'quotation' %}">عرض سعر</a>
+      <a href="{% url 'doc_new' 'sales-order' %}">أمر بيع</a>
       <a href="{% url 'doc_new' 'sales-invoice' %}">فاتورة مبيعات</a>
+      <a href="{% url 'doc_new' 'purchase-order' %}">أمر شراء</a>
       <a href="{% url 'doc_new' 'purchase-invoice' %}">فاتورة مشتريات</a>
       <a href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive">سند قبض</a>
       <a href="{% url 'doc_new' 'payment-entry' %}?payment_type=pay">سند صرف</a>
@@ -25,10 +28,11 @@
   </details>
 </div>
 
-{% if drafts or overdue_count %}
+{% if drafts or overdue_count or orders_to_bill %}
 <div class="attention">
   <strong>يحتاج انتباهك:</strong>
   {% for d in drafts %}<a href="{{ d.url }}" class="chip-alert warn">{{ d.count }} {{ d.label }} مسودة لم تُرحّل</a>{% endfor %}
+  {% for o in orders_to_bill %}<a href="{{ o.url }}" class="chip-alert info">{{ o.count }} {{ o.label }} بانتظار الفوترة</a>{% endfor %}
   {% if overdue_count %}<a href="{% url 'party_balances' 'customer' %}" class="chip-alert danger">{{ overdue_count }} فاتورة متأخرة السداد بقيمة {{ overdue_amount|cur }}</a>{% endif %}
 </div>
 {% endif %}

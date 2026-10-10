@@ -1,4 +1,4 @@
-from buying.models import PurchaseInvoice, PurchaseInvoiceItem, Supplier
+from buying.models import PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, Supplier
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -15,4 +15,13 @@ register(DocType(
     slug="supplier", model=Supplier, module="buying",
     list_fields=["name", "phone", "city", "tax_id"],
     search_fields=["name", "phone", "tax_id"],
+))
+register(DocType(
+    slug="purchase-order", model=PurchaseOrder, module="buying",
+    list_fields=["name", "posting_date", "supplier", "schedule_date", "grand_total", "per_billed", "status"],
+    form_fields=["supplier", "posting_date", "schedule_date", "currency", "exchange_rate", "warehouse", "cost_center",
+                 "tax_rate", "terms", "remarks"],
+    search_fields=["name", "supplier__name"],
+    child=ChildTable(PurchaseOrderItem, ["item", "qty", "rate"], rate_type="buying"),
+    totals=["total", "net_total", "tax_amount", "grand_total"],
 ))

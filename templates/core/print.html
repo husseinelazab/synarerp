@@ -16,6 +16,8 @@
     th { background: #eef3f8; }
     .totals { width: 45%; margin-inline-start: auto; margin-top: 16px; }
     .qr svg { width: 38mm; height: 38mm; }
+    .terms { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }
+    .terms h3 { font-size: 15px; margin: 0 0 6px; }
     .stamp { color: #b00; font-weight: bold; text-align: center; font-size: 20px; }
     @media print { .no-print { display: none; } body { margin: 0; } }
   </style>
@@ -42,6 +44,10 @@
     {% if obj.supplier %}<div>المورد: <strong>{{ obj.supplier }}</strong></div>{% endif %}
     {% if obj.bill_no %}<div>رقم فاتورة المورد: {{ obj.bill_no }}</div>{% endif %}
     {% if obj.due_date %}<div>تاريخ الاستحقاق: {{ obj.due_date|date:"Y-m-d" }}</div>{% endif %}
+    {% if obj.valid_till %}<div>العرض صالح حتى: <strong>{{ obj.valid_till|date:"Y-m-d" }}</strong></div>{% endif %}
+    {% if obj.delivery_date %}<div>تاريخ التسليم المتوقع: {{ obj.delivery_date|date:"Y-m-d" }}</div>{% endif %}
+    {% if obj.schedule_date %}<div>تاريخ التوريد المتوقع: {{ obj.schedule_date|date:"Y-m-d" }}</div>{% endif %}
+    {% if obj.order %}<div>المرجع: {{ obj.order }}</div>{% elif obj.quotation %}<div>المرجع: {{ obj.quotation }}</div>{% endif %}
     {% if obj.amount %}<div>المبلغ: <strong>{{ obj.amount|cur:doc_currency }}</strong></div>{% endif %}
   </div>
   {% if child_rows %}
@@ -59,6 +65,7 @@
   </table>
   {% endif %}
   {% if qr %}<div class="qr">{{ qr|safe }}</div>{% endif %}
+  {% if obj.terms %}<div class="terms"><h3>الشروط والأحكام</h3><p>{{ obj.terms|linebreaksbr }}</p></div>{% endif %}
   {% if obj.remarks %}<p>ملاحظات: {{ obj.remarks }}</p>{% endif %}
   <p class="no-print"><button onclick="window.print()">طباعة</button></p>
 </body>

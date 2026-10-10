@@ -137,6 +137,17 @@ def dashboard_context(request):
     overdue = SalesInvoice.objects.filter(docstatus=DocStatus.SUBMITTED, outstanding_amount__gt=0, due_date__lt=today)
     overdue_info = overdue.aggregate(v=Sum("outstanding_amount"))
 
+    from buying.models import PurchaseOrder
+    from core.commercial import CommercialStatus
+    from selling.models import SalesOrder
+
+    orders_to_bill = []
+    for model, slug in ((SalesOrder, "sales-order"), (PurchaseOrder, "purchase-order")):
+        count = model.objects.filter(status__in=[CommercialStatus.TO_BILL, CommercialStatus.PARTLY_BILLED]).count()
+        if count:
+            orders_to_bill.append({"label": model._meta.verbose_name_plural, "count": count,
+                                   "url": reverse("doc_list", args=[slug]) + "?status=1"})
+
     recent = sorted(
         list(SalesInvoice.objects.select_related("customer")[:6]) + list(PurchaseInvoice.objects.select_related("supplier")[:6]),
         key=lambda doc: doc.created_at, reverse=True,
@@ -144,5 +155,5 @@ def dashboard_context(request):
     return {
         "today": today, "kpis": kpis, "balances": balances, "drafts": drafts,
         "overdue_count": overdue.count(), "overdue_amount": flt(overdue_info["v"]),
-        "chart": sales_purchases_chart(today), "recent": recent,
+        "chart": sales_purchases_chart(today), "recent": recent, "orders_to_bill": orders_to_bill,
     }

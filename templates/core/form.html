@@ -50,7 +50,11 @@
   {% endif %}
   <div class="form-actions">
     {% if dt.is_submittable %}
+      {% if posts_to_ledger %}
       <button type="submit" name="_submit" value="1" class="btn btn-success btn-lg" onclick="return confirm('سيتم حفظ المستند واعتماده وترحيل قيوده المحاسبية. متابعة؟')">حفظ واعتماد وترحيل</button>
+      {% else %}
+      <button type="submit" name="_submit" value="1" class="btn btn-success btn-lg">حفظ واعتماد</button>
+      {% endif %}
       <button type="submit" class="btn">حفظ كمسودة</button>
     {% else %}
       <button type="submit" class="btn btn-primary btn-lg">حفظ</button>

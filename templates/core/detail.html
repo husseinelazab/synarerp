@@ -6,6 +6,8 @@
 <div class="toolbar">
   <div>
     {% if dt.is_submittable %}<span class="badge badge-lg status-{{ obj.docstatus }}">{{ obj.get_docstatus_display }}</span>{% endif %}
+    {% if obj.status and obj.get_status_display %}<span class="badge badge-lg doc-status st-{{ obj.status }}">{{ obj.get_status_display }}{% if obj.is_expired %} — منتهي الصلاحية{% endif %}</span>{% endif %}
+    {% if obj.per_billed %}<span class="billing-bar" title="نسبة الفوترة"><i style="width: {{ obj.per_billed|floatformat:0 }}%"></i></span><span class="muted small">مفوتر {{ obj.per_billed|floatformat:0 }}%</span>{% endif %}
     {% if obj.is_return %}<span class="badge badge-lg status-2">مرتجع من <a href="{{ obj.return_against.get_absolute_url }}">{{ obj.return_against }}</a></span>{% endif %}
   </div>
   <div class="actions">
@@ -32,6 +34,9 @@
         {% elif dt.slug == 'purchase-invoice' and obj.outstanding_amount < 0 %}
           <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive&supplier={{ obj.supplier_id }}&purchase_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount|abs }}">استلام المبلغ من المورد</a>
         {% endif %}
+        {% for key, label in obj.available_actions %}
+          <form method="post" action="{% url 'doc_action' dt.slug obj.pk key %}">{% csrf_token %}<button class="btn {% if forloop.first %}btn-primary{% endif %}">{{ label }}</button></form>
+        {% endfor %}
         {% if dt.slug == 'sales-invoice' or dt.slug == 'purchase-invoice' %}{% if not obj.is_return and obj.returnable_quantities %}
           <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'return' %}">{% csrf_token %}<button class="btn">إنشاء مرتجع</button></form>
         {% endif %}{% endif %}
@@ -46,9 +51,11 @@
 {% if dt.is_submittable %}
   {% if obj.is_draft %}
   <div class="posting-banner draft">
-    <div><strong>مسودة — لم تُرحّل القيود المحاسبية بعد.</strong><br><span>لن يظهر هذا المستند في الحسابات أو المخزون أو التقارير حتى يتم اعتماده.</span></div>
-    <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل قيوده؟')">{% csrf_token %}<button class="btn btn-success btn-lg">اعتماد وترحيل الآن</button></form>
+    <div>{% if obj.posts_to_ledger %}<strong>مسودة — لم تُرحّل القيود المحاسبية بعد.</strong><br><span>لن يظهر هذا المستند في الحسابات أو المخزون أو التقارير حتى يتم اعتماده.</span>{% else %}<strong>مسودة — لم يُعتمد بعد.</strong><br><span>اعتمده ليصبح قابلاً للتحويل والطباعة الرسمية.</span>{% endif %}</div>
+    <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل قيوده؟')">{% csrf_token %}<button class="btn btn-success btn-lg">{% if obj.posts_to_ledger %}اعتماد وترحيل الآن{% else %}اعتماد الآن{% endif %}</button></form>
   </div>
+  {% elif obj.is_submitted and not obj.posts_to_ledger %}
+  <div class="posting-banner posted"><strong>✓ معتمد</strong> — هذا المستند لا يُنشئ قيوداً محاسبية؛ القيد يُنشأ عند تحويله إلى فاتورة.</div>
   {% elif obj.is_submitted %}
   <div class="posting-banner posted"><strong>✓ معتمد ومُرحّل</strong> — القيد المحاسبي{% if stock_entries %} وحركة المخزون{% endif %} في أسفل الصفحة.</div>
   {% else %}
@@ -81,6 +88,16 @@
   {% if obj.base_amount %}<div class="total-line"><span>المبلغ بعملة الشركة</span><strong>{{ obj.base_amount|cur }}</strong></div>{% endif %}
   {% if obj.exchange_difference %}<div class="total-line"><span>{% if obj.exchange_difference > 0 %}ربح{% else %}خسارة{% endif %} فروق الصرف</span><strong>{{ obj.exchange_difference|abs|cur }}</strong></div>{% endif %}
   {% endif %}
+</div>
+{% endif %}
+
+{% if obj.linked_documents %}
+<div class="card">
+  <h3>المستندات المرتبطة</h3>
+  <table class="table">
+    <thead><tr><th>المستند</th><th>الرقم</th><th>التاريخ</th><th class="num">الإجمالي</th><th>الحالة</th></tr></thead>
+    <tbody>{% for d in obj.linked_documents %}<tr><td>{{ d.document_title|default:d|default:"" }}</td><td><a href="{{ d.get_absolute_url }}">{{ d.name }}</a></td><td>{{ d.posting_date|date:"Y-m-d" }}</td><td class="num">{{ d.grand_total|cur:d.currency }}</td><td><span class="badge status-{{ d.docstatus }}">{{ d.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
+  </table>
 </div>
 {% endif %}
 

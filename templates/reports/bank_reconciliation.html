@@ -1,0 +1,77 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}التسوية البنكية{% endblock %}{% block heading %}التسوية البنكية{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>حساب البنك <select name="account" class="form-select">{% for a in accounts %}<option value="{{ a.pk }}" {% if a == account %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+  <label>حتى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>الرصيد في كشف البنك <input type="text" name="statement_balance" value="{{ statement_balance }}" class="form-control" placeholder="من كشف الحساب" inputmode="decimal"></label>
+  <button class="btn btn-primary">عرض</button>
+  <a class="btn" href="{% url 'doc_import' 'bank-transaction' %}">استيراد كشف البنك</a>
+</form>
+
+{% if account %}
+<div class="grid-2">
+  <div class="card">
+    <h3>بيان التسوية في {{ to_date|date:"Y-m-d" }}</h3>
+    <div class="total-line"><span>الرصيد في الدفاتر</span><strong>{{ summary.book_balance|cur }}</strong></div>
+    <div class="total-line"><span>− إيداعات بالطريق (لم تظهر في الكشف)</span><strong>{{ summary.in_transit|cur }}</strong></div>
+    <div class="total-line"><span>+ مدفوعات وشيكات لم تُصرف بعد</span><strong>{{ summary.outstanding|cur }}</strong></div>
+    <div class="total-line grand"><span>الرصيد المتوقع في كشف البنك</span><strong>{{ summary.expected|cur }}</strong></div>
+    {% if summary.statement_balance is not None %}
+      <div class="total-line"><span>الرصيد الفعلي في الكشف</span><strong>{{ summary.statement_balance|cur }}</strong></div>
+      <div class="total-line grand"><span>الفرق</span><strong class="{% if summary.difference %}neg{% else %}ok{% endif %}">{% if summary.difference %}{{ summary.difference|cur }}{% else %}✓ مطابق{% endif %}</strong></div>
+      {% if summary.difference %}<p class="muted">الفرق غالباً حركات في الكشف لم تُسجل في الدفاتر (عمولات، فوائد، تحويلات) — سجّلها بقيد يومية ثم طابقها.</p>{% endif %}
+    {% else %}<p class="muted">أدخل الرصيد الختامي من كشف البنك لمعرفة الفرق.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h3>المطابقة</h3>
+    <p class="muted">المطابقة التلقائية تربط الحركات المتساوية في المبلغ والاتجاه بفارق تاريخ حتى 5 أيام، وتفضّل تطابق المرجع.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="account" value="{{ account.pk }}"><input type="hidden" name="to_date" value="{{ to_date|date:'Y-m-d' }}">
+      <button class="btn btn-primary btn-lg" name="action" value="auto">مطابقة تلقائية</button></form>
+    <p class="muted" style="margin-top:14px">للمطابقة اليدوية: اختر قيداً من الدفاتر وحركة من الكشف بنفس المبلغ ثم اضغط «مطابقة المحدد».</p>
+  </div>
+</div>
+
+<form method="post" id="manual-match">{% csrf_token %}
+<input type="hidden" name="account" value="{{ account.pk }}"><input type="hidden" name="to_date" value="{{ to_date|date:'Y-m-d' }}">
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h3>في الدفاتر ولم تظهر في الكشف ({{ book_entries|length }})</h3></div>
+    <table class="table">
+      <thead><tr><th></th><th>التاريخ</th><th>المستند</th><th class="num">وارد</th><th class="num">صادر</th></tr></thead>
+      <tbody>{% for g in book_entries %}<tr><td><input type="radio" name="entry" value="{{ g.pk }}"></td><td>{{ g.posting_date|date:"Y-m-d" }}</td>
+        <td><a href="{% url 'doc_detail' g.voucher_type g.voucher_id %}">{{ g.voucher_no }}</a><div class="muted small">{{ g.remarks|truncatechars:40 }}</div></td>
+        <td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="muted center">لا توجد قيود غير مطابقة</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>في الكشف ولم تُطابق ({{ statement_lines|length }})</h3><a href="{% url 'doc_new' 'bank-transaction' %}?account={{ account.pk }}">+ إضافة حركة</a></div>
+    <table class="table">
+      <thead><tr><th></th><th>التاريخ</th><th>البيان</th><th class="num">إيداع</th><th class="num">سحب</th></tr></thead>
+      <tbody>{% for l in statement_lines %}<tr><td><input type="radio" name="line" value="{{ l.pk }}"></td><td>{{ l.date|date:"Y-m-d" }}</td>
+        <td>{{ l.description|default:"" }}<div class="muted small">{{ l.reference }}</div></td>
+        <td class="num">{% if l.deposit %}{{ l.deposit|money }}{% endif %}</td><td class="num">{% if l.withdrawal %}{{ l.withdrawal|money }}{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="muted center">لا توجد حركات غير مطابقة</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+<div class="form-actions" style="margin-bottom:18px"><button class="btn btn-success" name="action" value="match">مطابقة المحدد</button></div>
+</form>
+
+{% if matched %}
+<div class="card">
+  <h3>آخر المطابقات</h3>
+  <table class="table">
+    <thead><tr><th>تاريخ الكشف</th><th>البيان</th><th>القيد</th><th class="num">المبلغ</th><th></th></tr></thead>
+    <tbody>{% for l in matched %}<tr><td>{{ l.date|date:"Y-m-d" }}</td><td>{{ l.description }}</td>
+      <td><a href="{% url 'doc_detail' l.matched_entry.voucher_type l.matched_entry.voucher_id %}">{{ l.matched_entry.voucher_no }}</a></td>
+      <td class="num">{{ l.amount|money }}</td>
+      <td><form method="post">{% csrf_token %}<input type="hidden" name="account" value="{{ account.pk }}"><input type="hidden" name="to_date" value="{{ to_date|date:'Y-m-d' }}"><input type="hidden" name="line" value="{{ l.pk }}"><button class="link-btn" name="action" value="unmatch">إلغاء المطابقة</button></form></td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+{% else %}
+<div class="card muted">لا يوجد حساب بنك. أضف حساباً من نوع «بنك» في دليل الحسابات.</div>
+{% endif %}
+{% endblock %}

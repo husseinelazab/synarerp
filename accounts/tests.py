@@ -199,3 +199,71 @@ class CostCenterTests(TestCase):
         bad.accounts.create(account=Account.objects.get(number="1101"), credit=1)
         with self.assertRaises(ValidationError):
             bad.submit()
+
+
+class BankReconciliationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة البنك", "banker")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.bank = Account.objects.get(number="1102")
+        self.day = datetime.date.today().replace(day=1)
+
+    def je(self, debit, credit, amount, day_offset=0):
+        from accounts.models import JournalEntry
+        je = JournalEntry.objects.create(posting_date=self.day + datetime.timedelta(days=day_offset))
+        je.accounts.create(account=Account.objects.get(number=debit), debit=amount)
+        je.accounts.create(account=Account.objects.get(number=credit), credit=amount)
+        je.submit()
+        return je
+
+    def test_auto_match_and_reconciliation_statement(self):
+        from accounts.bank import auto_match, reconciliation_summary
+        from accounts.models import BankTransaction
+        self.je("1102", "3101", 10000)               # إيداع رأس مال
+        self.je("5202", "1102", 2000, day_offset=1)  # شيك إيجار (صُرف)
+        self.je("5205", "1102", 700, day_offset=2)   # شيك لم يُصرف بعد
+        self.je("1102", "4103", 500, day_offset=3)   # إيداع بالطريق
+        BankTransaction.objects.create(account=self.bank, date=self.day + datetime.timedelta(days=1), deposit=10000)
+        BankTransaction.objects.create(account=self.bank, date=self.day + datetime.timedelta(days=4), withdrawal=2000)
+        BankTransaction.objects.create(account=self.bank, date=self.day + datetime.timedelta(days=5), withdrawal=25,
+                                       description="عمولة بنكية")
+        to_date = self.day + datetime.timedelta(days=6)
+        self.assertEqual(auto_match(self.bank, to_date), 2)
+        summary = reconciliation_summary(self.bank, to_date, statement_balance=Decimal("7975"))
+        self.assertEqual(summary["book_balance"], Decimal("7800"))
+        self.assertEqual(summary["in_transit"], Decimal("500"))
+        self.assertEqual(summary["outstanding"], Decimal("700"))
+        self.assertEqual(summary["expected"], Decimal("8000"))
+        self.assertEqual(summary["difference"], Decimal("-25"))  # العمولة البنكية غير المسجلة
+        # تسجيل العمولة ثم مطابقتها يجعل الفرق صفراً
+        self.je("5207", "1102", 25, day_offset=5)
+        self.assertEqual(auto_match(self.bank, to_date), 1)
+        self.assertEqual(reconciliation_summary(self.bank, to_date, Decimal("7975"))["difference"], 0)
+
+    def test_manual_match_rules_and_cancel_unmatches(self):
+        from accounts.bank import match
+        from accounts.models import BankTransaction
+        je = self.je("1102", "3101", 300)
+        gle = GLEntry.objects.get(voucher_id=je.pk, voucher_type="journal-entry", account=self.bank)
+        wrong = BankTransaction.objects.create(account=self.bank, date=self.day, deposit=301)
+        with self.assertRaises(ValidationError):
+            match(gle, wrong)
+        line = BankTransaction.objects.create(account=self.bank, date=self.day, deposit=300)
+        match(gle, line)
+        je.cancel()
+        line.refresh_from_db()
+        self.assertIsNone(line.matched_entry)
+
+    def test_page_and_statement_import(self):
+        self.client.force_login(self.user)
+        self.je("1102", "3101", 1000)
+        response = self.client.get("/reports/accounts/bank-reconciliation/", {"statement_balance": "1000"})
+        self.assertContains(response, "بيان التسوية")
+        response = self.client.post("/reports/accounts/bank-reconciliation/", {"action": "auto", "account": self.bank.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.get("/app/bank-transaction/template.xlsx").status_code, 200)

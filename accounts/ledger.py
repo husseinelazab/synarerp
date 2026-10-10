@@ -68,4 +68,9 @@ def make_gl_entries(doc, entries, remarks=""):
 def cancel_gl_entries(doc):
     from accounts.models import GLEntry
 
-    GLEntry.all_objects.filter(voucher_type=doc.doctype_slug, voucher_id=doc.pk).update(is_cancelled=True)
+    from accounts.models import BankTransaction
+
+    entries = GLEntry.all_objects.filter(voucher_type=doc.doctype_slug, voucher_id=doc.pk)
+    entries.update(is_cancelled=True, clearance_date=None)
+    # القيد الملغى لم يعد مطابقاً لأي حركة في كشف البنك
+    BankTransaction.all_objects.filter(matched_entry__in=entries).update(matched_entry=None)

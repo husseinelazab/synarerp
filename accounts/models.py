@@ -125,6 +125,7 @@ class GLEntry(TenantModel):
     voucher_id = models.PositiveBigIntegerField("معرّف المستند")
     remarks = models.CharField("البيان", max_length=255, blank=True)
     is_cancelled = models.BooleanField("ملغى", default=False)
+    clearance_date = models.DateField("تاريخ الظهور في كشف البنك", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -499,3 +500,37 @@ class PeriodClosingVoucher(SubmittableDocument):
 
     def on_cancel(self):
         cancel_gl_entries(self)
+
+
+class BankTransaction(TenantModel):
+    """سطر من كشف حساب البنك، يُطابق مع قيد في الدفاتر عند التسوية البنكية."""
+
+    account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, verbose_name="حساب البنك",
+        limit_choices_to={"is_group": False, "account_type__in": [AccountType.BANK, AccountType.CASH]},
+    )
+    date = models.DateField("التاريخ")
+    description = models.CharField("البيان", max_length=255, blank=True)
+    reference = models.CharField("المرجع", max_length=100, blank=True)
+    deposit = models.DecimalField("إيداع (وارد)", max_digits=18, decimal_places=2, default=0)
+    withdrawal = models.DecimalField("سحب (صادر)", max_digits=18, decimal_places=2, default=0)
+    matched_entry = models.OneToOneField(GLEntry, on_delete=models.SET_NULL, null=True, blank=True, editable=False,
+                                         related_name="bank_transaction", verbose_name="القيد المطابق")
+
+    class Meta:
+        verbose_name = "حركة كشف بنك"
+        verbose_name_plural = "حركات كشف البنك"
+        ordering = ["date", "id"]
+
+    def __str__(self):
+        return f"{self.date:%Y-%m-%d} {self.description or self.reference} {self.amount}"
+
+    @property
+    def amount(self):
+        return flt(self.deposit) - flt(self.withdrawal)
+
+    def clean(self):
+        if (self.deposit and self.withdrawal) or not (self.deposit or self.withdrawal):
+            raise ValidationError("أدخل مبلغ الإيداع أو السحب فقط.")
+        if self.deposit < 0 or self.withdrawal < 0:
+            raise ValidationError("المبالغ يجب أن تكون موجبة.")

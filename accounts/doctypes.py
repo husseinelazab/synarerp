@@ -1,4 +1,4 @@
-from accounts.models import (Account, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
 
@@ -44,4 +44,9 @@ register(DocType(
 register(DocType(
     slug="cost-center", model=CostCenter, module="accounts",
     list_fields=["name", "parent", "is_group", "disabled"], search_fields=["name"],
+))
+register(DocType(
+    slug="bank-transaction", model=BankTransaction, module="accounts",
+    list_fields=["date", "account", "description", "reference", "deposit", "withdrawal"],
+    search_fields=["description", "reference"],
 ))

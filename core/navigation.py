@@ -42,7 +42,7 @@ def build_menu(request):
         ]},
         {"key": "accounts", "label": "المحاسبة", "sections": [
             {"items": [doc("قيود اليومية", "journal-entry"), doc("سندات القبض والصرف", "payment-entry"),
-                       _item("دليل الحسابات", "chart_of_accounts")]},
+                       _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
             {"title": "تقارير", "items": [
                 _item("دفتر اليومية العام", "general_journal"), _item("دفتر الأستاذ العام", "general_ledger"),
                 _item("ميزان المراجعة", "trial_balance"), _item("قائمة الدخل", "profit_and_loss"),

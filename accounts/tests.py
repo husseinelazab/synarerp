@@ -150,3 +150,52 @@ class PeriodClosingTests(TestCase):
         pcv.submit()
         self.assertEqual(pcv.net_profit, Decimal("-500"))
         self.assertEqual(balance(account__number="3102"), Decimal("500"))
+
+
+class CostCenterTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة الفروع", "branches")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+
+    def test_income_tagged_by_branch_and_pl_filter(self):
+        from accounts.models import CostCenter
+        from selling.models import SalesInvoice
+        root = CostCenter.objects.get(name="جميع المراكز")
+        riyadh = CostCenter.objects.create(name="فرع الرياض", parent=root)
+        jeddah = CostCenter.objects.create(name="فرع جدة", parent=root)
+        service = Item.objects.create(code="SV", name="خدمة", item_group=ItemGroup.objects.first(),
+                                      uom=UOM.objects.first(), is_stock_item=False)
+        customer = Customer.objects.create(name="ع")
+        for center, rate in ((riyadh, 1000), (jeddah, 400)):
+            inv = SalesInvoice.objects.create(customer=customer, update_stock=False, cost_center=center)
+            inv.items.create(item=service, qty=1, rate=rate)
+            inv.submit()
+        # الإيراد عليه مركز التكلفة، وحساب العميل والضريبة بلا مركز
+        self.assertEqual(-balance(cost_center=riyadh), Decimal("1000"))
+        self.assertFalse(GLEntry.objects.filter(account__account_type="receivable", cost_center__isnull=False).exists())
+        self.client.force_login(self.user)
+        url = "/reports/accounts/profit-and-loss/"
+        self.assertEqual(self.client.get(url, {"cost_center": riyadh.pk}).context["result"], Decimal("1000"))
+        self.assertEqual(self.client.get(url, {"cost_center": jeddah.pk}).context["result"], Decimal("400"))
+        self.assertEqual(self.client.get(url, {"cost_center": root.pk}).context["result"], Decimal("1400"))
+        ledger = self.client.get("/reports/accounts/general-ledger/", {"cost_center": jeddah.pk}).context
+        self.assertEqual(ledger["total_credit"], Decimal("400"))
+
+    def test_default_center_and_group_center_rejected(self):
+        from accounts.models import CostCenter, JournalEntry
+        je = JournalEntry.objects.create()
+        je.accounts.create(account=Account.objects.get(number="5202"), debit=300)
+        je.accounts.create(account=Account.objects.get(number="1101"), credit=300)
+        je.submit()
+        self.assertEqual(GLEntry.objects.get(account__number="5202").cost_center, self.company.default_cost_center)
+        bad = JournalEntry.objects.create()
+        bad.accounts.create(account=Account.objects.get(number="5202"), debit=1,
+                            cost_center=CostCenter.objects.get(name="جميع المراكز"))
+        bad.accounts.create(account=Account.objects.get(number="1101"), credit=1)
+        with self.assertRaises(ValidationError):
+            bad.submit()

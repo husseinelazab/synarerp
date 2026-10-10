@@ -58,6 +58,12 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
             setattr(company, field, accounts[number])
         company.save()
 
+        from accounts.models import CostCenter
+
+        root = CostCenter.objects.create(name="جميع المراكز", is_group=True)
+        company.default_cost_center = CostCenter.objects.create(name="الفرع الرئيسي", parent=root)
+        company.save(update_fields=["default_cost_center"])
+
         year = timezone.localdate().year
         FiscalYear.objects.create(name=str(year), start_date=datetime.date(year, 1, 1), end_date=datetime.date(year, 12, 31))
         for uom in UOMS:

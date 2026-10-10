@@ -74,6 +74,37 @@ class Account(TenantModel):
         return ids
 
 
+class CostCenter(TenantModel):
+    """مراكز التكلفة / الفروع: شجرة يُحلل عليها الإيراد والمصروف."""
+
+    name = models.CharField("اسم مركز التكلفة", max_length=100)
+    parent = models.ForeignKey("self", models.PROTECT, null=True, blank=True, related_name="children",
+                               limit_choices_to={"is_group": True}, verbose_name="المركز الأب")
+    is_group = models.BooleanField("مركز رئيسي (مجموعة)", default=False)
+    disabled = models.BooleanField("موقوف", default=False)
+
+    class Meta:
+        verbose_name = "مركز تكلفة"
+        verbose_name_plural = "مراكز التكلفة والفروع"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="costcenter")]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        if self.parent_id and not self.parent.is_group:
+            raise ValidationError({"parent": "المركز الأب يجب أن يكون مركزاً رئيسياً."})
+
+    def descendant_ids(self):
+        ids, stack = [], [self]
+        while stack:
+            node = stack.pop()
+            ids.append(node.id)
+            stack.extend(node.children.all())
+        return ids
+
+
 class PartyType(models.TextChoices):
     CUSTOMER = "customer", "عميل"
     SUPPLIER = "supplier", "مورد"
@@ -88,6 +119,7 @@ class GLEntry(TenantModel):
     credit = models.DecimalField("دائن", max_digits=18, decimal_places=2, default=0)
     customer = models.ForeignKey("selling.Customer", models.PROTECT, null=True, blank=True, verbose_name="العميل")
     supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
+    cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة")
     voucher_type = models.CharField("نوع المستند", max_length=50)
     voucher_no = models.CharField("رقم المستند", max_length=40)
     voucher_id = models.PositiveBigIntegerField("معرّف المستند")
@@ -153,6 +185,7 @@ class JournalEntry(SubmittableDocument):
                 "credit": line.credit,
                 "customer": line.customer,
                 "supplier": line.supplier,
+                "cost_center": line.cost_center,
                 "remarks": line.description or self.remarks,
             }
             for line in self.accounts.select_related("account", "customer", "supplier")
@@ -171,6 +204,8 @@ class JournalEntryAccount(models.Model):
     supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
     debit = models.DecimalField("مدين", max_digits=18, decimal_places=2, default=0)
     credit = models.DecimalField("دائن", max_digits=18, decimal_places=2, default=0)
+    cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة",
+                                    limit_choices_to={"is_group": False, "disabled": False})
     description = models.CharField("البيان", max_length=255, blank=True)
 
     class Meta:
@@ -419,9 +454,9 @@ class PeriodClosingVoucher(SubmittableDocument):
             GLEntry.objects.filter(
                 company=self.company, is_cancelled=False, account__root_type__in=[RootType.INCOME, RootType.EXPENSE],
                 posting_date__gte=self.fiscal_year.start_date, posting_date__lte=self.fiscal_year.end_date,
-            ).values("account").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
+            ).values("account", "cost_center").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
         )
-        return {row["account"]: flt(row["d"]) - flt(row["c"]) for row in rows}
+        return {(row["account"], row["cost_center"]): flt(row["d"]) - flt(row["c"]) for row in rows}
 
     def validate_for_submit(self):
         if self.fiscal_year.company_id != self.company_id:
@@ -435,13 +470,15 @@ class PeriodClosingVoucher(SubmittableDocument):
 
     def on_submit(self):
         balances = self._balances()
-        accounts = Account.objects.in_bulk(list(balances))
+        accounts = Account.objects.in_bulk([key[0] for key in balances])
+        centers = CostCenter.objects.in_bulk([key[1] for key in balances if key[1]])
         entries = []
-        for account_id, amount in balances.items():
+        for (account_id, center_id), amount in balances.items():
             if amount:
-                # عكس رصيد كل حساب إيراد/مصروف ليصبح صفراً
+                # عكس رصيد كل حساب إيراد/مصروف (لكل مركز تكلفة) ليصبح صفراً
                 entries.append({"account": accounts[account_id], "debit": -amount if amount < 0 else 0,
-                                "credit": amount if amount > 0 else 0, "remarks": f"إقفال {self.fiscal_year}"})
+                                "credit": amount if amount > 0 else 0, "cost_center": centers.get(center_id),
+                                "remarks": f"إقفال {self.fiscal_year}"})
         self.net_profit = -sum(balances.values(), flt(0))
         if entries:
             entries.append({"account": self.closing_account,

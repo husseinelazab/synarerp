@@ -2,6 +2,7 @@
   {% if not as_of %}<label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>{% endif %}
   <label>{% if as_of %}حتى تاريخ{% else %}إلى تاريخ{% endif %} <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
   {% if levels %}{% include "reports/_level.html" %}{% endif %}
+  {% if cost_centers %}<label>مركز التكلفة / الفرع <select name="cost_center" class="form-select"><option value="">كل المراكز</option>{% for c in cost_centers %}<option value="{{ c.pk }}" {% if c.pk == selected_center %}selected{% endif %}>{{ c }}{% if c.is_group %} (مجموعة){% endif %}</option>{% endfor %}</select></label>{% endif %}
   <button class="btn btn-primary">عرض</button>
   <button type="button" class="btn" onclick="window.print()">طباعة</button>
 </form>

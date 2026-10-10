@@ -40,7 +40,7 @@ class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
     return_prefix = "SRET"
     party_field = "customer"
-    return_locked_fields = ["tax_rate", "update_stock", "prices_include_tax", "customer"]
+    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "prices_include_tax", "customer"]
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)

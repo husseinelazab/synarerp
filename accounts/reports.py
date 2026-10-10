@@ -79,13 +79,18 @@ def general_ledger(request):
     from_date, to_date = _period(request)
     accounts = Account.objects.filter(is_group=False)
     filters = Q()
-    selected = {k: request.GET.get(k, "") for k in ("account", "customer", "supplier")}
+    from accounts.models import CostCenter
+
+    selected = {k: request.GET.get(k, "") for k in ("account", "customer", "supplier", "cost_center")}
     if selected["account"]:
         filters &= Q(account_id=selected["account"])
     if selected["customer"]:
         filters &= Q(customer_id=selected["customer"])
     if selected["supplier"]:
         filters &= Q(supplier_id=selected["supplier"])
+    center, centers = _cost_center_filter(request)
+    if centers is not None:
+        filters &= Q(cost_center_id__in=centers)
 
     base = _active_gl().filter(filters)
     agg = base.filter(posting_date__lt=from_date).aggregate(d=Sum("debit"), c=Sum("credit"))
@@ -93,7 +98,7 @@ def general_ledger(request):
     opening = balance
     rows = []
     entries = base.filter(posting_date__gte=from_date, posting_date__lte=to_date).select_related(
-        "account", "customer", "supplier")
+        "account", "customer", "supplier", "cost_center")
     for gle in entries:
         balance += gle.debit - gle.credit
         rows.append({"gle": gle, "balance": balance})
@@ -102,6 +107,7 @@ def general_ledger(request):
     return render(request, "reports/general_ledger.html", {
         "title": "دفتر الأستاذ العام", "from_date": from_date, "to_date": to_date,
         "accounts": accounts, "customers": Customer.objects.all(), "suppliers": Supplier.objects.all(),
+        "cost_centers": CostCenter.objects.all(),
         "selected": selected, "rows": rows, "opening": opening, "closing": balance,
         "total_debit": total_debit, "total_credit": total_credit,
     })
@@ -110,7 +116,15 @@ def general_ledger(request):
 CLOSING_VOUCHER = "period-closing"
 
 
-def _grouped_balances(root_types, to_date, from_date=None, level=None, exclude_closing=False):
+def _cost_center_filter(request):
+    """مركز التكلفة المختار مع كل المراكز الفرعية تحته."""
+    from accounts.models import CostCenter
+
+    center = CostCenter.objects.filter(pk=request.GET.get("cost_center") or 0).first()
+    return center, (center.descendant_ids() if center else None)
+
+
+def _grouped_balances(root_types, to_date, from_date=None, level=None, exclude_closing=False, cost_centers=None):
     """أقسام القوائم المالية بشكل شجري: لكل نوع جذري صفوفه (رؤوس بمجاميعها وفروع) وإجماليه."""
     from accounts.tree import tree_rows
 
@@ -119,6 +133,8 @@ def _grouped_balances(root_types, to_date, from_date=None, level=None, exclude_c
         qs = qs.filter(posting_date__gte=from_date)
     if exclude_closing:
         qs = qs.exclude(voucher_type=CLOSING_VOUCHER)
+    if cost_centers is not None:
+        qs = qs.filter(cost_center_id__in=cost_centers)
     sums = _sums(qs)
     sections = []
     for root in root_types:
@@ -140,10 +156,14 @@ def profit_and_loss(request):
 
     from_date, to_date = _period(request)
     level = _level(request)
+    from accounts.models import CostCenter
+
+    center, centers = _cost_center_filter(request)
     income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date, from_date, level=level,
-                                        exclude_closing=True)
+                                        exclude_closing=True, cost_centers=centers)
     return render(request, "reports/statement.html", {
-        "title": "قائمة الدخل", "from_date": from_date, "to_date": to_date,
+        "title": "قائمة الدخل" + (f" — {center}" if center else ""), "from_date": from_date, "to_date": to_date,
+        "cost_centers": CostCenter.objects.all(), "selected_center": center.pk if center else None,
         "level": level or 0, "levels": range(2, max_tree_depth() + 1),
         "sections": [income, expense],
         "result_label": "صافي الربح / (الخسارة)", "result": income["total"] - expense["total"],

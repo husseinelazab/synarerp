@@ -23,6 +23,9 @@ class POSProfile(TenantModel):
         "accounts.Account", models.PROTECT, related_name="+", verbose_name="حساب مدفوعات البطاقات (مدى/فيزا)",
         limit_choices_to={"is_group": False, "account_type__in": ["cash", "bank"]},
     )
+    cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True,
+                                    limit_choices_to={"is_group": False, "disabled": False},
+                                    verbose_name="مركز التكلفة / الفرع")
     tax_rate = models.DecimalField("نسبة الضريبة %", max_digits=5, decimal_places=2, default=15)
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=True)
     allow_discount = models.BooleanField("السماح بالخصم", default=True)

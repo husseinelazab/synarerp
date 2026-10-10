@@ -22,7 +22,7 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
     with transaction.atomic():
         invoice = SalesInvoice.objects.create(
             company=profile.company, customer=customer, is_pos=True, pos_shift=shift, created_by=user,
-            update_stock=True, warehouse=profile.warehouse, tax_rate=profile.tax_rate,
+            update_stock=True, warehouse=profile.warehouse, tax_rate=profile.tax_rate, cost_center=profile.cost_center,
             prices_include_tax=profile.prices_include_tax, discount_amount=discount,
         )
         for line in lines:

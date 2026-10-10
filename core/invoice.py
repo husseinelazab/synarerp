@@ -16,6 +16,9 @@ class InvoiceDocument(SubmittableDocument):
     update_stock = models.BooleanField("تحديث المخزون", default=True)
     warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="المستودع")
     tax_rate = models.DecimalField("نسبة الضريبة %", max_digits=5, decimal_places=2, default=15)
+    cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True, related_name="+",
+                                    limit_choices_to={"is_group": False, "disabled": False},
+                                    verbose_name="مركز التكلفة / الفرع")
     total = models.DecimalField("الإجمالي قبل الخصم", max_digits=18, decimal_places=2, default=0, editable=False)
     discount_amount = models.DecimalField("الخصم", max_digits=18, decimal_places=2, default=0)
     net_total = models.DecimalField("الصافي قبل الضريبة", max_digits=18, decimal_places=2, default=0, editable=False)
@@ -36,7 +39,7 @@ class InvoiceDocument(SubmittableDocument):
     party_field = ""
     return_prefix = "RET"
     # حقول تُنسخ من الفاتورة الأصلية إلى المرتجع ولا يجوز تغييرها فيه
-    return_locked_fields = ["tax_rate", "update_stock"]
+    return_locked_fields = ["tax_rate", "update_stock", "cost_center"]
 
     class Meta(SubmittableDocument.Meta):
         abstract = True

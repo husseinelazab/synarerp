@@ -166,7 +166,7 @@ def _linked_entries(obj):
     from stock.models import StockLedgerEntry
 
     key = {"voucher_type": obj.doctype_slug, "voucher_id": obj.pk}
-    gl = GLEntry.objects.filter(**key).select_related("account", "customer", "supplier")
+    gl = GLEntry.objects.filter(**key).select_related("account", "customer", "supplier", "cost_center")
     sle = StockLedgerEntry.objects.filter(**key).select_related("item", "warehouse")
     return gl, sle
 

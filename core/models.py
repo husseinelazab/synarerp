@@ -62,6 +62,9 @@ class Company(models.Model):
     default_input_tax_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب ضريبة المدخلات (المشتريات)"
     )
+    default_cost_center = models.ForeignKey(
+        "accounts.CostCenter", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="مركز التكلفة الافتراضي"
+    )
     default_retained_earnings_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب الأرباح المبقاة"
     )

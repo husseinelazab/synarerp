@@ -9,8 +9,9 @@ def make_gl_entries(doc, entries, remarks=""):
 
     كل عنصر في entries قاموس يحتوي: account, debit, credit, customer, supplier, remarks
     """
-    from accounts.models import GLEntry
+    from accounts.models import GLEntry, RootType
 
+    default_center = getattr(doc, "cost_center", None) or doc.company.default_cost_center
     merged = {}
     for entry in entries:
         account = entry.get("account")
@@ -19,9 +20,15 @@ def make_gl_entries(doc, entries, remarks=""):
         if account.is_group:
             raise ValidationError(f"لا يمكن الترحيل على الحساب الرئيسي {account}.")
         customer, supplier = entry.get("customer"), entry.get("supplier")
-        key = (account.id, getattr(customer, "id", None), getattr(supplier, "id", None))
+        # مركز التكلفة يُسجل على حسابات قائمة الدخل فقط (الإيرادات والمصروفات)
+        center = None
+        if account.root_type in (RootType.INCOME, RootType.EXPENSE):
+            center = entry.get("cost_center") or default_center
+            if center is not None and center.is_group:
+                raise ValidationError(f"لا يمكن الترحيل على مركز التكلفة الرئيسي {center}.")
+        key = (account.id, getattr(customer, "id", None), getattr(supplier, "id", None), getattr(center, "id", None))
         row = merged.setdefault(key, {
-            "account": account, "customer": customer, "supplier": supplier,
+            "account": account, "customer": customer, "supplier": supplier, "cost_center": center,
             "debit": flt(0), "credit": flt(0), "remarks": entry.get("remarks") or remarks or doc.remarks,
         })
         row["debit"] += flt(entry.get("debit"))
@@ -48,6 +55,7 @@ def make_gl_entries(doc, entries, remarks=""):
             credit=r["credit"],
             customer=r["customer"],
             supplier=r["supplier"],
+            cost_center=r["cost_center"],
             voucher_type=doc.doctype_slug,
             voucher_no=doc.name,
             voucher_id=doc.pk,

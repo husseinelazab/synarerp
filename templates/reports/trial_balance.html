@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="card">
+<table class="table report">
+  <thead>
+    <tr><th rowspan="2">الحساب</th><th colspan="2">الرصيد الافتتاحي</th><th colspan="2">حركة الفترة</th><th colspan="2">الرصيد الختامي</th></tr>
+    <tr><th>مدين</th><th>دائن</th><th>مدين</th><th>دائن</th><th>مدين</th><th>دائن</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}<tr><td><a href="{% url 'general_ledger' %}?account={{ row.account.id }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{{ row.account }}</a></td>{% for v in row.values %}<td>{{ v|money }}</td>{% endfor %}</tr>
+    {% empty %}<tr><td colspan="7" class="muted center">لا توجد حركات</td></tr>{% endfor %}
+  </tbody>
+  <tfoot><tr><th>الإجمالي</th>{% for v in totals %}<th>{{ v|money }}</th>{% endfor %}</tr></tfoot>
+</table>
+</div>
+{% endblock %}

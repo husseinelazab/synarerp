@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><span></span><a class="btn btn-primary" href="{% url 'doc_new' 'account' %}">+ حساب جديد</a></div>
+<div class="card">
+<table class="table report tree">
+  <thead><tr><th>الحساب</th><th>النوع</th><th>الرصيد (مدين + / دائن −)</th></tr></thead>
+  <tbody>
+  {% for node in rows %}
+    <tr class="{% if node.account.is_group %}group{% endif %}">
+      <td style="padding-inline-start: {{ node.depth|add:1 }}em"><a href="{% url 'doc_detail' 'account' node.account.id %}">{{ node.account }}</a></td>
+      <td>{{ node.account.get_account_type_display|default:node.account.get_root_type_display }}</td>
+      <td class="num">{{ node.balance|money }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

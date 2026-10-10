@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>الصنف <select name="item" class="form-select"><option value="">الكل</option>{% for i in items %}<option value="{{ i.id }}" {% if selected.item == i.id|stringformat:"s" %}selected{% endif %}>{{ i }}</option>{% endfor %}</select></label>
+  <label>المستودع <select name="warehouse" class="form-select"><option value="">الكل</option>{% for w in warehouses %}<option value="{{ w.id }}" {% if selected.warehouse == w.id|stringformat:"s" %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="card">
+<table class="table report">
+  <thead><tr><th>التاريخ</th><th>الصنف</th><th>المستودع</th><th>الكمية</th><th>الرصيد بعد الحركة</th><th>سعر التقييم</th><th>فرق القيمة</th><th>المستند</th></tr></thead>
+  <tbody>
+    {% for e in entries %}<tr><td>{{ e.posting_date|date:"Y-m-d" }}</td><td>{{ e.item }}</td><td>{{ e.warehouse }}</td><td class="{% if e.actual_qty < 0 %}neg{% else %}pos{% endif %}">{{ e.actual_qty|floatformat:-3 }}</td><td>{{ e.qty_after_transaction|floatformat:-3 }}</td><td>{{ e.valuation_rate|money }}</td><td>{{ e.stock_value_difference|money }}</td><td><a href="{% url 'doc_detail' e.voucher_type e.voucher_id %}">{{ e.voucher_type|voucher_label }} {{ e.voucher_no }}</a></td></tr>
+    {% empty %}<tr><td colspan="8" class="muted center">لا توجد حركات</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

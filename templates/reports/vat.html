@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="card">
+<table class="table report">
+  <thead><tr><th>البند</th><th>المبلغ الخاضع للضريبة</th><th>مبلغ الضريبة</th></tr></thead>
+  <tbody>
+    <tr><td>المبيعات (ضريبة المخرجات)</td><td>{{ sales_net|money }}</td><td>{{ output_tax|money }}</td></tr>
+    <tr><td>المشتريات (ضريبة المدخلات)</td><td>{{ purchases_net|money }}</td><td>{{ input_tax|money }}</td></tr>
+  </tbody>
+  <tfoot><tr><th colspan="2">صافي الضريبة {% if net_vat >= 0 %}المستحقة للهيئة{% else %}القابلة للاسترداد{% endif %}</th><th>{{ net_vat|money }}</th></tr></tfoot>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>المستودع <select name="warehouse" class="form-select"><option value="">الكل</option>{% for w in warehouses %}<option value="{{ w.id }}" {% if selected_warehouse == w.id|stringformat:"s" %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="card">
+<table class="table report">
+  <thead><tr><th>الصنف</th><th>المستودع</th><th>الوحدة</th><th>الكمية</th><th>سعر التقييم</th><th>القيمة</th></tr></thead>
+  <tbody>
+    {% for b in bins %}<tr><td>{{ b.item }}</td><td>{{ b.warehouse }}</td><td>{{ b.item.uom }}</td><td>{{ b.actual_qty|floatformat:-3 }}</td><td>{{ b.valuation_rate|money }}</td><td>{{ b.stock_value|money }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="muted center">لا توجد أرصدة</td></tr>{% endfor %}
+  </tbody>
+  <tfoot><tr><th colspan="5">إجمالي قيمة المخزون</th><th>{{ total_value|money }}</th></tr></tfoot>
+</table>
+</div>
+{% endblock %}

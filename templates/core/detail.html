@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load erp %}
+{% block title %}{{ obj }}{% endblock %}
+{% block heading %}{{ dt.label }}: {{ obj }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    {% if dt.is_submittable %}<span class="badge badge-lg status-{{ obj.docstatus }}">{{ obj.get_docstatus_display }}</span>{% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn" href="{% url 'doc_list' dt.slug %}">رجوع للقائمة</a>
+    {% if not dt.is_submittable or obj.is_draft %}
+      <a class="btn" href="{% url 'doc_edit' dt.slug obj.pk %}">تعديل</a>
+    {% endif %}
+    {% if dt.is_submittable %}
+      <a class="btn" href="{% url 'doc_print' dt.slug obj.pk %}" target="_blank">طباعة</a>
+      {% if obj.is_draft %}
+        <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل القيود؟')">{% csrf_token %}<button class="btn btn-success">اعتماد</button></form>
+      {% elif obj.is_submitted %}
+        <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'cancel' %}" onsubmit="return confirm('إلغاء المستند وعكس القيود؟')">{% csrf_token %}<button class="btn btn-danger">إلغاء المستند</button></form>
+        {% if dt.slug == 'sales-invoice' and obj.outstanding_amount > 0 %}
+          <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive&customer={{ obj.customer_id }}&sales_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount }}">تسجيل سند قبض</a>
+        {% elif dt.slug == 'purchase-invoice' and obj.outstanding_amount > 0 %}
+          <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=pay&supplier={{ obj.supplier_id }}&purchase_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount }}">تسجيل سند صرف</a>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if not dt.is_submittable or obj.is_draft %}
+      <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'delete' %}" onsubmit="return confirm('حذف السجل نهائياً؟')">{% csrf_token %}<button class="btn btn-danger-outline">حذف</button></form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <dl class="detail-grid">
+    {% for label, value in fields %}<div><dt>{{ label }}</dt><dd>{{ value|linebreaksbr }}</dd></div>{% endfor %}
+  </dl>
+</div>
+
+{% if child_rows %}
+<div class="card">
+  <h3>{{ dt.child.label }}</h3>
+  <table class="table">
+    <thead><tr><th>#</th>{% for h in child_headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in child_rows %}<tr><td>{{ forloop.counter }}</td>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if totals %}
+<div class="card totals-card">
+  {% for label, value in totals %}<div class="total-line"><span>{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}
+</div>
+{% endif %}
+
+{% if payments %}
+<div class="card">
+  <h3>السندات المرتبطة</h3>
+  <table class="table">
+    <thead><tr><th>الرقم</th><th>التاريخ</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+    <tbody>{% for p in payments %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.name }}</a></td><td>{{ p.posting_date|date:"Y-m-d" }}</td><td>{{ p.amount|money }}</td><td><span class="badge status-{{ p.docstatus }}">{{ p.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if gl_entries %}
+<div class="card">
+  <h3>القيود المحاسبية</h3>
+  <table class="table">
+    <thead><tr><th>الحساب</th><th>الطرف</th><th>مدين</th><th>دائن</th><th>الحالة</th></tr></thead>
+    <tbody>{% for g in gl_entries %}<tr class="{% if g.is_cancelled %}cancelled{% endif %}"><td>{{ g.account }}</td><td>{{ g.party|default:"" }}</td><td>{{ g.debit|money }}</td><td>{{ g.credit|money }}</td><td>{% if g.is_cancelled %}ملغى{% else %}فعّال{% endif %}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if stock_entries %}
+<div class="card">
+  <h3>حركات المخزون</h3>
+  <table class="table">
+    <thead><tr><th>الصنف</th><th>المستودع</th><th>الكمية</th><th>سعر التقييم</th><th>فرق القيمة</th><th>الحالة</th></tr></thead>
+    <tbody>{% for s in stock_entries %}<tr class="{% if s.is_cancelled %}cancelled{% endif %}"><td>{{ s.item }}</td><td>{{ s.warehouse }}</td><td>{{ s.actual_qty|floatformat:-3 }}</td><td>{{ s.valuation_rate|money }}</td><td>{{ s.stock_value_difference|money }}</td><td>{% if s.is_cancelled %}ملغى{% else %}فعّال{% endif %}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

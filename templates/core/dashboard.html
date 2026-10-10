@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load erp %}
+{% block title %}لوحة التحكم{% endblock %}
+{% block heading %}لوحة التحكم{% endblock %}
+{% block content %}
+{% if not company %}
+  <div class="alert alert-warning">لم يتم إعداد الشركة بعد. شغّل الأمر: <code>python manage.py setup_erp</code></div>
+{% endif %}
+<div class="kpis">
+  {% for label, value in kpis %}
+  <div class="card kpi"><div class="kpi-label">{{ label }}</div><div class="kpi-value">{{ value|money }}</div></div>
+  {% endfor %}
+</div>
+<div class="quick-actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'sales-invoice' %}">+ فاتورة مبيعات</a>
+  <a class="btn" href="{% url 'doc_new' 'purchase-invoice' %}">+ فاتورة مشتريات</a>
+  <a class="btn" href="{% url 'doc_new' 'payment-entry' %}">+ سند قبض / صرف</a>
+  <a class="btn" href="{% url 'doc_new' 'journal-entry' %}">+ قيد يومية</a>
+  <a class="btn" href="{% url 'doc_new' 'stock-entry' %}">+ حركة مخزنية</a>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <h3>أحدث فواتير المبيعات</h3>
+    <table class="table">
+      <thead><tr><th>الرقم</th><th>العميل</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+      <tbody>
+      {% for inv in recent_sales %}
+        <tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.customer }}</td><td>{{ inv.grand_total|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>
+      {% empty %}<tr><td colspan="4" class="muted">لا توجد فواتير بعد</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>أحدث فواتير المشتريات</h3>
+    <table class="table">
+      <thead><tr><th>الرقم</th><th>المورد</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+      <tbody>
+      {% for inv in recent_purchases %}
+        <tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.supplier }}</td><td>{{ inv.grand_total|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>
+      {% empty %}<tr><td colspan="4" class="muted">لا توجد فواتير بعد</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

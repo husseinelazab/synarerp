@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}تسجيل الدخول{% endblock %}
+{% block auth_content %}
+<div class="login-page">
+  <form method="post" class="card login-card">
+    {% csrf_token %}
+    <h1>{{ ERP_NAME }}</h1>
+    <p class="muted">نظام تخطيط موارد المؤسسات باللغة العربية</p>
+    {% if form.errors %}<div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
+    <label>اسم المستخدم</label>
+    <input type="text" name="username" class="form-control" autofocus required>
+    <label>كلمة المرور</label>
+    <input type="password" name="password" class="form-control" required>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="btn btn-primary btn-block">دخول</button>
+  </form>
+</div>
+{% endblock %}

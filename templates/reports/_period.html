@@ -1,0 +1,6 @@
+<form method="get" class="filters card">
+  {% if not as_of %}<label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>{% endif %}
+  <label>{% if as_of %}حتى تاريخ{% else %}إلى تاريخ{% endif %} <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>

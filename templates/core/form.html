@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{% if instance %}تعديل {{ instance }}{% else %}{{ dt.label }} جديد{% endif %}{% endblock %}
+{% block heading %}{% if instance %}تعديل {{ dt.label }}: {{ instance }}{% else %}{{ dt.label }} جديد{% endif %}{% endblock %}
+{% block content %}
+<form method="post" class="doc-form" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card">
+    <div class="form-grid">
+      {% for field in form %}{% include "core/_field.html" %}{% endfor %}
+    </div>
+  </div>
+  {% if formset %}
+  <div class="card">
+    <h3>{{ dt.child.label }}</h3>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="alert alert-error">{{ formset.non_form_errors }}</div>{% endif %}
+    <div class="table-wrap">
+    <table class="table child-table" data-prefix="{{ formset.prefix }}" data-rate-type="{{ dt.child.rate_type }}">
+      <thead><tr>
+        <th>#</th>
+        {% for field in formset.empty_form.visible_fields %}{% if field.name != 'DELETE' %}<th>{{ field.label }}</th>{% endif %}{% endfor %}
+        {% if dt.child.rate_type %}<th>المبلغ</th>{% endif %}
+        <th>حذف</th>
+      </tr></thead>
+      <tbody>
+      {% for f in formset %}
+        <tr class="child-row">
+          <td class="row-idx">{{ forloop.counter }}</td>
+          {% for field in f.visible_fields %}{% if field.name != 'DELETE' %}<td>{{ field }}{% for e in field.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</td>{% endif %}{% endfor %}
+          {% if dt.child.rate_type %}<td class="row-amount">0.00</td>{% endif %}
+          <td>{% for h in f.hidden_fields %}{{ h }}{% endfor %}{{ f.DELETE }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr class="totals-row"><td colspan="100" class="child-totals"></td></tr></tfoot>
+    </table>
+    </div>
+    <template id="empty-row">
+      <tr class="child-row">
+        <td class="row-idx"></td>
+        {% for field in formset.empty_form.visible_fields %}{% if field.name != 'DELETE' %}<td>{{ field }}</td>{% endif %}{% endfor %}
+        {% if dt.child.rate_type %}<td class="row-amount">0.00</td>{% endif %}
+        <td>{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{{ formset.empty_form.DELETE }}</td>
+      </tr>
+    </template>
+    <button type="button" class="btn add-row">+ إضافة سطر</button>
+  </div>
+  {% endif %}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">حفظ</button>
+    {% if dt.is_submittable %}<button type="submit" name="_submit" value="1" class="btn btn-success" onclick="return confirm('سيتم حفظ المستند واعتماده وترحيل قيوده. متابعة؟')">حفظ واعتماد</button>{% endif %}
+    <a class="btn" href="{% if instance %}{% url 'doc_detail' dt.slug instance.pk %}{% else %}{% url 'doc_list' dt.slug %}{% endif %}">إلغاء</a>
+  </div>
+</form>
+{% endblock %}

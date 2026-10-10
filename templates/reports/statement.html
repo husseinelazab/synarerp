@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+{% for section in sections %}
+<div class="card">
+  <h3>{{ section.label }}</h3>
+  <table class="table report">
+    <tbody>
+      {% for r in section.rows %}<tr><td>{{ r.account }}</td><td class="num">{{ r.amount|money }}</td></tr>
+      {% empty %}<tr><td colspan="2" class="muted">لا توجد أرصدة</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><th>إجمالي {{ section.label }}</th><th class="num">{{ section.total|money }}</th></tr></tfoot>
+  </table>
+</div>
+{% endfor %}
+<div class="card totals-card">
+  <div class="total-line grand"><span>{{ result_label }}</span><strong>{{ result|money }}</strong></div>
+  {% if balanced is not None %}<div class="total-line">{% if balanced %}<span class="ok">الميزانية متوازنة ✓</span>{% else %}<span class="field-error">الميزانية غير متوازنة</span>{% endif %}</div>{% endif %}
+</div>
+{% endblock %}

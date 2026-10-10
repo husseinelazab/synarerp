@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>الحساب <select name="account" class="form-select"><option value="">الكل</option>{% for a in accounts %}<option value="{{ a.id }}" {% if selected.account == a.id|stringformat:"s" %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+  <label>العميل <select name="customer" class="form-select"><option value="">الكل</option>{% for c in customers %}<option value="{{ c.id }}" {% if selected.customer == c.id|stringformat:"s" %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+  <label>المورد <select name="supplier" class="form-select"><option value="">الكل</option>{% for s in suppliers %}<option value="{{ s.id }}" {% if selected.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+<div class="card">
+<table class="table report">
+  <thead><tr><th>التاريخ</th><th>الحساب</th><th>الطرف</th><th>المستند</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
+  <tbody>
+    <tr class="subtle"><td colspan="7">الرصيد الافتتاحي</td><td>{{ opening|money }}</td></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.gle.posting_date|date:"Y-m-d" }}</td><td>{{ r.gle.account }}</td><td>{{ r.gle.party|default:"" }}</td>
+      <td><a href="{% url 'doc_detail' r.gle.voucher_type r.gle.voucher_id %}">{{ r.gle.voucher_type|voucher_label }} {{ r.gle.voucher_no }}</a></td>
+      <td>{{ r.gle.remarks }}</td><td>{{ r.gle.debit|money }}</td><td>{{ r.gle.credit|money }}</td><td>{{ r.balance|money }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot><tr><th colspan="5">الإجمالي / الرصيد الختامي</th><th>{{ total_debit|money }}</th><th>{{ total_credit|money }}</th><th>{{ closing|money }}</th></tr></tfoot>
+</table>
+<p class="muted">الرصيد الموجب = مدين، والسالب = دائن.</p>
+</div>
+{% endblock %}

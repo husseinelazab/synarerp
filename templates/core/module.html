@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block heading %}{{ module_label }}{% endblock %}
+{% block content %}
+<div class="kpis">
+  {% for dt in section.doctypes %}
+  <a class="card kpi" href="{% url 'doc_list' dt.slug %}"><div class="kpi-value">{{ dt.label_plural }}</div></a>
+  {% endfor %}
+</div>
+{% endblock %}

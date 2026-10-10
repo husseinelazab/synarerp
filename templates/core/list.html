@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ dt.label_plural }}{% endblock %}
+{% block heading %}{{ dt.label_plural }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form method="get" class="filters">
+    <input type="search" name="q" value="{{ query }}" class="form-control" placeholder="بحث...">
+    {% if dt.is_submittable %}
+    <select name="status" class="form-select">
+      <option value="">كل الحالات</option>
+      {% for value, label in statuses %}<option value="{{ value }}" {% if status == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <button class="btn">تصفية</button>
+  </form>
+  <a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}">+ {{ dt.label }} جديد</a>
+</div>
+<div class="card">
+  <table class="table table-hover">
+    <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}{% if dt.is_submittable %}<th>الحالة</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr class="clickable" data-href="{% url 'doc_detail' dt.slug row.obj.pk %}">
+        {% for cell in row.cells %}<td>{% if forloop.first %}<a href="{% url 'doc_detail' dt.slug row.obj.pk %}">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}
+        {% if dt.is_submittable %}<td><span class="badge status-{{ row.obj.docstatus }}">{{ row.obj.get_docstatus_display }}</span></td>{% endif %}
+      </tr>
+    {% empty %}
+      <tr><td colspan="{{ headers|length|add:1 }}" class="muted center">لا توجد سجلات</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if page.paginator.num_pages > 1 %}
+  <div class="pagination">
+    {% if page.has_previous %}<a class="btn" href="?q={{ query }}&status={{ status }}&page={{ page.previous_page_number }}">السابق</a>{% endif %}
+    <span>صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn" href="?q={{ query }}&status={{ status }}&page={{ page.next_page_number }}">التالي</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

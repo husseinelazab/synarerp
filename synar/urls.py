@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-admin.site.site_header = "همت ERP - لوحة الإدارة"
-admin.site.site_title = "همت ERP"
+admin.site.site_header = "سِينار Synar ERP - لوحة الإدارة"
+admin.site.site_title = "سِينار"
 admin.site.index_title = "إدارة النظام"
 
 urlpatterns = [

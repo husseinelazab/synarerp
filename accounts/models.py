@@ -219,51 +219,60 @@ class PaymentEntry(SubmittableDocument):
 
     @property
     def party(self):
-        return self.customer if self.payment_type == PaymentType.RECEIVE else self.supplier
+        return self.customer or self.supplier
 
     @property
     def invoice(self):
-        return self.sales_invoice if self.payment_type == PaymentType.RECEIVE else self.purchase_invoice
+        return self.sales_invoice if self.customer_id else self.purchase_invoice
+
+    @property
+    def direction(self):
+        """+1 للاتجاه المعتاد (قبض من عميل / صرف لمورد)، و-1 للرد (صرف لعميل / قبض من مورد)."""
+        normal = (self.payment_type == PaymentType.RECEIVE) == bool(self.customer_id)
+        return 1 if normal else -1
 
     def validate_for_submit(self):
         if flt(self.amount) <= 0:
             raise ValidationError("المبلغ يجب أن يكون أكبر من صفر.")
-        if self.payment_type == PaymentType.RECEIVE:
-            if not self.customer_id:
-                raise ValidationError("سند القبض يتطلب تحديد العميل.")
-            invoice, party_field = self.sales_invoice, "customer_id"
-        else:
-            if not self.supplier_id:
-                raise ValidationError("سند الصرف يتطلب تحديد المورد.")
-            invoice, party_field = self.purchase_invoice, "supplier_id"
+        if bool(self.customer_id) == bool(self.supplier_id):
+            raise ValidationError("حدد عميلاً أو مورداً واحداً فقط.")
+        if self.customer_id and self.purchase_invoice_id or self.supplier_id and self.sales_invoice_id:
+            raise ValidationError("الفاتورة المرجعية لا تتوافق مع نوع الطرف.")
+        invoice, party_field = self.invoice, "customer_id" if self.customer_id else "supplier_id"
         if invoice:
             if not invoice.is_submitted:
                 raise ValidationError("الفاتورة المرجعية غير معتمدة.")
             if getattr(invoice, party_field) != getattr(self, party_field):
                 raise ValidationError("الفاتورة المرجعية لا تخص الطرف المحدد.")
-            if flt(self.amount) > flt(invoice.outstanding_amount):
-                raise ValidationError(f"المبلغ أكبر من المتبقي على الفاتورة ({invoice.outstanding_amount}).")
+            available = flt(invoice.outstanding_amount) * self.direction
+            if available <= 0:
+                raise ValidationError("لا يوجد رصيد مستحق على الفاتورة المرجعية في هذا الاتجاه.")
+            if flt(self.amount) > available:
+                raise ValidationError(f"المبلغ أكبر من المتبقي على الفاتورة ({available}).")
 
     def on_submit(self):
         amount = flt(self.amount)
+        if self.customer_id:
+            party_account = self.company.require_account("default_receivable_account")
+        else:
+            party_account = self.company.require_account("default_payable_account")
+        party = {"customer": self.customer, "supplier": self.supplier}
         if self.payment_type == PaymentType.RECEIVE:
-            receivable = self.company.require_account("default_receivable_account")
             entries = [
                 {"account": self.account, "debit": amount},
-                {"account": receivable, "credit": amount, "customer": self.customer},
+                {"account": party_account, "credit": amount, **party},
             ]
         else:
-            payable = self.company.require_account("default_payable_account")
             entries = [
-                {"account": payable, "debit": amount, "supplier": self.supplier},
+                {"account": party_account, "debit": amount, **party},
                 {"account": self.account, "credit": amount},
             ]
         make_gl_entries(self, entries, remarks=self.remarks or self.get_payment_type_display())
-        self._update_invoice_outstanding(-amount)
+        self._update_invoice_outstanding(-amount * self.direction)
 
     def on_cancel(self):
         cancel_gl_entries(self)
-        self._update_invoice_outstanding(flt(self.amount))
+        self._update_invoice_outstanding(flt(self.amount) * self.direction)
 
     def _update_invoice_outstanding(self, delta):
         invoice = self.invoice

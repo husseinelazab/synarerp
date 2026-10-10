@@ -225,6 +225,8 @@
       .then(function (res) {
         if (!res.ok) { errEl.textContent = res.data.error || "تعذر إتمام البيع."; errEl.hidden = false; return; }
         payModal.hidden = true;
+        $("d-title").textContent = "✓ تمت عملية البيع";
+        $("d-change-label").textContent = "الباقي للعميل: ";
         $("d-name").textContent = res.data.name;
         $("d-change").textContent = fmt(num(res.data.change));
         $("d-print").href = res.data.receipt_url + "?print=1";
@@ -238,11 +240,98 @@
 
   $("d-new").addEventListener("click", function () { $("done-modal").hidden = true; resetSale(); });
 
+  // ---------- المرتجعات ----------
+  var returnModal = $("return-modal"), rError = $("r-error"), rInvoice = null;
+
+  function openReturn() {
+    returnModal.hidden = false;
+    $("r-body").hidden = true;
+    $("r-confirm").disabled = true;
+    rError.hidden = true;
+    $("r-invoice").value = "";
+    $("r-invoice").focus();
+  }
+
+  function returnLines() {
+    return Array.prototype.map.call(document.querySelectorAll("#r-items input"), function (input) {
+      return { item: parseInt(input.dataset.item, 10), qty: num(input.value), rate: num(input.dataset.rate), max: num(input.max) };
+    });
+  }
+
+  function updateReturnTotal() {
+    var total = 0, valid = true, any = false;
+    returnLines().forEach(function (l) {
+      if (l.qty < 0 || l.qty > l.max) valid = false;
+      if (l.qty > 0) any = true;
+      total += l.qty * l.rate;
+    });
+    $("r-total").textContent = fmt(round2(total * (rInvoice ? rInvoice.factor : 0)));
+    $("r-confirm").disabled = !(valid && any);
+  }
+
+  function loadInvoice() {
+    var name = $("r-invoice").value.trim();
+    if (!name) return;
+    rError.hidden = true;
+    fetch(config.invoiceUrl + "?name=" + encodeURIComponent(name), { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { rError.textContent = res.data.error; rError.hidden = false; $("r-body").hidden = true; return; }
+        rInvoice = res.data;
+        $("r-info").textContent = "العميل: " + rInvoice.customer + " · التاريخ: " + rInvoice.date + " · الإجمالي: " + fmt(num(rInvoice.grand_total));
+        $("r-items").innerHTML = rInvoice.items.map(function (i) {
+          return "<tr><td>" + esc(i.name) + "</td><td>" + i.sold + "</td><td>" + i.returnable + "</td><td>" + fmt(i.rate) +
+            '</td><td><input type="number" class="form-control" min="0" step="any" max="' + i.returnable + '" value="0" data-item="' + i.item + '" data-rate="' + i.rate + '"></td></tr>';
+        }).join("");
+        $("r-method").value = num(rInvoice.paid_card) > 0 ? "card" : "cash";
+        $("r-body").hidden = false;
+        updateReturnTotal();
+      });
+  }
+
+  $("open-return").addEventListener("click", openReturn);
+  $("r-cancel").addEventListener("click", function () { returnModal.hidden = true; search.focus(); });
+  $("r-load").addEventListener("click", loadInvoice);
+  $("r-invoice").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); loadInvoice(); } });
+  $("r-items").addEventListener("input", updateReturnTotal);
+
+  $("r-confirm").addEventListener("click", function () {
+    if (busy || !rInvoice) return;
+    busy = true;
+    var lines = returnLines().filter(function (l) { return l.qty > 0; });
+    fetch(config.returnUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({
+        invoice: rInvoice.name,
+        items: lines.map(function (l) { return { item: l.item, qty: l.qty }; }),
+        refund_method: $("r-method").value,
+      }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { rError.textContent = res.data.error || "تعذر تنفيذ المرتجع."; rError.hidden = false; return; }
+        returnModal.hidden = true;
+        $("d-title").textContent = "✓ تم تنفيذ المرتجع";
+        $("d-name").textContent = res.data.name;
+        $("d-change-label").textContent = num(res.data.refund_card) > 0 ? "مبلغ الرد للبطاقة: " : "مبلغ الرد نقداً للعميل: ";
+        $("d-change").textContent = fmt(num(res.data.refund));
+        $("d-print").href = res.data.receipt_url + "?print=1";
+        $("done-modal").hidden = false;
+        $("d-new").focus();
+        loadItems();
+      })
+      .catch(function () { rError.textContent = "خطأ في الاتصال بالخادم."; rError.hidden = false; })
+      .finally(function () { busy = false; });
+  });
+
   // اختصارات لوحة المفاتيح
   document.addEventListener("keydown", function (e) {
     if (e.key === "F2") { e.preventDefault(); search.focus(); search.select(); }
     else if (e.key === "F9") { e.preventDefault(); if (payModal.hidden) openPay(); }
-    else if (e.key === "Escape") { payModal.hidden = true; }
+    else if (e.key === "F8") { e.preventDefault(); openReturn(); }
+    else if (e.key === "Escape") { payModal.hidden = true; returnModal.hidden = true; }
     else if (e.key === "Enter" && !payModal.hidden && document.activeElement !== $("m-confirm")) {
       e.preventDefault(); $("m-confirm").click();
     }

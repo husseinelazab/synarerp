@@ -29,7 +29,7 @@
   <div class="card">
     <h3>الفواتير</h3>
     <table class="table"><thead><tr><th>الفاتورة</th><th>الوقت</th><th>الإجمالي</th><th>نقداً</th><th>بطاقة</th><th>الحالة</th></tr></thead>
-    <tbody>{% for inv in invoices %}<tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.created_at|date:"H:i" }}</td><td>{{ inv.grand_total|money }}</td><td>{{ inv.cash_received|money }}</td><td>{{ inv.paid_card|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>{% empty %}<tr><td colspan="6" class="muted">لا توجد فواتير</td></tr>{% endfor %}</tbody></table>
+    <tbody>{% for inv in invoices %}<tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.created_at|date:"H:i" }}</td><td>{{ inv.grand_total|money }}</td><td>{{ inv.cash_received|money }}</td><td>{{ inv.paid_card|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span>{% if inv.is_return %} <span class="badge status-2">مرتجع</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="muted">لا توجد فواتير</td></tr>{% endfor %}</tbody></table>
   </div>
 </div>
 {% endblock %}

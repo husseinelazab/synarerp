@@ -4,6 +4,7 @@
 {% block content %}
 <form method="post" class="doc-form" novalidate>
   {% csrf_token %}
+  {% if is_return %}<div class="alert alert-info">مرتجع من الفاتورة <a href="{{ instance.return_against.get_absolute_url }}">{{ instance.return_against }}</a> — عدّل الكميات المرتجعة فقط (تُحفظ سالبة)، أما الأسعار والضريبة والخصم فتُحسب من الفاتورة الأصلية.</div>{% endif %}
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
   <div class="card">
     <div class="form-grid">

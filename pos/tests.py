@@ -173,3 +173,57 @@ class POSViewTests(TestCase):
     def test_checkout_without_shift(self):
         response = self.client.post("/pos/api/checkout/", "{}", content_type="application/json")
         self.assertEqual(response.status_code, 400)
+
+
+class POSReturnTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("setup_erp", demo=True, tax_id="310122393500003", verbosity=0, stdout=open("/dev/null", "w"))
+        cls.user = User.objects.create_user("cashier", password="pass12345")
+        cls.profile = POSProfile.objects.get()
+        cls.item = Item.objects.get(code="MOU-001")  # 75 شامل الضريبة
+
+    def setUp(self):
+        self.shift = POSShift.open(self.profile, self.user, opening_cash=500)
+        self.sale = checkout(self.shift, self.user, [{"item": self.item.id, "qty": 4}], paid_cash=300)
+
+    def test_cash_return(self):
+        from pos.services import pos_return
+
+        stock_before = Bin.objects.get(item=self.item, warehouse=self.profile.warehouse).actual_qty
+        ret = pos_return(self.shift, self.user, self.sale.name, [{"item": self.item.id, "qty": 1}])
+        self.assertEqual(ret.grand_total, Decimal("-75.00"))
+        self.assertEqual(ret.paid_cash, Decimal("-75.00"))
+        self.assertEqual(ret.outstanding_amount, 0)
+        self.assertEqual(Bin.objects.get(item=self.item, warehouse=self.profile.warehouse).actual_qty, stock_before + 1)
+        summary = self.shift.summary()
+        self.assertEqual(summary["count"], 1)
+        self.assertEqual(summary["returns_count"], 1)
+        self.assertEqual(summary["returns_total"], Decimal("75"))
+        self.assertEqual(summary["expected_cash"], Decimal("725"))  # 500 + 300 - 75
+        self.assertEqual(gl_balance(), 0)
+
+    def test_card_return_and_limits(self):
+        from pos.services import pos_return
+
+        ret = pos_return(self.shift, self.user, self.sale.name, [{"item": self.item.id, "qty": 4}], refund_method="card")
+        self.assertEqual(ret.paid_card, Decimal("-300.00"))
+        self.assertEqual(self.shift.summary()["card"], Decimal("-300"))
+        with self.assertRaises(ValidationError):
+            pos_return(self.shift, self.user, self.sale.name, [{"item": self.item.id, "qty": 1}])
+        with self.assertRaises(ValidationError):
+            pos_return(self.shift, self.user, "SINV-0000-99999", [{"item": self.item.id, "qty": 1}])
+
+    def test_return_api(self):
+        self.client.force_login(self.user)
+        info = self.client.get("/pos/api/invoice/", {"name": self.sale.name}).json()
+        self.assertEqual(info["items"][0]["returnable"], 4)
+        response = self.client.post("/pos/api/return/", json.dumps({
+            "invoice": self.sale.name, "items": [{"item": self.item.id, "qty": 2}], "refund_method": "cash",
+        }), content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content.decode())
+        self.assertEqual(response.json()["refund"], "150.00")
+        receipt = self.client.get(response.json()["receipt_url"])
+        self.assertContains(receipt, "إشعار دائن مبسط")
+        self.assertContains(receipt, self.sale.name)
+        self.assertEqual(self.client.get("/pos/api/invoice/", {"name": "x"}).status_code, 404)

@@ -195,3 +195,145 @@ class ViewSmokeTests(TestCase):
         inv = SalesInvoice.objects.get(posting_date="2026-05-01")
         self.assertEqual(inv.docstatus, DocStatus.SUBMITTED)
         self.assertEqual(inv.grand_total, Decimal("258.75"))
+
+
+class ReturnTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("setup_erp", company="شركة الاختبار", verbosity=0, stdout=open("/dev/null", "w"))
+        cls.company = Company.get_default()
+        cls.wh = Warehouse.objects.get(name="المستودع الرئيسي")
+        cls.item = Item.objects.create(
+            code="R1", name="صنف", item_group=ItemGroup.objects.first(), uom=UOM.objects.first(),
+            buying_rate=100, selling_rate=200,
+        )
+        cls.supplier = Supplier.objects.create(name="مورد")
+        cls.customer = Customer.objects.create(name="عميل")
+
+    def purchase(self, qty, rate):
+        inv = PurchaseInvoice.objects.create(supplier=self.supplier, warehouse=self.wh)
+        inv.items.create(item=self.item, qty=qty, rate=rate)
+        inv.submit()
+        return inv
+
+    def sale(self, qty, rate=200, discount=0):
+        inv = SalesInvoice.objects.create(customer=self.customer, warehouse=self.wh, discount_amount=discount)
+        inv.items.create(item=self.item, qty=qty, rate=rate)
+        inv.submit()
+        return inv
+
+    def bin(self):
+        return Bin.objects.get(item=self.item, warehouse=self.wh)
+
+    def test_sales_return_reverses_at_original_cost(self):
+        self.purchase(10, 100)
+        inv = self.sale(4)
+        self.purchase(10, 160)  # التكلفة الحالية تتغير بعد البيع
+        ret = inv.make_return(quantities={self.item.id: 1})
+        ret.submit()
+        self.assertTrue(ret.name.startswith("SRET-"))
+        self.assertEqual(ret.grand_total, Decimal("-230.00"))
+        # تعود الوحدة بتكلفتها الأصلية 100 وليس بالمتوسط الحالي
+        self.assertEqual(gl_balance(account=self.company.default_cogs_account), Decimal("300"))
+        self.assertEqual(self.bin().actual_qty, 17)
+        self.assertEqual(gl_balance(account=self.company.default_stock_account), self.bin().stock_value)
+        self.assertEqual(gl_balance(account=self.company.default_output_tax_account), Decimal("-90"))
+        inv.refresh_from_db()
+        self.assertEqual(inv.outstanding_amount, Decimal("690.00"))
+        self.assertEqual(ret.outstanding_amount, 0)
+        self.assertEqual(gl_balance(customer=self.customer), Decimal("690"))
+        self.assertEqual(gl_balance(), 0)
+
+    def test_return_quantity_cannot_exceed_sold(self):
+        self.purchase(10, 100)
+        inv = self.sale(3)
+        inv.make_return(quantities={self.item.id: 2}).submit()
+        self.assertEqual(inv.returnable_quantities(), {self.item.id: Decimal("1")})
+        over = inv.make_return(quantities={self.item.id: 2})
+        with self.assertRaises(ValidationError):
+            over.submit()
+        inv.make_return(quantities={self.item.id: 1}).submit()
+        with self.assertRaises(ValidationError):
+            inv.make_return()
+
+    def test_return_of_paid_invoice_creates_refund_due_and_refund_payment(self):
+        self.purchase(10, 100)
+        inv = self.sale(2)  # 460
+        PaymentEntry.objects.create(payment_type="receive", customer=self.customer, amount=Decimal("460"),
+                                    account=self.company.default_cash_account, sales_invoice=inv).submit()
+        ret = inv.make_return(quantities={self.item.id: 1})
+        ret.submit()
+        self.assertEqual(ret.outstanding_amount, Decimal("-230.00"))
+        self.assertEqual(gl_balance(customer=self.customer), Decimal("-230"))
+        refund = PaymentEntry.objects.create(payment_type="pay", customer=self.customer, amount=Decimal("230"),
+                                             account=self.company.default_cash_account, sales_invoice=ret)
+        refund.submit()
+        ret.refresh_from_db()
+        self.assertEqual(ret.outstanding_amount, 0)
+        self.assertEqual(gl_balance(customer=self.customer), 0)
+        too_much = PaymentEntry.objects.create(payment_type="pay", customer=self.customer, amount=Decimal("1"),
+                                               account=self.company.default_cash_account, sales_invoice=ret)
+        with self.assertRaises(ValidationError):
+            too_much.submit()
+
+    def test_discount_is_returned_proportionally(self):
+        self.purchase(10, 100)
+        inv = self.sale(4, discount=80)  # 800 - 80 = 720 + 108 ضريبة
+        ret = inv.make_return(quantities={self.item.id: 1})
+        self.assertEqual(ret.discount_amount, Decimal("-20.00"))
+        ret.submit()
+        self.assertEqual(ret.grand_total, Decimal("-207.00"))
+        self.assertEqual(gl_balance(), 0)
+
+    def test_return_prices_cannot_be_changed(self):
+        self.purchase(10, 100)
+        inv = self.sale(2)
+        ret = inv.make_return()
+        row = ret.items.get()
+        row.rate = 1
+        row.save()
+        ret.submit()
+        self.assertEqual(ret.items.get().rate, Decimal("200"))
+
+    def test_cancel_return_restores_original(self):
+        self.purchase(10, 100)
+        inv = self.sale(2)
+        ret = inv.make_return()
+        ret.submit()
+        with self.assertRaises(ValidationError):
+            inv.cancel()  # لا يُلغى الأصل قبل إلغاء المرتجع
+        ret.cancel()
+        inv.refresh_from_db()
+        self.assertEqual(inv.outstanding_amount, inv.grand_total)
+        self.assertEqual(self.bin().actual_qty, 8)
+        inv.cancel()
+        self.assertEqual(gl_balance(), 0)
+
+    def test_purchase_return_posts_valuation_difference(self):
+        self.purchase(10, 100)
+        second = self.purchase(10, 200)  # المتوسط 150
+        ret = second.make_return(quantities={self.item.id: 2})
+        ret.submit()
+        self.assertTrue(ret.name.startswith("PRET-"))
+        self.assertEqual(ret.grand_total, Decimal("-460.00"))
+        self.assertEqual(self.bin().actual_qty, 18)
+        self.assertEqual(gl_balance(account=self.company.default_stock_account), self.bin().stock_value)
+        self.assertEqual(gl_balance(account=self.company.default_stock_adjustment_account), Decimal("-100"))
+        self.assertEqual(gl_balance(supplier=self.supplier), Decimal("-2990"))  # 1150 + 2300 - 460
+        self.assertEqual(gl_balance(), 0)
+
+    def test_return_ui_flow(self):
+        self.purchase(10, 100)
+        inv = self.sale(2)
+        user = User.objects.create_superuser("u", "", "pass12345")
+        self.client.force_login(user)
+        self.assertContains(self.client.get(f"/app/sales-invoice/{inv.pk}/"), "إنشاء مرتجع")
+        response = self.client.post(f"/app/sales-invoice/{inv.pk}/return/")
+        ret = SalesInvoice.objects.get(is_return=True)
+        self.assertRedirects(response, f"/app/sales-invoice/{ret.pk}/edit/")
+        self.assertContains(self.client.get(f"/app/sales-invoice/{ret.pk}/edit/"), "مرتجع من الفاتورة")
+        self.client.post(f"/app/sales-invoice/{ret.pk}/submit/")
+        ret.refresh_from_db()
+        self.assertTrue(ret.is_submitted)
+        self.assertContains(self.client.get(f"/app/sales-invoice/{ret.pk}/print/"), "إشعار دائن")
+        self.assertNotContains(self.client.get(f"/app/sales-invoice/{inv.pk}/"), "إنشاء مرتجع")

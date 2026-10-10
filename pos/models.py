@@ -92,6 +92,10 @@ class POSShift(models.Model):
             discount=Sum("discount_amount"), cash=Sum(F("paid_cash") - F("change_amount")), card=Sum("paid_card"),
         )
         data = {k: flt(v) if k != "count" else v for k, v in agg.items()}
+        returns = invoices.filter(is_return=True).aggregate(count=Count("id"), total=Sum("grand_total"))
+        data["returns_count"] = returns["count"]
+        data["returns_total"] = -flt(returns["total"])
+        data["count"] -= returns["count"]
         data["cancelled"] = self.invoices.filter(docstatus=DocStatus.CANCELLED).count()
         data["expected_cash"] = flt(self.opening_cash + data["cash"])
         return data

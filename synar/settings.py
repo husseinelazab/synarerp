@@ -1,12 +1,12 @@
-"""إعدادات نظام همت ERP."""
+"""إعدادات نظام سِينار (Synar ERP)."""
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("HAMTERP_SECRET_KEY", "dev-insecure-change-me")
-DEBUG = os.environ.get("HAMTERP_DEBUG", "1") == "1"
-ALLOWED_HOSTS = os.environ.get("HAMTERP_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+SECRET_KEY = os.environ.get("SYNAR_SECRET_KEY", "dev-insecure-change-me")
+DEBUG = os.environ.get("SYNAR_DEBUG", "1") == "1"
+ALLOWED_HOSTS = os.environ.get("SYNAR_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -35,7 +35,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "hamterp.urls"
+ROOT_URLCONF = "synar.urls"
 
 TEMPLATES = [
     {
@@ -53,17 +53,17 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "hamterp.wsgi.application"
+WSGI_APPLICATION = "synar.wsgi.application"
 
-if os.environ.get("HAMTERP_DB_NAME"):
+if os.environ.get("SYNAR_DB_NAME"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ["HAMTERP_DB_NAME"],
-            "USER": os.environ.get("HAMTERP_DB_USER", ""),
-            "PASSWORD": os.environ.get("HAMTERP_DB_PASSWORD", ""),
-            "HOST": os.environ.get("HAMTERP_DB_HOST", "localhost"),
-            "PORT": os.environ.get("HAMTERP_DB_PORT", "5432"),
+            "NAME": os.environ["SYNAR_DB_NAME"],
+            "USER": os.environ.get("SYNAR_DB_USER", ""),
+            "PASSWORD": os.environ.get("SYNAR_DB_PASSWORD", ""),
+            "HOST": os.environ.get("SYNAR_DB_HOST", "localhost"),
+            "PORT": os.environ.get("SYNAR_DB_PORT", "5432"),
         }
     }
 else:
@@ -81,7 +81,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # اللغة العربية افتراضياً وبالكامل
 LANGUAGE_CODE = "ar"
 LANGUAGES = [("ar", "العربية")]
-TIME_ZONE = os.environ.get("HAMTERP_TIME_ZONE", "Asia/Riyadh")
+TIME_ZONE = os.environ.get("SYNAR_TIME_ZONE", "Asia/Riyadh")
 USE_I18N = True
 USE_TZ = True
 
@@ -95,5 +95,6 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
-# اسم النظام المعروض في الواجهة، ويمكن تغييره دون تعديل الكود
-ERP_NAME = os.environ.get("HAMTERP_NAME", "همت ERP")
+# اسم النظام المعروض في الواجهة
+ERP_NAME = "سِينار"
+ERP_NAME_EN = "Synar ERP"

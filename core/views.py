@@ -103,6 +103,15 @@ def doc_form(request, slug, pk=None):
         return redirect(instance.get_absolute_url())
 
     FormClass = build_form_class(dt)
+    is_return = getattr(instance, "is_return", False)
+    if is_return:
+        # في المرتجع تُعدّل الكميات والتاريخ والمستودع فقط؛ الباقي يُؤخذ من الفاتورة الأصلية
+        from django.forms import modelform_factory
+
+        from core.forms import formfield_callback
+
+        FormClass = modelform_factory(dt.model, fields=["posting_date", "warehouse", "remarks"],
+                                      formfield_callback=formfield_callback)
     FormSetClass = build_formset_class(dt) if dt.child else None
     initial = {}
     company = Company.get_default()
@@ -149,7 +158,7 @@ def doc_form(request, slug, pk=None):
             return redirect("doc_detail", slug=slug, pk=obj.pk)
 
     return render(request, "core/form.html", {
-        "dt": dt, "form": form, "formset": formset, "instance": instance,
+        "dt": dt, "form": form, "formset": formset, "instance": instance, "is_return": is_return,
     })
 
 
@@ -242,6 +251,14 @@ def doc_action(request, slug, pk, action):
         return redirect("doc_list", slug=slug)
     if action in ("submit", "cancel") and dt.is_submittable:
         return _run_action(request, dt, obj, action)
+    if action == "return" and hasattr(obj, "make_return"):
+        try:
+            ret = obj.make_return(request.user)
+        except ValidationError as exc:
+            messages.error(request, _error_text(exc))
+            return redirect(obj.get_absolute_url())
+        messages.info(request, "تم إنشاء مسودة المرتجع بكل الكميات المتاحة. عدّل الكميات أو احذف الأسطر ثم اعتمد.")
+        return redirect("doc_edit", slug=slug, pk=ret.pk)
     return redirect("doc_detail", slug=slug, pk=pk)
 
 

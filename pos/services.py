@@ -51,3 +51,40 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
         invoice.save()
         invoice.submit()
     return invoice
+
+
+def find_returnable_invoice(name):
+    try:
+        return SalesInvoice.objects.get(name=name.strip(), docstatus=1, is_pos=True, is_return=False)
+    except SalesInvoice.DoesNotExist:
+        raise ValidationError("الفاتورة غير موجودة، أو ليست فاتورة نقطة بيع معتمدة.")
+
+
+def pos_return(shift, user, invoice_name, lines, refund_method="cash"):
+    """مرتجع نقطة البيع: lines قائمة {"item": id, "qty": كمية موجبة}، ويُرد كامل المبلغ نقداً (cash) أو للبطاقة (card)."""
+    if not shift or not shift.is_open:
+        raise ValidationError("يجب فتح وردية قبل تنفيذ المرتجع.")
+    if shift.user_id != user.id:
+        raise ValidationError("هذه الوردية لا تخص المستخدم الحالي.")
+    original = find_returnable_invoice(invoice_name or "")
+    quantities = {}
+    for line in lines:
+        try:
+            item_id = int(line.get("item"))
+        except (TypeError, ValueError):
+            raise ValidationError("صنف غير صالح.")
+        quantities[item_id] = quantities.get(item_id, 0) + flt(line.get("qty"), 3)
+    if not any(q > 0 for q in quantities.values()):
+        raise ValidationError("حدد كمية واحدة على الأقل للإرجاع.")
+
+    with transaction.atomic():
+        ret = original.make_return(user, quantities)
+        ret.is_pos, ret.pos_shift, ret.warehouse = True, shift, shift.profile.warehouse
+        ret.calculate_totals()
+        if refund_method not in ("cash", "card"):
+            raise ValidationError("طريقة الرد غير صحيحة.")
+        ret.paid_card = ret.grand_total if refund_method == "card" else flt(0)
+        ret.paid_cash = ret.grand_total - ret.paid_card
+        ret.save()
+        ret.submit()
+    return ret

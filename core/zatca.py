@@ -50,4 +50,6 @@ def invoice_qr_svg(invoice):
     company = invoice.company
     if not company.tax_id:
         return ""
-    return qr_svg(qr_payload(company.name, company.tax_id, invoice.created_at, invoice.grand_total, invoice.tax_amount))
+    # الإشعار الدائن يُعرض بالقيم المطلقة
+    return qr_svg(qr_payload(company.name, company.tax_id, invoice.created_at,
+                             abs(invoice.grand_total), abs(invoice.tax_amount)))

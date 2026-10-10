@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% load erp %}
 {% block title %}{{ obj }}{% endblock %}
-{% block heading %}{{ dt.label }}: {{ obj }}{% endblock %}
+{% block heading %}{{ obj.document_title|default:dt.label }}: {{ obj }}{% endblock %}
 {% block content %}
 <div class="toolbar">
   <div>
     {% if dt.is_submittable %}<span class="badge badge-lg status-{{ obj.docstatus }}">{{ obj.get_docstatus_display }}</span>{% endif %}
+    {% if obj.is_return %}<span class="badge badge-lg status-2">مرتجع من <a href="{{ obj.return_against.get_absolute_url }}">{{ obj.return_against }}</a></span>{% endif %}
   </div>
   <div class="actions">
     <a class="btn" href="{% url 'doc_list' dt.slug %}">رجوع للقائمة</a>
@@ -20,9 +21,16 @@
         <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'cancel' %}" onsubmit="return confirm('إلغاء المستند وعكس القيود؟')">{% csrf_token %}<button class="btn btn-danger">إلغاء المستند</button></form>
         {% if dt.slug == 'sales-invoice' and obj.outstanding_amount > 0 %}
           <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive&customer={{ obj.customer_id }}&sales_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount }}">تسجيل سند قبض</a>
+        {% elif dt.slug == 'sales-invoice' and obj.outstanding_amount < 0 %}
+          <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=pay&customer={{ obj.customer_id }}&sales_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount|abs }}">رد المبلغ للعميل</a>
         {% elif dt.slug == 'purchase-invoice' and obj.outstanding_amount > 0 %}
           <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=pay&supplier={{ obj.supplier_id }}&purchase_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount }}">تسجيل سند صرف</a>
+        {% elif dt.slug == 'purchase-invoice' and obj.outstanding_amount < 0 %}
+          <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive&supplier={{ obj.supplier_id }}&purchase_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount|abs }}">استلام المبلغ من المورد</a>
         {% endif %}
+        {% if dt.slug == 'sales-invoice' or dt.slug == 'purchase-invoice' %}{% if not obj.is_return and obj.returnable_quantities %}
+          <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'return' %}">{% csrf_token %}<button class="btn">إنشاء مرتجع</button></form>
+        {% endif %}{% endif %}
       {% endif %}
     {% endif %}
     {% if not dt.is_submittable or obj.is_draft %}
@@ -50,6 +58,16 @@
 {% if totals %}
 <div class="card totals-card">
   {% for label, value in totals %}<div class="total-line"><span>{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}
+</div>
+{% endif %}
+
+{% if obj.returns.exists %}
+<div class="card">
+  <h3>المرتجعات</h3>
+  <table class="table">
+    <thead><tr><th>الرقم</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead>
+    <tbody>{% for r in obj.returns.all %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r.name }}</a></td><td>{{ r.posting_date|date:"Y-m-d" }}</td><td>{{ r.grand_total|money }}</td><td><span class="badge status-{{ r.docstatus }}">{{ r.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
+  </table>
 </div>
 {% endif %}
 

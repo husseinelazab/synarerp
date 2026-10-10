@@ -1,7 +1,8 @@
 {% load erp %}
 <div class="total-line"><span>عدد الفواتير</span><strong>{{ summary.count }}</strong></div>
+<div class="total-line"><span>المرتجعات</span><strong>{{ summary.returns_count }} ({{ summary.returns_total|money }})</strong></div>
 <div class="total-line"><span>الفواتير الملغاة</span><strong>{{ summary.cancelled }}</strong></div>
-<div class="total-line"><span>إجمالي المبيعات شامل الضريبة</span><strong>{{ summary.grand|money }}</strong></div>
+<div class="total-line"><span>صافي المبيعات شامل الضريبة (بعد المرتجعات)</span><strong>{{ summary.grand|money }}</strong></div>
 <div class="total-line"><span>الخصومات</span><strong>{{ summary.discount|money }}</strong></div>
 <div class="total-line"><span>ضريبة القيمة المضافة</span><strong>{{ summary.tax|money }}</strong></div>
 <div class="total-line"><span>المحصّل نقداً</span><strong>{{ summary.cash|money }}</strong></div>

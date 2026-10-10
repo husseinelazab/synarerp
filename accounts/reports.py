@@ -170,7 +170,7 @@ def party_balances(request, party):
         balance = (d - c) * sign
         if balance:
             rows.append({"party": obj, "debit": d, "credit": c, "balance": balance})
-    invoices = invoice_model.objects.filter(docstatus=DocStatus.SUBMITTED, outstanding_amount__gt=0)
+    invoices = invoice_model.objects.filter(docstatus=DocStatus.SUBMITTED).exclude(outstanding_amount=0)
     return render(request, "reports/party_balances.html", {
         "title": title, "to_date": to_date, "rows": rows, "party": party,
         "total": sum((r["balance"] for r in rows), flt(0)), "invoices": invoices, "today": timezone.localdate(),

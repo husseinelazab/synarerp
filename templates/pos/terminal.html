@@ -14,6 +14,7 @@
   <div class="pos-brand">{{ ERP_NAME }} <span>· {{ profile.name }}</span></div>
   <div class="pos-shift">الكاشير: {{ shift.user.get_full_name|default:shift.user.username }} · وردية #{{ shift.pk }} منذ {{ shift.opened_at|date:"H:i" }}</div>
   <div class="pos-nav">
+    <button class="btn" id="open-return">مرتجع (F8)</button>
     <a class="btn" href="{% url 'pos_shift_report' shift.pk %}" target="_blank">ملخص الوردية</a>
     <a class="btn" href="{% url 'pos_close_shift' %}">إغلاق الوردية</a>
     <a class="btn" href="{% url 'dashboard' %}">النظام</a>
@@ -80,11 +81,38 @@
   </div>
 </div>
 
+<div class="modal" id="return-modal" hidden>
+  <div class="modal-box modal-wide">
+    <h2>مرتجع مبيعات</h2>
+    <div class="return-lookup">
+      <input id="r-invoice" class="form-control big-input" placeholder="رقم الفاتورة مثل SINV-2026-00001" autocomplete="off" dir="ltr">
+      <button class="btn btn-primary" id="r-load">بحث</button>
+    </div>
+    <div id="r-body" hidden>
+      <div class="muted" id="r-info"></div>
+      <table class="table">
+        <thead><tr><th>الصنف</th><th>المباع</th><th>المتاح للإرجاع</th><th>السعر</th><th>كمية المرتجع</th></tr></thead>
+        <tbody id="r-items"></tbody>
+      </table>
+      <div class="field">
+        <label>طريقة الرد</label>
+        <select id="r-method" class="form-select"><option value="cash">نقداً من الدرج</option><option value="card">إلى البطاقة</option></select>
+      </div>
+      <div class="pay-change">مبلغ الرد التقريبي: <strong id="r-total">0.00</strong></div>
+    </div>
+    <div class="alert alert-error" id="r-error" hidden></div>
+    <div class="cart-actions">
+      <button class="btn" id="r-cancel">إغلاق</button>
+      <button class="btn btn-danger pay-btn" id="r-confirm" disabled>تأكيد المرتجع</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="done-modal" hidden>
   <div class="modal-box center">
-    <h2 class="ok">✓ تمت عملية البيع</h2>
+    <h2 class="ok" id="d-title">✓ تمت عملية البيع</h2>
     <p>الفاتورة: <strong id="d-name"></strong></p>
-    <p class="pay-change">الباقي للعميل: <strong id="d-change"></strong></p>
+    <p class="pay-change"><span id="d-change-label">الباقي للعميل: </span><strong id="d-change"></strong></p>
     <div class="cart-actions">
       <a class="btn" id="d-print" target="_blank">طباعة الإيصال</a>
       <button class="btn btn-primary pay-btn" id="d-new">عملية جديدة (Enter)</button>

@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Sum
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.invoice import InvoiceDocument, InvoiceItem
@@ -34,6 +35,9 @@ class Customer(models.Model):
 
 class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
+    return_prefix = "SRET"
+    party_field = "customer"
+    return_locked_fields = ["tax_rate", "update_stock", "prices_include_tax", "customer"]
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)
@@ -55,11 +59,25 @@ class SalesInvoice(InvoiceDocument):
     def cash_received(self):
         return flt(self.paid_cash - self.change_amount)
 
+    @property
+    def document_title(self):
+        if self.is_return:
+            return "إشعار دائن مبسط" if self.is_pos else "إشعار دائن (مرتجع مبيعات)"
+        return "فاتورة ضريبية مبسطة" if self.is_pos else "فاتورة ضريبية"
+
     def validate_for_submit(self):
         super().validate_for_submit()
         if self.is_pos:
             if not self.pos_shift_id or not self.pos_shift.is_open:
                 raise ValidationError("لا توجد وردية مفتوحة لهذه الفاتورة.")
+            if self.is_return:
+                if self.paid_cash > 0 or self.paid_card > 0 or self.change_amount:
+                    raise ValidationError("مبالغ الرد في المرتجع يجب أن تكون سالبة.")
+                if flt(self.paid_cash + self.paid_card) != self.grand_total:
+                    raise ValidationError("مبلغ الرد يجب أن يساوي قيمة المرتجع.")
+                if self.return_against and not self.return_against.is_pos:
+                    raise ValidationError("مرتجع نقطة البيع يكون لفواتير نقطة البيع فقط.")
+                return
             if self.paid_cash < 0 or self.paid_card < 0:
                 raise ValidationError("مبالغ الدفع لا يمكن أن تكون سالبة.")
             if self.paid_card > self.grand_total:
@@ -78,7 +96,8 @@ class SalesInvoice(InvoiceDocument):
             income = row.item.income_account or company.require_account("default_income_account")
             income_by_account[income] = income_by_account.get(income, flt(0)) + row.amount
             if self.update_stock and row.item.is_stock_item:
-                cogs_total += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.qty)
+                rate = self._original_cost(row.item) if self.is_return else None
+                cogs_total += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.qty, rate)
         # الإيراد = الصافي قبل الضريبة + الخصم (قبل الضريبة)، موزعاً على حسابات الإيراد
         discount = self.discount_excluding_tax
         for account, amount in allocate(self.net_total + discount, income_by_account).items():
@@ -90,9 +109,23 @@ class SalesInvoice(InvoiceDocument):
         if cogs_total:
             entries.append({"account": company.require_account("default_cogs_account"), "debit": cogs_total})
             entries.append({"account": company.require_account("default_stock_account"), "credit": cogs_total})
-        make_gl_entries(self, entries, remarks=self.remarks or f"فاتورة مبيعات للعميل {self.customer}")
+        default_remarks = (f"مرتجع مبيعات من الفاتورة {self.return_against}" if self.is_return
+                           else f"فاتورة مبيعات للعميل {self.customer}")
+        make_gl_entries(self, entries, remarks=self.remarks or default_remarks)
+        self.apply_return_to_original()
         if self.is_pos:
             self._post_pos_payment()
+
+    def _original_cost(self, item):
+        """تكلفة الصنف كما خرج في الفاتورة الأصلية، ليعود المخزون بنفس التكلفة."""
+        from stock.models import StockLedgerEntry
+
+        if not self.return_against_id:
+            return None
+        agg = StockLedgerEntry.objects.filter(
+            voucher_type=self.doctype_slug, voucher_no=self.return_against.name, item=item, is_cancelled=False,
+        ).aggregate(qty=Sum("actual_qty"), value=Sum("stock_value_difference"))
+        return agg["value"] / agg["qty"] if agg["qty"] else None
 
     def _post_pos_payment(self):
         profile = self.pos_shift.profile
@@ -101,7 +134,7 @@ class SalesInvoice(InvoiceDocument):
             {"account": profile.card_account, "debit": self.paid_card},
             {"account": self.company.require_account("default_receivable_account"),
              "credit": self.grand_total, "customer": self.customer},
-        ], remarks=f"تحصيل نقطة البيع - {self.pos_shift}")
+        ], remarks=f"{'رد مرتجع' if self.is_return else 'تحصيل'} نقطة البيع - {self.pos_shift}")
         self.outstanding_amount = 0
         self.save(update_fields=["outstanding_amount"])
 
@@ -113,6 +146,7 @@ class SalesInvoice(InvoiceDocument):
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
+        self.unapply_return_from_original()
         if self.is_pos:
             self.outstanding_amount = self.grand_total
             self.save(update_fields=["outstanding_amount"])

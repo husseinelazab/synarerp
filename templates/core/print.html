@@ -31,11 +31,12 @@
       {% if company.commercial_register %}<div>السجل التجاري: {{ company.commercial_register }}</div>{% endif %}
     </div>
   </div>
-  <h2>{% if dt.slug == 'sales-invoice' %}فاتورة ضريبية{% else %}{{ dt.label }}{% endif %}</h2>
+  <h2>{{ obj.document_title|default:dt.label }}</h2>
   {% if obj.is_draft %}<div class="stamp">مسودة - غير معتمدة</div>{% elif obj.is_cancelled %}<div class="stamp">ملغاة</div>{% endif %}
   <div class="meta">
     <div>الرقم: <strong>{{ obj.name }}</strong></div>
     <div>التاريخ: {{ obj.posting_date|date:"Y-m-d" }}</div>
+    {% if obj.is_return %}<div>مرتجع من الفاتورة: <strong>{{ obj.return_against }}</strong> بتاريخ {{ obj.return_against.posting_date|date:"Y-m-d" }}</div>{% endif %}
     {% if obj.customer %}<div>العميل: <strong>{{ obj.customer }}</strong></div>{% if obj.customer.tax_id %}<div>الرقم الضريبي للعميل: {{ obj.customer.tax_id }}</div>{% endif %}{% endif %}
     {% if obj.supplier %}<div>المورد: <strong>{{ obj.supplier }}</strong></div>{% endif %}
     {% if obj.bill_no %}<div>رقم فاتورة المورد: {{ obj.bill_no }}</div>{% endif %}

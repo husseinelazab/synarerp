@@ -23,3 +23,11 @@ def voucher_label(slug):
     from core.registry import voucher_label as label
 
     return label(slug)
+
+
+@register.filter(name="abs")
+def abs_filter(value):
+    try:
+        return abs(value)
+    except TypeError:
+        return value

@@ -59,3 +59,7 @@
 }
 .pay-change strong.neg { color: var(--danger); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+.modal-wide { width: 640px; }
+.return-lookup { display: flex; gap: 8px; }
+.return-lookup .btn { white-space: nowrap; }
+#r-items input { width: 90px; }

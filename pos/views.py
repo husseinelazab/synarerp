@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 
 from core.zatca import invoice_qr_svg
 from pos.models import POSProfile, POSShift
-from pos.services import checkout
+from pos.services import checkout, find_returnable_invoice, pos_return
 from selling.models import Customer, SalesInvoice
 from stock.models import Bin, Item, ItemGroup
 
@@ -29,6 +29,8 @@ def terminal(request):
     config = {
         "itemsUrl": reverse("pos_items"),
         "checkoutUrl": reverse("pos_checkout"),
+        "invoiceUrl": reverse("pos_invoice"),
+        "returnUrl": reverse("pos_return"),
         "taxRate": float(profile.tax_rate),
         "pricesIncludeTax": profile.prices_include_tax,
         "allowDiscount": profile.allow_discount,
@@ -141,4 +143,49 @@ def receipt(request, pk):
         "inv": invoice, "company": invoice.company, "rows": invoice.items.select_related("item"),
         "qr": invoice_qr_svg(invoice), "auto_print": request.GET.get("print") == "1",
         "footer": invoice.pos_shift.profile.receipt_footer if invoice.pos_shift_id else "",
+    })
+
+
+@login_required
+def invoice_api(request):
+    try:
+        invoice = find_returnable_invoice(request.GET.get("name", ""))
+    except ValidationError as exc:
+        return JsonResponse({"error": _error(exc)}, status=404)
+    remaining = invoice.returnable_quantities()
+    if not remaining:
+        return JsonResponse({"error": "تم إرجاع كل أصناف هذه الفاتورة مسبقاً."}, status=400)
+    summary = invoice.item_summary()
+    items = Item.objects.in_bulk(list(remaining))
+    # معامل تحويل مبلغ الأصناف إلى المبلغ المستحق بعد الخصم والضريبة
+    factor = float(invoice.grand_total / invoice.total) if invoice.total else 0
+    return JsonResponse({
+        "name": invoice.name, "customer": str(invoice.customer), "date": invoice.posting_date.isoformat(),
+        "grand_total": str(invoice.grand_total), "paid_card": str(invoice.paid_card), "factor": factor,
+        "items": [
+            {"item": item_id, "name": items[item_id].name, "sold": float(summary[item_id]["qty"]),
+             "returnable": float(qty), "rate": float(summary[item_id]["amount"] / summary[item_id]["qty"])}
+            for item_id, qty in remaining.items()
+        ],
+    })
+
+
+@login_required
+@require_POST
+def return_api(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "بيانات غير صالحة."}, status=400)
+    try:
+        ret = pos_return(
+            POSShift.current_for(request.user), request.user, data.get("invoice") or "",
+            data.get("items") or [], refund_method=data.get("refund_method") or "cash",
+        )
+    except ValidationError as exc:
+        return JsonResponse({"error": _error(exc)}, status=400)
+    return JsonResponse({
+        "name": ret.name, "refund": str(-ret.grand_total),
+        "refund_cash": str(-ret.paid_cash), "refund_card": str(-ret.paid_card),
+        "receipt_url": reverse("pos_receipt", args=[ret.pk]),
     })

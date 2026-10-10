@@ -160,8 +160,11 @@ class SubmittableDocument(models.Model):
                 raise ValidationError("لا توجد شركة معرّفة. يرجى تشغيل أمر الإعداد setup_erp أولاً.")
             self.company = company
         if not self.name:
-            self.name = NamingSeries.next_name(f"{self.naming_prefix}-{self.posting_date.year}")
+            self.name = NamingSeries.next_name(f"{self.get_naming_prefix()}-{self.posting_date.year}")
         super().save(*args, **kwargs)
+
+    def get_naming_prefix(self):
+        return self.naming_prefix
 
     @property
     def is_draft(self):

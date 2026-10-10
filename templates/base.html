@@ -12,7 +12,7 @@
 {% if user.is_authenticated %}
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}</a>
+    <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
     <nav>
       <a href="{% url 'dashboard' %}" class="nav-link {% if request.path == '/' %}active{% endif %}">لوحة التحكم</a>
       <a href="{% url 'pos_terminal' %}" class="nav-link nav-pos">نقطة البيع</a>

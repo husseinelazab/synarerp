@@ -2,5 +2,5 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "hamterp.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "synar.settings")
 application = get_wsgi_application()

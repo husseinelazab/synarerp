@@ -133,3 +133,6 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
 }
 .nav-pos { background: var(--success); color: #fff !important; margin: 8px 16px; border-radius: 8px; text-align: center; font-weight: 700; }
 .nav-pos:hover { background: #17692a !important; }
+.brand small { display: block; font-size: 12px; font-weight: 500; color: #9fb6cc; letter-spacing: 1px; direction: ltr; text-align: right; }
+.login-en { text-align: center; color: var(--muted); letter-spacing: 2px; direction: ltr; }
+.toolbar .filters .form-control, .toolbar .filters .form-select { width: auto; }

@@ -62,6 +62,9 @@ class Company(models.Model):
     default_input_tax_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب ضريبة المدخلات (المشتريات)"
     )
+    default_opening_account = models.ForeignKey(
+        "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب الأرصدة الافتتاحية"
+    )
     default_discount_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب الخصم المسموح به"
     )

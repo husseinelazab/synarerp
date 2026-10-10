@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}الأرصدة الافتتاحية{% endblock %}
+{% block heading %}معالج الأرصدة الافتتاحية{% endblock %}
+{% block content %}
+<div class="card">
+  <p>عند بدء العمل على {{ ERP_NAME }} بعد نظام سابق، أدخل أرصدتك كما هي في تاريخ البدء على ثلاث خطوات.
+    كل خطوة يمكن إدخالها يدوياً أو <strong>استيرادها من Excel</strong>. الطرف المقابل لكل الأرصدة هو حساب
+    «{{ opening|default:"الأرصدة الافتتاحية" }}»، فإذا اكتملت الخطوات الثلاث صحيحة أصبح رصيده يساوي صافي حقوق الملكية في تاريخ البدء.</p>
+</div>
+<div class="opening-steps">
+  {% for step in steps %}
+  <div class="card opening-step">
+    <div class="step-num">{{ forloop.counter }}</div>
+    <h3>{{ step.title }}</h3>
+    <p class="muted">{{ step.text }}</p>
+    <div class="step-status">
+      {% if step.posted %}<span class="badge status-1">✓ {{ step.posted }} مستند مُرحّل</span>{% else %}<span class="badge status-0">لم يُرحّل بعد</span>{% endif %}
+      {% if step.drafts %}<span class="badge status-0">{{ step.drafts }} مسودة</span>{% endif %}
+    </div>
+    <div class="actions">
+      <a class="btn btn-primary" href="{% url 'doc_new' step.slug %}">إدخال يدوي</a>
+      <a class="btn" href="{% url 'doc_import' step.slug %}">استيراد من Excel</a>
+      <a class="btn" href="{% url 'doc_list' step.slug %}">عرض</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% if balance is not None %}
+<div class="card totals-card" style="max-width:none">
+  <div class="total-line grand"><span>رصيد حساب «{{ opening }}» (دائن = صافي حقوق الملكية الافتتاحية)</span><strong>{{ balance|cur }}</strong></div>
+  <p class="muted">بعد التأكد من صحة الأرصدة يمكنك تحويل هذا الرصيد إلى رأس المال أو الأرباح المبقاة بقيد يومية.</p>
+</div>
+{% endif %}
+{% endblock %}

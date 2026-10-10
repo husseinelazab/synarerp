@@ -70,6 +70,7 @@ DEFAULT_ACCOUNTS = {
     "default_stock_adjustment_account": "5102",
     "default_expense_account": "5205",
     "default_discount_account": "5206",
+    "default_opening_account": "3104",
 }
 
 UOMS = ["حبة", "كرتون", "علبة", "كيلوجرام", "جرام", "لتر", "متر", "ساعة", "خدمة"]

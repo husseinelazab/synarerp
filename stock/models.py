@@ -187,6 +187,64 @@ class StockEntry(SubmittableDocument):
         cancel_gl_entries(self)
 
 
+class OpeningStock(SubmittableDocument):
+    """المخزون الافتتاحي: كميات وتكلفة الأصناف في مستودع، مقابل حساب الأرصدة الافتتاحية."""
+
+    naming_prefix = "OPS"
+
+    warehouse = models.ForeignKey(Warehouse, models.PROTECT, verbose_name="المستودع")
+    total_amount = models.DecimalField("إجمالي القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "مخزون افتتاحي"
+        verbose_name_plural = "المخزون الافتتاحي"
+
+    def calculate_totals(self):
+        total = flt(0)
+        for row in self.items.all():
+            row.amount = flt(flt(row.qty, 3) * flt(row.rate))
+            row.save(update_fields=["amount"])
+            total += row.amount
+        self.total_amount = total
+
+    def validate_for_submit(self):
+        rows = list(self.items.select_related("item"))
+        if not rows:
+            raise ValidationError("أضف صنفاً واحداً على الأقل.")
+        for row in rows:
+            if not row.item.is_stock_item:
+                raise ValidationError(f"الصنف {row.item} ليس صنفاً مخزنياً.")
+            if row.qty <= 0 or row.rate < 0:
+                raise ValidationError(f"الصنف {row.item}: الكمية يجب أن تكون موجبة والتكلفة غير سالبة.")
+
+    def on_submit(self):
+        value = flt(0)
+        for row in self.items.select_related("item"):
+            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate)
+        if value:
+            make_gl_entries(self, [
+                {"account": self.company.require_account("default_stock_account"), "debit": value},
+                {"account": self.company.require_account("default_opening_account"), "credit": value},
+            ], remarks=f"مخزون افتتاحي - {self.warehouse}")
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+
+
+class OpeningStockItem(models.Model):
+    parent = models.ForeignKey(OpeningStock, models.CASCADE, related_name="items")
+    item = models.ForeignKey(Item, models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
+                             verbose_name="الصنف")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    rate = models.DecimalField("تكلفة الوحدة", max_digits=18, decimal_places=2, default=0)
+    amount = models.DecimalField("القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name = "صنف افتتاحي"
+        verbose_name_plural = "الأصناف"
+
+
 class StockEntryItem(models.Model):
     parent = models.ForeignKey(StockEntry, models.CASCADE, related_name="items")
     item = models.ForeignKey(Item, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")

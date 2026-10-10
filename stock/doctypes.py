@@ -1,5 +1,5 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import UOM, Item, ItemGroup, StockEntry, StockEntryItem, Warehouse
+from stock.models import UOM, Item, ItemGroup, OpeningStock, OpeningStockItem, StockEntry, StockEntryItem, Warehouse
 
 register(DocType(
     slug="item", model=Item, module="stock",
@@ -24,4 +24,11 @@ register(DocType(
 ))
 register(DocType(
     slug="uom", model=UOM, module="stock", list_fields=["name"], search_fields=["name"],
+))
+register(DocType(
+    slug="opening-stock", model=OpeningStock, module="stock",
+    list_fields=["name", "posting_date", "warehouse", "total_amount"], form_fields=["warehouse", "posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(OpeningStockItem, ["item", "qty", "rate"], label="الأصناف", rate_type="buying"),
+    totals=["total_amount"],
 ))

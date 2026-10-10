@@ -1,4 +1,5 @@
-from accounts.models import Account, JournalEntry, JournalEntryAccount, PaymentEntry
+from accounts.models import (Account, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -21,4 +22,16 @@ register(DocType(
     list_fields=["number", "name", "parent", "root_type", "account_type", "is_group"],
     form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "disabled"],
     search_fields=["number", "name"],
+))
+register(DocType(
+    slug="opening-account", model=OpeningAccountBalance, module="accounts",
+    list_fields=["name", "posting_date", "remarks"], form_fields=["posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(OpeningAccountLine, ["account", "debit", "credit", "description"], label="الحسابات"),
+))
+register(DocType(
+    slug="opening-party", model=OpeningPartyBalance, module="accounts",
+    list_fields=["name", "posting_date", "party_type", "remarks"], form_fields=["party_type", "posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(OpeningPartyLine, ["customer", "supplier", "amount", "reference"], label="الأطراف"),
 ))

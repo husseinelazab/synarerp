@@ -278,3 +278,115 @@ class PaymentEntry(SubmittableDocument):
         if invoice:
             invoice.outstanding_amount = flt(invoice.outstanding_amount + delta)
             invoice.save(update_fields=["outstanding_amount"])
+
+
+class OpeningAccountBalance(SubmittableDocument):
+    """أرصدة الحسابات الافتتاحية (البنوك، الأصول، القروض، رأس المال...). الفرق يُرحّل لحساب الأرصدة الافتتاحية."""
+
+    naming_prefix = "OPA"
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "أرصدة افتتاحية للحسابات"
+        verbose_name_plural = "الأرصدة الافتتاحية للحسابات"
+
+    def calculate_totals(self):
+        pass
+
+    def validate_for_submit(self):
+        lines = list(self.lines.select_related("account"))
+        if not lines:
+            raise ValidationError("أضف حساباً واحداً على الأقل.")
+        opening = self.company.require_account("default_opening_account")
+        for line in lines:
+            if line.debit < 0 or line.credit < 0 or (line.debit and line.credit) or not (line.debit or line.credit):
+                raise ValidationError(f"الحساب {line.account}: أدخل مبلغاً موجباً في المدين أو الدائن فقط.")
+            if line.account_id == opening.pk:
+                raise ValidationError("لا تُدخل حساب الأرصدة الافتتاحية نفسه؛ النظام يرحّل الفرق إليه تلقائياً.")
+            if line.account.account_type in (AccountType.RECEIVABLE, AccountType.PAYABLE):
+                raise ValidationError(f"رصيد {line.account} يُدخل من «الأرصدة الافتتاحية للعملاء والموردين» ليظهر لكل طرف.")
+            if line.account.account_type == AccountType.STOCK:
+                raise ValidationError(f"رصيد {line.account} يُدخل من «المخزون الافتتاحي» ليطابق كميات الأصناف.")
+
+    def on_submit(self):
+        entries = [{"account": line.account, "debit": line.debit, "credit": line.credit,
+                    "remarks": line.description or "رصيد افتتاحي"} for line in self.lines.select_related("account")]
+        difference = sum(flt(line.debit) - flt(line.credit) for line in self.lines.all())
+        opening = self.company.require_account("default_opening_account")
+        entries.append({"account": opening, "debit": -difference if difference < 0 else 0,
+                        "credit": difference if difference > 0 else 0, "remarks": "مقابل الأرصدة الافتتاحية"})
+        make_gl_entries(self, entries, remarks="رصيد افتتاحي")
+
+    def on_cancel(self):
+        cancel_gl_entries(self)
+
+
+class OpeningAccountLine(models.Model):
+    parent = models.ForeignKey(OpeningAccountBalance, on_delete=models.CASCADE, related_name="lines")
+    account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, limit_choices_to={"is_group": False, "disabled": False}, verbose_name="الحساب"
+    )
+    debit = models.DecimalField("مدين", max_digits=18, decimal_places=2, default=0)
+    credit = models.DecimalField("دائن", max_digits=18, decimal_places=2, default=0)
+    description = models.CharField("البيان", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "سطر رصيد افتتاحي"
+        verbose_name_plural = "الحسابات"
+
+
+class OpeningPartyBalance(SubmittableDocument):
+    """أرصدة العملاء والموردين الافتتاحية، تُرحّل على حساب الذمم لكل طرف مقابل حساب الأرصدة الافتتاحية."""
+
+    naming_prefix = "OPP"
+
+    party_type = models.CharField("نوع الطرف", max_length=10, choices=PartyType.choices, default=PartyType.CUSTOMER)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "أرصدة افتتاحية للعملاء والموردين"
+        verbose_name_plural = "الأرصدة الافتتاحية للعملاء والموردين"
+
+    def validate_for_submit(self):
+        lines = list(self.lines.select_related("customer", "supplier"))
+        if not lines:
+            raise ValidationError("أضف طرفاً واحداً على الأقل.")
+        for index, line in enumerate(lines, start=1):
+            party = line.customer if self.party_type == PartyType.CUSTOMER else line.supplier
+            other = line.supplier if self.party_type == PartyType.CUSTOMER else line.customer
+            if party is None or other is not None:
+                raise ValidationError(f"السطر {index}: حدد {self.get_party_type_display()} فقط.")
+            if not line.amount:
+                raise ValidationError(f"السطر {index}: أدخل الرصيد.")
+
+    def on_submit(self):
+        opening = self.company.require_account("default_opening_account")
+        entries = []
+        if self.party_type == PartyType.CUSTOMER:
+            receivable = self.company.require_account("default_receivable_account")
+            for line in self.lines.select_related("customer"):
+                # الرصيد الموجب = مستحق لنا على العميل، والسالب = دفعة مقدمة منه
+                entries.append({"account": receivable, "debit": line.amount, "customer": line.customer,
+                                "remarks": line.reference or "رصيد افتتاحي"})
+                entries.append({"account": opening, "credit": line.amount, "remarks": "مقابل أرصدة العملاء الافتتاحية"})
+        else:
+            payable = self.company.require_account("default_payable_account")
+            for line in self.lines.select_related("supplier"):
+                entries.append({"account": payable, "credit": line.amount, "supplier": line.supplier,
+                                "remarks": line.reference or "رصيد افتتاحي"})
+                entries.append({"account": opening, "debit": line.amount, "remarks": "مقابل أرصدة الموردين الافتتاحية"})
+        make_gl_entries(self, entries, remarks="رصيد افتتاحي")
+
+    def on_cancel(self):
+        cancel_gl_entries(self)
+
+
+class OpeningPartyLine(models.Model):
+    parent = models.ForeignKey(OpeningPartyBalance, on_delete=models.CASCADE, related_name="lines")
+    customer = models.ForeignKey("selling.Customer", models.PROTECT, null=True, blank=True, verbose_name="العميل")
+    supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
+    amount = models.DecimalField("الرصيد المستحق", max_digits=18, decimal_places=2,
+                                 help_text="للعميل: ما عليه لنا. للمورد: ما لنا عليه دفعه. القيمة السالبة تعني رصيداً عكسياً.")
+    reference = models.CharField("رقم الفاتورة / المرجع القديم", max_length=100, blank=True)
+
+    class Meta:
+        verbose_name = "سطر رصيد طرف"
+        verbose_name_plural = "الأطراف"

@@ -1,8 +1,9 @@
 from django.urls import path
 
-from accounts import reports
+from accounts import opening_views, reports
 
 urlpatterns = [
+    path("opening/", opening_views.opening_wizard, name="opening_wizard"),
     path("general-journal/", reports.general_journal, name="general_journal"),
     path("trial-balance/", reports.trial_balance, name="trial_balance"),
     path("general-ledger/", reports.general_ledger, name="general_ledger"),

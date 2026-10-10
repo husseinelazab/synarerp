@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% load erp %}
+{% extends "base.html" %}{% load erp l10n %}
 {% block title %}صفحتي{% endblock %}
 {% block heading %}أهلاً {{ employee.full_name }}{% endblock %}
 {% block content %}
@@ -24,7 +24,7 @@
       <div><dt>مدة الخدمة</dt><dd>{{ h.duration }}</dd></div>
       <div><dt>حضور هذا الشهر</dt><dd>غياب {{ h.attendance.absent_days|floatformat:-1 }} · تأخير {{ h.attendance.late_minutes }} د</dd></div>
       <div><dt>رصيد السلف</dt><dd>{{ h.loan_balance|cur }}</dd></div>
-      {% if employee.id_expiry_date %}<div><dt>انتهاء الهوية / الإقامة</dt><dd>{{ employee.id_expiry_date|date:"Y-m-d" }}</dd></div>{% endif %}
+      {% if employee.id_expiry_date %}<div><dt>انتهاء الهوية / الإقامة</dt><dd>{{ employee.id_expiry_date|date:"Y-m-d" }} <span class="muted small">({{ employee.id_expiry_date|hijri }})</span></dd></div>{% endif %}
     </dl>
   </div>
 </div>
@@ -43,6 +43,15 @@
     </tbody>
   </table>
 </div>
+{% if appraisals %}
+<div class="card">
+  <h3>تقييمات أدائي</h3>
+  <table class="table">
+    <thead><tr><th>الفترة</th><th>النتيجة</th><th>التقدير</th><th>فرص التحسين</th></tr></thead>
+    <tbody>{% for a in appraisals %}<tr><td>{{ a.period_from|date:"Y-m-d" }} ← {{ a.period_to|date:"Y-m-d" }}</td><td><strong>{{ a.score_percent|unlocalize }}%</strong></td><td>{{ a.rating }}</td><td class="small">{{ a.improvements|default:"—"|linebreaksbr }}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
 <div class="card">
   <h3>قسائم الرواتب</h3>
   <table class="table">

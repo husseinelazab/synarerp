@@ -132,6 +132,19 @@ class Holiday(TenantModel):
 FIXED_HOLIDAYS = [("يوم التأسيس", 2, 22), ("اليوم الوطني", 9, 23)]
 
 
+def add_official_holidays(year):
+    """يضيف يوم التأسيس واليوم الوطني وعيدي الفطر والأضحى (تقويم أم القرى) للسنة إن لم تكن مسجلة."""
+    from core.hijri import eid_holidays
+
+    items = [(name, datetime.date(year, month, day), datetime.date(year, month, day))
+             for name, month, day in FIXED_HOLIDAYS] + eid_holidays(year)
+    added = []
+    for name, start, end in items:
+        if not Holiday.objects.filter(from_date__lte=end, to_date__gte=start).exists():
+            added.append(Holiday.objects.create(name=name, from_date=start, to_date=end))
+    return added
+
+
 def holiday_dates(start, end):
     dates = set()
     for h in Holiday.objects.filter(from_date__lte=end, to_date__gte=start):
@@ -347,6 +360,19 @@ class PortalRequestMixin:
         self.rejection_reason = reason or f"رُفض بواسطة {user.get_full_name() or user.username}"
         self.docstatus = DocStatus.CANCELLED
         self.save(update_fields=["rejection_reason", "docstatus"])
+        self.notify_employee(f"رُفض {self.request_label}: {self.rejection_reason}")
+
+    def notify_employee(self, title):
+        from core.notify import notify
+
+        if self.requested_via_portal and self.employee.user_id:
+            notify(self.company, [self.employee.user], title, reverse("portal_home"))
+
+    def notify_managers_of_request(self):
+        from core.notify import notify_managers
+
+        notify_managers(self.company, f"{self.request_label} جديد من {self.employee.full_name} بانتظار الاعتماد",
+                        self.get_absolute_url())
 
 
 class LeaveApplication(PortalRequestMixin, SubmittableDocument):
@@ -361,6 +387,13 @@ class LeaveApplication(PortalRequestMixin, SubmittableDocument):
     total_days = models.PositiveIntegerField("عدد الأيام (بدون العطل الرسمية)", default=0, editable=False)
     requested_via_portal = models.BooleanField("طلب من بوابة الموظف", default=False, editable=False)
     rejection_reason = models.CharField("سبب الرفض", max_length=255, blank=True, editable=False)
+
+    @property
+    def request_label(self):
+        return f"طلب {self.leave_type} ({self.from_date:%Y-%m-%d} – {self.to_date:%Y-%m-%d})"
+
+    def on_submit(self):
+        self.notify_employee(f"اعتُمد {self.request_label}")
 
     posting_note = "طلب الإجازة لا يُنشئ قيوداً محاسبية؛ أيام الإجازة بدون راتب تُخصم تلقائياً في مسير رواتب الشهر."
 
@@ -1265,6 +1298,10 @@ class EmployeeLoan(PortalRequestMixin, SubmittableDocument):
         return flt(self.amount - self.repaid_amount)
 
     @property
+    def request_label(self):
+        return f"طلب سلفة بمبلغ {self.amount:,.2f}"
+
+    @property
     def installments_count(self):
         if not self.installment_amount:
             return 0
@@ -1300,6 +1337,7 @@ class EmployeeLoan(PortalRequestMixin, SubmittableDocument):
             {"account": settings.loan_account, "debit": self.amount},
             {"account": self.payment_account, "credit": self.amount},
         ], remarks=label)
+        self.notify_employee(f"اعتُمد {self.request_label}، ويبدأ الخصم {self.get_start_month_display()} {self.start_year}")
 
     def before_cancel(self):
         if self.repayments.exists():
@@ -1355,3 +1393,116 @@ def reverse_loan_repayments(repayments):
     repayments.delete()
     for loan in loans:
         loan.refresh_repaid()
+
+
+# ───────────────────────────── تقييم الأداء ─────────────────────────────
+
+DEFAULT_APPRAISAL_CRITERIA = [
+    ("جودة العمل ودقته", 25),
+    ("الإنتاجية وإنجاز المهام في وقتها", 25),
+    ("الالتزام بالدوام والأنظمة", 15),
+    ("العمل الجماعي والتعاون", 15),
+    ("المبادرة والتطوير الذاتي", 10),
+    ("التعامل مع العملاء والزملاء", 10),
+]
+
+RATINGS = [(90, "ممتاز"), (80, "جيد جداً"), (70, "جيد"), (60, "مقبول"), (0, "ضعيف")]
+
+
+class AppraisalTemplate(TenantModel):
+    name = models.CharField("اسم النموذج", max_length=100)
+
+    class Meta:
+        verbose_name = "نموذج تقييم"
+        verbose_name_plural = "نماذج تقييم الأداء"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="appraisaltemplate")]
+
+    def __str__(self):
+        return self.name
+
+
+class AppraisalCriterion(models.Model):
+    parent = models.ForeignKey(AppraisalTemplate, models.CASCADE, related_name="criteria")
+    name = models.CharField("المعيار", max_length=150)
+    weight = models.PositiveSmallIntegerField("الوزن %", default=10)
+
+    class Meta:
+        verbose_name = "معيار تقييم"
+        verbose_name_plural = "معايير التقييم"
+        ordering = ["id"]
+
+    def __str__(self):
+        return self.name
+
+
+class Appraisal(SubmittableDocument):
+    """تقييم أداء موظف عن فترة: درجة من 1 إلى 5 لكل معيار، والنتيجة الموزونة بالنسبة المئوية."""
+
+    naming_prefix = "APR"
+    posts_to_ledger = False
+    posting_note = "التقييم لا يُنشئ قيوداً محاسبية؛ بعد اعتماده يظهر للموظف في بوابته."
+
+    employee = models.ForeignKey(Employee, models.PROTECT, related_name="appraisals", verbose_name="الموظف")
+    template = models.ForeignKey(AppraisalTemplate, models.PROTECT, verbose_name="نموذج التقييم")
+    period_from = models.DateField("الفترة من")
+    period_to = models.DateField("الفترة إلى")
+    strengths = models.TextField("نقاط القوة", blank=True)
+    improvements = models.TextField("فرص التحسين والأهداف القادمة", blank=True)
+    score_percent = models.DecimalField("النتيجة %", max_digits=5, decimal_places=1, default=0, editable=False)
+    rating = models.CharField("التقدير", max_length=20, blank=True, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "تقييم أداء"
+        verbose_name_plural = "تقييمات الأداء"
+
+    def clean(self):
+        if self.period_from and self.period_to and self.period_to < self.period_from:
+            raise ValidationError({"period_to": "نهاية الفترة يجب أن تكون بعد بدايتها."})
+
+    def calculate_totals(self):
+        if not self.pk:
+            return
+        if self.is_draft and not self.scores.exists() and self.template_id:
+            AppraisalScore.objects.bulk_create([
+                AppraisalScore(parent=self, criterion=c.name, weight=c.weight) for c in self.template.criteria.all()])
+        scores = [s for s in self.scores.all() if s.score]
+        weights = sum(s.weight for s in scores)
+        if weights:
+            self.score_percent = (Decimal(sum(s.weight * s.score for s in scores)) / weights / 5 * 100).quantize(
+                Decimal("0.1"))
+        else:
+            self.score_percent = Decimal(0)
+        self.rating = next(label for limit, label in RATINGS if self.score_percent >= limit) if weights else ""
+
+    def validate_for_submit(self):
+        self.clean()
+        scores = list(self.scores.all())
+        if not scores:
+            raise ValidationError("لا توجد معايير في التقييم.")
+        missing = [s.criterion for s in scores if not s.score]
+        if missing:
+            raise ValidationError("أدخل درجة لكل معيار: " + "، ".join(missing))
+        if sum(s.weight for s in scores) != 100:
+            raise ValidationError(f"مجموع أوزان المعايير يجب أن يساوي 100 (الحالي {sum(s.weight for s in scores)}).")
+
+    def on_submit(self):
+        from core.notify import notify
+
+        if self.employee.user_id:
+            notify(self.company, [self.employee.user], f"صدر تقييم أدائك ({self.rating} — {self.score_percent:f}%)",
+                   reverse("portal_home"))
+
+
+class AppraisalScore(models.Model):
+    parent = models.ForeignKey(Appraisal, models.CASCADE, related_name="scores")
+    criterion = models.CharField("المعيار", max_length=150)
+    weight = models.PositiveSmallIntegerField("الوزن %", default=10)
+    score = models.PositiveSmallIntegerField("الدرجة (1-5)", null=True, blank=True,
+                                             choices=[(i, str(i)) for i in range(1, 6)])
+    comment = models.CharField("ملاحظة", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "درجة معيار"
+        verbose_name_plural = "درجات المعايير"
+        ordering = ["id"]

@@ -12,9 +12,9 @@ PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/f
 # مسارات متاحة حتى مع انتهاء الاشتراك
 BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 # ما يُسمح للكاشير بالوصول إليه
-CASHIER_PREFIXES = ("/pos/", "/api/item/", "/switch-company/")
+CASHIER_PREFIXES = ("/pos/", "/api/item/", "/switch-company/", "/account/")
 # بوابة الخدمة الذاتية للموظف
-EMPLOYEE_PREFIXES = ("/me/", "/switch-company/")
+EMPLOYEE_PREFIXES = ("/me/", "/switch-company/", "/account/")
 # صفحات الإدارة لمالك الحساب والمدير فقط
 MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/")
 

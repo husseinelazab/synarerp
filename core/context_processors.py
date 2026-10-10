@@ -15,4 +15,10 @@ def erp(request):
             "user_memberships": request.user.memberships.filter(is_active=True).select_related("company"),
             "subscription": getattr(getattr(request, "company", None), "subscription", None),
         })
+        company = getattr(request, "company", None)
+        if company is not None:
+            from core.models import Notification
+
+            context["unread_notifications"] = Notification.all_objects.filter(
+                company=company, user=request.user, is_read=False).count()
     return context

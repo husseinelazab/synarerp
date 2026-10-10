@@ -3,3 +3,4 @@ qrcode>=7.4
 openpyxl>=3.1
 cryptography>=42
 lxml>=5
+hijridate>=2.5

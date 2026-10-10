@@ -247,3 +247,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .billing-bar { display: inline-block; width: 120px; height: 8px; background: #e7ebf0; border-radius: 4px; overflow: hidden; vertical-align: middle; margin-inline-start: 8px; }
 .billing-bar i { display: block; height: 100%; background: var(--success); }
 .chip-alert.info { background: #e0ecff; color: #1d4f91; }
+.bell { position: relative; display: inline-flex; align-items: center; color: var(--text); }
+.bell svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.bell b { position: absolute; top: -6px; inset-inline-end: -8px; background: #c62828; color: #fff; border-radius: 9px; font-size: 11px; min-width: 18px; height: 18px; line-height: 18px; text-align: center; padding: 0 4px; }
+.notif-list a { display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border, #e5e7eb); color: var(--text); }
+.notif-list a.unread { font-weight: 700; }
+.notif-list a.unread::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--primary, #1f4e79); align-self: center; flex: none; }

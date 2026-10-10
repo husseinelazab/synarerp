@@ -5,6 +5,8 @@ from core import import_views, views
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("module/<str:module>/", views.module_page, name="module"),
+    path("account/notifications/", views.notifications, name="notifications"),
+    path("account/notifications/<int:pk>/", views.notification_open, name="notification_open"),
     path("api/item/<int:pk>/", views.item_api, name="item_api"),
     path("app/<slug:slug>/", views.doc_list, name="doc_list"),
     path("app/<slug:slug>/new/", views.doc_form, name="doc_new"),

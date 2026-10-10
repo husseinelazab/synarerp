@@ -299,14 +299,16 @@ def eos_provision(request):
 @login_required
 @require_POST
 def add_fixed_holidays(request):
-    year = datetime.date.today().year
-    added = 0
-    for name, month, day in FIXED_HOLIDAYS:
-        date = datetime.date(year, month, day)
-        if not Holiday.objects.filter(from_date__lte=date, to_date__gte=date).exists():
-            Holiday.objects.create(name=name, from_date=date, to_date=date)
-            added += 1
-    messages.success(request, f"أُضيفت {added} عطلة لسنة {year}. أضف عيدي الفطر والأضحى يدوياً حسب التقويم الهجري المعتمد.")
+    from hr.models import add_official_holidays
+
+    year = int(request.POST.get("year") or datetime.date.today().year)
+    added = add_official_holidays(year)
+    if added:
+        messages.success(request, f"أُضيفت عطل {year}: " + "، ".join(
+            f"{h.name} ({h.from_date:%m-%d}" + (f" – {h.to_date:%m-%d})" if h.to_date != h.from_date else ")") for h in added)
+            + ". مواعيد العيدين تقديرية وفق تقويم أم القرى — عدّلها إن اختلف الإعلان الرسمي.")
+    else:
+        messages.info(request, f"عطل {year} الرسمية مسجلة مسبقاً.")
     return redirect("doc_list", slug="holiday")
 
 

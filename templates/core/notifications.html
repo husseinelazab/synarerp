@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}التنبيهات{% endblock %}
+{% block heading %}التنبيهات{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <span class="muted">{% if unread_notifications %}{{ unread_notifications }} غير مقروء{% else %}لا توجد تنبيهات جديدة{% endif %}</span>
+  {% if unread_notifications %}<form method="post">{% csrf_token %}<button class="btn">تعليم الكل كمقروء</button></form>{% endif %}
+</div>
+<div class="card notif-list">
+  {% for n in page.object_list %}
+    <a href="{% url 'notification_open' n.pk %}" class="{% if not n.is_read %}unread{% endif %}"><span style="flex:1">{{ n.title }}</span><span class="muted small">{{ n.created_at|date:"Y-m-d H:i" }}</span></a>
+  {% empty %}<p class="muted center">لا توجد تنبيهات</p>{% endfor %}
+</div>
+{% if page.paginator.num_pages > 1 %}<div class="pagination">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}">السابق</a>{% endif %}<span>صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}">التالي</a>{% endif %}</div>{% endif %}
+{% endblock %}

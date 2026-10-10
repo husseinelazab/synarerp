@@ -76,11 +76,14 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
             Department.objects.create(name=department)
         for designation in DESIGNATIONS:
             Designation.objects.create(name=designation)
-        from hr.models import DEFAULT_LEAVE_TYPES, FIXED_HOLIDAYS, Holiday, LeaveType, PayrollSettings
+        from hr.models import DEFAULT_LEAVE_TYPES, LeaveType, PayrollSettings, add_official_holidays
 
-        for holiday_name, month, day in FIXED_HOLIDAYS:
-            Holiday.objects.create(name=holiday_name, from_date=datetime.date(year, month, day),
-                                   to_date=datetime.date(year, month, day))
+        add_official_holidays(year)
+        from hr.models import DEFAULT_APPRAISAL_CRITERIA, AppraisalTemplate
+
+        template = AppraisalTemplate.objects.create(name="تقييم الأداء السنوي")
+        for criterion, weight in DEFAULT_APPRAISAL_CRITERIA:
+            template.criteria.create(name=criterion, weight=weight)
 
         for leave_name, days, paid in DEFAULT_LEAVE_TYPES:
             LeaveType.objects.create(name=leave_name, days_per_year=days, is_paid=paid,

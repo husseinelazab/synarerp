@@ -115,3 +115,17 @@ SYNAR_BILLING_INSTRUCTIONS = os.environ.get(
     "للاشتراك أو التجديد: حوّل قيمة الباقة إلى حسابنا البنكي ثم أرسل الإيصال، وسيتم تفعيل اشتراكك خلال يوم عمل.",
 )
 SYNAR_SUPPORT_CONTACT = os.environ.get("SYNAR_SUPPORT_CONTACT", "")
+
+# البريد الإلكتروني للتنبيهات: معطّل حتى يُضبط خادم بريد (لا اتصال خارجي افتراضياً)
+SYNAR_EMAIL_ENABLED = bool(os.environ.get("SYNAR_EMAIL_HOST"))
+if SYNAR_EMAIL_ENABLED:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.environ["SYNAR_EMAIL_HOST"]
+    EMAIL_PORT = int(os.environ.get("SYNAR_EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("SYNAR_EMAIL_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("SYNAR_EMAIL_PASSWORD", "")
+    EMAIL_USE_TLS = os.environ.get("SYNAR_EMAIL_TLS", "1") == "1"
+    DEFAULT_FROM_EMAIL = os.environ.get("SYNAR_EMAIL_FROM", EMAIL_HOST_USER)
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+SYNAR_SITE_URL = os.environ.get("SYNAR_SITE_URL", "")

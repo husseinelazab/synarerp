@@ -47,7 +47,7 @@
     <h3>وثائق منتهية أو تنتهي خلال 60 يوماً</h3>
     <table class="table">
       <thead><tr><th>الموظف</th><th>الوثيقة</th><th>تاريخ الانتهاء</th><th>المتبقي</th></tr></thead>
-      <tbody>{% for e in expiring %}<tr><td><a href="{{ e.employee.get_absolute_url }}">{{ e.employee.full_name }}</a></td><td>{{ e.document }}</td><td>{{ e.date|date:"Y-m-d" }}</td>
+      <tbody>{% for e in expiring %}<tr><td><a href="{{ e.employee.get_absolute_url }}">{{ e.employee.full_name }}</a></td><td>{{ e.document }}</td><td>{{ e.date|date:"Y-m-d" }}<div class="muted small">{{ e.date|hijri }}</div></td>
         <td><span class="days-left {% if e.days < 0 %}expired{% elif e.days <= 30 %}soon{% endif %}">{% if e.days < 0 %}منتهية منذ {{ e.days|abs }} يوم{% else %}{{ e.days }} يوم{% endif %}</span></td></tr>
       {% empty %}<tr><td colspan="4" class="muted center">لا توجد وثائق قريبة الانتهاء</td></tr>{% endfor %}</tbody>
     </table>
@@ -56,7 +56,7 @@
 
 <div class="grid-2">
   <div class="card">
-    <h3>اليوم {{ today|date:"Y-m-d" }}</h3>
+    <h3>اليوم {{ today|date:"Y-m-d" }} <span class="muted small">{{ today|hijri }}</span></h3>
     <dl class="detail-grid">
       <div><dt>في إجازة</dt><dd>{% for lv in on_leave %}<a href="{{ lv.get_absolute_url }}">{{ lv.employee.full_name }}</a> <span class="muted small">({{ lv.leave_type }})</span>{% if not forloop.last %}، {% endif %}{% empty %}—{% endfor %}</dd></div>
       <div><dt>غائب</dt><dd>{% for a in absent %}{{ a.employee.full_name }}{% if not forloop.last %}، {% endif %}{% empty %}—{% endfor %}</dd></div>

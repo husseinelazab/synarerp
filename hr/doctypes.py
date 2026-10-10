@@ -1,5 +1,5 @@
 from core.registry import ChildTable, DocType, register
-from hr.models import (Attendance, Department, Designation, Employee, EmployeeLoan, EndOfServiceSettlement, Holiday,
+from hr.models import (Appraisal, AppraisalCriterion, AppraisalScore, AppraisalTemplate, Attendance, Department, Designation, Employee, EmployeeLoan, EndOfServiceSettlement, Holiday,
                        LeaveApplication, LeaveType, PayrollLine, PayrollRun, ShiftAssignment, WorkShift)
 
 register(DocType(
@@ -68,7 +68,8 @@ register(DocType(
 ))
 register(DocType(
     slug="holiday", model=Holiday, module="hr", list_fields=["name", "from_date", "to_date"], search_fields=["name"],
-    list_actions=[("إضافة يوم التأسيس واليوم الوطني لهذه السنة", "add_fixed_holidays")],
+    list_actions=[("إضافة العطل الرسمية لهذه السنة (مع العيدين)", "add_fixed_holidays")],
+    detail_template="hr/_holiday_detail.html",
 ))
 register(DocType(
     slug="work-shift", model=WorkShift, module="hr",
@@ -77,4 +78,17 @@ register(DocType(
 register(DocType(
     slug="shift-assignment", model=ShiftAssignment, module="hr",
     list_fields=["employee", "shift", "from_date", "to_date"], search_fields=["employee__full_name", "shift__name"],
+))
+register(DocType(
+    slug="appraisal-template", model=AppraisalTemplate, module="hr", list_fields=["name"], search_fields=["name"],
+    child=ChildTable(AppraisalCriterion, ["name", "weight"], label="المعايير", help="مجموع الأوزان يجب أن يساوي 100."),
+))
+register(DocType(
+    slug="appraisal", model=Appraisal, module="hr",
+    list_fields=["name", "employee", "period_from", "period_to", "score_percent", "rating"],
+    form_fields=["employee", "template", "period_from", "period_to", "strengths", "improvements", "posting_date",
+                 "remarks"],
+    search_fields=["name", "employee__full_name", "employee__employee_number"],
+    child=ChildTable(AppraisalScore, ["criterion", "weight", "score", "comment"], label="المعايير والدرجات", min_rows=0,
+                     help="اترك الجدول فارغاً لتُجلب معايير النموذج عند الحفظ، ثم أدخل درجة من 1 (ضعيف) إلى 5 (ممتاز) لكل معيار."),
 ))

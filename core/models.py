@@ -372,3 +372,22 @@ class ExchangeRate(TenantModel):
             return 1
         found = cls.all_objects.filter(company=company, currency=currency, date__lte=date).order_by("-date").first()
         return found.rate if found else None
+
+
+class Notification(TenantModel):
+    """تنبيه داخل النظام لمستخدم في شركة (ويُرسل بالبريد أيضاً إن ضُبط خادم البريد)."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, related_name="notifications",
+                             verbose_name="المستخدم")
+    title = models.CharField("التنبيه", max_length=255)
+    url = models.CharField("الرابط", max_length=255, blank=True)
+    is_read = models.BooleanField("مقروء", default=False)
+    created_at = models.DateTimeField("الوقت", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "تنبيه"
+        verbose_name_plural = "التنبيهات"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title

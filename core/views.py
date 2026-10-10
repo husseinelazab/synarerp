@@ -297,3 +297,25 @@ def item_api(request, pk):
         "selling_rate": str(item.selling_rate), "buying_rate": str(item.buying_rate),
     })
 
+
+
+@login_required
+def notifications(request):
+    from core.models import Notification
+
+    items = Notification.objects.filter(user=request.user)
+    if request.method == "POST":
+        items.filter(is_read=False).update(is_read=True)
+        return redirect("notifications")
+    page = Paginator(items, 30).get_page(request.GET.get("page"))
+    return render(request, "core/notifications.html", {"page": page})
+
+
+@login_required
+def notification_open(request, pk):
+    from core.models import Notification
+
+    item = get_object_or_404(Notification, pk=pk, user=request.user)
+    item.is_read = True
+    item.save(update_fields=["is_read"])
+    return redirect(item.url or "notifications")

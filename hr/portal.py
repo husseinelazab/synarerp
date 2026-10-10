@@ -63,6 +63,7 @@ def portal_home(request, employee):
         "leaves": LeaveApplication.objects.filter(employee=employee).select_related("leave_type")[:10],
         "loans": EmployeeLoan.objects.filter(employee=employee)[:10],
         "payslips": payslips, "today": today,
+        "appraisals": employee.appraisals.filter(docstatus=DocStatus.SUBMITTED).select_related("template")[:5],
     })
 
 
@@ -87,6 +88,7 @@ def portal_leave(request, employee):
         except ValidationError as exc:
             form.add_error(None, " ".join(exc.messages))
         else:
+            leave.notify_managers_of_request()
             messages.success(request, f"تم إرسال طلب الإجازة ({leave.total_days} يوم) وهو بانتظار اعتماد المدير.")
             return redirect("portal_home")
     return render(request, "hr/portal/form.html", {"form": form, "title": "طلب إجازة", "employee": employee})
@@ -109,6 +111,7 @@ def portal_loan(request, employee):
         except ValidationError as exc:
             form.add_error(None, " ".join(exc.messages))
         else:
+            loan.notify_managers_of_request()
             messages.success(request, "تم إرسال طلب السلفة وهو بانتظار اعتماد المدير.")
             return redirect("portal_home")
     return render(request, "hr/portal/form.html", {"form": form, "title": "طلب سلفة", "employee": employee})

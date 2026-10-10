@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load erp %}
 {% block title %}الحضور اليومي {{ day|date:"Y-m-d" }}{% endblock %}
-{% block heading %}تسجيل الحضور والانصراف — {{ day|date:"l Y-m-d" }}{% endblock %}
+{% block heading %}تسجيل الحضور والانصراف — {{ day|date:"l Y-m-d" }} <small class="muted">{{ day|hijri }}</small>{% endblock %}
 {% block content %}
 <div class="toolbar">
   <form method="get" class="filters">

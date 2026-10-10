@@ -1,4 +1,5 @@
 import datetime
+import io
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -548,12 +549,14 @@ class LoansHolidaysShiftsTests(TestCase):
 
     def test_add_fixed_holidays_action(self):
         from hr.models import Holiday
+        from core.hijri import eid_holidays
         Holiday.objects.all().delete()
         self.client.post(reverse("add_fixed_holidays"))
-        self.assertEqual(Holiday.objects.count(), 2)
+        expected = 2 + len(eid_holidays(YEAR))
+        self.assertEqual(Holiday.objects.count(), expected)
         self.client.post(reverse("add_fixed_holidays"))
-        self.assertEqual(Holiday.objects.count(), 2)
-        self.assertContains(self.client.get(reverse("doc_list", args=["holiday"])), "إضافة يوم التأسيس")
+        self.assertEqual(Holiday.objects.count(), expected)
+        self.assertContains(self.client.get(reverse("doc_list", args=["holiday"])), "إضافة العطل الرسمية")
 
     # ── الورديات ──
     def test_shift_drives_lateness_and_hourly_wage(self):
@@ -759,3 +762,128 @@ class PortalAndShiftTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "تتداخل"):
             ShiftAssignment(employee=self.emp, shift=ShiftAssignment.objects.first().shift,
                             from_date=d(6, 15), to_date=d(7, 15)).full_clean()
+
+
+class HijriAppraisalNotificationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة التقييم", "apprboss")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.client.force_login(self.user)
+        self.emp = Employee.objects.create(employee_number="H1", full_name="هند", gender="female",
+                                           date_of_joining=d(1, 1), basic_salary=5000, gosi_subscribed=False)
+
+    # ── الهجري ──
+    def test_hijri_conversion_and_eids(self):
+        from core.hijri import eid_holidays, format_hijri
+        self.assertEqual(format_hijri(datetime.date(2026, 3, 20)), "1 شوال 1447هـ")
+        self.assertEqual(eid_holidays(2026), [
+            ("عيد الفطر 1447هـ", datetime.date(2026, 3, 19), datetime.date(2026, 3, 22)),
+            ("عيد الأضحى 1447هـ", datetime.date(2026, 5, 26), datetime.date(2026, 5, 29)),
+        ])
+        # الشركة الجديدة تحصل على العيدين ضمن عطلها
+        from hr.models import Holiday
+        self.assertTrue(Holiday.objects.filter(name__startswith="عيد الفطر").exists() or not eid_holidays(YEAR))
+
+    # ── التقييم ──
+    def appraisal(self, scores=None):
+        from hr.models import Appraisal, AppraisalTemplate
+        a = Appraisal.objects.create(employee=self.emp, template=AppraisalTemplate.objects.get(),
+                                     period_from=d(1, 1), period_to=d(6, 30))
+        a.calculate_totals()
+        a.save()
+        for score, value in zip(a.scores.all(), scores or []):
+            score.score = value
+            score.save()
+        a.calculate_totals()
+        a.save()
+        return a
+
+    def test_appraisal_weighted_score(self):
+        a = self.appraisal()
+        self.assertEqual(a.scores.count(), 6)
+        with self.assertRaisesMessage(ValidationError, "أدخل درجة"):
+            a.submit()
+        a = self.appraisal([5, 4, 5, 3, 4, 5])
+        # (25×5 + 25×4 + 15×5 + 15×3 + 10×4 + 10×5) / 100 / 5 = 87%
+        self.assertEqual((a.score_percent, a.rating), (Decimal("87.0"), "جيد جداً"))
+        a.submit()
+        self.assertTrue(a.is_submitted)
+
+    def test_appraisal_weights_must_total_100(self):
+        a = self.appraisal([3] * 6)
+        first = a.scores.first()
+        first.weight = 50
+        first.save()
+        with self.assertRaisesMessage(ValidationError, "100"):
+            a.submit()
+
+    def test_appraisal_form_fetches_criteria(self):
+        from hr.models import Appraisal, AppraisalTemplate
+        response = self.client.post(reverse("doc_new", args=["appraisal"]), {
+            "employee": self.emp.pk, "template": AppraisalTemplate.objects.get().pk,
+            "period_from": f"{YEAR}-01-01", "period_to": f"{YEAR}-06-30", "posting_date": f"{YEAR}-07-01",
+            "scores-TOTAL_FORMS": 0, "scores-INITIAL_FORMS": 0, "scores-MIN_NUM_FORMS": 0, "scores-MAX_NUM_FORMS": 1000,
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Appraisal.objects.get().scores.count(), 6)
+
+    # ── التنبيهات وكلمة المرور ──
+    def portal_user(self):
+        self.client.post(reverse("portal_access", args=[self.emp.pk]),
+                         {"action": "save", "username": "hind", "password": "Secret#123"})
+        self.emp.refresh_from_db()
+        return self.emp.user
+
+    def test_request_notifications_flow(self):
+        from core.models import Notification
+        user = self.portal_user()
+        self.client.force_login(user)
+        annual = LeaveType.objects.get(name="إجازة سنوية")
+        self.client.post(reverse("portal_leave"), {"leave_type": annual.pk, "from_date": f"{YEAR}-07-01",
+                                                   "to_date": f"{YEAR}-07-02"})
+        manager_note = Notification.objects.get(user=self.user)
+        self.assertIn("هند", manager_note.title)
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("dashboard"))
+        self.assertContains(page, 'class="bell"')
+        response = self.client.get(reverse("notification_open", args=[manager_note.pk]))
+        leave = LeaveApplication.objects.get()
+        self.assertRedirects(response, leave.get_absolute_url(), fetch_redirect_response=False)
+        manager_note.refresh_from_db()
+        self.assertTrue(manager_note.is_read)
+        self.client.post(reverse("doc_action", args=["leave-application", leave.pk, "submit"]))
+        employee_note = Notification.objects.get(user=user)
+        self.assertIn("اعتُمد", employee_note.title)
+        # الموظف يصل لتنبيهاته وتغيير كلمة مروره
+        self.client.force_login(user)
+        self.assertContains(self.client.get(reverse("notifications")), "اعتُمد")
+        response = self.client.post(reverse("password_change"), {
+            "old_password": "Secret#123", "new_password1": "Another#4567", "new_password2": "Another#4567"})
+        self.assertRedirects(response, reverse("password_change_done"), fetch_redirect_response=False)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("Another#4567"))
+
+    def test_reminders_command(self):
+        from django.core.management import call_command
+        from core.models import Notification
+        self.emp.id_expiry_date = datetime.date.today() + datetime.timedelta(days=10)
+        self.emp.save()
+        call_command("hr_reminders", stdout=io.StringIO())
+        self.assertEqual(Notification.objects.filter(user=self.user, title__contains="الهوية").count(), 1)
+        call_command("hr_reminders", stdout=io.StringIO())  # لا يتكرر
+        self.assertEqual(Notification.objects.filter(user=self.user, title__contains="الهوية").count(), 1)
+
+    def test_email_disabled_by_default(self):
+        from django.conf import settings
+        from django.core import mail
+        self.assertFalse(settings.SYNAR_EMAIL_ENABLED)
+        self.user.email = "boss@example.com"
+        self.user.save()
+        from core.notify import notify_managers
+        notify_managers(self.company, "اختبار")
+        self.assertEqual(len(mail.outbox), 0)

@@ -58,3 +58,11 @@ def plain_number(value):
         return f"{value.normalize():f}"
     except AttributeError:
         return value
+
+
+@register.filter
+def hijri(value):
+    """التاريخ الهجري (أم القرى) لتاريخ ميلادي."""
+    from core.hijri import format_hijri
+
+    return format_hijri(value) if value else ""

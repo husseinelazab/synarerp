@@ -6,7 +6,7 @@
 <div class="dash-head">
   <div>
     <h2>أهلاً {{ user.first_name|default:user.username }}</h2>
-    <span class="muted">{{ today|date:"l j F Y" }} · {{ current_company }}</span>
+    <span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }} · {{ current_company }}</span>
   </div>
   <details class="dropdown">
     <summary class="btn btn-primary">+ إنشاء جديد</summary>

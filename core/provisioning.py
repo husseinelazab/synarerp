@@ -79,7 +79,8 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
         from hr.models import DEFAULT_LEAVE_TYPES, LeaveType, PayrollSettings
 
         for leave_name, days, paid in DEFAULT_LEAVE_TYPES:
-            LeaveType.objects.create(name=leave_name, days_per_year=days, is_paid=paid)
+            LeaveType.objects.create(name=leave_name, days_per_year=days, is_paid=paid,
+                                     encashable=leave_name == "إجازة سنوية")
         PayrollSettings.for_company(company)
         walk_in = Customer.objects.create(name="عميل نقدي", customer_type="individual")
         POSProfile.objects.create(

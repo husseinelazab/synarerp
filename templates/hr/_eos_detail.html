@@ -1,0 +1,17 @@
+{% load erp %}
+<div class="card">
+  <h3>تفاصيل احتساب المكافأة</h3>
+  <dl class="detail-grid">
+    <div><dt>تاريخ التعيين</dt><dd>{{ obj.employee.date_of_joining|date:"Y-m-d" }}</dd></div>
+    <div><dt>مدة الخدمة</dt><dd>{{ obj.service_duration }} ({{ obj.service_years|floatformat:4 }} سنة)</dd></div>
+    <div><dt>الأجر المعتمد</dt><dd>{{ obj.wage|cur }}</dd></div>
+    <div><dt>المكافأة الكاملة</dt><dd>{{ obj.full_award|cur }}</dd></div>
+    <div><dt>نسبة الاستحقاق حسب سبب الانتهاء</dt><dd>{{ obj.entitlement_percent|floatformat:2 }}%</dd></div>
+    <div><dt>أيام الإجازة المصروفة</dt><dd>{{ obj.leave_days|floatformat:-2 }}</dd></div>
+    <div><dt>المخصص المكوّن للموظف</dt><dd>{{ obj.provision_balance|cur }}</dd></div>
+    <div><dt>{% if obj.award >= obj.provision_balance %}مصروف إضافي فوق المخصص{% else %}رد مخصص زائد{% endif %}</dt><dd>{{ obj.provision_difference|abs|cur }}</dd></div>
+  </dl>
+  <p class="muted small">نصف أجر شهر عن كل سنة من السنوات الخمس الأولى، وأجر شهر عن كل سنة بعدها، ولأجزاء السنة بنسبتها.
+    عند الاستقالة: لا شيء قبل سنتين، والثلث من 2 إلى 5 سنوات، والثلثان من 5 إلى 10، وكاملة بعد 10 سنوات.</p>
+  {% if obj.payment %}<p>قيد الصرف: <a href="{{ obj.payment.get_absolute_url }}">{{ obj.payment.name }}</a> — {{ obj.payment.get_docstatus_display }}</p>{% endif %}
+</div>

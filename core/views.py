@@ -191,7 +191,7 @@ def doc_detail(request, slug, pk):
     dt = get_doctype(slug)
     obj = get_object_or_404(dt.model, pk=pk)
     child_headers, child_rows = _child_table(dt, obj)
-    exclude = set(dt.totals) | {"name", "docstatus"}
+    exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus"}
     context = {
         "dt": dt, "obj": obj, "doc_currency": getattr(obj, "currency", None),
         "fields": detail_fields(obj, exclude=exclude),
@@ -252,6 +252,9 @@ def doc_action(request, slug, pk, action):
             obj.delete()
         except ProtectedError:
             messages.error(request, "لا يمكن الحذف لارتباط السجل بمستندات أخرى.")
+            return redirect("doc_detail", slug=slug, pk=pk)
+        except ValidationError as exc:
+            messages.error(request, _error_text(exc))
             return redirect("doc_detail", slug=slug, pk=pk)
         messages.success(request, f"تم حذف {dt.label}.")
         return redirect("doc_list", slug=slug)

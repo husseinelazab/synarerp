@@ -57,6 +57,7 @@ CHART_OF_ACCOUNTS = [
             ("5207", "مصروفات بنكية", "expense_account", None),
             ("5208", "الإهلاك", "expense_account", None),
             ("5209", "التأمينات الاجتماعية - حصة المنشأة", "expense_account", None),
+            ("5210", "مكافأة نهاية الخدمة", "expense_account", None),
         ]),
     ]),
 ]

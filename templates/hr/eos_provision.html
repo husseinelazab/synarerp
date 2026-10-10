@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}مخصص نهاية الخدمة{% endblock %}
+{% block heading %}مخصص مكافأة نهاية الخدمة — حتى {{ as_of|date:"Y-m-d" }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form method="get" class="filters">
+    <input type="date" name="as_of" value="{{ as_of|date:'Y-m-d' }}" class="form-control">
+    <button class="btn">عرض</button>
+  </form>
+</div>
+<div class="card">
+  <p class="muted small">الالتزام = المكافأة الكاملة لو انتهى العقد من صاحب العمل في هذا التاريخ (المادة 84) بالأجر الحالي.
+    المخصص = ما رُحّل مع مسيرات الرواتب المعتمدة + الرصيد المكوّن قبل النظام.
+    {% if settings.accrue_eos %}يُستكمل الفرق تلقائياً مع مسير الشهر القادم.{% else %}تكوين المخصص مع المسير متوقف في الإعدادات.{% endif %}</p>
+  <div class="table-wrap">
+  <table class="table report">
+    <thead><tr><th>الموظف</th><th>تاريخ التعيين</th><th>مدة الخدمة</th><th class="num">الأجر</th><th class="num">الالتزام (م 84)</th><th class="num">عند الاستقالة (م 85)</th><th class="num">المخصص المكوّن</th><th class="num">الفرق</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td><a href="{{ r.employee.get_absolute_url }}">{{ r.employee }}</a></td><td>{{ r.employee.date_of_joining|date:"Y-m-d" }}</td>
+      <td>{{ r.duration }}</td><td class="num">{{ r.wage|money }}</td><td class="num">{{ r.liability|money }}</td>
+      <td class="num">{{ r.resign|money }}</td><td class="num">{{ r.provision|money }}</td><td class="num">{{ r.difference|money }}</td></tr>
+    {% empty %}<tr><td colspan="8" class="muted center">لا يوجد موظفون</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><th colspan="4">الإجمالي</th><th class="num">{{ totals.liability|cur }}</th><th class="num">{{ totals.resign|cur }}</th><th class="num">{{ totals.provision|cur }}</th><th class="num">{{ totals.difference|cur }}</th></tr></tfoot>
+  </table>
+  </div>
+</div>
+{% endblock %}

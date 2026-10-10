@@ -6,6 +6,8 @@ from django.forms import inlineformset_factory, modelform_factory
 def formfield_callback(db_field, **kwargs):
     if isinstance(db_field, models.DateField):
         kwargs["widget"] = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
+    elif isinstance(db_field, models.TimeField):
+        kwargs["widget"] = forms.TimeInput(attrs={"type": "time"}, format="%H:%M")
     elif isinstance(db_field, models.TextField):
         kwargs["widget"] = forms.Textarea(attrs={"rows": 2})
     field = db_field.formfield(**kwargs)

@@ -1,0 +1,26 @@
+{% load erp %}{% with h=obj.hr_summary %}
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h3>الخدمة ومكافأة نهاية الخدمة</h3>
+      {% if h.settled %}<a class="btn" href="{{ h.settled.get_absolute_url }}">المخالصة {{ h.settled }}</a>
+      {% else %}<a class="btn btn-primary" href="{% url 'doc_new' 'eos-settlement' %}?employee={{ obj.pk }}">مخالصة نهاية خدمة</a>{% endif %}
+    </div>
+    <dl class="detail-grid">
+      <div><dt>مدة الخدمة حتى {{ h.as_of|date:"Y-m-d" }}</dt><dd>{{ h.duration }}</dd></div>
+      <div><dt>الأجر المعتمد للمكافأة</dt><dd>{{ h.wage|cur }}</dd></div>
+      <div><dt>المكافأة عند إنهاء العقد (م 84)</dt><dd>{{ h.eos_full|cur }}</dd></div>
+      <div><dt>المكافأة عند الاستقالة (م 85)</dt><dd>{{ h.eos_resign|cur }}</dd></div>
+      <div><dt>المخصص المكوّن له</dt><dd>{{ h.provision|cur }}</dd></div>
+    </dl>
+  </div>
+  <div class="card">
+    <h3>الإجازات {{ h.as_of|date:"Y" }} وحضور {{ h.month_label }}</h3>
+    <dl class="detail-grid">
+      {% for l in h.leaves %}{% if l.used or l.remaining %}<div><dt>{{ l.type }}</dt><dd>{% if l.remaining is not None %}متبقي {{ l.remaining }} من {{ l.type.days_per_year }}{% else %}استُهلك {{ l.used }}{% endif %}</dd></div>{% endif %}{% endfor %}
+      <div><dt>أيام الغياب هذا الشهر</dt><dd>{{ h.attendance.absent_days|floatformat:-1 }}</dd></div>
+      <div><dt>دقائق التأخير والخروج المبكر</dt><dd>{{ h.attendance.late_minutes }}</dd></div>
+      <div><dt>ساعات إضافية معتمدة</dt><dd>{{ h.attendance.overtime_hours|floatformat:-2 }}</dd></div>
+    </dl>
+  </div>
+</div>
+{% endwith %}

@@ -8,7 +8,9 @@ HIDDEN_FIELDS = {"id", "created_at", "modified_at", "parent", "company", "create
                  # تظهر في بطاقة الإجماليات بدلاً من تفاصيل المستند
                  "base_net_total", "base_tax_amount", "base_grand_total", "base_amount",
                  # تظهر كشارة وشريط في رأس الصفحة
-                 "status", "per_billed"}
+                 "status", "per_billed",
+                 # حالة الموظف قبل المخالصة (لاستعادتها عند الإلغاء)
+                 "previous_status", "previous_relieving_date"}
 
 
 def display_value(obj, field_name):

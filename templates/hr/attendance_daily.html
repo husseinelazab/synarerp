@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}الحضور اليومي {{ day|date:"Y-m-d" }}{% endblock %}
+{% block heading %}تسجيل الحضور والانصراف — {{ day|date:"l Y-m-d" }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form method="get" class="filters">
+    <a class="btn" href="?date={{ prev|date:'Y-m-d' }}">→ اليوم السابق</a>
+    <input type="date" name="date" value="{{ day|date:'Y-m-d' }}" class="form-control" onchange="this.form.submit()">
+    <a class="btn" href="?date={{ next|date:'Y-m-d' }}">اليوم التالي ←</a>
+  </form>
+  <div class="actions">
+    <a class="btn" href="{% url 'attendance_monthly' %}?year={{ day.year }}&month={{ day.month }}">التقرير الشهري</a>
+    <a class="btn" href="{% url 'doc_import' 'attendance' %}">استيراد من جهاز البصمة (Excel)</a>
+  </div>
+</div>
+{% if is_weekend %}<div class="alert alert-info">هذا اليوم يوم راحة أسبوعية حسب الإعدادات. سجّل الحضور فقط لمن عمل فيه (ويمكن اعتماد ساعاته عملاً إضافياً).</div>{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
+  <div class="card">
+    <p class="muted small">الدوام {{ default_in }} – {{ default_out }} مع سماح {{ settings.grace_minutes }} دقيقة.
+      اختر «—» لحذف السجل. الموظفون في إجازة معتمدة لا يُسجل لهم حضور.</p>
+    <div class="actions" style="margin-bottom:10px">
+      <button type="button" class="btn" id="mark-all">تعبئة «حاضر» بأوقات الدوام لمن لم يُسجل</button>
+    </div>
+    <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>الموظف</th><th>القسم</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>ساعات إضافية معتمدة</th><th>تأخير (د)</th></tr></thead>
+      <tbody>
+      {% for r in rows %}{% with e=r.employee %}
+        <tr{% if r.error %} class="row-error"{% endif %}>
+          <td>{{ e }}{% if r.error %}<div class="field-error">{{ r.error }}</div>{% endif %}</td>
+          <td>{{ e.department|default:"—" }}</td>
+          {% if r.leave %}
+            <td colspan="5"><span class="badge status-0">{{ r.leave.leave_type }}</span> <a href="{{ r.leave.get_absolute_url }}" class="small">{{ r.leave }}</a></td>
+          {% else %}
+            <td><select name="status_{{ e.id }}" class="form-select att-status">
+              <option value="">—</option>
+              {% for v, l in statuses %}<option value="{{ v }}" {% if r.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+            </select></td>
+            <td><input type="time" name="in_{{ e.id }}" value="{{ r.check_in }}" class="form-control att-in"></td>
+            <td><input type="time" name="out_{{ e.id }}" value="{{ r.check_out }}" class="form-control att-out"></td>
+            <td><input type="number" step="0.25" min="0" max="12" name="ot_{{ e.id }}" value="{{ r.overtime }}" class="form-control" style="max-width:110px"></td>
+            <td>{% if r.record.late_minutes %}<span class="text-danger">{{ r.record.late_minutes }}</span>{% else %}—{% endif %}</td>
+          {% endif %}
+        </tr>
+      {% endwith %}{% empty %}<tr><td colspan="7" class="muted center">لا يوجد موظفون على رأس العمل في هذا اليوم</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg">حفظ الحضور</button></div>
+</form>
+<script>
+document.getElementById("mark-all").addEventListener("click", function () {
+  document.querySelectorAll("tbody tr").forEach(function (row) {
+    var status = row.querySelector(".att-status");
+    if (!status || status.value) return;
+    status.value = "present";
+    row.querySelector(".att-in").value = "{{ default_in }}";
+    row.querySelector(".att-out").value = "{{ default_out }}";
+  });
+});
+</script>
+{% endblock %}

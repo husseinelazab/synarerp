@@ -75,9 +75,14 @@ def build_menu(request):
                        doc("ملفات نقاط البيع", "pos-profile")]},
         ]})
     modules.append({"key": "hr", "label": "الموارد البشرية", "sections": [
-        {"items": [doc("الموظفون", "employee"), doc("مسيرات الرواتب", "payroll-run")]},
+        {"items": [doc("الموظفون", "employee"), doc("مسيرات الرواتب", "payroll-run"),
+                   doc("مخالصات نهاية الخدمة", "eos-settlement")]},
+        {"title": "الحضور والانصراف", "items": [_item("تسجيل الحضور اليومي", "attendance_daily"),
+                                                 _item("تقرير الحضور الشهري", "attendance_monthly"),
+                                                 doc("سجل الحضور", "attendance")]},
         {"title": "الإجازات", "items": [doc("طلبات الإجازات", "leave-application"), _item("أرصدة الإجازات", "leave_balances"),
                                         doc("أنواع الإجازات", "leave-type")]},
+        {"title": "تقارير", "items": [_item("مخصص نهاية الخدمة", "eos_provision")]},
         {"title": "الإعداد", "items": ([_item("إعدادات الرواتب والتأمينات", "payroll_settings")] if membership.can_manage else [])
          + [doc("الأقسام", "department"), doc("المسميات الوظيفية", "designation")]},
     ]})

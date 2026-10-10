@@ -59,7 +59,8 @@ def record_payment(subscription, plan, months, amount, method="bank", reference=
 
 
 def active_user_count(company):
-    return company.memberships.filter(is_active=True).count()
+    # حسابات بوابة الموظفين (الخدمة الذاتية) لا تُحسب ضمن مستخدمي الباقة
+    return company.memberships.filter(is_active=True).exclude(role="employee").count()
 
 
 def check_user_limit(company):

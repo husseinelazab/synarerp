@@ -1,4 +1,11 @@
 {% load erp %}{% with h=obj.hr_summary %}
+{% if current_membership.can_manage %}
+<div class="card card-inline">
+  <strong>بوابة الخدمة الذاتية:</strong>
+  {% if obj.user %}للموظف حساب دخول <bdi dir="ltr">{{ obj.user.username }}</bdi> · <a href="{% url 'portal_access' obj.pk %}">إدارة الحساب</a>
+  {% else %}لا يوجد حساب للموظف · <a href="{% url 'portal_access' obj.pk %}">إنشاء حساب ليطلب إجازاته وسلفه ويطلع على قسائم راتبه</a>{% endif %}
+</div>
+{% endif %}
 <div class="grid-2">
   <div class="card">
     <div class="card-head"><h3>الخدمة ومكافأة نهاية الخدمة</h3>

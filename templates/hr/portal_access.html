@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}حساب بوابة الموظف{% endblock %}
+{% block heading %}حساب بوابة الخدمة الذاتية — {{ employee.full_name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <p>يدخل الموظف من صفحة تسجيل الدخول نفسها فيرى بوابته فقط: بياناته، رصيد إجازاته، طلب إجازة أو سلفة، قسائم رواتبه، وحضوره.
+    لا يرى بيانات الشركة الأخرى، ولا يُحسب ضمن عدد مستخدمي الباقة.</p>
+  {% if employee.user %}<p>الحساب الحالي: <strong dir="ltr">{{ employee.user.username }}</strong> — {% if membership.is_active %}<span class="badge status-1">فعّال</span>{% else %}<span class="badge status-2">موقوف</span>{% endif %}</p>{% endif %}
+</div>
+<form method="post" novalidate class="card">
+  {% csrf_token %}
+  <h3>{% if employee.user %}تغيير كلمة المرور{% else %}إنشاء الحساب{% endif %}</h3>
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+  <div class="form-actions" style="margin-top:12px">
+    <button class="btn btn-primary" name="action" value="save">{% if employee.user %}حفظ كلمة المرور{% else %}إنشاء الحساب{% endif %}</button>
+    <a class="btn" href="{{ employee.get_absolute_url }}">رجوع</a>
+  </div>
+</form>
+{% if membership %}
+<form method="post" class="card">{% csrf_token %}
+  {% if membership.is_active %}<button class="btn btn-danger-outline" name="action" value="disable">إيقاف دخول الموظف</button>
+  {% else %}<button class="btn btn-success" name="action" value="enable">تفعيل دخول الموظف</button>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

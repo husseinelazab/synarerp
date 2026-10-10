@@ -4,6 +4,8 @@ from hr import views
 
 urlpatterns = [
     path("settings/", views.payroll_settings, name="payroll_settings"),
+    path("settings/portal/<int:pk>/", views.portal_access, name="portal_access"),
+    path("dashboard/", views.hr_dashboard, name="hr_dashboard"),
     path("attendance/daily/", views.attendance_daily, name="attendance_daily"),
     path("attendance/monthly/", views.attendance_monthly, name="attendance_monthly"),
     path("attendance/punches/", views.attendance_punches, name="attendance_punches"),

@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
 from hr.models import (Attendance, Department, Designation, Employee, EmployeeLoan, EndOfServiceSettlement, Holiday,
-                       LeaveApplication, LeaveType, PayrollLine, PayrollRun, WorkShift)
+                       LeaveApplication, LeaveType, PayrollLine, PayrollRun, ShiftAssignment, WorkShift)
 
 register(DocType(
     slug="employee", model=Employee, module="hr",
@@ -20,7 +20,7 @@ register(DocType(
 ))
 register(DocType(
     slug="leave-application", model=LeaveApplication, module="hr",
-    list_fields=["name", "employee", "leave_type", "from_date", "to_date", "total_days"],
+    list_fields=["name", "employee", "leave_type", "from_date", "to_date", "total_days", "requested_via_portal"],
     form_fields=["employee", "leave_type", "from_date", "to_date", "posting_date", "remarks"],
     search_fields=["name", "employee__full_name", "employee__employee_number"],
 ))
@@ -73,4 +73,8 @@ register(DocType(
 register(DocType(
     slug="work-shift", model=WorkShift, module="hr",
     list_fields=["name", "start_time", "end_time", "grace_minutes", "hours_per_day"], search_fields=["name"],
+))
+register(DocType(
+    slug="shift-assignment", model=ShiftAssignment, module="hr",
+    list_fields=["employee", "shift", "from_date", "to_date"], search_fields=["employee__full_name", "shift__name"],
 ))

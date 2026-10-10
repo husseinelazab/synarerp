@@ -30,7 +30,7 @@
       <tbody>
       {% for r in rows %}{% with e=r.employee %}
         <tr{% if r.error %} class="row-error"{% endif %} data-in="{{ r.default_in }}" data-out="{{ r.default_out }}">
-          <td>{{ e }}{% if e.shift %}<div class="muted small">{{ e.shift }}</div>{% endif %}{% if r.error %}<div class="field-error">{{ r.error }}</div>{% endif %}</td>
+          <td>{{ e }}{% if r.shift %}<div class="muted small">{{ r.shift }}</div>{% endif %}{% if r.error %}<div class="field-error">{{ r.error }}</div>{% endif %}</td>
           <td>{{ e.department|default:"—" }}</td>
           {% if r.leave %}
             <td colspan="5"><span class="badge status-0">{{ r.leave.leave_type }}</span> <a href="{{ r.leave.get_absolute_url }}" class="small">{{ r.leave }}</a></td>

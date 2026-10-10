@@ -3,6 +3,7 @@ import datetime
 import math
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
@@ -59,8 +60,48 @@ class WorkShift(TenantModel):
         return f"{self.name} ({self.start_time:%H:%M}–{self.end_time:%H:%M})"
 
     def clean(self):
-        if self.start_time and self.end_time and self.end_time <= self.start_time:
-            raise ValidationError({"end_time": "نهاية الدوام يجب أن تكون بعد بدايته (الورديات الليلية العابرة لمنتصف الليل غير مدعومة بعد)."})
+        if self.start_time and self.end_time and self.end_time == self.start_time:
+            raise ValidationError({"end_time": "نهاية الدوام يجب أن تختلف عن بدايته."})
+
+    @property
+    def is_overnight(self):
+        """الوردية الليلية تنتهي في اليوم التالي (مثل 22:00 – 06:00)."""
+        return self.end_time < self.start_time
+
+
+class ShiftAssignment(TenantModel):
+    """تدوير الورديات: وردية مؤقتة للموظف في فترة تتقدم على ورديته الأساسية."""
+
+    employee = models.ForeignKey("hr.Employee", models.CASCADE, related_name="shift_assignments", verbose_name="الموظف")
+    shift = models.ForeignKey(WorkShift, models.PROTECT, verbose_name="الوردية")
+    from_date = models.DateField("من تاريخ")
+    to_date = models.DateField("إلى تاريخ", null=True, blank=True, help_text="يُترك فارغاً للاستمرار حتى إشعار آخر")
+
+    class Meta:
+        verbose_name = "تكليف وردية"
+        verbose_name_plural = "جدول الورديات"
+        ordering = ["-from_date"]
+
+    def __str__(self):
+        return f"{self.employee} ← {self.shift.name}"
+
+    def clean(self):
+        if self.from_date and self.to_date and self.to_date < self.from_date:
+            raise ValidationError({"to_date": "تاريخ النهاية يجب أن يكون بعد تاريخ البداية أو يساويه."})
+        if self.employee_id and self.from_date:
+            clash = ShiftAssignment.objects.filter(employee_id=self.employee_id).exclude(pk=self.pk).filter(
+                models.Q(to_date__isnull=True) | models.Q(to_date__gte=self.from_date))
+            if self.to_date:
+                clash = clash.filter(from_date__lte=self.to_date)
+            if clash.exists():
+                raise ValidationError("تتداخل هذه الفترة مع تكليف وردية آخر للموظف.")
+
+
+def shift_on(employee, date):
+    """وردية الموظف في تاريخ: التكليف المؤقت إن وجد، وإلا ورديته الأساسية (أو None للدوام العام)."""
+    assignment = ShiftAssignment.objects.filter(employee=employee, from_date__lte=date).filter(
+        models.Q(to_date__isnull=True) | models.Q(to_date__gte=date)).select_related("shift").first()
+    return assignment.shift if assignment else employee.shift
 
 
 class Holiday(TenantModel):
@@ -149,6 +190,11 @@ class Employee(TenantModel):
     status = models.CharField("الحالة", max_length=10, choices=EmployeeStatus.choices, default=EmployeeStatus.ACTIVE)
     shift = models.ForeignKey(WorkShift, models.PROTECT, null=True, blank=True, verbose_name="وردية العمل",
                               help_text="تُترك فارغة لاتباع أوقات الدوام العامة في إعدادات الرواتب")
+    id_expiry_date = models.DateField("انتهاء الهوية / الإقامة", null=True, blank=True)
+    passport_number = models.CharField("رقم الجواز", max_length=20, blank=True)
+    passport_expiry_date = models.DateField("انتهاء الجواز", null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True, editable=False,
+                             related_name="employee_records", verbose_name="حساب بوابة الخدمة الذاتية")
     device_id = models.CharField("رقم الموظف في جهاز البصمة", max_length=30, blank=True,
                                  help_text="يُستخدم لمطابقة سجلات البصمة المستوردة (وإن تُرك فارغاً يُطابق بالرقم الوظيفي)")
     eos_opening_provision = models.DecimalField(
@@ -276,7 +322,34 @@ def unpaid_leave_days(employee, start, end):
     return sum(leave_days_between(max(start, lv.from_date), min(end, lv.to_date), holidays) for lv in leaves)
 
 
-class LeaveApplication(SubmittableDocument):
+class PortalRequestMixin:
+    """طلب يقدمه الموظف من البوابة كمسودة، فيعتمده المدير أو يرفضه."""
+
+    @property
+    def is_rejected(self):
+        return self.is_cancelled and bool(self.rejection_reason)
+
+    @property
+    def request_status(self):
+        if self.is_draft:
+            return "بانتظار الاعتماد"
+        if self.is_rejected:
+            return "مرفوض"
+        return "معتمد" if self.is_submitted else "ملغى"
+
+    @property
+    def draft_actions(self):
+        return [("reject", "رفض الطلب")] if self.is_draft else []
+
+    def reject(self, user, reason=""):
+        if not self.is_draft:
+            raise ValidationError("يمكن رفض الطلبات غير المعتمدة فقط.")
+        self.rejection_reason = reason or f"رُفض بواسطة {user.get_full_name() or user.username}"
+        self.docstatus = DocStatus.CANCELLED
+        self.save(update_fields=["rejection_reason", "docstatus"])
+
+
+class LeaveApplication(PortalRequestMixin, SubmittableDocument):
     naming_prefix = "LV"
     posts_to_ledger = False
 
@@ -286,6 +359,8 @@ class LeaveApplication(SubmittableDocument):
     from_date = models.DateField("من تاريخ")
     to_date = models.DateField("إلى تاريخ")
     total_days = models.PositiveIntegerField("عدد الأيام (بدون العطل الرسمية)", default=0, editable=False)
+    requested_via_portal = models.BooleanField("طلب من بوابة الموظف", default=False, editable=False)
+    rejection_reason = models.CharField("سبب الرفض", max_length=255, blank=True, editable=False)
 
     posting_note = "طلب الإجازة لا يُنشئ قيوداً محاسبية؛ أيام الإجازة بدون راتب تُخصم تلقائياً في مسير رواتب الشهر."
 
@@ -395,7 +470,7 @@ class Attendance(TenantModel):
     def validate(self):
         if self.status == AttendanceStatus.ABSENT:
             self.check_in = self.check_out = None
-        if self.check_in and self.check_out and self.check_out <= self.check_in:
+        if self.check_in and self.check_out and self.check_out <= self.check_in and not self.is_overnight:
             raise ValidationError("وقت الانصراف يجب أن يكون بعد وقت الحضور.")
         if self.overtime_hours < 0 or self.overtime_hours > 12:
             raise ValidationError("ساعات العمل الإضافي يجب أن تكون بين 0 و12.")
@@ -417,22 +492,36 @@ class Attendance(TenantModel):
         if run:
             raise ValidationError(f"صُرف راتب هذا الشهر في المسير المعتمد {run}؛ ألغِ المسير لتعديل الحضور.")
 
+    @property
+    def is_overnight(self):
+        shift = shift_on(self.employee, self.attendance_date)
+        return bool(shift and shift.is_overnight)
+
     def compute(self, settings):
-        start, end, grace = settings.schedule(self.employee)
+        start, end, grace = settings.schedule(self.employee, self.attendance_date)
         self.late_minutes = self.early_exit_minutes = 0
         self.worked_hours = flt(0)
+        overnight = end < start
+        start_m = _minutes(start)
+        end_m = _minutes(end) + (1440 if overnight else 0)
+
+        def clock(time):
+            # في الوردية الليلية: الأوقات بعد منتصف الليل (قبل البداية بأكثر من 6 ساعات) تخص اليوم التالي
+            m = _minutes(time)
+            return m + 1440 if overnight and m < start_m - 360 else m
+
         off_day = self.attendance_date.weekday() in settings.weekend_days or holiday_on(self.attendance_date)
-        if off_day:
+        if self.check_in and not off_day:
             # العمل في يوم الراحة أو العطلة لا يُحسب فيه تأخير؛ ساعاته تُعتمد عملاً إضافياً
-            start = end = None
-        if self.check_in and start:
-            late = _minutes(self.check_in) - _minutes(start)
+            late = clock(self.check_in) - start_m
             self.late_minutes = late if late > grace else 0
-        if self.check_out and end:
-            early = _minutes(end) - _minutes(self.check_out)
-            self.early_exit_minutes = max(early, 0) if self.status == AttendanceStatus.PRESENT else 0
+        if self.check_out and not off_day and self.status == AttendanceStatus.PRESENT:
+            self.early_exit_minutes = max(end_m - clock(self.check_out), 0)
         if self.check_in and self.check_out:
-            self.worked_hours = flt(Decimal(_minutes(self.check_out) - _minutes(self.check_in)) / 60)
+            worked = clock(self.check_out) - clock(self.check_in)
+            if worked <= 0:
+                worked += 1440
+            self.worked_hours = flt(Decimal(worked) / 60)
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -609,9 +698,9 @@ class PayrollSettings(TenantModel):
     def daily_wage(self, employee):
         return flt(employee.gross_salary) / Decimal(self.days_per_month or 30)
 
-    def schedule(self, employee):
-        """(بداية الدوام، نهايته، دقائق السماح) للموظف حسب ورديته أو الإعدادات العامة."""
-        shift = employee.shift
+    def schedule(self, employee, date=None):
+        """(بداية الدوام، نهايته، دقائق السماح) للموظف في تاريخ حسب ورديته أو الإعدادات العامة."""
+        shift = shift_on(employee, date) if date else employee.shift
         if shift is not None:
             return shift.start_time, shift.end_time, shift.grace_minutes
         return self.work_start, self.work_end, self.grace_minutes
@@ -1149,7 +1238,7 @@ class EndOfServiceSettlement(SubmittableDocument):
 
 # ───────────────────────────── سلف الموظفين ─────────────────────────────
 
-class EmployeeLoan(SubmittableDocument):
+class EmployeeLoan(PortalRequestMixin, SubmittableDocument):
     """سلفة تُصرف للموظف وتُسترد بأقساط شهرية تُخصم تلقائياً في المسير."""
 
     naming_prefix = "LOAN"
@@ -1164,6 +1253,8 @@ class EmployeeLoan(SubmittableDocument):
         limit_choices_to={"is_group": False, "account_type__in": ["cash", "bank"]},
         help_text="يُترك فارغاً لاستخدام حساب صرف الرواتب")
     repaid_amount = models.DecimalField("المسترد", max_digits=18, decimal_places=2, default=0, editable=False)
+    requested_via_portal = models.BooleanField("طلب من بوابة الموظف", default=False, editable=False)
+    rejection_reason = models.CharField("سبب الرفض", max_length=255, blank=True, editable=False)
 
     class Meta(SubmittableDocument.Meta):
         verbose_name = "سلفة موظف"

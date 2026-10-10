@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="post" novalidate class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+  <p class="muted small">يُرسل الطلب لإدارة الموارد البشرية للاعتماد، وتتابع حالته من «صفحتي».</p>
+  <div class="form-actions"><button class="btn btn-primary btn-lg">إرسال الطلب</button> <a class="btn" href="{% url 'portal_home' %}">رجوع</a></div>
+</form>
+{% endblock %}

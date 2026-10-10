@@ -620,3 +620,142 @@ class LoansHolidaysShiftsTests(TestCase):
             self.assertEqual(self.client.get(reverse("doc_list", args=[slug])).status_code, 200)
             self.assertEqual(self.client.get(reverse("doc_new", args=[slug])).status_code, 200)
         self.assertContains(self.client.get(reverse("attendance_monthly") + f"?year={YEAR}&month=9"), "ع")
+
+
+class PortalAndShiftTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة البوابة", "portalboss")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.client.force_login(self.user)
+        self.emp = Employee.objects.create(
+            employee_number="P1", full_name="سارة المطيري", gender="female", date_of_joining=d(1, 1),
+            basic_salary=6000, housing_allowance=1500, transport_allowance=500, gosi_subscribed=False, device_id="9")
+
+    def make_portal_user(self):
+        response = self.client.post(reverse("portal_access", args=[self.emp.pk]),
+                                    {"action": "save", "username": "sara", "password": "Secret#123"})
+        self.assertEqual(response.status_code, 302)
+        self.emp.refresh_from_db()
+        return self.emp.user
+
+    # ── البوابة ──
+    def test_portal_account_does_not_count_and_is_isolated(self):
+        from saas.services import active_user_count
+        before = active_user_count(self.company)
+        user = self.make_portal_user()
+        self.assertEqual(active_user_count(self.company), before)
+        self.assertNotContains(self.client.get(reverse("users_list")), '<td dir="ltr" style="text-align:right">sara</td>', html=False)
+        self.client.force_login(user)
+        self.assertContains(self.client.get(reverse("portal_home")), "سارة المطيري")
+        # لا يصل لأي صفحة أخرى في النظام
+        for url in (reverse("dashboard"), reverse("doc_list", args=["employee"]), reverse("hr_dashboard"),
+                    reverse("payroll_settings"), reverse("doc_list", args=["sales-invoice"])):
+            response = self.client.get(url)
+            self.assertRedirects(response, reverse("portal_home"), fetch_redirect_response=False)
+
+    def test_leave_request_approve_and_reject(self):
+        user = self.make_portal_user()
+        self.client.force_login(user)
+        annual = LeaveType.objects.get(name="إجازة سنوية")
+        response = self.client.post(reverse("portal_leave"), {
+            "leave_type": annual.pk, "from_date": f"{YEAR}-07-01", "to_date": f"{YEAR}-07-30", "remarks": "سفر"})
+        self.assertContains(response, "لا يكفي")  # 30 يوماً > 21
+        self.client.post(reverse("portal_leave"), {
+            "leave_type": annual.pk, "from_date": f"{YEAR}-07-01", "to_date": f"{YEAR}-07-05", "remarks": "سفر"})
+        leave = LeaveApplication.objects.get()
+        self.assertTrue(leave.is_draft and leave.requested_via_portal)
+        self.assertContains(self.client.get(reverse("portal_home")), "بانتظار الاعتماد")
+        # المدير يرى الطلب في لوحة الموارد البشرية ويعتمده
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("hr_dashboard")), leave.name)
+        self.client.post(reverse("doc_action", args=["leave-application", leave.pk, "submit"]))
+        leave.refresh_from_db()
+        self.assertTrue(leave.is_submitted)
+        # طلب ثانٍ يُرفض مع السبب
+        self.client.force_login(user)
+        self.client.post(reverse("portal_leave"), {
+            "leave_type": annual.pk, "from_date": f"{YEAR}-08-01", "to_date": f"{YEAR}-08-02"})
+        second = LeaveApplication.objects.get(docstatus=DocStatus.DRAFT)
+        self.client.force_login(self.user)
+        self.client.post(reverse("doc_action", args=["leave-application", second.pk, "reject"]),
+                         {"reason": "ضغط عمل"})
+        second.refresh_from_db()
+        self.assertTrue(second.is_rejected)
+        self.client.force_login(user)
+        page = self.client.get(reverse("portal_home"))
+        self.assertContains(page, "مرفوض")
+        self.assertContains(page, "ضغط عمل")
+
+    def test_loan_request_withdraw_and_payslip_access(self):
+        user = self.make_portal_user()
+        other = Employee.objects.create(employee_number="P2", full_name="آخر", gender="male", date_of_joining=d(1, 1),
+                                        basic_salary=3000, gosi_subscribed=False)
+        run = PayrollRun.objects.create(year=YEAR, month=6, posting_date=d(6, 28))
+        run.calculate_totals()
+        run.save()
+        run.submit()
+        self.client.force_login(user)
+        self.client.post(reverse("portal_loan"), {"amount": "3000", "installment_amount": "500", "start_month": 8,
+                                                  "start_year": YEAR, "reason": "ظرف طارئ"})
+        from hr.models import EmployeeLoan
+        loan = EmployeeLoan.objects.get()
+        self.assertTrue(loan.is_draft and loan.requested_via_portal)
+        self.client.post(reverse("portal_withdraw", args=["loan", loan.pk]))
+        self.assertFalse(EmployeeLoan.objects.exists())
+        mine = run.lines.get(employee=self.emp)
+        self.assertContains(self.client.get(reverse("portal_payslip", args=[mine.pk])), "قسيمة راتب")
+        theirs = run.lines.get(employee=other)
+        self.assertEqual(self.client.get(reverse("portal_payslip", args=[theirs.pk])).status_code, 404)
+
+    def test_portal_disable_blocks_login(self):
+        user = self.make_portal_user()
+        self.client.post(reverse("portal_access", args=[self.emp.pk]), {"action": "disable"})
+        self.client.force_login(user)
+        self.assertEqual(self.client.get(reverse("portal_home")).status_code, 403)
+
+    # ── اللوحة ──
+    def test_dashboard_expiring_documents(self):
+        self.emp.id_expiry_date = datetime.date.today() + datetime.timedelta(days=20)
+        self.emp.passport_expiry_date = datetime.date.today() - datetime.timedelta(days=3)
+        self.emp.save()
+        page = self.client.get(reverse("hr_dashboard"))
+        self.assertContains(page, "20 يوم")
+        self.assertContains(page, "منتهية منذ 3 يوم")
+
+    # ── الورديات الليلية والتدوير ──
+    def night_shift(self):
+        from hr.models import WorkShift
+        return WorkShift.objects.create(name="ليلية", start_time=datetime.time(22, 0), end_time=datetime.time(6, 0),
+                                        grace_minutes=10, hours_per_day=8)
+
+    def test_night_shift_attendance(self):
+        from hr.models import Attendance
+        self.emp.shift = self.night_shift()
+        self.emp.save()
+        a = Attendance.objects.create(employee=self.emp, attendance_date=d(6, 1), check_in=datetime.time(0, 30),
+                                      check_out=datetime.time(5, 30))
+        self.assertEqual((a.late_minutes, a.early_exit_minutes, a.worked_hours), (150, 30, Decimal("5.00")))
+        b = Attendance.objects.create(employee=self.emp, attendance_date=d(6, 2), check_in=datetime.time(21, 55),
+                                      check_out=datetime.time(6, 5))
+        self.assertEqual((b.late_minutes, b.early_exit_minutes, b.worked_hours), (0, 0, Decimal("8.17")))
+
+    def test_night_shift_punch_import_and_rotation(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from hr.models import Attendance, ShiftAssignment
+        ShiftAssignment.objects.create(employee=self.emp, shift=self.night_shift(), from_date=d(6, 1), to_date=d(6, 30))
+        csv_data = (f"AC-No.,Check Time\n9,{YEAR}-06-10 21:58\n9,{YEAR}-06-11 06:03\n"
+                    f"9,{YEAR}-07-01 08:20\n9,{YEAR}-07-01 17:00\n").encode()
+        self.client.post(reverse("attendance_punches"), {"file": SimpleUploadedFile("p.csv", csv_data)})
+        night = Attendance.objects.get(attendance_date=d(6, 10))  # بصمة الصباح تتبع ليلة 10 يونيو
+        self.assertEqual((night.check_in, night.check_out, night.late_minutes), (datetime.time(21, 58), datetime.time(6, 3), 0))
+        day = Attendance.objects.get(attendance_date=d(7, 1))  # بعد انتهاء التكليف يعود للدوام العام
+        self.assertEqual(day.late_minutes, 20)
+        self.assertEqual(Attendance.objects.count(), 2)
+        with self.assertRaisesMessage(ValidationError, "تتداخل"):
+            ShiftAssignment(employee=self.emp, shift=ShiftAssignment.objects.first().shift,
+                            from_date=d(6, 15), to_date=d(7, 15)).full_clean()

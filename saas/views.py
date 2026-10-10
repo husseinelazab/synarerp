@@ -91,7 +91,8 @@ def company_settings(request):
 
 @login_required
 def users_list(request):
-    members = request.company.memberships.select_related("user").order_by("-is_active", "id")
+    # حسابات بوابة الموظفين تُدار من صفحة الموظف
+    members = request.company.memberships.exclude(role="employee").select_related("user").order_by("-is_active", "id")
     subscription = getattr(request.company, "subscription", None)
     return render(request, "settings/users.html", {
         "members": members, "max_users": subscription.plan.max_users if subscription else None,
@@ -124,6 +125,9 @@ def user_edit(request, pk):
     member = get_object_or_404(Membership, pk=pk, company=request.company)
     if member.role == Role.OWNER:
         messages.error(request, "لا يمكن تعديل دور مالك الحساب.")
+        return redirect("users_list")
+    if member.role == Role.EMPLOYEE:
+        messages.info(request, "حسابات بوابة الموظفين تُدار من صفحة الموظف.")
         return redirect("users_list")
     form = MemberRoleForm(request.POST or None, initial={"role": member.role})
     if request.method == "POST":

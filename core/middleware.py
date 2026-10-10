@@ -13,6 +13,8 @@ PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/f
 BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 # ما يُسمح للكاشير بالوصول إليه
 CASHIER_PREFIXES = ("/pos/", "/api/item/", "/switch-company/")
+# بوابة الخدمة الذاتية للموظف
+EMPLOYEE_PREFIXES = ("/me/", "/switch-company/")
 # صفحات الإدارة لمالك الحساب والمدير فقط
 MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/")
 
@@ -65,6 +67,8 @@ class TenantMiddleware:
         membership = request.membership
         if membership.role == Role.CASHIER and not path.startswith(CASHIER_PREFIXES):
             return redirect("pos_terminal")
+        if membership.role == Role.EMPLOYEE and not path.startswith(EMPLOYEE_PREFIXES):
+            return redirect("portal_home")
         if path.startswith(MANAGER_PREFIXES) and not membership.can_manage:
             messages.error(request, "هذه الصفحة متاحة لمالك الحساب والمدير فقط.")
             return redirect("dashboard")

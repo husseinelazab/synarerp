@@ -78,7 +78,7 @@ class MemberCreateForm(forms.Form):
     username = forms.CharField(label="اسم المستخدم", max_length=150)
     email = forms.EmailField(label="البريد الإلكتروني", required=False)
     password = forms.CharField(label="كلمة المرور", widget=forms.PasswordInput)
-    role = forms.ChoiceField(label="الدور", choices=[c for c in Role.choices if c[0] != Role.OWNER])
+    role = forms.ChoiceField(label="الدور", choices=[c for c in Role.choices if c[0] not in (Role.OWNER, Role.EMPLOYEE)])
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -97,7 +97,7 @@ class MemberCreateForm(forms.Form):
 
 
 class MemberRoleForm(forms.Form):
-    role = forms.ChoiceField(label="الدور", choices=[c for c in Role.choices if c[0] != Role.OWNER])
+    role = forms.ChoiceField(label="الدور", choices=[c for c in Role.choices if c[0] not in (Role.OWNER, Role.EMPLOYEE)])
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

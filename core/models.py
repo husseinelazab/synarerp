@@ -293,6 +293,7 @@ class Role(models.TextChoices):
     ADMIN = "admin", "مدير"
     USER = "user", "مستخدم"
     CASHIER = "cashier", "كاشير"
+    EMPLOYEE = "employee", "موظف (الخدمة الذاتية)"
 
 
 class Membership(models.Model):

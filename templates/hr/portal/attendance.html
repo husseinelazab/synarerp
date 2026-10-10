@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}حضوري{% endblock %}
+{% block heading %}سجل حضوري{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form method="get" class="filters">
+    <select name="month" class="form-select">{% for v, l in months %}<option value="{{ v }}" {% if v == month %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <select name="year" class="form-select">{% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select>
+    <button class="btn">عرض</button>
+  </form>
+</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>التاريخ</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>ساعات العمل</th><th>تأخير (د)</th><th>إضافي معتمد</th></tr></thead>
+    <tbody>{% for r in records %}<tr><td>{{ r.attendance_date|date:"l Y-m-d" }}</td><td>{{ r.get_status_display }}</td><td>{{ r.check_in|time:"H:i"|default:"—" }}</td><td>{{ r.check_out|time:"H:i"|default:"—" }}</td>
+      <td>{{ r.worked_hours|floatformat:-2 }}</td><td>{% if r.late_minutes %}<span class="text-danger">{{ r.late_minutes }}</span>{% else %}—{% endif %}</td><td>{{ r.overtime_hours|floatformat:-2 }}</td></tr>
+    {% empty %}<tr><td colspan="7" class="muted center">لا توجد سجلات لهذا الشهر</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

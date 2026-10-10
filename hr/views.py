@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from hr.models import (FIXED_HOLIDAYS, MONTHS, Attendance, AttendanceStatus, DocStatus, Employee, Holiday,
                        LeaveApplication, LeaveType, PayrollRun, PayrollSettings, eos_provision_balance, holiday_dates,
-                       holiday_on, month_bounds, used_leave_days)
+                       holiday_on, month_bounds, shift_on, used_leave_days)
 
 
 class PayrollSettingsForm(forms.ModelForm):
@@ -182,8 +182,9 @@ def attendance_daily(request):
     for emp in employees:
         record = records.get(emp.id)
         posted = request.method == "POST" and emp.id in errors
-        shift_start, shift_end, _ = settings.schedule(emp)
+        shift_start, shift_end, _ = settings.schedule(emp, day)
         rows.append({
+            "shift": shift_on(emp, day),
             "default_in": shift_start.strftime("%H:%M"), "default_out": shift_end.strftime("%H:%M"),
             "employee": emp, "record": record, "leave": leaves.get(emp.id), "error": errors.get(emp.id),
             "status": request.POST.get(f"status_{emp.id}") if posted else (record.status if record else ""),
@@ -387,6 +388,22 @@ def parse_punches(filename, content):
     return punches, bad
 
 
+def work_date(employee, moment):
+    """يوم العمل الذي تخصه البصمة: بصمات الصباح الباكر لموظف وردية ليلية تتبع اليوم السابق."""
+    previous = moment.date() - datetime.timedelta(days=1)
+    shift = shift_on(employee, previous)
+    if shift is not None and shift.is_overnight:
+        # تُنسب البصمة لما هي أقرب إليه: نهاية وردية الليلة السابقة أم بداية دوام اليوم نفسه
+        minutes = moment.hour * 60 + moment.minute
+        today = shift_on(employee, moment.date())
+        today_start = today.start_time if today is not None else PayrollSettings.for_company(employee.company).work_start
+        to_previous_end = abs(minutes - (shift.end_time.hour * 60 + shift.end_time.minute))
+        to_today_start = abs(minutes - (today_start.hour * 60 + today_start.minute))
+        if to_previous_end < to_today_start:
+            return previous
+    return moment.date()
+
+
 @login_required
 def attendance_punches(request):
     """استيراد سجل البصمات الخام: أول بصمة في اليوم حضور وآخر بصمة انصراف."""
@@ -409,13 +426,14 @@ def attendance_punches(request):
             if emp is None:
                 unknown.add(ident)
                 continue
-            grouped.setdefault((emp, moment.date()), []).append(moment.time().replace(second=0, microsecond=0))
+            moment = moment.replace(second=0, microsecond=0)
+            grouped.setdefault((emp, work_date(emp, moment)), []).append(moment)
         created = updated = 0
         skipped = list(bad)
         for (emp, day), times in sorted(grouped.items(), key=lambda kv: (kv[0][1], kv[0][0].employee_number)):
             times.sort()
-            check_in = times[0]
-            check_out = times[-1] if len(times) > 1 and times[-1] > times[0] else None
+            check_in = times[0].time()
+            check_out = times[-1].time() if len(times) > 1 and times[-1] > times[0] else None
             record = Attendance.objects.filter(employee=emp, attendance_date=day).first()
             try:
                 with transaction.atomic():
@@ -438,3 +456,100 @@ def attendance_punches(request):
         if created or updated:
             messages.success(request, f"تم استيراد {created + updated} يوم حضور من {len(punches)} بصمة.")
     return render(request, "hr/attendance_punches.html", {"result": result})
+
+
+@login_required
+def hr_dashboard(request):
+    from django.db.models import Count, Sum
+
+    from hr.models import EmployeeLoan, EmployeeStatus, PayrollLine
+
+    today = datetime.date.today()
+    active = Employee.objects.filter(date_of_joining__lte=today).exclude(relieving_date__lt=today).exclude(
+        status=EmployeeStatus.LEFT)
+    on_leave = LeaveApplication.objects.filter(docstatus=DocStatus.SUBMITTED, from_date__lte=today,
+                                               to_date__gte=today).select_related("employee", "leave_type")
+    attendance = Attendance.objects.filter(attendance_date=today)
+    horizon = today + datetime.timedelta(days=60)
+    expiring = []
+    for emp in active.filter(models_q_expiry(horizon)):
+        for label, date in (("الهوية / الإقامة", emp.id_expiry_date), ("الجواز", emp.passport_expiry_date)):
+            if date and date <= horizon:
+                expiring.append({"employee": emp, "document": label, "date": date, "days": (date - today).days})
+    expiring.sort(key=lambda e: e["date"])
+    departments = list(active.values("department__name").annotate(n=Count("id")).order_by("-n"))
+    top = max((d["n"] for d in departments), default=0)
+    for d in departments:
+        d["pct"] = round(d["n"] * 100 / top) if top else 0
+    last_run = PayrollRun.objects.filter(docstatus=DocStatus.SUBMITTED).order_by("-year", "-month").first()
+    loans = EmployeeLoan.objects.filter(docstatus=DocStatus.SUBMITTED)
+    provision = (sum(e.eos_opening_provision for e in active) + (PayrollLine.objects.filter(
+        parent__docstatus=DocStatus.SUBMITTED, employee__in=active).aggregate(t=Sum("eos_accrual"))["t"] or 0))
+    return render(request, "hr/dashboard.html", {
+        "today": today, "headcount": active.count(),
+        "saudis": active.filter(is_saudi=True).count(),
+        "on_leave": on_leave, "present": attendance.exclude(status=AttendanceStatus.ABSENT).count(),
+        "absent": attendance.filter(status=AttendanceStatus.ABSENT).select_related("employee"),
+        "late": attendance.filter(late_minutes__gt=0).select_related("employee"),
+        "pending_leaves": LeaveApplication.objects.filter(docstatus=DocStatus.DRAFT).select_related("employee", "leave_type"),
+        "pending_loans": EmployeeLoan.objects.filter(docstatus=DocStatus.DRAFT).select_related("employee"),
+        "expiring": expiring, "departments": departments, "last_run": last_run,
+        "loans_outstanding": sum(loan.outstanding for loan in loans), "provision": provision,
+    })
+
+
+def models_q_expiry(horizon):
+    from django.db.models import Q
+
+    return Q(id_expiry_date__lte=horizon) | Q(passport_expiry_date__lte=horizon)
+
+
+class PortalAccessForm(forms.Form):
+    username = forms.CharField(label="اسم المستخدم", max_length=150)
+    password = forms.CharField(label="كلمة المرور", min_length=8, widget=forms.PasswordInput(render_value=False),
+                               help_text="8 أحرف على الأقل؛ سلّمها للموظف ليغيّرها لاحقاً")
+
+
+@login_required
+def portal_access(request, pk):
+    """إنشاء أو إدارة حساب الموظف في بوابة الخدمة الذاتية (لا يُحسب ضمن مستخدمي الباقة)."""
+    from django.contrib.auth.models import User
+
+    from core.models import Membership, Role
+
+    employee = get_object_or_404(Employee, pk=pk)
+    membership = (Membership.objects.filter(user=employee.user, company=request.company).first()
+                  if employee.user_id else None)
+    form = style_form(PortalAccessForm(request.POST or None, initial={
+        "username": employee.user.username if employee.user_id else employee.employee_number.lower()}))
+    if employee.user_id:
+        form.fields["username"].disabled = True
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+        if action in ("disable", "enable") and membership is not None:
+            membership.is_active = action == "enable"
+            membership.save(update_fields=["is_active"])
+            messages.success(request, "تم إيقاف دخول الموظف." if action == "disable" else "تم تفعيل دخول الموظف.")
+            return redirect(employee.get_absolute_url())
+        if form.is_valid():
+            data = form.cleaned_data
+            with transaction.atomic():
+                if employee.user_id:
+                    user = employee.user
+                    user.set_password(data["password"])
+                    user.save(update_fields=["password"])
+                    messages.success(request, "تم تغيير كلمة مرور الموظف.")
+                else:
+                    if User.objects.filter(username=data["username"]).exists():
+                        form.add_error("username", "اسم المستخدم مستخدم مسبقاً.")
+                        return render(request, "hr/portal_access.html", {"form": form, "employee": employee})
+                    first, _, last = employee.full_name.partition(" ")
+                    user = User.objects.create_user(data["username"], employee.email, data["password"],
+                                                    first_name=first, last_name=last)
+                    employee.user = user
+                    employee.save(update_fields=["user"])
+                    messages.success(request, f"تم إنشاء حساب الموظف «{user.username}». يدخل من صفحة تسجيل الدخول نفسها.")
+                if membership is None:
+                    Membership.objects.create(user=user, company=request.company, role=Role.EMPLOYEE)
+            return redirect(employee.get_absolute_url())
+    return render(request, "hr/portal_access.html", {"form": form, "employee": employee, "membership": membership})

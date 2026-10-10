@@ -42,6 +42,11 @@
         {% endif %}{% endif %}
       {% endif %}
     {% endif %}
+    {% for key, label in obj.draft_actions %}
+      <form method="post" action="{% url 'doc_action' dt.slug obj.pk key %}" class="inline-form" onsubmit="return confirm('{{ label }}؟')">{% csrf_token %}
+        {% if key == 'reject' %}<input name="reason" class="form-control" placeholder="سبب الرفض (يظهر للموظف)" style="max-width:220px">{% endif %}
+        <button class="btn btn-danger-outline">{{ label }}</button></form>
+    {% endfor %}
     {% if not dt.is_submittable or obj.is_draft %}
       <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'delete' %}" onsubmit="return confirm('حذف السجل نهائياً؟')">{% csrf_token %}<button class="btn btn-danger-outline">حذف</button></form>
     {% endif %}
@@ -51,13 +56,15 @@
 {% if dt.is_submittable %}
   {% if obj.is_draft %}
   <div class="posting-banner draft">
-    <div>{% if obj.posts_to_ledger %}<strong>مسودة — لم تُرحّل القيود المحاسبية بعد.</strong><br><span>لن يظهر هذا المستند في الحسابات أو المخزون أو التقارير حتى يتم اعتماده.</span>{% else %}<strong>مسودة — لم يُعتمد بعد.</strong><br><span>اعتمده ليصبح قابلاً للتحويل والطباعة الرسمية.</span>{% endif %}</div>
+    <div>{% if obj.requested_via_portal %}<strong>طلب من بوابة الموظف — بانتظار الاعتماد.</strong><br><span>اعتمده للموافقة، أو ارفضه مع ذكر السبب ليظهر للموظف.</span>{% elif obj.posts_to_ledger %}<strong>مسودة — لم تُرحّل القيود المحاسبية بعد.</strong><br><span>لن يظهر هذا المستند في الحسابات أو المخزون أو التقارير حتى يتم اعتماده.</span>{% else %}<strong>مسودة — لم يُعتمد بعد.</strong><br><span>اعتمده ليصبح قابلاً للتحويل والطباعة الرسمية.</span>{% endif %}</div>
     <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل قيوده؟')">{% csrf_token %}<button class="btn btn-success btn-lg">{% if obj.posts_to_ledger %}اعتماد وترحيل الآن{% else %}اعتماد الآن{% endif %}</button></form>
   </div>
   {% elif obj.is_submitted and not obj.posts_to_ledger %}
   <div class="posting-banner posted"><strong>✓ معتمد</strong> — {{ obj.posting_note|default:"هذا المستند لا يُنشئ قيوداً محاسبية؛ القيد يُنشأ عند تحويله إلى فاتورة." }}</div>
   {% elif obj.is_submitted %}
   <div class="posting-banner posted"><strong>✓ معتمد ومُرحّل</strong> — القيد المحاسبي{% if stock_entries %} وحركة المخزون{% endif %} في أسفل الصفحة.</div>
+  {% elif obj.is_rejected %}
+  <div class="posting-banner cancelled"><strong>مرفوض</strong> — {{ obj.rejection_reason }}</div>
   {% else %}
   <div class="posting-banner cancelled"><strong>ملغى</strong> — تم عكس القيود المحاسبية وحركات المخزون لهذا المستند.</div>
   {% endif %}

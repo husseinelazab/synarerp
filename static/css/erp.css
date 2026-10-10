@@ -56,6 +56,7 @@ code { background: #eef; padding: 1px 6px; border-radius: 4px; direction: ltr; d
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .actions form { margin: 0; }
+.actions form.inline-form { display: flex; gap: 6px; align-items: center; }
 .filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .filters .form-control, .filters .form-select { min-width: 160px; }

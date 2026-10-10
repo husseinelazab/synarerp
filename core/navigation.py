@@ -29,6 +29,10 @@ def build_menu(request):
         return []
     subscription = getattr(request.company, "subscription", None)
     doc = lambda label, slug: _item(label, "doc_list", slug)  # noqa: E731
+    if membership.role == "employee":
+        return _mark_active(request, [{"key": "hr", "label": "بوابة الموظف", "sections": [{"items": [
+            _item("صفحتي", "portal_home"), _item("طلب إجازة", "portal_leave"), _item("طلب سلفة", "portal_loan"),
+            _item("حضوري", "portal_attendance")]}]}])
 
     modules = [
         {"key": "selling", "label": "المبيعات", "sections": [
@@ -75,7 +79,8 @@ def build_menu(request):
                        doc("ملفات نقاط البيع", "pos-profile")]},
         ]})
     modules.append({"key": "hr", "label": "الموارد البشرية", "sections": [
-        {"items": [doc("الموظفون", "employee"), doc("مسيرات الرواتب", "payroll-run"),
+        {"items": [_item("لوحة الموارد البشرية", "hr_dashboard"), doc("الموظفون", "employee"),
+                   doc("مسيرات الرواتب", "payroll-run"),
                    doc("سلف الموظفين", "employee-loan"), doc("مخالصات نهاية الخدمة", "eos-settlement")]},
         {"title": "الحضور والانصراف", "items": [_item("تسجيل الحضور اليومي", "attendance_daily"),
                                                  _item("تقرير الحضور الشهري", "attendance_monthly"),
@@ -85,7 +90,7 @@ def build_menu(request):
                                         doc("أنواع الإجازات", "leave-type")]},
         {"title": "تقارير", "items": [_item("مخصص نهاية الخدمة", "eos_provision")]},
         {"title": "الإعداد", "items": ([_item("إعدادات الرواتب والتأمينات", "payroll_settings")] if membership.can_manage else [])
-         + [doc("ورديات العمل", "work-shift"), doc("العطل الرسمية", "holiday"),
+         + [doc("ورديات العمل", "work-shift"), doc("جدول الورديات", "shift-assignment"), doc("العطل الرسمية", "holiday"),
             doc("الأقسام", "department"), doc("المسميات الوظيفية", "designation")]},
     ]})
     settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
@@ -97,6 +102,10 @@ def build_menu(request):
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [
             {"items": [_item("الشركات والاشتراكات", "platform_dashboard")]}]})
 
+    return _mark_active(request, modules)
+
+
+def _mark_active(request, modules):
     # تحديد العنصر النشط (الأطول تطابقاً) وفتح وحدته
     path = request.get_full_path()
     best, best_len = None, 0

@@ -260,11 +260,14 @@ def doc_action(request, slug, pk, action):
         return redirect("doc_list", slug=slug)
     if action in ("submit", "cancel") and dt.is_submittable:
         return _run_action(request, dt, obj, action)
-    allowed = dict(getattr(obj, "available_actions", []))
+    allowed = dict(list(getattr(obj, "available_actions", [])) + list(getattr(obj, "draft_actions", [])))
     if action in allowed:
         try:
             with transaction.atomic():
-                result = getattr(obj, action)(request.user)
+                if action == "reject":
+                    result = obj.reject(request.user, request.POST.get("reason", "").strip())
+                else:
+                    result = getattr(obj, action)(request.user)
         except ValidationError as exc:
             messages.error(request, _error_text(exc))
             return redirect(obj.get_absolute_url())

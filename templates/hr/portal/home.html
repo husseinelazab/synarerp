@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}صفحتي{% endblock %}
+{% block heading %}أهلاً {{ employee.full_name }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <span class="muted">{% if employee.designation %}{{ employee.designation }} · {% endif %}{% if employee.department %}{{ employee.department }} · {% endif %}الرقم الوظيفي {{ employee.employee_number }}</span>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'portal_leave' %}">طلب إجازة</a>
+    <a class="btn" href="{% url 'portal_loan' %}">طلب سلفة</a>
+    <a class="btn" href="{% url 'portal_attendance' %}">حضوري</a>
+  </div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <h3>رصيد إجازاتي {{ today|date:"Y" }}</h3>
+    <dl class="detail-grid">
+      {% for l in h.leaves %}{% if l.remaining is not None %}<div><dt>{{ l.type }}</dt><dd><strong>{{ l.remaining }}</strong> <span class="muted small">من {{ l.type.days_per_year }}</span></dd></div>{% elif l.used %}<div><dt>{{ l.type }}</dt><dd>استُهلك {{ l.used }}</dd></div>{% endif %}{% endfor %}
+    </dl>
+  </div>
+  <div class="card">
+    <h3>خدمتي</h3>
+    <dl class="detail-grid">
+      <div><dt>تاريخ التعيين</dt><dd>{{ employee.date_of_joining|date:"Y-m-d" }}</dd></div>
+      <div><dt>مدة الخدمة</dt><dd>{{ h.duration }}</dd></div>
+      <div><dt>حضور هذا الشهر</dt><dd>غياب {{ h.attendance.absent_days|floatformat:-1 }} · تأخير {{ h.attendance.late_minutes }} د</dd></div>
+      <div><dt>رصيد السلف</dt><dd>{{ h.loan_balance|cur }}</dd></div>
+      {% if employee.id_expiry_date %}<div><dt>انتهاء الهوية / الإقامة</dt><dd>{{ employee.id_expiry_date|date:"Y-m-d" }}</dd></div>{% endif %}
+    </dl>
+  </div>
+</div>
+<div class="card">
+  <h3>طلباتي</h3>
+  <table class="table">
+    <thead><tr><th>الطلب</th><th>التفاصيل</th><th>الحالة</th><th></th></tr></thead>
+    <tbody>
+    {% for lv in leaves %}<tr><td>{{ lv.leave_type }}</td><td>{{ lv.from_date|date:"Y-m-d" }} ← {{ lv.to_date|date:"Y-m-d" }} ({{ lv.total_days }} يوم)</td>
+      <td><span class="badge status-{{ lv.docstatus }}">{{ lv.request_status }}</span>{% if lv.is_rejected %} <span class="muted small">{{ lv.rejection_reason }}</span>{% endif %}</td>
+      <td>{% if lv.is_draft %}<form method="post" action="{% url 'portal_withdraw' 'leave' lv.pk %}" onsubmit="return confirm('سحب الطلب؟')">{% csrf_token %}<button class="btn btn-sm">سحب</button></form>{% endif %}</td></tr>{% endfor %}
+    {% for ln in loans %}<tr><td>سلفة</td><td>{{ ln.amount|money }} · قسط {{ ln.installment_amount|money }}{% if ln.is_submitted %} · المتبقي {{ ln.outstanding|money }}{% endif %}</td>
+      <td><span class="badge status-{{ ln.docstatus }}">{{ ln.request_status }}</span>{% if ln.is_rejected %} <span class="muted small">{{ ln.rejection_reason }}</span>{% endif %}</td>
+      <td>{% if ln.is_draft %}<form method="post" action="{% url 'portal_withdraw' 'loan' ln.pk %}" onsubmit="return confirm('سحب الطلب؟')">{% csrf_token %}<button class="btn btn-sm">سحب</button></form>{% endif %}</td></tr>{% endfor %}
+    {% if not leaves and not loans %}<tr><td colspan="4" class="muted center">لا توجد طلبات</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+<div class="card">
+  <h3>قسائم الرواتب</h3>
+  <table class="table">
+    <thead><tr><th>الشهر</th><th class="num">إجمالي الاستحقاق</th><th class="num">الاستقطاعات</th><th class="num">الصافي</th><th></th></tr></thead>
+    <tbody>{% for p in payslips %}<tr><td>{{ p.parent.period_label }}</td><td class="num">{{ p.gross_pay|money }}</td><td class="num">{{ p.total_deduction|money }}</td><td class="num"><strong>{{ p.net_pay|money }}</strong></td>
+      <td><a href="{% url 'portal_payslip' p.pk %}" target="_blank">عرض القسيمة</a></td></tr>
+    {% empty %}<tr><td colspan="5" class="muted center">لا توجد قسائم بعد</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

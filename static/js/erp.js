@@ -110,6 +110,8 @@
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
           if (!res.ok) { scanMsg.className = "scan-msg text-danger"; scanMsg.textContent = "✗ " + res.data.error + " (" + code + ")"; return; }
+          if (res.data.weighed) qty = qty * parseFloat(res.data.qty);  // باركود ميزان: الكمية = الوزن
+          qty = Math.round(qty * 1000) / 1000;
           var id = String(res.data.id), rows = activeRows(), row = null;
           rows.forEach(function (r) { var s = field(r, "item"); if (!row && s && s.value === id) row = r; });
           if (row) {

@@ -60,16 +60,44 @@ class Item(TenantModel):
                                             blank=True)
     shelf_location = models.CharField("موقع الرف", max_length=30, blank=True,
                                       help_text="مثل A-03-2 (الممر-الرف-المستوى)؛ يُطبع على ملصق الرف")
+    is_weighed = models.BooleanField("يُباع بالوزن (ميزان)", default=False,
+                                     help_text="يُرسل سعره للموازين، ويُقرأ باركود الميزان المطبوع عليه بالوزن")
+    plu = models.PositiveIntegerField("رقم PLU في الميزان", null=True, blank=True,
+                                      help_text="رقم الصنف داخل الميزان، ويظهر في باركود الميزان")
+    scale_name = models.CharField("الاسم على الميزان", max_length=40, blank=True,
+                                  help_text="اختياري: اسم مختصر يُطبع على ملصق الميزان (بعض الموازين لا تدعم العربية)")
+    shelf_life_days = models.PositiveSmallIntegerField("مدة الصلاحية بالأيام", null=True, blank=True,
+                                                       help_text="يحسب منها الميزان تاريخ الانتهاء على الملصق")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
         verbose_name = "صنف"
         verbose_name_plural = "الأصناف"
         ordering = ["code"]
-        constraints = [tenant_unique("code", model_label="item")]
+        constraints = [tenant_unique("code", model_label="item"), tenant_unique("plu", model_label="item")]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def clean(self):
+        super().clean()
+        if self.is_weighed:
+            if not self.plu:
+                raise ValidationError({"plu": "أدخل رقم PLU للصنف الذي يُباع بالوزن."})
+            settings = ScaleSettings.objects.filter(company_id=self.company_id).first() if self.company_id else None
+            length = settings.plu_length if settings else 5
+            if len(str(self.plu)) > length:
+                raise ValidationError({"plu": f"رقم PLU أطول من {length} أرقام المحددة في إعدادات باركود الموازين."})
+
+    @classmethod
+    def resolve_code(cls, code):
+        """قراءة الماسح: (الصنف، الكمية من باركود الميزان أو None) أو (None، None)."""
+        item = cls.find_by_code(code)
+        if item is not None:
+            return item, None
+        from stock.scale import read_scale_barcode
+
+        return read_scale_barcode(code)
 
     @classmethod
     def find_by_code(cls, code, queryset=None):
@@ -85,6 +113,122 @@ class Item(TenantModel):
             candidates.append(code[1:])
         item = qs.filter(barcode__in=candidates).order_by("id").first()
         return item or qs.filter(code__iexact=code).first()
+
+
+class ScaleValueType(models.TextChoices):
+    WEIGHT = "weight", "الوزن بالجرام (الأكثر شيوعاً)"
+    PRICE = "price", "السعر بالهللة"
+
+
+class ScaleSettings(TenantModel):
+    """صيغة باركود الموازين: بادئة + رقم PLU + الوزن أو السعر + رقم تحقق (EAN-13).
+
+    مثال بالإعداد الافتراضي: 21 00042 01250 C ← الصنف PLU 42 بوزن 1.250 كجم.
+    """
+
+    enabled = models.BooleanField("تفعيل قراءة باركود الموازين", default=False)
+    prefixes = models.CharField("بادئات باركود الميزان", max_length=60, default="21",
+                                help_text="رقمان أو رقم واحد، ويمكن أكثر من بادئة مفصولة بفاصلة مثل: 21,22")
+    plu_length = models.PositiveSmallIntegerField("عدد أرقام PLU في الباركود", default=5)
+    value_type = models.CharField("ما يحمله الباركود", max_length=10, choices=ScaleValueType.choices,
+                                  default=ScaleValueType.WEIGHT)
+
+    class Meta:
+        verbose_name = "إعدادات باركود الموازين"
+        verbose_name_plural = "إعدادات باركود الموازين"
+        constraints = [models.UniqueConstraint(fields=["company"], name="one_scale_settings_per_company")]
+
+    @property
+    def prefix_list(self):
+        return [p.strip() for p in self.prefixes.split(",") if p.strip()]
+
+    @property
+    def prefix_length(self):
+        return len(self.prefix_list[0]) if self.prefix_list else 2
+
+    @property
+    def value_length(self):
+        return 12 - self.prefix_length - self.plu_length
+
+    def clean(self):
+        super().clean()
+        prefixes = self.prefix_list
+        if not prefixes or any(not p.isdigit() or len(p) not in (1, 2) for p in prefixes):
+            raise ValidationError({"prefixes": "البادئة رقم أو رقمان، مثل 2 أو 21."})
+        if len({len(p) for p in prefixes}) > 1:
+            raise ValidationError({"prefixes": "كل البادئات يجب أن تكون بنفس الطول."})
+        if not 3 <= self.plu_length <= 6:
+            raise ValidationError({"plu_length": "عدد أرقام PLU بين 3 و6."})
+        if self.value_length < 4:
+            raise ValidationError({"plu_length": "لا يبقى مكان كافٍ للوزن/السعر في الباركود؛ قلّل أرقام PLU."})
+
+    def example(self, plu=42, value=1250):
+        from stock.barcode import ean_checksum
+
+        body = self.prefix_list[0] + str(plu).zfill(self.plu_length) + str(value).zfill(self.value_length)
+        return body + ean_checksum(body)
+
+    def parse(self, code):
+        """يعيد (رقم PLU، القيمة كعدد صحيح) أو None إن لم يكن باركود ميزان."""
+        from stock.barcode import ean_checksum
+
+        code = (code or "").strip()
+        if not self.enabled or not code.isdigit() or len(code) != 13 or ean_checksum(code[:12]) != code[12]:
+            return None
+        if not any(code.startswith(p) for p in self.prefix_list):
+            return None
+        start = self.prefix_length
+        plu = int(code[start:start + self.plu_length])
+        value = int(code[start + self.plu_length:12])
+        return plu, value
+
+    def config(self):
+        """إعدادات القراءة لشاشة نقطة البيع (تعمل دون اتصال)."""
+        return {"enabled": self.enabled, "prefixes": self.prefix_list, "pluLength": self.plu_length,
+                "valueType": self.value_type}
+
+    @classmethod
+    def for_company(cls, company):
+        return cls.objects.filter(company=company).first() or cls(company=company)
+
+
+class ScaleDriver(models.TextChoices):
+    FILE = "file", "ملف استيراد لبرنامج الميزان (CSV)"
+    CUSTOM = "custom", "مشغّل مباشر خاص بالشركة المصنعة"
+
+
+class Scale(TenantModel):
+    """ميزان طباعة ملصقات في الفرع. البرنامج الوسيط في الفرع يجلب أسعاره دورياً ويرسلها إليه."""
+
+    name = models.CharField("اسم الميزان", max_length=80)
+    brand = models.CharField("الشركة المصنعة / الطراز", max_length=80, blank=True, help_text="مثل CAS CL5200 أو DIGI SM-120")
+    driver = models.CharField("طريقة الإرسال", max_length=10, choices=ScaleDriver.choices, default=ScaleDriver.FILE)
+    ip_address = models.GenericIPAddressField("عنوان IP في الشبكة المحلية", null=True, blank=True)
+    port = models.PositiveIntegerField("المنفذ", null=True, blank=True)
+    item_groups = models.ManyToManyField(ItemGroup, blank=True, related_name="+", verbose_name="مجموعات الأصناف",
+                                         help_text="اتركها فارغة لإرسال كل الأصناف الموزونة")
+    enabled = models.BooleanField("مفعّل", default=True)
+    last_sync_at = models.DateTimeField("آخر مزامنة", null=True, blank=True, editable=False)
+    last_sync_ok = models.BooleanField("نجحت آخر مزامنة", null=True, editable=False)
+    last_sync_message = models.CharField("نتيجة آخر مزامنة", max_length=300, blank=True, editable=False)
+    last_plu_count = models.PositiveIntegerField("عدد الأصناف المرسلة", default=0, editable=False)
+    last_version = models.CharField("نسخة الأسعار المرسلة", max_length=64, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "ميزان"
+        verbose_name_plural = "الموازين"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="scale")]
+
+    def __str__(self):
+        return self.name
+
+    def items(self):
+        qs = Item.objects.filter(is_weighed=True, disabled=False, plu__isnull=False).select_related("uom", "item_group")
+        groups = list(self.item_groups.values_list("id", flat=True)) if self.pk else []
+        if groups:
+            qs = qs.filter(item_group_id__in=groups)
+        return qs.order_by("plu")
 
 
 class Warehouse(TenantModel):
@@ -373,9 +517,11 @@ class StockCount(SubmittableDocument):
 
         if not self.is_draft:
             raise ValidationError("الجرد معتمد أو ملغى؛ لا يمكن المسح عليه.")
-        item = Item.find_by_code(code)
+        item, scale_qty = Item.resolve_code(code)
         if item is None:
             raise ValidationError(f"لا يوجد صنف بهذا الباركود: {code}")
+        if scale_qty is not None:  # باركود ميزان: الكمية = الوزن (مضروباً في عدد العبوات المدخل)
+            qty = flt(scale_qty, 3) * flt(qty, 3)
         if not item.is_stock_item:
             raise ValidationError(f"«{item.name}» ليس صنفاً مخزنياً.")
         if self.item_group_id and item.item_group_id != self.item_group_id:

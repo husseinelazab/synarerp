@@ -1,0 +1,104 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}الموازين{% endblock %}
+{% block heading %}الموازين وباركود الوزن{% endblock %}
+{% block content %}
+<div class="card">
+  <h3>كيف يعمل الربط</h3>
+  <ol class="small" style="margin:0;padding-inline-start:20px;line-height:1.9">
+    <li>حدّد الأصناف التي تُباع بالوزن من بطاقة الصنف: «يُباع بالوزن» + «رقم PLU» (وسعر البيع هو سعر الكيلو).</li>
+    <li>برنامج صغير على جهاز في الفرع (<code>tools/scale-agent</code>) يجلب الأسعار من النظام كل بضع دقائق، ويرسل <b>ما تغيّر فقط</b> إلى الموازين في الشبكة المحلية.
+      خادم النظام لا يتصل بالموازين ولا بالفرع؛ البرنامج هو من يسأل.</li>
+    <li>الميزان يطبع ملصقاً بباركود يحمل رقم الصنف والوزن، فيُقرأ في نقطة البيع والفواتير والجرد وفاحص الأسعار تلقائياً.</li>
+  </ol>
+</div>
+
+<div class="grid-2">
+  <form method="post" class="card" novalidate>
+    {% csrf_token %}
+    <h3>صيغة باركود الميزان</h3>
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+    {% if example %}
+    <p class="small">مثال بهذه الصيغة: <code>{{ example }}</code> =
+      البادئة <b dir="ltr">{{ settings.prefix_list.0 }}</b> + PLU <b dir="ltr">{{ settings.plu_length }}</b> أرقام +
+      {% if settings.value_type == 'weight' %}الوزن بالجرام{% else %}السعر بالهللة{% endif %} <b dir="ltr">{{ settings.value_length }}</b> أرقام + رقم تحقق.
+      اضبط الميزان على نفس الصيغة (غالباً في إعدادات «Barcode format» مثل <span dir="ltr">FF CCCCC WWWWW C</span>).</p>
+    {% endif %}
+    {% if can_manage %}<button class="btn btn-primary">حفظ</button>{% endif %}
+  </form>
+  <div class="card">
+    <h3>تجربة قراءة باركود</h3>
+    <form method="get" class="filters">
+      <input name="test" class="form-control" value="{{ test_result.code|default:'' }}" placeholder="امسح ملصق الميزان هنا" dir="ltr" autofocus>
+      <button class="btn">قراءة</button>
+    </form>
+    {% if test_result %}
+      {% if test_result.item %}
+      <div class="alert alert-success" style="margin-top:10px">✓ {{ test_result.item.name }}
+        {% if test_result.qty is not None %} — الوزن <b dir="ltr">{{ test_result.qty|plain_number }}</b> {{ test_result.item.uom }}{% else %} (باركود عادي للصنف){% endif %}</div>
+      {% else %}
+      <div class="alert alert-error" style="margin-top:10px">لم يُعرف الباركود. تأكد من تفعيل القراءة ومن البادئة وعدد أرقام PLU، ومن وجود صنف موزون بهذا الرقم.</div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="scan-list-head">
+    <h3>الموازين</h3>
+    <span>
+      <a class="btn btn-primary" href="{% url 'doc_new' 'scale' %}">+ إضافة ميزان</a>
+      <a class="btn" href="{% url 'stock_scale_export' 0 %}">تنزيل ملف الأسعار (CSV)</a>
+    </span>
+  </div>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>الميزان</th><th>الطراز</th><th>الإرسال</th><th>العنوان</th><th>آخر مزامنة</th><th>الحالة</th><th>الأصناف</th><th></th></tr></thead>
+    <tbody>
+    {% for s in scales %}
+      <tr>
+        <td><a href="{% url 'doc_detail' 'scale' s.pk %}">{{ s.name }}</a>{% if not s.enabled %} <span class="badge">موقوف</span>{% endif %}</td>
+        <td>{{ s.brand }}</td><td>{{ s.get_driver_display }}</td>
+        <td dir="ltr">{{ s.ip_address|default:"" }}{% if s.port %}:{{ s.port }}{% endif %}</td>
+        <td>{% if s.last_sync_at %}{{ s.last_sync_at|timesince }}{% else %}<span class="muted">لم يتصل بعد</span>{% endif %}</td>
+        <td>{% if s.last_sync_ok is True %}<span class="ok">✓ {{ s.last_sync_message }}</span>{% elif s.last_sync_ok is False %}<span class="text-danger">✗ {{ s.last_sync_message }}</span>{% else %}—{% endif %}</td>
+        <td>{{ s.last_plu_count }}</td>
+        <td><a class="btn btn-sm" href="{% url 'stock_scale_export' s.pk %}">CSV</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="muted">لم يُضف ميزان بعد. أضف موازين الفرع ليظهر حال مزامنة كل منها.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>الأصناف الموزونة ({{ weighed|length }})</h3>
+  {% if missing_plu %}<div class="alert alert-error">{{ missing_plu }} صنف مُعلَّم «يُباع بالوزن» بدون رقم PLU؛ لن يُرسل للموازين.</div>{% endif %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>PLU</th><th>الصنف</th><th>الاسم على الميزان</th><th>المجموعة</th><th>سعر الكيلو شامل الضريبة</th><th>الصلاحية</th></tr></thead>
+    <tbody>
+    {% for row in preview %}
+      <tr><td dir="ltr"><b>{{ row.plu }}</b></td><td>{{ row.code }} - {{ row.name }}</td><td>{{ row.scale_name }}</td><td>{{ row.group }}</td>
+        <td>{{ row.price|money }}</td><td>{% if row.shelf_life_days %}{{ row.shelf_life_days }} يوم{% endif %}</td></tr>
+    {% empty %}
+      <tr><td colspan="6" class="muted">لا توجد أصناف موزونة. فعّل «يُباع بالوزن» وأدخل رقم PLU من بطاقة الصنف.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>تشغيل برنامج المزامنة في الفرع</h3>
+  <ol class="small" style="line-height:1.9;padding-inline-start:20px;margin:0">
+    <li>أنشئ <a href="{% url 'api_keys' %}">مفتاح API</a> لمستخدم لديه صلاحية المخزون (يُفضّل مستخدم مخصص للموازين).</li>
+    <li>على جهاز ويندوز أو لينكس في نفس شبكة الموازين وفيه Python 3: انسخ المجلد <code>tools/scale-agent</code> ثم شغّل:
+      <div><code dir="ltr">python agent.py --server {{ request.scheme }}://{{ request.get_host }} --key snr_xxx --interval 5 --out-dir C:\ScalePLU</code></div></li>
+    <li>البرنامج يفحص الأسعار كل 5 دقائق، وإذا تغيّر سعر أرسل التغييرات وأبلغ النظام بالنتيجة (تظهر في الجدول أعلاه).</li>
+  </ol>
+  <p class="muted small">الإرسال بملف CSV يعمل مع برامج الموازين التي تستورد الأصناف من ملف (CAS CL-Works، DIGI، Aclas، Rongta وغيرها). الإرسال المباشر للميزان عبر الشبكة يحتاج بروتوكول الشركة المصنعة لطرازك؛ انظر <code>tools/scale-agent/README.md</code>.</p>
+</div>
+{% endblock %}

@@ -70,7 +70,8 @@ def build_menu(request):
             {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("الجرد", "stock-count"),
                        doc("المستودعات", "warehouse"),
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
-            {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker")]},
+            {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),
+                                          _item("الموازين", "stock_scales")]},
             {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger")]},
         ]},
     ]

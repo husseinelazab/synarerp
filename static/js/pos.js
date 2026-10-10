@@ -9,6 +9,7 @@
   var search = $("search"), grid = $("grid"), cartEl = $("cart"), discountEl = $("discount");
 
   function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+  function round3(n) { return Math.round((n + Number.EPSILON) * 1000) / 1000; }
   function fmt(n) { return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
@@ -67,7 +68,7 @@
     var item = byId[id];
     if (!item) return;
     var line = cart.find(function (l) { return l.id === item.id; });
-    if (line) line.qty = round2(line.qty + (qty || 1));
+    if (line) line.qty = round3(line.qty + (qty || 1));
     else cart.push({ id: item.id, name: item.name, rate: item.rate, qty: qty || 1 });
     renderCart();
   }
@@ -106,11 +107,36 @@
     if (!q) return;
     var match = items.find(function (i) { return i.barcode === q || i.code.toLowerCase() === q.toLowerCase(); });
     if (!match) {
+      var weighed = scaleBarcode(q);
+      if (weighed) { addToCart(weighed.item.id, weighed.qty); search.value = ""; renderGrid(); return; }
+    }
+    if (!match) {
       var visible = grid.querySelectorAll(".product");
       if (visible.length === 1) match = byId[visible[0].dataset.id];
     }
     if (match) { addToCart(match.id); search.value = ""; renderGrid(); }
   });
+
+  // باركود الميزان: بادئة + رقم PLU + الوزن بالجرام (أو السعر بالهللة) + رقم تحقق
+  function eanValid(code) {
+    var sum = 0;
+    for (var i = 0; i < 12; i++) sum += parseInt(code[i], 10) * (i % 2 ? 3 : 1);
+    return (10 - sum % 10) % 10 === parseInt(code[12], 10);
+  }
+  function scaleBarcode(code) {
+    var sc = config.scale;
+    if (!sc || !sc.enabled || !/^\d{13}$/.test(code) || !eanValid(code)) return null;
+    var prefix = sc.prefixes.find(function (p) { return code.indexOf(p) === 0; });
+    if (!prefix) return null;
+    var plu = parseInt(code.substr(prefix.length, sc.pluLength), 10);
+    var value = parseInt(code.substring(prefix.length + sc.pluLength, 12), 10);
+    var item = items.find(function (i) { return i.plu === plu; });
+    if (!item || !value) return null;
+    if (sc.valueType === "weight") return { item: item, qty: round3(value / 1000) };
+    // الباركود يحمل السعر: الكمية = السعر ÷ سعر الكيلو شاملاً الضريبة
+    var unit = config.pricesIncludeTax || item.zero_vat ? item.rate : item.rate * (100 + config.taxRate) / 100;
+    return unit ? { item: item, qty: round3(value / 100 / unit) } : null;
+  }
 
   $("groups").addEventListener("click", function (e) {
     var chip = e.target.closest(".chip");

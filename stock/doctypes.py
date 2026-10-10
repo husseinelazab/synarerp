@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import (UOM, Item, ItemGroup, OpeningStock, OpeningStockItem, StockCount, StockCountItem, StockEntry,
-                          StockEntryItem, Warehouse)
+from stock.models import (UOM, Item, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
+                          StockEntry, StockEntryItem, Warehouse)
 
 register(DocType(
     slug="item", model=Item, module="stock",
@@ -44,4 +44,9 @@ register(DocType(
                      help="اترك الجدول فارغاً واحفظ لتُجلب أصناف المستودع بكمياتها الدفترية، ثم اطبع ورقة الجرد وعدّل "
                           "«الكمية المعدودة» لما يختلف فقط. الفروقات تُرحّل لحساب تسويات المخزون عند الاعتماد."),
     totals=["difference_value"],
+))
+register(DocType(
+    slug="scale", model=Scale, module="stock",
+    list_fields=["name", "brand", "driver", "enabled", "last_sync_at", "last_sync_message"],
+    search_fields=["name", "brand"],
 ))

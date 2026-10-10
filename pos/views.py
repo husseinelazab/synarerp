@@ -14,7 +14,7 @@ from core.zatca import invoice_qr_svg
 from pos.models import POSProfile, POSShift
 from pos.services import checkout, find_returnable_invoice, pos_return
 from selling.models import Customer, SalesInvoice
-from stock.models import Bin, Item, ItemGroup
+from stock.models import Bin, Item, ItemGroup, ScaleSettings
 
 
 def _error(exc):
@@ -40,6 +40,7 @@ def terminal(request):
         "defaultCustomer": profile.default_customer_id,
         "currencyHtml": currency_symbol_html(profile.company.currency),
         "syncUrl": reverse("pos_sync"),
+        "scale": ScaleSettings.for_company(profile.company).config(),
         "terminalMode": profile.card_terminal_mode,
         "bridgeUrl": profile.bridge_url.rstrip("/"),
         "terminalId": profile.terminal_id,
@@ -119,7 +120,8 @@ def items_api(request):
         {
             "id": i.id, "code": i.code, "name": i.name, "barcode": i.barcode, "group": i.item_group_id,
             "uom": i.uom.name, "rate": float(i.selling_rate), "stock": i.is_stock_item,
-            "qty": float(stock.get(i.id, 0)),
+            "qty": float(stock.get(i.id, 0)), "plu": i.plu if i.is_weighed else None,
+            "zero_vat": i.vat_category in ("Z", "E", "O"),
         }
         for i in Item.objects.filter(disabled=False).select_related("uom")
     ]

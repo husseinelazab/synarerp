@@ -10,4 +10,6 @@ urlpatterns = [
     path("count/<int:pk>/scan/api/", tools.count_scan_api, name="stock_count_scan_api"),
     path("count/<int:pk>/scan/apply/", tools.count_apply, name="stock_count_apply"),
     path("api/items/", tools.items_api, name="stock_items_api"),
+    path("scales/", tools.scales_page, name="stock_scales"),
+    path("scales/export/<int:pk>/", tools.scale_export, name="stock_scale_export"),
 ]

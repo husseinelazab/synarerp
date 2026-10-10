@@ -423,3 +423,64 @@ def account_balances(request):
             rows.append({"account": account.id, "number": account.number, "name": account.name,
                          "root_type": account.root_type, "debit": str(d), "credit": str(c), "balance": str(d - c)})
     return ok({"as_of": as_of, "results": rows})
+
+
+# ---------------- الموازين (للبرنامج الوسيط في الفرع) ----------------
+
+@api_view
+def scales_sync(request):
+    """أسعار الأصناف الموزونة لكل ميزان. يدعم If-None-Match: إن لم تتغير الأسعار يُعاد 304 بلا محتوى."""
+    from django.http import HttpResponseNotModified
+
+    from stock.scale import scales_payload
+
+    if request.method != "GET":
+        return error("الطريقة غير مدعومة.", 405, "method_not_allowed")
+    if not request.membership.allows_module("stock"):
+        return error("المستخدم لا يملك صلاحية المخزون.", 403, "forbidden")
+    payload = scales_payload(request.company)
+    etag = f'"{payload["version"]}"'
+    if request.META.get("HTTP_IF_NONE_MATCH") == etag:
+        response = HttpResponseNotModified()
+    else:
+        response = ok(payload)
+    response["ETag"] = etag
+    return response
+
+
+@api_view
+def scale_report(request, pk):
+    """البرنامج الوسيط يبلّغ بنتيجة إرسال الأسعار للميزان."""
+    from stock.models import Scale
+
+    if request.method != "POST":
+        return error("الطريقة غير مدعومة.", 405, "method_not_allowed")
+    if not request.membership.allows_module("stock"):
+        return error("المستخدم لا يملك صلاحية المخزون.", 403, "forbidden")
+    scale = Scale.objects.filter(pk=pk).first()
+    if scale is None:
+        return error("الميزان غير موجود.", 404, "not_found")
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return error("بيانات غير صالحة.")
+    was_ok = scale.last_sync_ok
+    scale.last_sync_at = timezone.now()
+    scale.last_sync_ok = bool(data.get("ok"))
+    scale.last_sync_message = str(data.get("message") or ("تمت المزامنة" if scale.last_sync_ok else "فشلت"))[:300]
+    if scale.last_sync_ok:
+        scale.last_version = str(data.get("version") or "")[:64]
+        try:
+            scale.last_plu_count = max(0, int(data.get("plu_count") or 0))
+        except (TypeError, ValueError):
+            pass
+    scale.save(update_fields=["last_sync_at", "last_sync_ok", "last_sync_message", "last_version", "last_plu_count"])
+    if not scale.last_sync_ok and was_ok is not False:  # تنبيه عند أول فشل فقط لا مع كل محاولة
+        from core.notify import notify_managers
+
+        try:
+            notify_managers(request.company, f"تعذر تحديث أسعار الميزان «{scale.name}»", url="/stock/scales/",
+                            body=scale.last_sync_message)
+        except Exception:  # noqa: BLE001 — التنبيه لا يُفشل البلاغ
+            pass
+    return ok({"ok": True})

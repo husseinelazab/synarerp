@@ -53,11 +53,15 @@ def _error(exc):
 
 @login_required
 def lookup_api(request):
-    item = Item.find_by_code(request.GET.get("code", ""))
+    item, scale_qty = Item.resolve_code(request.GET.get("code", ""))
     if item is None:
         return JsonResponse({"error": "لا يوجد صنف بهذا الباركود أو الكود."}, status=404)
     data = item_json(item, request.company)
     data.update(selling_rate=str(item.selling_rate), buying_rate=str(item.buying_rate))
+    if scale_qty is not None:
+        # باركود ميزان: الوزن وقيمة العبوة شاملة الضريبة
+        data.update(qty=str(scale_qty), weighed=True,
+                    amount=str(flt(Decimal(data["price"]) * scale_qty)))
     if request.GET.get("stock"):
         bins = Bin.objects.filter(item=item).select_related("warehouse").order_by("warehouse__name")
         data["stock"] = [{"warehouse": b.warehouse.name, "qty": float(b.actual_qty)} for b in bins if b.actual_qty]
@@ -328,3 +332,71 @@ def generate_barcodes(request):
             count += 1
     messages.success(request, f"تم توليد باركود داخلي لـ {count} صنف.")
     return redirect("stock_labels")
+
+
+# ---------------- الموازين ----------------
+
+@login_required
+def scales_page(request):
+    from core.forms import style_form
+    from django import forms as dj_forms
+
+    from stock.models import Scale, ScaleSettings
+    from stock.scale import plu_list
+
+    settings = ScaleSettings.for_company(request.company)
+
+    class SettingsForm(dj_forms.ModelForm):
+        class Meta:
+            model = ScaleSettings
+            fields = ["enabled", "prefixes", "plu_length", "value_type"]
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            style_form(self)
+
+    can_manage = bool(getattr(request, "membership", None) and request.membership.can_manage)
+    form = SettingsForm(request.POST or None, instance=settings)
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "تعديل الإعدادات متاح لمدير الشركة فقط.")
+        elif form.is_valid():
+            obj = form.save(commit=False)
+            obj.company = request.company
+            obj.save()
+            messages.success(request, "تم حفظ إعدادات باركود الموازين.")
+            return redirect("stock_scales")
+    test = request.GET.get("test", "").strip()
+    test_result = None
+    if test:
+        item, qty = Item.resolve_code(test)
+        test_result = {"code": test, "item": item, "qty": qty}
+    scales = list(Scale.objects.prefetch_related("item_groups"))
+    weighed = Item.objects.filter(is_weighed=True, disabled=False).select_related("uom", "item_group").order_by("plu")
+    preview = plu_list(Scale(company=request.company), request.company)
+    return render(request, "stock/scales.html", {
+        "form": form, "settings": settings, "scales": scales, "weighed": weighed, "preview": preview,
+        "example": settings.example() if settings.prefix_list else "", "test_result": test_result,
+        "can_manage": can_manage, "missing_plu": Item.objects.filter(is_weighed=True, plu__isnull=True).count(),
+    })
+
+
+@login_required
+def scale_export(request, pk):
+    """ملف أسعار الميزان للاستيراد اليدوي في برنامج الشركة المصنعة (CSV بترميز UTF-8)."""
+    import csv
+    from django.http import HttpResponse
+
+    from stock.models import Scale
+    from stock.scale import plu_list
+
+    scale = get_object_or_404(Scale, pk=pk) if pk else Scale(company=request.company, name="all")
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="scale-plu-{scale.pk or "all"}.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(["PLU", "ItemCode", "Name", "ScaleName", "UnitPrice", "Unit", "ShelfLifeDays", "Barcode"])
+    for row in plu_list(scale, request.company):
+        writer.writerow([row["plu"], row["code"], row["name"], row["scale_name"], row["price"], row["unit"],
+                         row["shelf_life_days"] or "", row["barcode"]])
+    return response

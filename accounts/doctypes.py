@@ -1,5 +1,5 @@
 from accounts.models import (Account, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
-                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry)
+                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -34,4 +34,9 @@ register(DocType(
     list_fields=["name", "posting_date", "party_type", "remarks"], form_fields=["party_type", "posting_date", "remarks"],
     search_fields=["name", "remarks"],
     child=ChildTable(OpeningPartyLine, ["customer", "supplier", "amount", "reference"], label="الأطراف"),
+))
+register(DocType(
+    slug="period-closing", model=PeriodClosingVoucher, module="accounts",
+    list_fields=["name", "fiscal_year", "posting_date", "net_profit"], form_fields=["fiscal_year", "closing_account", "remarks"],
+    search_fields=["name"], totals=["net_profit"],
 ))

@@ -90,3 +90,63 @@ class OpeningBalanceTests(TestCase):
         for slug in ("opening-account", "opening-party", "opening-stock"):
             self.assertEqual(self.client.get(f"/app/{slug}/template.xlsx").status_code, 200)
             self.assertEqual(self.client.get(f"/app/{slug}/new/").status_code, 200)
+
+
+class PeriodClosingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة الإقفال", "closer")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        from core.models import FiscalYear
+        self.year = FiscalYear.objects.get()
+        self.date = self.year.start_date + datetime.timedelta(days=10)
+
+    def post(self, debit_account, credit_account, amount):
+        from accounts.models import JournalEntry
+        je = JournalEntry.objects.create(posting_date=self.date)
+        je.accounts.create(account=Account.objects.get(number=debit_account), debit=amount)
+        je.accounts.create(account=Account.objects.get(number=credit_account), credit=amount)
+        je.submit()
+
+    def test_closing_moves_profit_to_retained_earnings_and_locks_year(self):
+        from accounts.models import JournalEntry, PeriodClosingVoucher
+        self.post("1101", "4101", 10000)   # إيراد
+        self.post("5202", "1101", 3000)    # مصروف إيجار
+        pcv = PeriodClosingVoucher.objects.create(fiscal_year=self.year)
+        pcv.submit()
+        self.assertEqual(pcv.posting_date, self.year.end_date)
+        self.assertEqual(pcv.net_profit, Decimal("7000"))
+        self.assertEqual(balance(account__number="4101"), 0)
+        self.assertEqual(balance(account__number="5202"), 0)
+        self.assertEqual(-balance(account__number="3102"), Decimal("7000"))
+        self.assertEqual(balance(), 0)
+        self.year.refresh_from_db()
+        self.assertTrue(self.year.is_closed)
+        with self.assertRaises(ValidationError):  # لا ترحيل في سنة مقفلة
+            self.post("1101", "4101", 1)
+        # قائمة الدخل للسنة المقفلة تبقى تعرض النتيجة الحقيقية
+        self.client.force_login(self.user)
+        report = self.client.get(f"/reports/accounts/profit-and-loss/?from_date={self.year.start_date}&to_date={self.year.end_date}")
+        self.assertEqual(report.context["result"], Decimal("7000"))
+        sheet = self.client.get(f"/reports/accounts/balance-sheet/?to_date={self.year.end_date}")
+        self.assertTrue(sheet.context["balanced"])
+        # لا يُقفل مرتين، والإلغاء يعيد فتح السنة ويعكس القيد
+        with self.assertRaises(ValidationError):
+            PeriodClosingVoucher.objects.create(fiscal_year=self.year).submit()
+        pcv.cancel()
+        self.year.refresh_from_db()
+        self.assertFalse(self.year.is_closed)
+        self.assertEqual(-balance(account__number="4101"), Decimal("10000"))
+        self.assertEqual(JournalEntry.objects.filter(docstatus=1).count(), 2)  # المحاولة المرفوضة بقيت مسودة
+
+    def test_loss_is_debited_to_retained_earnings(self):
+        from accounts.models import PeriodClosingVoucher
+        self.post("5202", "1101", 500)
+        pcv = PeriodClosingVoucher.objects.create(fiscal_year=self.year)
+        pcv.submit()
+        self.assertEqual(pcv.net_profit, Decimal("-500"))
+        self.assertEqual(balance(account__number="3102"), Decimal("500"))

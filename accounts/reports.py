@@ -107,13 +107,18 @@ def general_ledger(request):
     })
 
 
-def _grouped_balances(root_types, to_date, from_date=None, level=None):
+CLOSING_VOUCHER = "period-closing"
+
+
+def _grouped_balances(root_types, to_date, from_date=None, level=None, exclude_closing=False):
     """أقسام القوائم المالية بشكل شجري: لكل نوع جذري صفوفه (رؤوس بمجاميعها وفروع) وإجماليه."""
     from accounts.tree import tree_rows
 
     qs = _active_gl().filter(posting_date__lte=to_date, account__root_type__in=root_types)
     if from_date:
         qs = qs.filter(posting_date__gte=from_date)
+    if exclude_closing:
+        qs = qs.exclude(voucher_type=CLOSING_VOUCHER)
     sums = _sums(qs)
     sections = []
     for root in root_types:
@@ -135,7 +140,8 @@ def profit_and_loss(request):
 
     from_date, to_date = _period(request)
     level = _level(request)
-    income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date, from_date, level=level)
+    income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date, from_date, level=level,
+                                        exclude_closing=True)
     return render(request, "reports/statement.html", {
         "title": "قائمة الدخل", "from_date": from_date, "to_date": to_date,
         "level": level or 0, "levels": range(2, max_tree_depth() + 1),

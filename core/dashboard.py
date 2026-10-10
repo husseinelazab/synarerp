@@ -96,9 +96,14 @@ def dashboard_context(request):
 
     sales, sales_prev = _net(SalesInvoice, this_month, next_month), _net(SalesInvoice, last_month, this_month)
     purchases, purchases_prev = _net(PurchaseInvoice, this_month, next_month), _net(PurchaseInvoice, last_month, this_month)
-    month_gl = {"posting_date__gte": this_month, "posting_date__lt": next_month}
-    profit = -_gl_balance(account__root_type=RootType.INCOME, **month_gl) - _gl_balance(
-        account__root_type=RootType.EXPENSE, **month_gl)
+    from accounts.models import GLEntry
+
+    month = GLEntry.objects.filter(is_cancelled=False, posting_date__gte=this_month,
+                                   posting_date__lt=next_month).exclude(voucher_type="period-closing")
+    totals = {row["account__root_type"]: flt(row["d"]) - flt(row["c"]) for row in month.filter(
+        account__root_type__in=[RootType.INCOME, RootType.EXPENSE]).values("account__root_type").annotate(
+        d=Sum("debit"), c=Sum("credit"))}
+    profit = -totals.get(RootType.INCOME, 0) - totals.get(RootType.EXPENSE, 0)
     cash = _gl_balance(account__account_type__in=[AccountType.CASH, AccountType.BANK])
 
     kpis = [

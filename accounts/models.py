@@ -390,3 +390,75 @@ class OpeningPartyLine(models.Model):
     class Meta:
         verbose_name = "سطر رصيد طرف"
         verbose_name_plural = "الأطراف"
+
+
+class PeriodClosingVoucher(SubmittableDocument):
+    """قيد إقفال السنة المالية: تصفير الإيرادات والمصروفات إلى الأرباح المبقاة ثم قفل السنة."""
+
+    naming_prefix = "PCV"
+
+    fiscal_year = models.ForeignKey("core.FiscalYear", on_delete=models.PROTECT, verbose_name="السنة المالية")
+    closing_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, null=True, blank=True, verbose_name="حساب الإقفال (الأرباح المبقاة)",
+        limit_choices_to={"is_group": False, "root_type": RootType.EQUITY},
+        help_text="يُترك فارغاً لاستخدام حساب الأرباح المبقاة في إعدادات الشركة",
+    )
+    net_profit = models.DecimalField("صافي الربح / (الخسارة)", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "قيد إقفال سنة مالية"
+        verbose_name_plural = "قيود إقفال السنوات المالية"
+
+    def save(self, *args, **kwargs):
+        if self.fiscal_year_id:
+            self.posting_date = self.fiscal_year.end_date
+        super().save(*args, **kwargs)
+
+    def _balances(self):
+        rows = (
+            GLEntry.objects.filter(
+                company=self.company, is_cancelled=False, account__root_type__in=[RootType.INCOME, RootType.EXPENSE],
+                posting_date__gte=self.fiscal_year.start_date, posting_date__lte=self.fiscal_year.end_date,
+            ).values("account").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
+        )
+        return {row["account"]: flt(row["d"]) - flt(row["c"]) for row in rows}
+
+    def validate_for_submit(self):
+        if self.fiscal_year.company_id != self.company_id:
+            raise ValidationError("السنة المالية لا تخص هذه الشركة.")
+        others = PeriodClosingVoucher.objects.filter(fiscal_year=self.fiscal_year, docstatus=1).exclude(pk=self.pk)
+        if others.exists():
+            raise ValidationError(f"السنة المالية {self.fiscal_year} مقفلة بالفعل بالقيد {others.first()}.")
+        if self.closing_account is None:
+            self.closing_account = self.company.require_account("default_retained_earnings_account")
+            self.save(update_fields=["closing_account"])
+
+    def on_submit(self):
+        balances = self._balances()
+        accounts = Account.objects.in_bulk(list(balances))
+        entries = []
+        for account_id, amount in balances.items():
+            if amount:
+                # عكس رصيد كل حساب إيراد/مصروف ليصبح صفراً
+                entries.append({"account": accounts[account_id], "debit": -amount if amount < 0 else 0,
+                                "credit": amount if amount > 0 else 0, "remarks": f"إقفال {self.fiscal_year}"})
+        self.net_profit = -sum(balances.values(), flt(0))
+        if entries:
+            entries.append({"account": self.closing_account,
+                            "debit": -self.net_profit if self.net_profit < 0 else 0,
+                            "credit": self.net_profit if self.net_profit > 0 else 0,
+                            "remarks": f"صافي نتيجة {self.fiscal_year}"})
+            make_gl_entries(self, entries, remarks=f"قيد إقفال السنة المالية {self.fiscal_year}")
+        self.save(update_fields=["net_profit"])
+        self.fiscal_year.is_closed = True
+        self.fiscal_year.save(update_fields=["is_closed"])
+
+    def cancel(self):
+        # إلغاء الإقفال يعيد فتح السنة أولاً حتى يُسمح بعكس القيد
+        if self.is_submitted:
+            self.fiscal_year.is_closed = False
+            self.fiscal_year.save(update_fields=["is_closed"])
+        super().cancel()
+
+    def on_cancel(self):
+        cancel_gl_entries(self)

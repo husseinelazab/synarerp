@@ -7,6 +7,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SYNAR_SECRET_KEY", "dev-insecure-change-me")
 DEBUG = os.environ.get("SYNAR_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.environ.get("SYNAR_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("SYNAR_CSRF_TRUSTED_ORIGINS", "").split(",") if o]
+
+# التشغيل داخل GitHub Codespaces: السماح برابط المعاينة الذي يوفره GitHub
+if os.environ.get("CODESPACE_NAME"):
+    _domain = os.environ.get("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev")
+    ALLOWED_HOSTS.append(f".{_domain}")
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ['CODESPACE_NAME']}-8000.{_domain}")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

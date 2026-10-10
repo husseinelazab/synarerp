@@ -1,0 +1,74 @@
+{% load erp static %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="{% static 'css/currency.css' %}">
+  <title>قسائم رواتب {{ run.period_label }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: "Tajawal", "Segoe UI", Tahoma, sans-serif; color: #111; margin: 24px; background: #fff; }
+    .slip { border: 1px solid #bbb; padding: 18px 22px; margin-bottom: 24px; page-break-after: always; }
+    .slip:last-child { page-break-after: auto; }
+    .head { display: flex; justify-content: space-between; border-bottom: 2px solid #1f4e79; padding-bottom: 8px; }
+    h1 { margin: 0; font-size: 20px; color: #1f4e79; }
+    h2 { text-align: center; margin: 12px 0; font-size: 18px; }
+    .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 24px; margin-bottom: 12px; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: right; }
+    th { background: #eef3f8; }
+    td.num { text-align: left; }
+    .net { margin-top: 12px; font-size: 18px; background: #eef3f8; padding: 8px 12px; display: flex; justify-content: space-between; }
+    .sign { display: flex; justify-content: space-between; margin-top: 36px; }
+    .stamp { color: #b00; font-weight: bold; text-align: center; }
+    @media print { .no-print { display: none; } body { margin: 0; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom:12px"><button onclick="window.print()">طباعة</button></div>
+  {% for line in lines %}{% with e=line.employee %}
+  <div class="slip">
+    <div class="head">
+      <div><h1>{{ company.name }}</h1>{% if company.address %}<div>{{ company.address }}</div>{% endif %}</div>
+      <div>المسير: <strong>{{ run.name }}</strong></div>
+    </div>
+    <h2>قسيمة راتب شهر {{ run.period_label }}</h2>
+    {% if run.is_draft %}<div class="stamp">مسودة - غير معتمدة</div>{% elif run.is_cancelled %}<div class="stamp">ملغاة</div>{% endif %}
+    <div class="meta">
+      <div>الموظف: <strong>{{ e.full_name }}</strong></div>
+      <div>الرقم الوظيفي: {{ e.employee_number }}</div>
+      <div>القسم: {{ e.department|default:"—" }}</div>
+      <div>المسمى: {{ e.designation|default:"—" }}</div>
+      <div>رقم الهوية / الإقامة: {{ e.national_id|default:"—" }}</div>
+      <div>الآيبان: <bdi dir="ltr">{{ e.iban|default:"—" }}</bdi></div>
+      <div>أيام العمل: {{ line.worked_days }}</div>
+      {% if line.unpaid_days %}<div>أيام بدون راتب: {{ line.unpaid_days }}</div>{% endif %}
+    </div>
+    <div class="cols">
+      <table>
+        <thead><tr><th colspan="2">الاستحقاقات</th></tr></thead>
+        <tbody>
+          <tr><td>الراتب الأساسي</td><td class="num">{{ line.basic|money }}</td></tr>
+          <tr><td>بدل السكن</td><td class="num">{{ line.housing|money }}</td></tr>
+          <tr><td>بدل النقل</td><td class="num">{{ line.transport|money }}</td></tr>
+          {% if line.other_allowance %}<tr><td>بدلات أخرى</td><td class="num">{{ line.other_allowance|money }}</td></tr>{% endif %}
+          {% if line.additions %}<tr><td>إضافات</td><td class="num">{{ line.additions|money }}</td></tr>{% endif %}
+        </tbody>
+        <tfoot><tr><th>الإجمالي</th><th class="num">{{ line.gross_pay|money }}</th></tr></tfoot>
+      </table>
+      <table>
+        <thead><tr><th colspan="2">الاستقطاعات</th></tr></thead>
+        <tbody>
+          <tr><td>التأمينات الاجتماعية</td><td class="num">{{ line.gosi_employee|money }}</td></tr>
+          {% if line.unpaid_deduction %}<tr><td>إجازة بدون راتب ({{ line.unpaid_days }} يوم)</td><td class="num">{{ line.unpaid_deduction|money }}</td></tr>{% endif %}
+          {% if line.other_deductions %}<tr><td>استقطاعات أخرى{% if line.notes %} — {{ line.notes }}{% endif %}</td><td class="num">{{ line.other_deductions|money }}</td></tr>{% endif %}
+        </tbody>
+        <tfoot><tr><th>الإجمالي</th><th class="num">{{ line.total_deduction|money }}</th></tr></tfoot>
+      </table>
+    </div>
+    <div class="net"><span>صافي الراتب</span><strong>{{ line.net_pay|cur }}</strong></div>
+    <div class="sign"><span>توقيع الموظف: ..................</span><span>المحاسب: ..................</span></div>
+  </div>
+  {% endwith %}{% empty %}<p>لا توجد رواتب في هذا المسير.</p>{% endfor %}
+</body>
+</html>

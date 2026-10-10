@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}أرصدة الإجازات {{ year }}{% endblock %}
+{% block heading %}أرصدة الإجازات — {{ year }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form method="get" class="filters">
+    <select name="year" class="form-select" onchange="this.form.submit()">
+      {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </form>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'doc_new' 'leave-application' %}">+ طلب إجازة</a></div>
+</div>
+<div class="card">
+  <p class="muted small">الرصيد المتبقي لكل نوع إجازة في السنة المختارة. الأنواع بلا حد تعرض الأيام المستهلكة فقط. تُحتسب الطلبات المعتمدة فقط.</p>
+  <div class="table-wrap">
+  <table class="table report">
+    <thead><tr><th>الموظف</th>{% for t in types %}<th>{{ t.name }}{% if not t.is_paid %} <span class="muted small">(بدون راتب)</span>{% endif %}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><a href="{% url 'doc_list' 'leave-application' %}?q={{ r.employee.employee_number }}">{{ r.employee }}</a></td>
+        {% for c in r.cells %}<td>{% if c.allowed %}<strong{% if c.remaining <= 0 %} class="text-danger"{% endif %}>متبقي {{ c.remaining }}</strong><div class="muted small">استُهلك {{ c.used }} من {{ c.allowed }}</div>{% elif c.used %}استُهلك {{ c.used }}{% else %}—{% endif %}</td>{% endfor %}
+      </tr>
+    {% empty %}<tr><td colspan="{{ types|length|add:1 }}" class="muted center">لا يوجد موظفون</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

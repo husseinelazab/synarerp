@@ -55,7 +55,7 @@
     <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل قيوده؟')">{% csrf_token %}<button class="btn btn-success btn-lg">{% if obj.posts_to_ledger %}اعتماد وترحيل الآن{% else %}اعتماد الآن{% endif %}</button></form>
   </div>
   {% elif obj.is_submitted and not obj.posts_to_ledger %}
-  <div class="posting-banner posted"><strong>✓ معتمد</strong> — هذا المستند لا يُنشئ قيوداً محاسبية؛ القيد يُنشأ عند تحويله إلى فاتورة.</div>
+  <div class="posting-banner posted"><strong>✓ معتمد</strong> — {{ obj.posting_note|default:"هذا المستند لا يُنشئ قيوداً محاسبية؛ القيد يُنشأ عند تحويله إلى فاتورة." }}</div>
   {% elif obj.is_submitted %}
   <div class="posting-banner posted"><strong>✓ معتمد ومُرحّل</strong> — القيد المحاسبي{% if stock_entries %} وحركة المخزون{% endif %} في أسفل الصفحة.</div>
   {% else %}
@@ -78,6 +78,8 @@
   </table>
 </div>
 {% endif %}
+
+{% if dt.detail_template %}{% include dt.detail_template %}{% endif %}
 
 {% if totals %}
 <div class="card totals-card">

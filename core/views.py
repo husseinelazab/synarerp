@@ -177,7 +177,7 @@ def _linked_entries(obj):
 def _child_table(dt, obj):
     if not dt.child:
         return [], []
-    fields = list(dt.child.fields)
+    fields = list(dt.child.display_fields or dt.child.fields)
     if any(f.name == "amount" for f in dt.child.model._meta.fields) and "amount" not in fields:
         fields.append("amount")
     headers = [field_label(dt.child.model, f) for f in fields]
@@ -229,7 +229,8 @@ def _run_action(request, dt, obj, action):
     try:
         if action == "submit":
             obj.submit()
-            messages.success(request, f"تم اعتماد {dt.label} {obj} وترحيل قيوده.")
+            suffix = " وترحيل قيوده" if getattr(obj, "posts_to_ledger", True) else ""
+            messages.success(request, f"تم اعتماد {dt.label} {obj}{suffix}.")
         elif action == "cancel":
             obj.cancel()
             messages.success(request, f"تم إلغاء {dt.label} {obj}.")

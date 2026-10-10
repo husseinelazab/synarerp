@@ -46,7 +46,7 @@ def build_formset_class(doctype):
         fk_name=child.fk_name,
         fields=list(child.fields),
         extra=0,
-        min_num=1,
+        min_num=child.min_rows,
         can_delete=True,
         formfield_callback=formfield_callback,
     )

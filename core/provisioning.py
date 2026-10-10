@@ -76,6 +76,11 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
             Department.objects.create(name=department)
         for designation in DESIGNATIONS:
             Designation.objects.create(name=designation)
+        from hr.models import DEFAULT_LEAVE_TYPES, LeaveType, PayrollSettings
+
+        for leave_name, days, paid in DEFAULT_LEAVE_TYPES:
+            LeaveType.objects.create(name=leave_name, days_per_year=days, is_paid=paid)
+        PayrollSettings.for_company(company)
         walk_in = Customer.objects.create(name="عميل نقدي", customer_type="individual")
         POSProfile.objects.create(
             name="الكاشير الرئيسي", warehouse=main, default_customer=walk_in,

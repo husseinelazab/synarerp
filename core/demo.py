@@ -72,4 +72,11 @@ def create_demo_data(company):
         employee_number="EMP-001", full_name="أحمد علي السالم", gender="male", nationality="سعودي",
         date_of_joining=today.replace(month=1, day=1), department=Department.objects.get(name="المالية والمحاسبة"),
         designation=Designation.objects.get(name="محاسب"), basic_salary=8000, housing_allowance=2000, transport_allowance=800,
+        is_saudi=True, bank_name="مصرف الراجحي", iban="SA0380000000608010167519", national_id="1012345678",
+    )
+    Employee.objects.create(
+        employee_number="EMP-002", full_name="محمد رفيق خان", gender="male", nationality="باكستاني",
+        date_of_joining=today.replace(month=1, day=1), department=Department.objects.get(name="المبيعات"),
+        basic_salary=4000, housing_allowance=1000, transport_allowance=500,
+        bank_name="البنك الأهلي السعودي", iban="SA4410000001234567891234", national_id="2234567890",
     )

@@ -23,6 +23,11 @@ class ChildTable:
     fk_name: str = "parent"
     # نوع السعر الذي يُجلب تلقائياً عند اختيار الصنف: selling أو buying
     rate_type: str = ""
+    # أقل عدد للأسطر في النموذج (صفر يسمح بحفظ المستند بلا أسطر لتُجلب تلقائياً)
+    min_rows: int = 1
+    # الأعمدة المعروضة في صفحة المستند والطباعة إن اختلفت عن حقول الإدخال
+    display_fields: Optional[list] = None
+    help: str = ""
 
 
 @dataclass
@@ -37,6 +42,7 @@ class DocType:
     child: Optional[ChildTable] = None
     totals: list = field(default_factory=list)  # حقول الإجماليات المعروضة في صفحة المستند
     show_in_menu: bool = True
+    detail_template: str = ""  # قالب إضافي يُعرض في صفحة المستند
 
     @property
     def label(self):

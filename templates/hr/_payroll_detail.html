@@ -1,0 +1,21 @@
+{% load erp %}
+<div class="card">
+  <div class="card-head"><h3>مسير رواتب {{ obj.period_label }}</h3>
+    <div class="actions">
+      <a class="btn" href="{% url 'payslips' obj.pk %}" target="_blank">طباعة قسائم الرواتب</a>
+      {% if obj.is_submitted %}<a class="btn" href="{% url 'payroll_bank_file' obj.pk %}">ملف تحويل البنك (Excel)</a>{% endif %}
+    </div>
+  </div>
+  <dl class="detail-grid">
+    <div><dt>عدد الموظفين</dt><dd>{{ obj.lines.count }}</dd></div>
+    <div><dt>إجمالي التأمينات (الموظف + المنشأة)</dt><dd>{{ obj.total_gosi|cur }}</dd></div>
+    <div><dt>التكلفة الكلية على المنشأة</dt><dd>{{ obj.total_cost|cur }}</dd></div>
+  </dl>
+  {% if obj.payment_entries %}
+  <h4>قيود الصرف</h4>
+  <table class="table">
+    <thead><tr><th>القيد</th><th>البيان</th><th class="num">المبلغ</th><th>الحالة</th></tr></thead>
+    <tbody>{% for je in obj.payment_entries %}<tr><td><a href="{{ je.get_absolute_url }}">{{ je.name }}</a></td><td>{{ je.remarks }}</td><td class="num">{{ je.total_debit|money }}</td><td><span class="badge status-{{ je.docstatus }}">{{ je.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+</div>

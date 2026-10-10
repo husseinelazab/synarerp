@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}إعدادات الرواتب{% endblock %}
+{% block heading %}إعدادات الرواتب والتأمينات الاجتماعية{% endblock %}
+{% block content %}
+<div class="alert alert-info">
+  النسب الافتراضية هي المعمول بها لدى المؤسسة العامة للتأمينات الاجتماعية للموظفين المسجلين قبل يوليو 2024:
+  السعودي 9.75% على الموظف (معاشات 9% + ساند 0.75%) و11.75% على المنشأة (معاشات 9% + أخطار مهنية 2% + ساند 0.75%)،
+  وغير السعودي 2% على المنشأة (أخطار مهنية) — على الأجر الأساسي مع بدل السكن بحد أعلى 45,000.
+  <strong>راجعها مع محاسبك</strong> وعدّلها إن اختلفت حالة منشأتك (مثل النسب المتدرجة للمشتركين الجدد).
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card"><h3>الحسابات</h3><div class="form-grid">
+    {% for field in form %}{% if "account" in field.name %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+  </div></div>
+  <div class="card"><h3>التأمينات الاجتماعية وحساب الأجر</h3><div class="form-grid">
+    {% for field in form %}{% if not "account" in field.name %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+  </div></div>
+  <div class="form-actions"><button class="btn btn-primary">حفظ</button></div>
+</form>
+{% endblock %}

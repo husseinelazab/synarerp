@@ -14,7 +14,7 @@ BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 # ما يُسمح للكاشير بالوصول إليه
 CASHIER_PREFIXES = ("/pos/", "/api/item/", "/switch-company/")
 # صفحات الإدارة لمالك الحساب والمدير فقط
-MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/")
+MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/")
 
 
 class TenantMiddleware:

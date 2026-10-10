@@ -43,7 +43,8 @@ class DocType:
     totals: list = field(default_factory=list)  # حقول الإجماليات المعروضة في صفحة المستند
     show_in_menu: bool = True
     detail_template: str = ""  # قالب إضافي يُعرض في صفحة المستند
-    detail_exclude: list = field(default_factory=list)  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
+    detail_exclude: list = field(default_factory=list)
+    list_actions: list = field(default_factory=list)  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
 
     @property
     def label(self):

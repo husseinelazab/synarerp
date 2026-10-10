@@ -1,5 +1,6 @@
 import calendar
 import datetime
+import math
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -39,6 +40,79 @@ class Designation(TenantModel):
         return self.name
 
 
+class WorkShift(TenantModel):
+    """وردية عمل بأوقاتها؛ الموظف بلا وردية يتبع أوقات الدوام في إعدادات الرواتب."""
+
+    name = models.CharField("اسم الوردية", max_length=100)
+    start_time = models.TimeField("بداية الدوام")
+    end_time = models.TimeField("نهاية الدوام")
+    grace_minutes = models.PositiveSmallIntegerField("دقائق السماح للتأخير", default=15)
+    hours_per_day = models.DecimalField("ساعات العمل اليومية", max_digits=4, decimal_places=2, default=8)
+
+    class Meta:
+        verbose_name = "وردية عمل"
+        verbose_name_plural = "ورديات العمل"
+        ordering = ["start_time"]
+        constraints = [tenant_unique("name", model_label="workshift")]
+
+    def __str__(self):
+        return f"{self.name} ({self.start_time:%H:%M}–{self.end_time:%H:%M})"
+
+    def clean(self):
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError({"end_time": "نهاية الدوام يجب أن تكون بعد بدايته (الورديات الليلية العابرة لمنتصف الليل غير مدعومة بعد)."})
+
+
+class Holiday(TenantModel):
+    """العطل الرسمية: لا تُحتسب من رصيد الإجازات ولا يُسجل فيها غياب."""
+
+    name = models.CharField("العطلة", max_length=100)
+    from_date = models.DateField("من تاريخ")
+    to_date = models.DateField("إلى تاريخ")
+
+    class Meta:
+        verbose_name = "عطلة رسمية"
+        verbose_name_plural = "العطل الرسمية"
+        ordering = ["-from_date"]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        if self.from_date and self.to_date and self.to_date < self.from_date:
+            raise ValidationError({"to_date": "تاريخ النهاية يجب أن يكون بعد تاريخ البداية أو يساويه."})
+
+    @property
+    def total_days(self):
+        return (self.to_date - self.from_date).days + 1
+
+
+# العطل الثابتة بالتاريخ الميلادي؛ عيدا الفطر والأضحى يتغيران سنوياً (هجرية) فتُضافان يدوياً
+FIXED_HOLIDAYS = [("يوم التأسيس", 2, 22), ("اليوم الوطني", 9, 23)]
+
+
+def holiday_dates(start, end):
+    dates = set()
+    for h in Holiday.objects.filter(from_date__lte=end, to_date__gte=start):
+        day = max(h.from_date, start)
+        while day <= min(h.to_date, end):
+            dates.add(day)
+            day += datetime.timedelta(days=1)
+    return dates
+
+
+def holiday_on(date):
+    return Holiday.objects.filter(from_date__lte=date, to_date__gte=date).first()
+
+
+def leave_days_between(start, end, holidays=None):
+    """أيام الإجازة في الفترة بعد استبعاد العطل الرسمية (المادة 112)."""
+    if end < start:
+        return 0
+    holidays = holiday_dates(start, end) if holidays is None else holidays
+    return (end - start).days + 1 - len([d for d in holidays if start <= d <= end])
+
+
 class Gender(models.TextChoices):
     MALE = "male", "ذكر"
     FEMALE = "female", "أنثى"
@@ -73,6 +147,10 @@ class Employee(TenantModel):
     phone = models.CharField("الجوال", max_length=30, blank=True)
     email = models.EmailField("البريد الإلكتروني", blank=True)
     status = models.CharField("الحالة", max_length=10, choices=EmployeeStatus.choices, default=EmployeeStatus.ACTIVE)
+    shift = models.ForeignKey(WorkShift, models.PROTECT, null=True, blank=True, verbose_name="وردية العمل",
+                              help_text="تُترك فارغة لاتباع أوقات الدوام العامة في إعدادات الرواتب")
+    device_id = models.CharField("رقم الموظف في جهاز البصمة", max_length=30, blank=True,
+                                 help_text="يُستخدم لمطابقة سجلات البصمة المستوردة (وإن تُرك فارغاً يُطابق بالرقم الوظيفي)")
     eos_opening_provision = models.DecimalField(
         "مخصص نهاية الخدمة المكوّن قبل النظام", max_digits=18, decimal_places=2, default=0,
         help_text="للموظفين القدامى: ما سبق تكوينه لهم في حساب المخصص (ضمن الأرصدة الافتتاحية) قبل استخدام النظام")
@@ -125,6 +203,8 @@ class Employee(TenantModel):
             "attendance": attendance_summary(self, start, min(month_end, today)),
             "month_label": f"{dict(MONTHS)[today.month]} {today.year}",
             "settled": self.settlements.filter(docstatus=DocStatus.SUBMITTED).first(),
+            "loans": open_loans(self),
+            "loan_balance": flt(sum(loan.outstanding for loan in open_loans(self))),
         }
 
     def employed_between(self, start, end):
@@ -182,7 +262,8 @@ def used_leave_days(employee, leave_type, year, exclude_pk=None):
         employee=employee, leave_type=leave_type, docstatus=DocStatus.SUBMITTED,
         from_date__lte=end, to_date__gte=start,
     ).exclude(pk=exclude_pk)
-    return sum(overlap_days(start, end, lv.from_date, lv.to_date) for lv in leaves)
+    holidays = holiday_dates(start, end)
+    return sum(leave_days_between(max(start, lv.from_date), min(end, lv.to_date), holidays) for lv in leaves)
 
 
 def unpaid_leave_days(employee, start, end):
@@ -191,7 +272,8 @@ def unpaid_leave_days(employee, start, end):
         employee=employee, leave_type__is_paid=False, docstatus=DocStatus.SUBMITTED,
         from_date__lte=end, to_date__gte=start,
     )
-    return sum(overlap_days(start, end, lv.from_date, lv.to_date) for lv in leaves)
+    holidays = holiday_dates(start, end)
+    return sum(leave_days_between(max(start, lv.from_date), min(end, lv.to_date), holidays) for lv in leaves)
 
 
 class LeaveApplication(SubmittableDocument):
@@ -203,7 +285,7 @@ class LeaveApplication(SubmittableDocument):
                                    limit_choices_to={"disabled": False})
     from_date = models.DateField("من تاريخ")
     to_date = models.DateField("إلى تاريخ")
-    total_days = models.PositiveIntegerField("عدد الأيام", default=0, editable=False)
+    total_days = models.PositiveIntegerField("عدد الأيام (بدون العطل الرسمية)", default=0, editable=False)
 
     posting_note = "طلب الإجازة لا يُنشئ قيوداً محاسبية؛ أيام الإجازة بدون راتب تُخصم تلقائياً في مسير رواتب الشهر."
 
@@ -217,7 +299,7 @@ class LeaveApplication(SubmittableDocument):
 
     def calculate_totals(self):
         if self.from_date and self.to_date and self.to_date >= self.from_date:
-            self.total_days = (self.to_date - self.from_date).days + 1
+            self.total_days = leave_days_between(self.from_date, self.to_date)
 
     def validate_for_submit(self):
         self.clean()
@@ -237,7 +319,7 @@ class LeaveApplication(SubmittableDocument):
             # يُحسب الرصيد لكل سنة ميلادية تقع فيها أيام الإجازة
             for year in range(self.from_date.year, self.to_date.year + 1):
                 start, end = datetime.date(year, 1, 1), datetime.date(year, 12, 31)
-                requested = overlap_days(start, end, self.from_date, self.to_date)
+                requested = leave_days_between(max(start, self.from_date), min(end, self.to_date))
                 used = used_leave_days(employee, self.leave_type, year, exclude_pk=self.pk)
                 if used + requested > allowed:
                     raise ValidationError(
@@ -324,6 +406,10 @@ class Attendance(TenantModel):
                                                 from_date__lte=date, to_date__gte=date).first()
         if leave:
             raise ValidationError(f"{employee} في إجازة معتمدة ({leave}) بتاريخ {date:%Y-%m-%d}.")
+        if self.status != AttendanceStatus.PRESENT:
+            holiday = holiday_on(date)
+            if holiday:
+                raise ValidationError(f"{date:%Y-%m-%d} عطلة رسمية ({holiday})؛ لا يُسجل فيها غياب.")
         self.check_lock()
 
     def check_lock(self, date=None, employee=None):
@@ -332,13 +418,18 @@ class Attendance(TenantModel):
             raise ValidationError(f"صُرف راتب هذا الشهر في المسير المعتمد {run}؛ ألغِ المسير لتعديل الحضور.")
 
     def compute(self, settings):
+        start, end, grace = settings.schedule(self.employee)
         self.late_minutes = self.early_exit_minutes = 0
         self.worked_hours = flt(0)
-        if self.check_in:
-            late = _minutes(self.check_in) - _minutes(settings.work_start)
-            self.late_minutes = late if late > settings.grace_minutes else 0
-        if self.check_out:
-            early = _minutes(settings.work_end) - _minutes(self.check_out)
+        off_day = self.attendance_date.weekday() in settings.weekend_days or holiday_on(self.attendance_date)
+        if off_day:
+            # العمل في يوم الراحة أو العطلة لا يُحسب فيه تأخير؛ ساعاته تُعتمد عملاً إضافياً
+            start = end = None
+        if self.check_in and start:
+            late = _minutes(self.check_in) - _minutes(start)
+            self.late_minutes = late if late > grace else 0
+        if self.check_out and end:
+            early = _minutes(end) - _minutes(self.check_out)
             self.early_exit_minutes = max(early, 0) if self.status == AttendanceStatus.PRESENT else 0
         if self.check_in and self.check_out:
             self.worked_hours = flt(Decimal(_minutes(self.check_out) - _minutes(self.check_in)) / 60)
@@ -393,6 +484,27 @@ class Weekend(models.TextChoices):
 WEEKEND_DAYS = {"fri_sat": {4, 5}, "fri": {4}, "sat_sun": {5, 6}, "none": set()}
 
 
+def default_accounts(company):
+    """حسابات الرواتب الافتراضية من الدليل بأسمائها (فلا يُربط حساب أضافته الشركة بنفس الرقم)."""
+    from accounts.models import Account
+    from core.setup_data import CHART_OF_ACCOUNTS
+
+    names = {}
+
+    def walk(nodes):
+        for number, name, _kind, children in nodes:
+            names[number] = name
+            if children:
+                walk(children)
+
+    walk(CHART_OF_ACCOUNTS)
+    result = {}
+    for number in ("5201", "5209", "5210", "2202", "2103", "2105", "1102", "1107"):
+        qs = Account.all_objects.filter(company=company, is_group=False)
+        result[number] = qs.filter(name=names[number]).first()
+    return result
+
+
 class PayrollSettings(TenantModel):
     """إعدادات الرواتب والتأمينات الاجتماعية للشركة (سجل واحد لكل شركة)."""
 
@@ -412,6 +524,9 @@ class PayrollSettings(TenantModel):
         "accounts.Account", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="حساب الاستقطاعات الأخرى",
         limit_choices_to={"is_group": False},
         help_text="مثل سلف الموظفين. يُترك فارغاً لتخفيض مصروف الرواتب بقيمة الاستقطاعات (الجزاءات والغياب).")
+    loan_account = models.ForeignKey(
+        "accounts.Account", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="حساب سلف الموظفين",
+        limit_choices_to={"is_group": False, "root_type": "asset"})
     payment_account = models.ForeignKey(
         "accounts.Account", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="حساب صرف الرواتب",
         limit_choices_to={"is_group": False, "account_type__in": ["cash", "bank"]})
@@ -461,13 +576,11 @@ class PayrollSettings(TenantModel):
     def for_company(cls, company):
         settings = cls.all_objects.filter(company=company).first()
         if settings is None:
-            from accounts.models import Account
-
-            accounts = {a.number: a for a in Account.all_objects.filter(
-                company=company, is_group=False, number__in=["5201", "5209", "5210", "2202", "2103", "2105", "1102"])}
+            accounts = default_accounts(company)
             settings = cls.all_objects.create(
                 company=company,
                 eos_expense_account=accounts.get("5210"), eos_provision_account=accounts.get("2202"),
+                loan_account=accounts.get("1107"),
                 salary_expense_account=accounts.get("5201"), gosi_expense_account=accounts.get("5209"),
                 salary_payable_account=accounts.get("2103"), gosi_payable_account=accounts.get("2105"),
                 payment_account=accounts.get("1102"),
@@ -481,6 +594,10 @@ class PayrollSettings(TenantModel):
         if missing:
             raise ValidationError("حدد الحسابات التالية في «الموارد البشرية ← إعدادات الرواتب»: " + "، ".join(missing))
 
+    def validate_loan_account(self):
+        if not self.loan_account_id:
+            raise ValidationError("حدد «حساب سلف الموظفين» في «إعدادات الرواتب والتأمينات».")
+
     def validate_eos_accounts(self):
         if not (self.eos_expense_account_id and self.eos_provision_account_id):
             raise ValidationError("حدد حسابي مصروف ومخصص مكافأة نهاية الخدمة في «إعدادات الرواتب والتأمينات».")
@@ -492,11 +609,21 @@ class PayrollSettings(TenantModel):
     def daily_wage(self, employee):
         return flt(employee.gross_salary) / Decimal(self.days_per_month or 30)
 
+    def schedule(self, employee):
+        """(بداية الدوام، نهايته، دقائق السماح) للموظف حسب ورديته أو الإعدادات العامة."""
+        shift = employee.shift
+        if shift is not None:
+            return shift.start_time, shift.end_time, shift.grace_minutes
+        return self.work_start, self.work_end, self.grace_minutes
+
+    def hours_for(self, employee):
+        return Decimal((employee.shift.hours_per_day if employee.shift_id else self.hours_per_day) or 8)
+
     def hourly_wage(self, employee):
-        return self.daily_wage(employee) / Decimal(self.hours_per_day or 8)
+        return self.daily_wage(employee) / self.hours_for(employee)
 
     def overtime_hour_rate(self, employee):
-        basic_hour = flt(employee.basic_salary) / Decimal(self.days_per_month or 30) / Decimal(self.hours_per_day or 8)
+        basic_hour = flt(employee.basic_salary) / Decimal(self.days_per_month or 30) / self.hours_for(employee)
         return self.hourly_wage(employee) + basic_hour * self.overtime_premium / 100
 
     def eos_wage(self, employee):
@@ -605,7 +732,7 @@ class PayrollRun(SubmittableDocument):
             ).exclude(parent=self).select_related("parent").first()
             if paid:
                 raise ValidationError(f"راتب {line.employee} لشهر {self.period_label} مسجل في المسير المعتمد {paid.parent}.")
-        if not self.total_net and not self.total_gosi_employer:
+        if not self.total_earnings and not self.total_gosi_employer:
             raise ValidationError("لا يمكن اعتماد مسير بقيمة صفرية.")
         settings = PayrollSettings.for_company(self.company)
         settings.validate_accounts()
@@ -629,6 +756,9 @@ class PayrollRun(SubmittableDocument):
         expense = sum(line.gross_pay - line.attendance_deduction for line in lines)
         other_deductions = sum(line.other_deductions for line in lines)
         gosi_employee = sum(line.gosi_employee for line in lines)
+        loans = sum(line.loan_deduction for line in lines)
+        if loans:
+            settings.validate_loan_account()
         label = f"رواتب {self.period_label}"
         make_gl_entries(self, [
             {"account": settings.salary_expense_account, "debit": expense, "remarks": label},
@@ -639,12 +769,16 @@ class PayrollRun(SubmittableDocument):
             {"account": settings.gosi_payable_account, "credit": gosi_employee + self.total_gosi_employer,
              "remarks": f"التأمينات الاجتماعية المستحقة - {self.period_label}"},
             {"account": settings.salary_payable_account, "credit": self.total_net, "remarks": f"صافي {label}"},
-        ] + ([
+        ] + ([{"account": settings.loan_account, "credit": loans, "remarks": f"أقساط سلف الموظفين - {self.period_label}"}]
+             if loans else []) + ([
             {"account": settings.eos_expense_account, "debit": self.total_eos_accrual,
              "remarks": f"مخصص مكافأة نهاية الخدمة - {self.period_label}"},
             {"account": settings.eos_provision_account, "credit": self.total_eos_accrual,
              "remarks": f"مخصص مكافأة نهاية الخدمة - {self.period_label}"},
         ] if self.total_eos_accrual else []), remarks=label)
+        for line in lines:
+            if line.loan_deduction:
+                record_loan_repayments(line.employee, self.year, self.month, line.loan_deduction, payroll_line=line)
 
     def before_cancel(self):
         for je in (self.salary_payment, self.gosi_payment):
@@ -655,6 +789,7 @@ class PayrollRun(SubmittableDocument):
         from accounts.ledger import cancel_gl_entries
 
         cancel_gl_entries(self)
+        reverse_loan_repayments(LoanRepayment.objects.filter(payroll_line__parent=self))
 
     # ── إجراءات بعد الاعتماد ──
     @property
@@ -752,6 +887,7 @@ class PayrollLine(models.Model):
     late_deduction = models.DecimalField("خصم التأخير", max_digits=18, decimal_places=2, default=0, editable=False)
     overtime_hours = models.DecimalField("ساعات إضافية", max_digits=6, decimal_places=2, default=0, editable=False)
     overtime_pay = models.DecimalField("أجر العمل الإضافي", max_digits=18, decimal_places=2, default=0, editable=False)
+    loan_deduction = models.DecimalField("قسط السلفة", max_digits=18, decimal_places=2, default=0, editable=False)
     eos_accrual = models.DecimalField("مخصص نهاية الخدمة للشهر", max_digits=18, decimal_places=2, default=0,
                                       editable=False)
     gosi_employee = models.DecimalField("التأمينات (حصة الموظف)", max_digits=18, decimal_places=2, default=0,
@@ -813,8 +949,14 @@ class PayrollLine(models.Model):
             else:
                 self.gosi_employer = flt(base * settings.gosi_employer_rate_non_saudi / 100)
 
-        self.total_deduction = flt(self.unpaid_deduction + self.absence_deduction + self.late_deduction
-                                   + flt(self.other_deductions) + self.gosi_employee)
+        deductions = flt(self.unpaid_deduction + self.absence_deduction + self.late_deduction
+                         + flt(self.other_deductions) + self.gosi_employee)
+        # أقساط السلف تُخصم من المتاح فقط حتى لا يصبح الصافي سالباً
+        available = max(self.gross_pay - deductions, flt(0))
+        self.loan_deduction = flt(0)
+        for loan, amount in loan_installments(emp, self.parent.year, self.parent.month, available):
+            self.loan_deduction += amount
+        self.total_deduction = flt(deductions + self.loan_deduction)
         self.net_pay = flt(self.gross_pay - self.total_deduction)
 
     @property
@@ -847,7 +989,9 @@ class EndOfServiceSettlement(SubmittableDocument):
         "أيام الإجازة المستحقة للصرف", max_digits=6, decimal_places=2, null=True, blank=True,
         help_text="يُترك فارغاً لحسابه تلقائياً من رصيد السنة الأخيرة؛ أدخله يدوياً لإضافة أرصدة مرحّلة من سنوات سابقة")
     additions = models.DecimalField("إضافات (رواتب متأخرة/مستحقات أخرى)", max_digits=18, decimal_places=2, default=0)
-    other_deductions = models.DecimalField("استقطاعات (سلف/عهد)", max_digits=18, decimal_places=2, default=0)
+    other_deductions = models.DecimalField("استقطاعات أخرى (عهد/جزاءات)", max_digits=18, decimal_places=2, default=0)
+    loan_deduction = models.DecimalField("رصيد السلف المستردة", max_digits=18, decimal_places=2, default=0,
+                                         editable=False)
 
     service_years = models.DecimalField("مدة الخدمة (سنة)", max_digits=8, decimal_places=4, default=0, editable=False)
     wage = models.DecimalField("الأجر المعتمد للحساب", max_digits=18, decimal_places=2, default=0, editable=False)
@@ -912,7 +1056,9 @@ class EndOfServiceSettlement(SubmittableDocument):
         self.leave_encashment = flt(settings.daily_wage(self.employee) * self.leave_days)
         if self.is_draft:
             self.provision_balance = eos_provision_balance(self.employee)
-        self.net_amount = flt(self.award + self.leave_encashment + flt(self.additions) - flt(self.other_deductions))
+            self.loan_deduction = flt(sum(loan.outstanding for loan in open_loans(self.employee)))
+        self.net_amount = flt(self.award + self.leave_encashment + flt(self.additions) - flt(self.other_deductions)
+                              - self.loan_deduction)
 
     def validate_for_submit(self):
         self.clean()
@@ -938,7 +1084,9 @@ class EndOfServiceSettlement(SubmittableDocument):
 
         settings = PayrollSettings.for_company(self.company)
         label = f"مخالصة نهاية خدمة {self.employee.full_name}"
-        entries = [
+        if self.loan_deduction:
+            settings.validate_loan_account()
+        entries = [e for e in [
             # المخصص المكوّن يُقفل بالكامل؛ الفرق عن المكافأة الفعلية مصروف إضافي (أو رد للمخصص الزائد)
             {"account": settings.eos_provision_account, "debit": self.provision_balance, "remarks": "إقفال المخصص"},
             {"account": settings.eos_expense_account, "debit": self.award - self.provision_balance,
@@ -947,14 +1095,13 @@ class EndOfServiceSettlement(SubmittableDocument):
              "remarks": "بدل رصيد الإجازات والمستحقات"},
             {"account": settings.deductions_account or settings.salary_expense_account,
              "credit": self.other_deductions, "remarks": "استقطاعات"},
+            {"account": settings.loan_account, "credit": self.loan_deduction, "remarks": "استرداد رصيد السلف"},
             {"account": settings.salary_payable_account, "credit": self.net_amount, "remarks": "صافي المستحق"},
-        ] if self.provision_balance or self.award else [
-            {"account": settings.salary_expense_account, "debit": self.leave_encashment + flt(self.additions)},
-            {"account": settings.deductions_account or settings.salary_expense_account,
-             "credit": self.other_deductions},
-            {"account": settings.salary_payable_account, "credit": self.net_amount},
-        ]
+        ] if e.get("debit") or e.get("credit")]
         make_gl_entries(self, entries, remarks=label)
+        for loan in open_loans(self.employee):
+            LoanRepayment.objects.create(loan=loan, settlement=self, amount=loan.outstanding)
+            loan.refresh_repaid()
         employee = self.employee
         self.previous_status, self.previous_relieving_date = employee.status, employee.relieving_date
         self.save(update_fields=["previous_status", "previous_relieving_date"])
@@ -969,6 +1116,7 @@ class EndOfServiceSettlement(SubmittableDocument):
         from accounts.ledger import cancel_gl_entries
 
         cancel_gl_entries(self)
+        reverse_loan_repayments(self.loan_repayments.all())
         employee = self.employee
         employee.status = self.previous_status or EmployeeStatus.ACTIVE
         employee.relieving_date = self.previous_relieving_date
@@ -996,3 +1144,123 @@ class EndOfServiceSettlement(SubmittableDocument):
         self.payment = je
         self.save(update_fields=["payment"])
         return je
+
+
+
+# ───────────────────────────── سلف الموظفين ─────────────────────────────
+
+class EmployeeLoan(SubmittableDocument):
+    """سلفة تُصرف للموظف وتُسترد بأقساط شهرية تُخصم تلقائياً في المسير."""
+
+    naming_prefix = "LOAN"
+
+    employee = models.ForeignKey(Employee, models.PROTECT, related_name="loans", verbose_name="الموظف")
+    amount = models.DecimalField("مبلغ السلفة", max_digits=18, decimal_places=2)
+    installment_amount = models.DecimalField("القسط الشهري", max_digits=18, decimal_places=2)
+    start_year = models.PositiveIntegerField("سنة أول قسط", default=_current_year)
+    start_month = models.PositiveSmallIntegerField("شهر أول قسط", choices=MONTHS, default=_current_month)
+    payment_account = models.ForeignKey(
+        "accounts.Account", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="صُرفت من حساب",
+        limit_choices_to={"is_group": False, "account_type__in": ["cash", "bank"]},
+        help_text="يُترك فارغاً لاستخدام حساب صرف الرواتب")
+    repaid_amount = models.DecimalField("المسترد", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "سلفة موظف"
+        verbose_name_plural = "سلف الموظفين"
+
+    @property
+    def outstanding(self):
+        return flt(self.amount - self.repaid_amount)
+
+    @property
+    def installments_count(self):
+        if not self.installment_amount:
+            return 0
+        return math.ceil(Decimal(str(self.amount)) / Decimal(str(self.installment_amount)))
+
+    def clean(self):
+        if self.amount is not None and self.amount <= 0:
+            raise ValidationError({"amount": "مبلغ السلفة يجب أن يكون أكبر من صفر."})
+        if self.installment_amount is not None and self.amount is not None and not (
+                0 < self.installment_amount <= self.amount):
+            raise ValidationError({"installment_amount": "القسط يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ السلفة."})
+
+    def validate_for_submit(self):
+        self.clean()
+        if self.employee.status == EmployeeStatus.LEFT:
+            raise ValidationError("لا تُصرف سلفة لموظف منتهية خدماته.")
+        settings = PayrollSettings.for_company(self.company)
+        settings.validate_loan_account()
+        if self.payment_account_id is None:
+            from accounts.models import Account, AccountType
+
+            self.payment_account = settings.payment_account or Account.objects.filter(
+                is_group=False, disabled=False, account_type=AccountType.BANK).first()
+            if self.payment_account is None:
+                raise ValidationError("حدد الحساب الذي صُرفت منه السلفة.")
+
+    def on_submit(self):
+        from accounts.ledger import make_gl_entries
+
+        settings = PayrollSettings.for_company(self.company)
+        label = f"سلفة {self.employee.full_name}"
+        make_gl_entries(self, [
+            {"account": settings.loan_account, "debit": self.amount},
+            {"account": self.payment_account, "credit": self.amount},
+        ], remarks=label)
+
+    def before_cancel(self):
+        if self.repayments.exists():
+            raise ValidationError("بدأ استرداد هذه السلفة في مسيرات معتمدة؛ لا يمكن إلغاؤها.")
+
+    def on_cancel(self):
+        from accounts.ledger import cancel_gl_entries
+
+        cancel_gl_entries(self)
+
+    def refresh_repaid(self):
+        self.repaid_amount = flt(self.repayments.aggregate(t=models.Sum("amount"))["t"] or 0)
+        self.save(update_fields=["repaid_amount"])
+
+
+class LoanRepayment(models.Model):
+    loan = models.ForeignKey(EmployeeLoan, models.CASCADE, related_name="repayments", verbose_name="السلفة")
+    payroll_line = models.ForeignKey(PayrollLine, models.CASCADE, null=True, blank=True, related_name="loan_repayments")
+    settlement = models.ForeignKey(EndOfServiceSettlement, models.CASCADE, null=True, blank=True,
+                                   related_name="loan_repayments")
+    amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
+
+    class Meta:
+        verbose_name = "قسط مسترد"
+        verbose_name_plural = "الأقساط المستردة"
+
+
+def open_loans(employee):
+    return [loan for loan in EmployeeLoan.objects.filter(employee=employee, docstatus=DocStatus.SUBMITTED)
+            .order_by("start_year", "start_month", "id") if loan.outstanding > 0]
+
+
+def loan_installments(employee, year, month, available):
+    """الأقساط المستحقة في الشهر: [(السلفة، المبلغ)] بحد أقصى المتاح من الراتب."""
+    result = []
+    for loan in open_loans(employee):
+        if (loan.start_year, loan.start_month) > (year, month) or available <= 0:
+            continue
+        amount = min(loan.installment_amount, loan.outstanding, available)
+        result.append((loan, flt(amount)))
+        available -= amount
+    return result
+
+
+def record_loan_repayments(employee, year, month, total, payroll_line):
+    for loan, amount in loan_installments(employee, year, month, total):
+        LoanRepayment.objects.create(loan=loan, payroll_line=payroll_line, amount=amount)
+        loan.refresh_repaid()
+
+
+def reverse_loan_repayments(repayments):
+    loans = {r.loan for r in repayments.select_related("loan")}
+    repayments.delete()
+    for loan in loans:
+        loan.refresh_repaid()

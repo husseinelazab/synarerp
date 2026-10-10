@@ -52,6 +52,7 @@
           <tr><td>بدل السكن</td><td class="num">{{ line.housing|money }}</td></tr>
           <tr><td>بدل النقل</td><td class="num">{{ line.transport|money }}</td></tr>
           {% if line.other_allowance %}<tr><td>بدلات أخرى</td><td class="num">{{ line.other_allowance|money }}</td></tr>{% endif %}
+          {% if line.overtime_pay %}<tr><td>عمل إضافي ({{ line.overtime_hours|floatformat:-2 }} ساعة)</td><td class="num">{{ line.overtime_pay|money }}</td></tr>{% endif %}
           {% if line.additions %}<tr><td>إضافات</td><td class="num">{{ line.additions|money }}</td></tr>{% endif %}
         </tbody>
         <tfoot><tr><th>الإجمالي</th><th class="num">{{ line.gross_pay|money }}</th></tr></tfoot>
@@ -61,6 +62,9 @@
         <tbody>
           <tr><td>التأمينات الاجتماعية</td><td class="num">{{ line.gosi_employee|money }}</td></tr>
           {% if line.unpaid_deduction %}<tr><td>إجازة بدون راتب ({{ line.unpaid_days }} يوم)</td><td class="num">{{ line.unpaid_deduction|money }}</td></tr>{% endif %}
+          {% if line.absence_deduction %}<tr><td>غياب ({{ line.absent_days|floatformat:-1 }} يوم)</td><td class="num">{{ line.absence_deduction|money }}</td></tr>{% endif %}
+          {% if line.late_deduction %}<tr><td>تأخير ({{ line.late_minutes }} دقيقة)</td><td class="num">{{ line.late_deduction|money }}</td></tr>{% endif %}
+          {% if line.loan_deduction %}<tr><td>قسط سلفة</td><td class="num">{{ line.loan_deduction|money }}</td></tr>{% endif %}
           {% if line.other_deductions %}<tr><td>استقطاعات أخرى{% if line.notes %} — {{ line.notes }}{% endif %}</td><td class="num">{{ line.other_deductions|money }}</td></tr>{% endif %}
         </tbody>
         <tfoot><tr><th>الإجمالي</th><th class="num">{{ line.total_deduction|money }}</th></tr></tfoot>

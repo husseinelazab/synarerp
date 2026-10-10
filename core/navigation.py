@@ -76,15 +76,17 @@ def build_menu(request):
         ]})
     modules.append({"key": "hr", "label": "الموارد البشرية", "sections": [
         {"items": [doc("الموظفون", "employee"), doc("مسيرات الرواتب", "payroll-run"),
-                   doc("مخالصات نهاية الخدمة", "eos-settlement")]},
+                   doc("سلف الموظفين", "employee-loan"), doc("مخالصات نهاية الخدمة", "eos-settlement")]},
         {"title": "الحضور والانصراف", "items": [_item("تسجيل الحضور اليومي", "attendance_daily"),
                                                  _item("تقرير الحضور الشهري", "attendance_monthly"),
-                                                 doc("سجل الحضور", "attendance")]},
+                                                 doc("سجل الحضور", "attendance"),
+                                                 _item("استيراد سجلات البصمة", "attendance_punches")]},
         {"title": "الإجازات", "items": [doc("طلبات الإجازات", "leave-application"), _item("أرصدة الإجازات", "leave_balances"),
                                         doc("أنواع الإجازات", "leave-type")]},
         {"title": "تقارير", "items": [_item("مخصص نهاية الخدمة", "eos_provision")]},
         {"title": "الإعداد", "items": ([_item("إعدادات الرواتب والتأمينات", "payroll_settings")] if membership.can_manage else [])
-         + [doc("الأقسام", "department"), doc("المسميات الوظيفية", "designation")]},
+         + [doc("ورديات العمل", "work-shift"), doc("العطل الرسمية", "holiday"),
+            doc("الأقسام", "department"), doc("المسميات الوظيفية", "designation")]},
     ]})
     settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
     if membership.can_manage:

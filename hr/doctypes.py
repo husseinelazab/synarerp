@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
-from hr.models import (Attendance, Department, Designation, Employee, EndOfServiceSettlement, LeaveApplication, LeaveType,
-                       PayrollLine, PayrollRun)
+from hr.models import (Attendance, Department, Designation, Employee, EmployeeLoan, EndOfServiceSettlement, Holiday,
+                       LeaveApplication, LeaveType, PayrollLine, PayrollRun, WorkShift)
 
 register(DocType(
     slug="employee", model=Employee, module="hr",
@@ -33,7 +33,7 @@ register(DocType(
         PayrollLine, ["employee", "additions", "other_deductions", "notes"], label="رواتب الموظفين", min_rows=0,
         display_fields=["employee", "worked_days", "basic", "housing", "transport", "other_allowance", "overtime_pay",
                         "additions", "gross_pay", "unpaid_deduction", "absence_deduction", "late_deduction",
-                        "gosi_employee", "other_deductions", "net_pay"],
+                        "gosi_employee", "loan_deduction", "other_deductions", "net_pay"],
         help="اترك الجدول فارغاً ليُجلب كل الموظفين على رأس العمل تلقائياً عند الحفظ. "
              "الرواتب والبدلات والتأمينات وخصم الإجازات بدون راتب تُحسب تلقائياً من ملف الموظف؛ "
              "أدخل هنا الإضافات والاستقطاعات اليدوية فقط.",
@@ -52,8 +52,25 @@ register(DocType(
     form_fields=["employee", "last_working_date", "reason", "leave_days_override", "additions", "other_deductions",
                  "posting_date", "remarks"],
     search_fields=["name", "employee__full_name", "employee__employee_number"],
-    totals=["award", "leave_encashment", "additions", "other_deductions", "net_amount"],
+    totals=["award", "leave_encashment", "additions", "other_deductions", "loan_deduction", "net_amount"],
     detail_template="hr/_eos_detail.html",
     detail_exclude=["service_years", "wage", "full_award", "entitlement_percent", "leave_days", "provision_balance",
                     "payment"],
+))
+register(DocType(
+    slug="employee-loan", model=EmployeeLoan, module="hr",
+    list_fields=["name", "employee", "amount", "installment_amount", "repaid_amount"],
+    form_fields=["employee", "amount", "installment_amount", "start_year", "start_month", "payment_account",
+                 "posting_date", "remarks"],
+    search_fields=["name", "employee__full_name", "employee__employee_number"],
+    totals=["amount", "repaid_amount"],
+    detail_template="hr/_loan_detail.html",
+))
+register(DocType(
+    slug="holiday", model=Holiday, module="hr", list_fields=["name", "from_date", "to_date"], search_fields=["name"],
+    list_actions=[("إضافة يوم التأسيس واليوم الوطني لهذه السنة", "add_fixed_holidays")],
+))
+register(DocType(
+    slug="work-shift", model=WorkShift, module="hr",
+    list_fields=["name", "start_time", "end_time", "grace_minutes", "hours_per_day"], search_fields=["name"],
 ))

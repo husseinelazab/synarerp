@@ -435,3 +435,188 @@ class EOSAndAttendanceTests(TestCase):
             self.assertEqual(self.client.get(reverse("doc_list", args=[slug])).status_code, 200)
             self.assertEqual(self.client.get(reverse("doc_new", args=[slug])).status_code, 200)
             self.assertEqual(self.client.get(reverse("doc_import_template", args=[slug, "xlsx"])).status_code, 200)
+
+
+class LoansHolidaysShiftsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة السلف", "loanboss")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.client.force_login(self.user)
+        self.emp = Employee.objects.create(
+            employee_number="L1", full_name="مقترض", gender="male", date_of_joining=d(1, 1), device_id="77",
+            basic_salary=3000, housing_allowance=1000, transport_allowance=500, gosi_subscribed=False)
+        settings = PayrollSettings.for_company(self.company)
+        settings.accrue_eos = False
+        settings.save()
+        from accounts.models import Account
+        self.bank = Account.objects.get(number="1102")
+
+    def loan(self, amount=2000, installment=800, month=6, submit=True):
+        from hr.models import EmployeeLoan
+        loan = EmployeeLoan.objects.create(employee=self.emp, amount=amount, installment_amount=installment,
+                                           start_year=YEAR, start_month=month, payment_account=self.bank,
+                                           posting_date=d(5, 20))
+        if submit:
+            loan.submit()
+        return loan
+
+    def payroll(self, month, submit=True):
+        run = PayrollRun.objects.create(year=YEAR, month=month, posting_date=datetime.date(YEAR, month, 28))
+        run.calculate_totals()
+        run.save()
+        if submit:
+            run.submit()
+        return run
+
+    def balance(self, number):
+        return sum(g.debit - g.credit for g in GLEntry.objects.filter(account__number=number, is_cancelled=False))
+
+    # ── السلف ──
+    def test_loan_installments_through_payroll(self):
+        loan = self.loan()
+        self.assertEqual(self.balance("1107"), Decimal("2000.00"))
+        self.assertEqual(loan.installments_count, 3)
+        self.assertFalse(self.payroll(5).lines.get().loan_deduction)  # يبدأ في يونيو
+        june = self.payroll(6)
+        line = june.lines.get()
+        self.assertEqual((line.loan_deduction, line.net_pay), (Decimal("800.00"), Decimal("3700.00")))
+        self.payroll(7)
+        aug = self.payroll(8)
+        self.assertEqual(aug.lines.get().loan_deduction, Decimal("400.00"))  # الباقي فقط
+        loan.refresh_from_db()
+        self.assertEqual(loan.outstanding, 0)
+        self.assertEqual(self.balance("1107"), 0)
+        self.assertEqual(self.payroll(9).lines.get().loan_deduction, 0)
+        with self.assertRaisesMessage(ValidationError, "لا يمكن إلغاؤها"):
+            loan.cancel()
+        aug.cancel()  # إلغاء المسير يعيد القسط
+        loan.refresh_from_db()
+        self.assertEqual(loan.outstanding, Decimal("400.00"))
+
+    def test_loan_capped_by_available_salary(self):
+        self.loan(amount=10000, installment=8000)
+        line = self.payroll(6).lines.get()
+        self.assertEqual((line.loan_deduction, line.net_pay), (Decimal("4500.00"), Decimal("0.00")))
+
+    def test_loan_validation(self):
+        with self.assertRaisesMessage(ValidationError, "لا يتجاوز"):
+            self.loan(amount=500, installment=800)
+
+    def test_settlement_recovers_outstanding_loan(self):
+        from hr.models import EndOfServiceSettlement
+        loan = self.loan(amount=3000, installment=1000)
+        self.payroll(6)
+        s = EndOfServiceSettlement.objects.create(employee=self.emp, last_working_date=d(6, 30), reason="termination",
+                                                  posting_date=d(6, 30), leave_days_override=0)
+        s.calculate_totals()
+        s.save()
+        self.assertEqual(s.loan_deduction, Decimal("2000.00"))
+        self.assertEqual(s.award, Decimal("1125.00"))  # نصف سنة × نصف شهر × 4500
+        with self.assertRaisesMessage(ValidationError, "بالسالب"):
+            s.submit()
+        s.additions = Decimal("1000")
+        s.save()
+        s.submit()
+        loan.refresh_from_db()
+        self.assertEqual(loan.outstanding, 0)
+        self.assertEqual(self.balance("1107"), 0)
+        s.cancel()
+        loan.refresh_from_db()
+        self.assertEqual(loan.outstanding, Decimal("2000.00"))
+
+    # ── العطل ──
+    def test_holidays_excluded_from_leave_and_block_absence(self):
+        from hr.models import Attendance, Holiday
+        self.assertTrue(Holiday.objects.filter(name="اليوم الوطني").exists())
+        Holiday.objects.create(name="عيد الفطر", from_date=d(3, 30), to_date=d(4, 2))
+        annual = LeaveType.objects.get(name="إجازة سنوية")
+        lv = LeaveApplication.objects.create(employee=self.emp, leave_type=annual, from_date=d(3, 28), to_date=d(4, 5))
+        lv.submit()
+        self.assertEqual(lv.total_days, 5)  # 9 أيام − 4 أيام عيد
+        from hr.models import used_leave_days
+        self.assertEqual(used_leave_days(self.emp, annual, YEAR), 5)
+        with self.assertRaisesMessage(ValidationError, "عطلة رسمية"):
+            Attendance.objects.create(employee=self.emp, attendance_date=d(9, 23), status="absent")
+        worked = Attendance.objects.create(employee=self.emp, attendance_date=d(9, 23), check_in=datetime.time(10, 0),
+                                           check_out=datetime.time(14, 0), overtime_hours=4)
+        self.assertEqual(worked.late_minutes, 0)  # لا تأخير في العطلة
+
+    def test_add_fixed_holidays_action(self):
+        from hr.models import Holiday
+        Holiday.objects.all().delete()
+        self.client.post(reverse("add_fixed_holidays"))
+        self.assertEqual(Holiday.objects.count(), 2)
+        self.client.post(reverse("add_fixed_holidays"))
+        self.assertEqual(Holiday.objects.count(), 2)
+        self.assertContains(self.client.get(reverse("doc_list", args=["holiday"])), "إضافة يوم التأسيس")
+
+    # ── الورديات ──
+    def test_shift_drives_lateness_and_hourly_wage(self):
+        from hr.models import Attendance, WorkShift
+        shift = WorkShift.objects.create(name="مسائية", start_time=datetime.time(14, 0), end_time=datetime.time(22, 0),
+                                         grace_minutes=10, hours_per_day=6)
+        self.emp.shift = shift
+        self.emp.save()
+        a = Attendance.objects.create(employee=self.emp, attendance_date=d(6, 1), check_in=datetime.time(14, 20),
+                                      check_out=datetime.time(21, 30))
+        self.assertEqual((a.late_minutes, a.early_exit_minutes), (20, 30))
+        settings = PayrollSettings.for_company(self.company)
+        self.assertEqual(settings.hourly_wage(self.emp), Decimal(4500) / 30 / 6)
+
+    # ── البصمة ──
+    def test_punch_import(self):
+        import io
+
+        import openpyxl
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from hr.models import Attendance
+
+        book = openpyxl.Workbook()
+        sheet = book.active
+        sheet.append(["AC-No.", "Check Time"])
+        sheet.append([77, datetime.datetime(YEAR, 6, 1, 8, 25)])
+        sheet.append([77, datetime.datetime(YEAR, 6, 1, 12, 0)])
+        sheet.append([77, datetime.datetime(YEAR, 6, 1, 17, 5)])
+        sheet.append(["L1", f"{YEAR}-06-02 07:58"])  # بالرقم الوظيفي، بصمة واحدة
+        sheet.append([999, datetime.datetime(YEAR, 6, 1, 8, 0)])
+        buffer = io.BytesIO()
+        book.save(buffer)
+        upload = SimpleUploadedFile("punches.xlsx", buffer.getvalue())
+        response = self.client.post(reverse("attendance_punches"), {"file": upload})
+        self.assertContains(response, "999")
+        first = Attendance.objects.get(attendance_date=d(6, 1))
+        self.assertEqual((first.check_in, first.check_out, first.late_minutes),
+                         (datetime.time(8, 25), datetime.time(17, 5), 25))
+        second = Attendance.objects.get(attendance_date=d(6, 2))
+        self.assertEqual((second.check_in, second.check_out), (datetime.time(7, 58), None))
+        # إعادة الرفع لا تكرر السجلات
+        upload = SimpleUploadedFile("punches.xlsx", buffer.getvalue())
+        self.client.post(reverse("attendance_punches"), {"file": upload})
+        self.assertEqual(Attendance.objects.count(), 2)
+
+    def test_punch_import_csv_separate_columns(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from hr.models import Attendance
+
+        csv_data = f"رقم البصمة,التاريخ,الوقت\n77,{YEAR}-06-03,08:00\n77,{YEAR}-06-03,16:00\n".encode()
+        self.client.post(reverse("attendance_punches"), {"file": SimpleUploadedFile("p.csv", csv_data)})
+        record = Attendance.objects.get()
+        self.assertEqual((record.check_in, record.check_out, record.early_exit_minutes),
+                         (datetime.time(8, 0), datetime.time(16, 0), 60))
+
+    def test_pages(self):
+        loan = self.loan()
+        self.assertContains(self.client.get(loan.get_absolute_url()), "الاسترداد")
+        self.assertContains(self.client.get(reverse("doc_detail", args=["employee", self.emp.pk])), "رصيد السلف")
+        self.assertEqual(self.client.get(reverse("attendance_punches")).status_code, 200)
+        run = self.payroll(6)
+        self.assertContains(self.client.get(reverse("payslips", args=[run.pk])), "قسط سلفة")
+        for slug in ("employee-loan", "holiday", "work-shift"):
+            self.assertEqual(self.client.get(reverse("doc_list", args=[slug])).status_code, 200)
+            self.assertEqual(self.client.get(reverse("doc_new", args=[slug])).status_code, 200)
+        self.assertContains(self.client.get(reverse("attendance_monthly") + f"?year={YEAR}&month=9"), "ع")

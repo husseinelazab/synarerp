@@ -11,6 +11,8 @@
       <div><dt>المكافأة عند إنهاء العقد (م 84)</dt><dd>{{ h.eos_full|cur }}</dd></div>
       <div><dt>المكافأة عند الاستقالة (م 85)</dt><dd>{{ h.eos_resign|cur }}</dd></div>
       <div><dt>المخصص المكوّن له</dt><dd>{{ h.provision|cur }}</dd></div>
+      <div><dt>رصيد السلف</dt><dd>{% if h.loans %}{{ h.loan_balance|cur }} ({% for l in h.loans %}<a href="{{ l.get_absolute_url }}">{{ l }}</a>{% if not forloop.last %}، {% endif %}{% endfor %}){% else %}—{% endif %}
+        {% if not h.settled %} · <a href="{% url 'doc_new' 'employee-loan' %}?employee={{ obj.pk }}">سلفة جديدة</a>{% endif %}</dd></div>
     </dl>
   </div>
   <div class="card">

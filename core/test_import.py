@@ -139,10 +139,10 @@ class ImportTests(TestCase):
 
     def test_accounts_import_with_parent(self):
         rows = [["رقم الحساب", "اسم الحساب", "الحساب الأب", "النوع الجذري", "نوع الحساب"],
-                ["1107", "عهد الموظفين", "11", "أصول", ""]]
+                ["1199", "عهد الموظفين", "11", "أصول", ""]]
         job = self.execute("account", self.upload("account", rows))
         self.assertEqual(job.result["created"], 1, job.result["errors"])
-        self.assertEqual(Account.objects.get(number="1107").parent.number, "11")
+        self.assertEqual(Account.objects.get(number="1199").parent.number, "11")
 
     def test_export_roundtrip_and_tenant_isolation(self):
         Customer.objects.create(name="عميل للتصدير", city="مكة")

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}استيراد سجلات البصمة{% endblock %}
+{% block heading %}استيراد سجلات جهاز البصمة{% endblock %}
+{% block content %}
+<div class="card">
+  <p>صدّر من برنامج جهاز البصمة سجل الحركات (Attendance Logs) بصيغة Excel أو CSV ثم ارفعه هنا. يحتاج الملف إلى عمودين:</p>
+  <ul>
+    <li><strong>رقم البصمة</strong> — أو أي من: الرقم الوظيفي، AC-No.، User ID، Employee ID. يُطابق مع «رقم الموظف في جهاز البصمة» في ملف الموظف، وإلا مع الرقم الوظيفي.</li>
+    <li><strong>التاريخ والوقت</strong> — أو أي من: DateTime، Check Time، Time Stamp؛ أو عمودان منفصلان «التاريخ» و«الوقت».</li>
+  </ul>
+  <p class="muted small">أول بصمة في اليوم تُسجل حضوراً وآخر بصمة انصرافاً، ويُحسب التأخير حسب وردية الموظف. إعادة رفع نفس الملف تحدّث السجلات دون تكرار.
+    الأيام التي فيها إجازة معتمدة أو صُرف راتب شهرها تُتجاوز مع ذكر السبب. النظام لا يتصل بالجهاز مباشرة.</p>
+  <form method="post" enctype="multipart/form-data" class="filters">
+    {% csrf_token %}
+    <input type="file" name="file" accept=".xlsx,.csv" class="form-control" required>
+    <button class="btn btn-primary">رفع واستيراد</button>
+  </form>
+</div>
+{% if result %}
+<div class="card">
+  <h3>نتيجة الاستيراد</h3>
+  <dl class="detail-grid">
+    <div><dt>عدد البصمات</dt><dd>{{ result.punches }}</dd></div>
+    <div><dt>أيام حضور جديدة</dt><dd>{{ result.created }}</dd></div>
+    <div><dt>أيام محدّثة</dt><dd>{{ result.updated }}</dd></div>
+  </dl>
+  {% if result.unknown %}<div class="alert alert-warning">أرقام غير معروفة (أضفها في «رقم الموظف في جهاز البصمة»): {{ result.unknown|join:"، " }}</div>{% endif %}
+  {% if result.skipped %}<div class="alert alert-error"><strong>أسطر لم تُستورد:</strong>{% for s in result.skipped %}<div>{{ s }}</div>{% endfor %}</div>{% endif %}
+  <a class="btn" href="{% url 'attendance_monthly' %}">عرض التقرير الشهري</a>
+</div>
+{% endif %}
+{% endblock %}

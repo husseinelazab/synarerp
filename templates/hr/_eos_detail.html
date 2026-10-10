@@ -13,5 +13,6 @@
   </dl>
   <p class="muted small">نصف أجر شهر عن كل سنة من السنوات الخمس الأولى، وأجر شهر عن كل سنة بعدها، ولأجزاء السنة بنسبتها.
     عند الاستقالة: لا شيء قبل سنتين، والثلث من 2 إلى 5 سنوات، والثلثان من 5 إلى 10، وكاملة بعد 10 سنوات.</p>
+  {% if obj.loan_deduction %}<p>رصيد السلف المستردة من المستحقات: <strong>{{ obj.loan_deduction|cur }}</strong></p>{% endif %}
   {% if obj.payment %}<p>قيد الصرف: <a href="{{ obj.payment.get_absolute_url }}">{{ obj.payment.name }}</a> — {{ obj.payment.get_docstatus_display }}</p>{% endif %}
 </div>

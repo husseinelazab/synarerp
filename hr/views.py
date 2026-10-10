@@ -13,8 +13,11 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from hr.eos import calculate, describe_duration
-from hr.models import (MONTHS, Attendance, AttendanceStatus, DocStatus, Employee, LeaveApplication, LeaveType,
-                       PayrollRun, PayrollSettings, eos_provision_balance, month_bounds, used_leave_days)
+from django.views.decorators.http import require_POST
+
+from hr.models import (FIXED_HOLIDAYS, MONTHS, Attendance, AttendanceStatus, DocStatus, Employee, Holiday,
+                       LeaveApplication, LeaveType, PayrollRun, PayrollSettings, eos_provision_balance, holiday_dates,
+                       holiday_on, month_bounds, used_leave_days)
 
 
 class PayrollSettingsForm(forms.ModelForm):
@@ -138,7 +141,7 @@ def attendance_daily(request):
         day = datetime.date.today()
     settings = PayrollSettings.for_company(request.company)
     employees = list(Employee.objects.filter(date_of_joining__lte=day).exclude(relieving_date__lt=day)
-                     .select_related("department"))
+                     .select_related("department", "shift"))
     records = {a.employee_id: a for a in Attendance.objects.filter(attendance_date=day)}
     leaves = {lv.employee_id: lv for lv in LeaveApplication.objects.filter(
         docstatus=DocStatus.SUBMITTED, from_date__lte=day, to_date__gte=day).select_related("leave_type")}
@@ -179,7 +182,9 @@ def attendance_daily(request):
     for emp in employees:
         record = records.get(emp.id)
         posted = request.method == "POST" and emp.id in errors
+        shift_start, shift_end, _ = settings.schedule(emp)
         rows.append({
+            "default_in": shift_start.strftime("%H:%M"), "default_out": shift_end.strftime("%H:%M"),
             "employee": emp, "record": record, "leave": leaves.get(emp.id), "error": errors.get(emp.id),
             "status": request.POST.get(f"status_{emp.id}") if posted else (record.status if record else ""),
             "check_in": request.POST.get(f"in_{emp.id}") if posted else (
@@ -191,7 +196,7 @@ def attendance_daily(request):
         })
     return render(request, "hr/attendance_daily.html", {
         "day": day, "rows": rows, "statuses": AttendanceStatus.choices, "settings": settings,
-        "is_weekend": day.weekday() in settings.weekend_days,
+        "is_weekend": day.weekday() in settings.weekend_days, "holiday": holiday_on(day),
         "prev": day - datetime.timedelta(days=1), "next": day + datetime.timedelta(days=1),
         "default_in": settings.work_start.strftime("%H:%M"), "default_out": settings.work_end.strftime("%H:%M"),
     })
@@ -218,6 +223,7 @@ def attendance_monthly(request):
         for d in days:
             if lv.from_date <= d <= lv.to_date:
                 leave_days[(lv.employee_id, d)] = lv
+    holidays = holiday_dates(start, end)
     symbols = {"present": "ح", "absent": "غ", "half_day": "½"}
     rows = []
     for emp in employees:
@@ -249,6 +255,8 @@ def attendance_monthly(request):
                     f"– {record.check_out:%H:%M}" if record.check_out else "",
                     f"تأخير {record.late_minutes} د" if record.late_minutes else ""]))
                 cells.append({"text": symbols[record.status], "css": css, "title": title})
+            elif d in holidays:
+                cells.append({"text": "ع", "css": "holiday", "title": "عطلة رسمية"})
             elif d.weekday() in weekend:
                 cells.append({"text": "", "css": "weekend"})
             else:
@@ -256,6 +264,7 @@ def attendance_monthly(request):
         rows.append({"employee": emp, "cells": cells, "totals": totals})
     return render(request, "hr/attendance_monthly.html", {
         "year": year, "month": month, "months": MONTHS, "days": days, "weekend": weekend, "rows": rows,
+        "holidays": holidays,
         "years": range(today.year - 3, today.year + 2),
     })
 
@@ -284,3 +293,148 @@ def eos_provision(request):
     totals["difference"] = totals["liability"] - totals["provision"]
     return render(request, "hr/eos_provision.html", {"rows": rows, "totals": totals, "as_of": as_of,
                                                      "settings": settings})
+
+
+@login_required
+@require_POST
+def add_fixed_holidays(request):
+    year = datetime.date.today().year
+    added = 0
+    for name, month, day in FIXED_HOLIDAYS:
+        date = datetime.date(year, month, day)
+        if not Holiday.objects.filter(from_date__lte=date, to_date__gte=date).exists():
+            Holiday.objects.create(name=name, from_date=date, to_date=date)
+            added += 1
+    messages.success(request, f"أُضيفت {added} عطلة لسنة {year}. أضف عيدي الفطر والأضحى يدوياً حسب التقويم الهجري المعتمد.")
+    return redirect("doc_list", slug="holiday")
+
+
+ID_HEADERS = {"رقم البصمة", "رقم الموظف في جهاز البصمة", "الرقم الوظيفي", "رقم الموظف", "ac-no.", "ac-no", "no.", "id",
+              "user id", "userid", "employee id", "emp id", "enroll id", "person id"}
+DATETIME_HEADERS = {"التاريخ والوقت", "الوقت والتاريخ", "datetime", "date time", "date/time", "check time", "time stamp",
+                    "timestamp", "punch time", "clock time"}
+DATE_HEADERS = {"التاريخ", "date"}
+TIME_HEADERS = {"الوقت", "time"}
+
+
+def _norm(header):
+    return str(header or "").strip().lower()
+
+
+def _to_datetime(value, time_value=None):
+    if isinstance(value, datetime.datetime):
+        moment = value
+    elif isinstance(value, datetime.date):
+        moment = datetime.datetime.combine(value, datetime.time())
+    else:
+        text = str(value or "").strip().replace("/", "-")
+        moment = None
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%Y-%m-%d",
+                    "%d-%m-%Y", "%m-%d-%Y %I:%M %p", "%Y-%m-%d %I:%M %p", "%d-%m-%Y %I:%M %p", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                moment = datetime.datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                continue
+        if moment is None:
+            raise ValueError(text)
+    if time_value not in (None, ""):
+        if isinstance(time_value, datetime.time):
+            clock = time_value
+        elif isinstance(time_value, datetime.datetime):
+            clock = time_value.time()
+        else:
+            text = str(time_value).strip()
+            for fmt in ("%H:%M:%S", "%H:%M", "%I:%M %p", "%I:%M:%S %p"):
+                try:
+                    clock = datetime.datetime.strptime(text, fmt).time()
+                    break
+                except ValueError:
+                    continue
+            else:
+                raise ValueError(text)
+        moment = datetime.datetime.combine(moment.date(), clock)
+    return moment
+
+
+def parse_punches(filename, content):
+    """قراءة سجل بصمات: عمود لرقم الموظف وعمود للتاريخ والوقت (أو عمودان منفصلان للتاريخ والوقت)."""
+    from core.importer import read_table
+
+    headers, rows = read_table(filename, content)
+    names = [_norm(h) for h in headers]
+    find = lambda options: next((i for i, h in enumerate(names) if h in options), None)  # noqa: E731
+    id_col, dt_col, date_col, time_col = find(ID_HEADERS), find(DATETIME_HEADERS), find(DATE_HEADERS), find(TIME_HEADERS)
+    if id_col is None or (dt_col is None and date_col is None):
+        raise ValidationError("لم يُعثر على الأعمدة المطلوبة: «رقم البصمة» (أو الرقم الوظيفي) و«التاريخ والوقت» "
+                              "(أو عمودا «التاريخ» و«الوقت»).")
+    punches, bad = [], []
+    for number, row in enumerate(rows, start=2):
+        ident = row[id_col] if id_col < len(row) else None
+        if isinstance(ident, float) and ident.is_integer():
+            ident = int(ident)
+        ident = str(ident or "").strip()
+        try:
+            if dt_col is not None:
+                moment = _to_datetime(row[dt_col])
+            else:
+                moment = _to_datetime(row[date_col], row[time_col] if time_col is not None else None)
+        except (ValueError, IndexError) as exc:
+            bad.append(f"السطر {number}: تاريخ/وقت غير مفهوم «{exc}»")
+            continue
+        if ident:
+            punches.append((ident, moment))
+    return punches, bad
+
+
+@login_required
+def attendance_punches(request):
+    """استيراد سجل البصمات الخام: أول بصمة في اليوم حضور وآخر بصمة انصراف."""
+    result = None
+    if request.method == "POST" and request.FILES.get("file"):
+        upload = request.FILES["file"]
+        try:
+            punches, bad = parse_punches(upload.name, upload.read())
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+            return redirect("attendance_punches")
+        employees = {}
+        for emp in Employee.objects.all():
+            employees.setdefault(emp.employee_number, emp)
+            if emp.device_id:
+                employees[emp.device_id] = emp
+        grouped, unknown = {}, set()
+        for ident, moment in punches:
+            emp = employees.get(ident)
+            if emp is None:
+                unknown.add(ident)
+                continue
+            grouped.setdefault((emp, moment.date()), []).append(moment.time().replace(second=0, microsecond=0))
+        created = updated = 0
+        skipped = list(bad)
+        for (emp, day), times in sorted(grouped.items(), key=lambda kv: (kv[0][1], kv[0][0].employee_number)):
+            times.sort()
+            check_in = times[0]
+            check_out = times[-1] if len(times) > 1 and times[-1] > times[0] else None
+            record = Attendance.objects.filter(employee=emp, attendance_date=day).first()
+            try:
+                with transaction.atomic():
+                    if record is None:
+                        record = Attendance(employee=emp, attendance_date=day)
+                        created += 1
+                    else:
+                        updated += 1
+                    record.status = AttendanceStatus.PRESENT if record.status == AttendanceStatus.ABSENT else record.status
+                    record.check_in, record.check_out = check_in, check_out or record.check_out
+                    record.save()
+            except ValidationError as exc:
+                if record.pk is None:
+                    created -= 1
+                else:
+                    updated -= 1
+                skipped.append(f"{emp} {day:%Y-%m-%d}: {' '.join(exc.messages)}")
+        result = {"punches": len(punches), "days": len(grouped), "created": created, "updated": updated,
+                  "unknown": sorted(unknown), "skipped": skipped}
+        if created or updated:
+            messages.success(request, f"تم استيراد {created + updated} يوم حضور من {len(punches)} بصمة.")
+    return render(request, "hr/attendance_punches.html", {"result": result})

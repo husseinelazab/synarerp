@@ -76,7 +76,11 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
             Department.objects.create(name=department)
         for designation in DESIGNATIONS:
             Designation.objects.create(name=designation)
-        from hr.models import DEFAULT_LEAVE_TYPES, LeaveType, PayrollSettings
+        from hr.models import DEFAULT_LEAVE_TYPES, FIXED_HOLIDAYS, Holiday, LeaveType, PayrollSettings
+
+        for holiday_name, month, day in FIXED_HOLIDAYS:
+            Holiday.objects.create(name=holiday_name, from_date=datetime.date(year, month, day),
+                                   to_date=datetime.date(year, month, day))
 
         for leave_name, days, paid in DEFAULT_LEAVE_TYPES:
             LeaveType.objects.create(name=leave_name, days_per_year=days, is_paid=paid,

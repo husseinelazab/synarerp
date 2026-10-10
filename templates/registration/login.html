@@ -7,7 +7,9 @@
     <h1>{{ ERP_NAME }}</h1>
     <div class="login-en">{{ ERP_NAME_EN }}</div>
     <p class="muted">نظام تخطيط موارد المؤسسات باللغة العربية</p>
-    {% if form.errors %}<div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
+    {% if locked %}<div class="alert alert-error">محاولات دخول خاطئة كثيرة. حاول بعد {{ lock_minutes }} دقيقة.</div>
+    {% elif form.errors %}<div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
+    {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
     <label>اسم المستخدم</label>
     <input type="text" name="username" class="form-control" autofocus required>
     <label>كلمة المرور</label>

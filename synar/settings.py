@@ -118,6 +118,9 @@ MEDIA_ROOT = Path(os.environ.get("SYNAR_MEDIA_ROOT", BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ذاكرة مؤقتة مشتركة بين كل عمليات الخادم (لحدّ محاولات الدخول الخاطئة) في جدول بقاعدة البيانات
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "synar_cache"}}
+
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"

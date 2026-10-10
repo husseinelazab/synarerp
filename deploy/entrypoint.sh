@@ -26,6 +26,7 @@ case "$1" in
   web)
     wait_for_db
     python manage.py migrate --noinput
+    python manage.py createcachetable
     # أول تشغيل: الباقات ومدير المنصة (بدون شركة؛ الشركات تسجّل نفسها أو يضيفها المدير)
     if [ -n "$SYNAR_ADMIN_USER" ] && [ -n "$SYNAR_ADMIN_PASSWORD" ]; then
       python manage.py setup_erp --no-company --admin "$SYNAR_ADMIN_USER" --password "$SYNAR_ADMIN_PASSWORD"

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}التحقق الثنائي{% endblock %}
+{% block heading %}التحقق الثنائي (رمز تطبيق المصادقة){% endblock %}
+{% block content %}
+{% if recovery %}
+<div class="card" style="border:2px solid var(--primary,#1f4e79)">
+  <h3>رموز الاسترداد — احفظها الآن</h3>
+  <p>كل رمز يُستخدم مرة واحدة للدخول إن فقدت جوالك. <strong>لن تظهر مرة أخرى.</strong> اطبعها أو احفظها في مكان آمن.</p>
+  <div dir="ltr" style="display:grid;grid-template-columns:repeat(2, max-content);gap:6px 32px;font-family:monospace;font-size:17px">
+    {% for c in recovery %}<span>{{ c }}</span>{% endfor %}
+  </div>
+  <button class="btn" style="margin-top:12px" onclick="window.print()">طباعة</button>
+</div>
+{% endif %}
+
+{% if enabled %}
+<div class="card">
+  <p><span class="badge status-1">✓ مفعّل</span> منذ {{ record.enabled_at|date:"Y-m-d" }} — يُطلب رمز من تطبيق المصادقة بعد كلمة المرور عند كل دخول.
+    رموز الاسترداد المتبقية: <strong>{{ record.recovery_codes|length }}</strong>.</p>
+</div>
+<form method="post" class="card" style="max-width:640px">
+  {% csrf_token %}
+  <h3>رموز استرداد جديدة أو إلغاء التحقق</h3>
+  <div class="form-grid">
+    <div class="field"><label>كلمة المرور الحالية</label><input type="password" name="password" class="form-control" required autocomplete="current-password"></div>
+    <div class="field"><label>الرمز الحالي من التطبيق</label><input type="text" name="code" class="form-control" inputmode="numeric" dir="ltr" required></div>
+  </div>
+  <div class="form-actions" style="margin-top:12px">
+    <button class="btn" name="action" value="regenerate">إنشاء رموز استرداد جديدة</button>
+    {% if not current_company.require_two_factor %}<button class="btn btn-danger-outline" name="action" value="disable" onclick="return confirm('إلغاء التحقق الثنائي؟ سيصبح حسابك أقل أماناً.')">إلغاء التحقق الثنائي</button>{% endif %}
+  </div>
+</form>
+{% else %}
+<div class="card">
+  <p>يحمي التحقق الثنائي حسابك حتى لو عُرفت كلمة مرورك: بعد كلمة المرور يُطلب رمز يتغير كل 30 ثانية من تطبيق على جوالك.</p>
+  <ol>
+    <li>ثبّت تطبيق مصادقة على جوالك: <strong>Google Authenticator</strong> أو <strong>Microsoft Authenticator</strong> أو أي تطبيق TOTP.</li>
+    <li>من التطبيق اختر «إضافة حساب» ثم امسح الرمز أدناه (أو أدخل المفتاح يدوياً).</li>
+    <li>أدخل الرمز المكون من 6 أرقام الظاهر في التطبيق لتأكيد التفعيل.</li>
+  </ol>
+  <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+    <div style="width:200px;background:#fff;padding:6px;border-radius:8px">{{ qr|safe }}</div>
+    <div>
+      <div class="muted small">أو أدخل هذا المفتاح يدوياً:</div>
+      <div dir="ltr" style="font-family:monospace;font-size:17px;margin:6px 0">{{ secret }}</div>
+      <form method="post" class="filters" style="margin-top:12px">
+        {% csrf_token %}
+        <input type="text" name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" dir="ltr" placeholder="123456" required style="max-width:160px">
+        <button class="btn btn-primary" name="action" value="enable">تأكيد وتفعيل</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

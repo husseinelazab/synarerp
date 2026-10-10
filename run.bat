@@ -23,6 +23,7 @@ if errorlevel 1 ( echo Failed to install requirements. Check your internet conne
 set FIRST_RUN=0
 if not exist db.sqlite3 set FIRST_RUN=1
 python manage.py migrate -v 0
+python manage.py createcachetable
 if "%FIRST_RUN%"=="1" (
   echo == Creating a demo company with sample data...
   python manage.py setup_erp --demo --admin admin --password admin12345 --tax-id 310122393500003

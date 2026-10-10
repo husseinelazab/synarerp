@@ -11,6 +11,7 @@ from assets.models import Asset, AssetCategory, AssetDepreciation, AssetStatus
 from assets.services import dispose, pending_rows, post_depreciation
 from core.forms import formfield_callback, style_form
 from core.models import DocStatus
+from core.permissions import require_submit
 from core.utils import flt
 
 
@@ -28,6 +29,7 @@ def depreciation(request):
         upto = today.replace(day=1) - datetime.timedelta(days=1)  # نهاية الشهر الماضي
     if request.method == "POST":
         try:
+            require_submit(request)
             entries = post_depreciation(upto, user=request.user)
         except ValidationError as exc:
             messages.error(request, _error(exc))
@@ -74,6 +76,7 @@ def dispose_asset(request, pk):
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
+            require_submit(request)
             je = dispose(asset, data["date"], data["sale_amount"], data["receive_account"], data["customer"],
                          data["vat"], user=request.user)
         except ValidationError as exc:

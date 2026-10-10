@@ -6,6 +6,6 @@
   {% csrf_token %}
   <p class="muted">اسم المستخدم: <strong dir="ltr">{{ user.username }}</strong></p>
   <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
-  <div class="form-actions"><button class="btn btn-primary">حفظ</button> <a class="btn" href="{% url 'password_change' %}">تغيير كلمة المرور</a></div>
+  <div class="form-actions"><button class="btn btn-primary">حفظ</button> <a class="btn" href="{% url 'password_change' %}">تغيير كلمة المرور</a> <a class="btn" href="{% url 'two_factor_setup' %}">التحقق الثنائي</a></div>
 </form>
 {% endblock %}

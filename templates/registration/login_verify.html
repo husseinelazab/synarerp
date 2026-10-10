@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}رمز التحقق{% endblock %}
+{% block auth_content %}
+<div class="login-page">
+  <form method="post" class="card login-card" autocomplete="off">
+    {% csrf_token %}
+    <h1>رمز التحقق</h1>
+    <p class="muted">افتح تطبيق المصادقة على جوالك وأدخل الرمز المكون من 6 أرقام لحساب {{ ERP_NAME_EN }}.</p>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <input type="text" name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" dir="ltr"
+           placeholder="123456" autofocus required style="text-align:center;font-size:24px;letter-spacing:6px">
+    <button class="btn btn-primary btn-block">تحقق ودخول</button>
+    <p class="muted small" style="margin-top:12px">فقدت جوالك؟ أدخل أحد رموز الاسترداد (مثل AB12C-3D45E) بدلاً من الرمز.</p>
+    <p class="center small"><a href="{% url 'login' %}">رجوع</a></p>
+  </form>
+</div>
+{% endblock %}

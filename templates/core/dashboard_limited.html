@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}لوحة التحكم{% endblock %}
+{% block heading %}لوحة التحكم{% endblock %}
+{% block content %}
+<div class="dash-head">
+  <div>
+    <h2>أهلاً {{ user.first_name|default:user.username }}</h2>
+    <span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }} · {{ current_company }}</span>
+  </div>
+</div>
+<div class="kpi-row">
+  {% for module in nav_modules %}{% if module.key != 'settings' and module.key != 'platform' %}
+  <div class="card">
+    <h3>{{ module.label }}</h3>
+    {% for section in module.sections %}{% for item in section.items %}
+      <div><a href="{{ item.url }}">{{ item.label }}</a></div>
+    {% endfor %}{% endfor %}
+  </div>
+  {% endif %}{% endfor %}
+</div>
+{% if not current_membership.may_submit %}<div class="alert alert-info">صلاحيتك إنشاء المسودات؛ يعتمدها مدير أو مستخدم لديه صلاحية الاعتماد.</div>{% endif %}
+{% endblock %}

@@ -20,11 +20,11 @@ class ImportForm(forms.Form):
     submit_after = forms.BooleanField(label="اعتماد المستندات وترحيل قيودها بعد الاستيراد", required=False)
     valid_only = forms.BooleanField(label="استيراد الصفوف الصحيحة فقط وتجاهل الأخطاء", required=False)
 
-    def __init__(self, dt, *args, **kwargs):
+    def __init__(self, dt, *args, may_submit=True, **kwargs):
         super().__init__(*args, **kwargs)
         if dt.is_submittable or not import_key(dt.model):
             del self.fields["mode"]
-        if not dt.is_submittable:
+        if not dt.is_submittable or not may_submit:
             del self.fields["submit_after"]
         style_form(self)
 
@@ -40,7 +40,9 @@ class ImportForm(forms.Form):
 @login_required
 def import_page(request, slug):
     dt = get_doctype(slug)
-    form = ImportForm(dt, request.POST or None, request.FILES or None)
+    membership = getattr(request, "membership", None)
+    form = ImportForm(dt, request.POST or None, request.FILES or None,
+                      may_submit=membership is None or membership.may_submit)
     if request.method == "POST" and form.is_valid():
         upload = form.cleaned_data["file"]
         job = DataImport(

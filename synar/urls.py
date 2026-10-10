@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from core import password_reset
+from core import password_reset, two_factor
 from core import views as core_views
 
 admin.site.site_header = "سِينار Synar ERP - لوحة الإدارة"
@@ -12,7 +12,9 @@ admin.site.index_title = "إدارة النظام"
 urlpatterns = [
     path("healthz/", core_views.healthz, name="healthz"),
     path("admin/", admin.site.urls),
-    path("login/", auth_views.LoginView.as_view(), name="login"),
+    path("login/", two_factor.LoginView.as_view(), name="login"),
+    path("login/verify/", two_factor.verify_login, name="login_verify"),
+    path("account/two-factor/", two_factor.two_factor_setup, name="two_factor_setup"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("password-reset/", password_reset.ResetView.as_view(), name="password_reset"),
     path("password-reset/sent/", password_reset.sent, name="password_reset_done"),

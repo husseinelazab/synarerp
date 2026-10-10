@@ -129,7 +129,9 @@ def user_edit(request, pk):
     if member.role == Role.EMPLOYEE:
         messages.info(request, "حسابات بوابة الموظفين تُدار من صفحة الموظف.")
         return redirect("users_list")
-    form = MemberRoleForm(request.POST or None, initial={"role": member.role})
+    form = MemberRoleForm(request.POST or None, initial={
+        "role": member.role, "modules": member.modules, "can_submit": member.can_submit,
+        "cost_centers": list(member.cost_centers.all())})
     if request.method == "POST":
         action = request.POST.get("action")
         if action in ("deactivate", "activate"):
@@ -144,9 +146,11 @@ def user_edit(request, pk):
             messages.success(request, "تم تحديث حالة المستخدم.")
             return redirect("users_list")
         if form.is_valid():
-            member.role = form.cleaned_data["role"]
-            member.save(update_fields=["role"])
-            messages.success(request, "تم تحديث دور المستخدم.")
+            data = form.cleaned_data
+            member.role, member.modules, member.can_submit = data["role"], data["modules"], data["can_submit"]
+            member.save(update_fields=["role", "modules", "can_submit"])
+            member.cost_centers.set(data["cost_centers"])
+            messages.success(request, "تم تحديث دور المستخدم وصلاحياته.")
             return redirect("users_list")
     return render(request, "settings/user_form.html", {"form": form, "member": member, "title": f"تعديل {member.user}"})
 

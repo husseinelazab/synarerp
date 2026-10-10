@@ -18,6 +18,7 @@ pip install -q -r requirements.txt
 FIRST_RUN=0
 [ -f db.sqlite3 ] || FIRST_RUN=1
 python manage.py migrate -v 0
+python manage.py createcachetable
 if [ "$FIRST_RUN" = "1" ]; then
   echo "== إنشاء شركة تجريبية ببيانات جاهزة..."
   python manage.py setup_erp --demo --admin admin --password admin12345 --tax-id 310122393500003

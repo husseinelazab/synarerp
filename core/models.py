@@ -28,6 +28,9 @@ class Company(models.Model):
     tax_id = models.CharField("الرقم الضريبي", max_length=20, blank=True)
     commercial_register = models.CharField("السجل التجاري", max_length=30, blank=True)
     phone = models.CharField("الهاتف", max_length=30, blank=True)
+    require_two_factor = models.BooleanField(
+        "إلزام كل المستخدمين بالتحقق الثنائي", default=False,
+        help_text="يطلب من كل مستخدم تفعيل رمز تطبيق المصادقة (Google/Microsoft Authenticator) قبل استخدام النظام")
     email = models.EmailField("البريد الإلكتروني", blank=True)
     address = models.TextField("العنوان", blank=True)
     default_tax_rate = models.DecimalField("نسبة ضريبة القيمة المضافة %", max_digits=5, decimal_places=2, default=15)
@@ -304,6 +307,14 @@ class Membership(models.Model):
     role = models.CharField("الدور", max_length=10, choices=Role.choices, default=Role.USER)
     is_active = models.BooleanField("نشط", default=True)
     created_at = models.DateTimeField("تاريخ الإضافة", auto_now_add=True)
+    # صلاحيات أدق للمستخدم العادي (المالك والمدير لهما كل الصلاحيات)
+    modules = models.JSONField("الوحدات المسموحة", default=list, blank=True,
+                               help_text="فارغة = كل الوحدات")
+    can_submit = models.BooleanField("يعتمد ويلغي المستندات", default=True,
+                                     help_text="إن أُلغي: يُنشئ المسودات فقط ويعتمدها غيره")
+    cost_centers = models.ManyToManyField("accounts.CostCenter", blank=True, related_name="+",
+                                          verbose_name="الفروع / مراكز التكلفة المسموحة",
+                                          help_text="فارغة = كل الفروع")
 
     class Meta:
         verbose_name = "عضوية"
@@ -316,6 +327,20 @@ class Membership(models.Model):
     @property
     def can_manage(self):
         return self.role in (Role.OWNER, Role.ADMIN)
+
+    def allows_module(self, key):
+        return self.can_manage or not self.modules or key in self.modules
+
+    @property
+    def may_submit(self):
+        return self.can_manage or self.can_submit
+
+    def allowed_cost_center_ids(self):
+        """None = كل الفروع؛ وإلا مجموعة مراكز التكلفة المسموحة."""
+        if self.can_manage or not self.pk:
+            return None
+        ids = set(self.cost_centers.values_list("id", flat=True))
+        return ids or None
 
 
 class ImportStatus(models.TextChoices):
@@ -445,3 +470,22 @@ class EmailSettings(models.Model):
     @property
     def is_configured(self):
         return bool(self.host and self.from_email)
+
+
+class UserTwoFactor(models.Model):
+    """التحقق الثنائي برمز تطبيق المصادقة (TOTP) مع رموز استرداد لمرة واحدة."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, models.CASCADE, related_name="two_factor")
+    secret_encrypted = models.TextField(editable=False)
+    enabled = models.BooleanField(default=False)
+    recovery_codes = models.JSONField(default=list, blank=True, editable=False)  # تجزئات SHA-256
+    last_step = models.BigIntegerField(default=0, editable=False)  # يمنع إعادة استخدام نفس الرمز
+    enabled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "تحقق ثنائي"
+        verbose_name_plural = "التحقق الثنائي"
+
+
+def has_two_factor(user):
+    return UserTwoFactor.objects.filter(user=user, enabled=True).exists()

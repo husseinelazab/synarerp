@@ -15,6 +15,8 @@ BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 CASHIER_PREFIXES = ("/pos/", "/api/item/", "/switch-company/", "/account/")
 # بوابة الخدمة الذاتية للموظف
 EMPLOYEE_PREFIXES = ("/me/", "/switch-company/", "/account/")
+# مسموحة قبل تفعيل التحقق الثنائي الإلزامي
+TWO_FACTOR_SAFE_PREFIXES = ("/account/", "/switch-company/", "/billing/")
 # صفحات الإدارة لمالك الحساب والمدير فقط
 MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/")
 
@@ -71,6 +73,17 @@ class TenantMiddleware:
             return redirect("portal_home")
         if path.startswith(MANAGER_PREFIXES) and not membership.can_manage:
             messages.error(request, "هذه الصفحة متاحة لمالك الحساب والمدير فقط.")
+            return redirect("dashboard")
+        if membership.company.require_two_factor and not path.startswith(TWO_FACTOR_SAFE_PREFIXES):
+            from core.models import has_two_factor
+
+            if not has_two_factor(request.user):
+                messages.warning(request, "تشترط شركتك تفعيل التحقق الثنائي قبل استخدام النظام.")
+                return redirect("two_factor_setup")
+        from core.permissions import path_allowed
+
+        if not path_allowed(membership, path):
+            messages.error(request, "ليست لديك صلاحية على هذه الوحدة. تواصل مع مدير الشركة.")
             return redirect("dashboard")
 
         subscription = getattr(membership.company, "subscription", None)

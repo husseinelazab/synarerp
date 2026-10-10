@@ -25,6 +25,10 @@ def dashboard(request):
         from saas.views import landing
 
         return landing(request)
+    membership = getattr(request, "membership", None)
+    if membership is not None and not membership.allows_module("accounts"):
+        # من لا يملك صلاحية المحاسبة لا يرى أرقام الأرباح والنقدية
+        return render(request, "core/dashboard_limited.html", {"today": timezone.localdate()})
     from core.dashboard import dashboard_context
 
     return render(request, "core/dashboard.html", dashboard_context(request))
@@ -42,7 +46,9 @@ def module_page(request, module):
 
 def filtered_queryset(request, dt):
     """القائمة بعد تطبيق البحث وفلاتر الحالة والنوع (تُستخدم في العرض والتصدير)."""
-    qs = dt.model.objects.all()
+    from core.permissions import scope_queryset
+
+    qs = scope_queryset(request, dt.model, dt.model.objects.all())
     query = request.GET.get("q", "").strip()
     if query and dt.search_fields:
         cond = Q()
@@ -89,7 +95,7 @@ def doc_list(request, slug):
 @login_required
 def doc_form(request, slug, pk=None):
     dt = get_doctype(slug)
-    instance = get_object_or_404(dt.model, pk=pk) if pk else None
+    instance = get_object_or_404(_scoped(request, dt), pk=pk) if pk else None
     if instance is not None and dt.is_submittable and not instance.is_draft:
         messages.warning(request, "لا يمكن تعديل مستند معتمد أو ملغى.")
         return redirect(instance.get_absolute_url())
@@ -122,7 +128,15 @@ def doc_form(request, slug, pk=None):
             initial["warehouse"] = Warehouse.objects.filter(disabled=False).values_list("id", flat=True).first()
     initial.update({k: v for k, v in request.GET.items() if k in FormClass.base_fields})
 
+    from core.permissions import allowed_centers
+
+    centers = allowed_centers(request)
+    if centers is not None and "cost_center" in FormClass.base_fields:
+        initial.setdefault("cost_center", sorted(centers)[0])
     form = FormClass(request.POST or None, instance=instance, initial=initial)
+    if centers is not None and "cost_center" in form.fields:
+        form.fields["cost_center"].queryset = form.fields["cost_center"].queryset.filter(id__in=centers)
+        form.fields["cost_center"].required = True
     formset = FormSetClass(request.POST or None, instance=instance) if FormSetClass else None
     style_form(form)
     empty_form = None
@@ -132,6 +146,13 @@ def doc_form(request, slug, pk=None):
         for f in formset.forms + [empty_form]:
             style_form(f)
 
+    if request.method == "POST" and request.POST.get("_submit") and dt.is_submittable:
+        from core.permissions import require_submit
+
+        try:
+            require_submit(request)
+        except ValidationError as exc:
+            form.add_error(None, _error_text(exc))
     if request.method == "POST" and form.is_valid() and (formset is None or formset.is_valid()):
         try:
             with transaction.atomic():
@@ -165,6 +186,12 @@ def doc_form(request, slug, pk=None):
     })
 
 
+def _scoped(request, dt):
+    from core.permissions import scope_queryset
+
+    return scope_queryset(request, dt.model, dt.model.objects.all())
+
+
 def _linked_entries(obj):
     from accounts.models import GLEntry
     from stock.models import StockLedgerEntry
@@ -190,7 +217,7 @@ def _child_table(dt, obj):
 @login_required
 def doc_detail(request, slug, pk):
     dt = get_doctype(slug)
-    obj = get_object_or_404(dt.model, pk=pk)
+    obj = get_object_or_404(_scoped(request, dt), pk=pk)
     child_headers, child_rows = _child_table(dt, obj)
     exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus"}
     context = {
@@ -212,7 +239,7 @@ def doc_detail(request, slug, pk):
 @login_required
 def doc_print(request, slug, pk):
     dt = get_doctype(slug)
-    obj = get_object_or_404(dt.model, pk=pk)
+    obj = get_object_or_404(_scoped(request, dt), pk=pk)
     child_headers, child_rows = _child_table(dt, obj)
     qr = ""
     if slug == "sales-invoice" and not obj.is_draft:
@@ -227,7 +254,10 @@ def doc_print(request, slug, pk):
 
 
 def _run_action(request, dt, obj, action):
+    from core.permissions import require_submit
+
     try:
+        require_submit(request)
         if action == "submit":
             obj.submit()
             suffix = " وترحيل قيوده" if getattr(obj, "posts_to_ledger", True) else ""
@@ -244,7 +274,7 @@ def _run_action(request, dt, obj, action):
 @require_POST
 def doc_action(request, slug, pk, action):
     dt = get_doctype(slug)
-    obj = get_object_or_404(dt.model, pk=pk)
+    obj = get_object_or_404(_scoped(request, dt), pk=pk)
     if action == "delete":
         if dt.is_submittable and not obj.is_draft:
             messages.error(request, "يمكن حذف المسودات فقط. ألغِ المستند بدلاً من ذلك.")
@@ -266,6 +296,9 @@ def doc_action(request, slug, pk, action):
         try:
             with transaction.atomic():
                 if action == "reject":
+                    from core.permissions import require_submit
+
+                    require_submit(request)
                     result = obj.reject(request.user, request.POST.get("reason", "").strip())
                 else:
                     result = getattr(obj, action)(request.user)

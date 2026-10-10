@@ -108,6 +108,8 @@ def build_menu(request):
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [
             {"items": [_item("الشركات والاشتراكات", "platform_dashboard"), _item("خادم البريد", "platform_email_settings")]}]})
 
+    # المستخدم العادي يرى الوحدات المسموحة له فقط
+    modules = [m for m in modules if m["key"] in ("settings", "platform") or membership.allows_module(m["key"])]
     return _mark_active(request, modules)
 
 

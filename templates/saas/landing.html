@@ -1,0 +1,78 @@
+{% load static erp %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ ERP_NAME }} | {{ ERP_NAME_EN }} — نظام ERP سحابي عربي</title>
+  <meta name="description" content="سِينار نظام تخطيط موارد مؤسسات سحابي عربي بالكامل: محاسبة، مبيعات، مشتريات، مخزون، نقاط بيع، وفوترة متوافقة مع هيئة الزكاة والضريبة والجمارك.">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/erp.css' %}">
+  <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+</head>
+<body class="landing">
+  <header class="l-nav">
+    <div class="l-wrap l-nav-inner">
+      <a class="l-logo" href="/">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
+      <nav>
+        <a href="#features">المزايا</a>
+        <a href="#pricing">الأسعار</a>
+        <a class="btn" href="{% url 'login' %}">تسجيل الدخول</a>
+        <a class="btn btn-primary" href="{% url 'signup' %}">ابدأ مجاناً</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="l-hero">
+    <div class="l-wrap">
+      <h1>أدر منشأتك بالكامل من مكان واحد<br><span>وبالعربية</span></h1>
+      <p>نظام ERP سحابي يجمع المحاسبة والمبيعات والمشتريات والمخزون ونقاط البيع، مصمم للسوق السعودي والعربي،
+        مع فواتير ضريبية ورمز QR متوافق مع متطلبات هيئة الزكاة والضريبة والجمارك.</p>
+      <div class="l-cta">
+        <a class="btn btn-success l-big" href="{% url 'signup' %}">أنشئ حساب شركتك الآن</a>
+        <span class="muted">تجربة مجانية • بدون بطاقة ائتمان • جاهز خلال دقيقة</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="l-wrap l-features">
+    <h2>كل ما تحتاجه منشأتك</h2>
+    <div class="l-grid">
+      <div class="card"><h3>المحاسبة</h3><p>دليل حسابات عربي جاهز، قيود يومية، سندات قبض وصرف، ميزان مراجعة وقائمة دخل وميزانية عمومية.</p></div>
+      <div class="card"><h3>المبيعات والمشتريات</h3><p>فواتير ضريبية، خصومات، مرتجعات (إشعارات دائنة ومدينة)، ومتابعة أرصدة العملاء والموردين.</p></div>
+      <div class="card"><h3>المخزون</h3><p>مستودعات متعددة، تحويلات، تقييم بالمتوسط المرجح، ومنع البيع بالسالب.</p></div>
+      <div class="card"><h3>نقاط البيع</h3><p>شاشة كاشير سريعة بالباركود، ورديات وجرد للنقدية، دفع نقدي وبطاقات، وإيصال حراري بالـ QR.</p></div>
+      <div class="card"><h3>الضريبة</h3><p>ضريبة القيمة المضافة تلقائياً، إقرار ضريبي جاهز، وفاتورة ضريبية مبسطة متوافقة.</p></div>
+      <div class="card"><h3>فريقك وصلاحياته</h3><p>أضف موظفيك بأدوار مختلفة: مدير، مستخدم، كاشير — وكل شركة بياناتها معزولة وآمنة.</p></div>
+    </div>
+  </section>
+
+  <section id="pricing" class="l-pricing">
+    <div class="l-wrap">
+      <h2>باقات واضحة تناسب حجم منشأتك</h2>
+      <div class="l-plans">
+        {% for plan in plans %}
+        <div class="card l-plan {% if plan.code == 'pro' %}featured{% endif %}">
+          {% if plan.code == 'pro' %}<div class="l-badge">الأكثر طلباً</div>{% endif %}
+          <h3>{{ plan.name }}</h3>
+          <p class="muted">{{ plan.description }}</p>
+          <div class="l-price">{{ plan.price_monthly|floatformat:0 }} <small>ر.س / شهرياً</small></div>
+          <div class="muted">أو {{ plan.price_yearly|floatformat:0 }} ر.س سنوياً</div>
+          <ul>
+            <li>حتى {{ plan.max_users }} مستخدمين</li>
+            <li>المحاسبة والمبيعات والمشتريات والمخزون</li>
+            <li>{% if plan.includes_pos %}نقاط البيع ✓{% else %}بدون نقاط البيع{% endif %}</li>
+            <li>تجربة مجانية {{ plan.trial_days }} يوماً</li>
+          </ul>
+          <a class="btn {% if plan.code == 'pro' %}btn-primary{% endif %} btn-block" href="{% url 'signup' %}?plan={{ plan.code }}">ابدأ التجربة</a>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="muted center">الأسعار لا تشمل ضريبة القيمة المضافة.</p>
+    </div>
+  </section>
+
+  <footer class="l-footer">
+    <div class="l-wrap">© {% now "Y" %} {{ ERP_NAME }} — {{ ERP_NAME_EN }}</div>
+  </footer>
+</body>
+</html>

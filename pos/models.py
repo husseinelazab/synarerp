@@ -4,15 +4,15 @@ from django.db import models
 from django.db.models import Count, F, Sum
 from django.utils import timezone
 
-from core.models import Company, DocStatus
+from core.models import DocStatus, TenantModel
+from core.tenancy import tenant_unique
 from core.utils import flt
 
 
-class POSProfile(models.Model):
+class POSProfile(TenantModel):
     """إعدادات نقطة البيع: المستودع، الحسابات، العميل الافتراضي، والصلاحيات."""
 
-    company = models.ForeignKey(Company, models.CASCADE, verbose_name="الشركة")
-    name = models.CharField("اسم نقطة البيع", max_length=100, unique=True)
+    name = models.CharField("اسم نقطة البيع", max_length=100)
     warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, verbose_name="المستودع")
     default_customer = models.ForeignKey("selling.Customer", models.PROTECT, verbose_name="العميل الافتراضي")
     cash_account = models.ForeignKey(
@@ -35,6 +35,7 @@ class POSProfile(models.Model):
         verbose_name = "ملف نقطة بيع"
         verbose_name_plural = "ملفات نقاط البيع"
         ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="posprofile")]
 
     def __str__(self):
         return self.name
@@ -45,7 +46,7 @@ class ShiftStatus(models.TextChoices):
     CLOSED = "closed", "مغلقة"
 
 
-class POSShift(models.Model):
+class POSShift(TenantModel):
     """وردية الكاشير: تبدأ برصيد افتتاحي وتنتهي بجرد النقدية ومطابقتها."""
 
     profile = models.ForeignKey(POSProfile, models.PROTECT, related_name="shifts", verbose_name="نقطة البيع")
@@ -83,7 +84,7 @@ class POSShift(models.Model):
             raise ValidationError("نقطة البيع موقوفة.")
         if flt(opening_cash) < 0:
             raise ValidationError("النقدية الافتتاحية لا يمكن أن تكون سالبة.")
-        return cls.objects.create(profile=profile, user=user, opening_cash=flt(opening_cash))
+        return cls.objects.create(company=profile.company, profile=profile, user=user, opening_cash=flt(opening_cash))
 
     def summary(self):
         invoices = self.invoices.filter(docstatus=DocStatus.SUBMITTED)

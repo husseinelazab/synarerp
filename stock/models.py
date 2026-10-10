@@ -2,38 +2,41 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
-from core.models import Company, SubmittableDocument
+from core.models import SubmittableDocument, TenantModel
+from core.tenancy import tenant_unique
 from core.utils import flt
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 
 
-class UOM(models.Model):
-    name = models.CharField("وحدة القياس", max_length=50, unique=True)
+class UOM(TenantModel):
+    name = models.CharField("وحدة القياس", max_length=50)
 
     class Meta:
         verbose_name = "وحدة قياس"
         verbose_name_plural = "وحدات القياس"
         ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="uom")]
 
     def __str__(self):
         return self.name
 
 
-class ItemGroup(models.Model):
-    name = models.CharField("اسم المجموعة", max_length=100, unique=True)
+class ItemGroup(TenantModel):
+    name = models.CharField("اسم المجموعة", max_length=100)
     parent = models.ForeignKey("self", models.PROTECT, null=True, blank=True, related_name="children", verbose_name="المجموعة الأم")
 
     class Meta:
         verbose_name = "مجموعة أصناف"
         verbose_name_plural = "مجموعات الأصناف"
         ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="itemgroup")]
 
     def __str__(self):
         return self.name
 
 
-class Item(models.Model):
-    code = models.CharField("كود الصنف", max_length=50, unique=True)
+class Item(TenantModel):
+    code = models.CharField("كود الصنف", max_length=50)
     name = models.CharField("اسم الصنف", max_length=200)
     item_group = models.ForeignKey(ItemGroup, models.PROTECT, verbose_name="مجموعة الأصناف")
     uom = models.ForeignKey(UOM, models.PROTECT, verbose_name="وحدة القياس")
@@ -56,14 +59,14 @@ class Item(models.Model):
         verbose_name = "صنف"
         verbose_name_plural = "الأصناف"
         ordering = ["code"]
+        constraints = [tenant_unique("code", model_label="item")]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
 
 
-class Warehouse(models.Model):
-    company = models.ForeignKey(Company, models.CASCADE, verbose_name="الشركة")
-    name = models.CharField("اسم المستودع", max_length=100, unique=True)
+class Warehouse(TenantModel):
+    name = models.CharField("اسم المستودع", max_length=100)
     address = models.CharField("العنوان", max_length=255, blank=True)
     disabled = models.BooleanField("موقوف", default=False)
 
@@ -71,12 +74,13 @@ class Warehouse(models.Model):
         verbose_name = "مستودع"
         verbose_name_plural = "المستودعات"
         ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="warehouse")]
 
     def __str__(self):
         return self.name
 
 
-class Bin(models.Model):
+class Bin(TenantModel):
     """الرصيد الحالي لكل صنف في كل مستودع."""
 
     item = models.ForeignKey(Item, models.CASCADE, related_name="bins", verbose_name="الصنف")
@@ -91,8 +95,7 @@ class Bin(models.Model):
         unique_together = [("item", "warehouse")]
 
 
-class StockLedgerEntry(models.Model):
-    company = models.ForeignKey(Company, models.PROTECT, verbose_name="الشركة")
+class StockLedgerEntry(TenantModel):
     posting_date = models.DateField("التاريخ", db_index=True)
     item = models.ForeignKey(Item, models.PROTECT, related_name="ledger_entries", verbose_name="الصنف")
     warehouse = models.ForeignKey(Warehouse, models.PROTECT, verbose_name="المستودع")
@@ -111,7 +114,7 @@ class StockLedgerEntry(models.Model):
         verbose_name = "حركة مخزون"
         verbose_name_plural = "دفتر حركة المخزون"
         ordering = ["posting_date", "id"]
-        indexes = [models.Index(fields=["voucher_type", "voucher_no"]), models.Index(fields=["item", "warehouse"])]
+        indexes = [models.Index(fields=["voucher_type", "voucher_id"]), models.Index(fields=["item", "warehouse"])]
 
 
 class StockEntryPurpose(models.TextChoices):

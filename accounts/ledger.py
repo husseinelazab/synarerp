@@ -60,4 +60,4 @@ def make_gl_entries(doc, entries, remarks=""):
 def cancel_gl_entries(doc):
     from accounts.models import GLEntry
 
-    GLEntry.objects.filter(voucher_type=doc.doctype_slug, voucher_no=doc.name).update(is_cancelled=True)
+    GLEntry.all_objects.filter(voucher_type=doc.doctype_slug, voucher_id=doc.pk).update(is_cancelled=True)

@@ -14,15 +14,20 @@
   <aside class="sidebar" id="sidebar">
     <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
     <nav>
+      {% if current_membership %}
       <a href="{% url 'dashboard' %}" class="nav-link {% if request.path == '/' %}active{% endif %}">لوحة التحكم</a>
+      {% if subscription.plan.includes_pos %}
       <a href="{% url 'pos_terminal' %}" class="nav-link nav-pos">نقطة البيع</a>
       <a href="{% url 'pos_shifts' %}" class="nav-link {% if '/pos/shifts' in request.path %}active{% endif %}">ورديات نقاط البيع</a>
+      {% endif %}
+      {% endif %}
       {% for section in erp_menu %}
         <div class="nav-section">{{ section.label }}</div>
         {% for dt in section.doctypes %}
           <a href="{% url 'doc_list' dt.slug %}" class="nav-link {% if dt.slug in request.path %}active{% endif %}">{{ dt.label_plural }}</a>
         {% endfor %}
       {% endfor %}
+      {% if current_membership %}
       <div class="nav-section">التقارير</div>
       <a href="{% url 'chart_of_accounts' %}" class="nav-link">شجرة الحسابات</a>
       <a href="{% url 'trial_balance' %}" class="nav-link">ميزان المراجعة</a>
@@ -34,6 +39,17 @@
       <a href="{% url 'party_balances' 'supplier' %}" class="nav-link">أرصدة الموردين</a>
       <a href="{% url 'stock_balance' %}" class="nav-link">أرصدة المخزون</a>
       <a href="{% url 'stock_ledger' %}" class="nav-link">دفتر حركة المخزون</a>
+      {% endif %}
+      {% if current_membership.can_manage %}
+      <div class="nav-section">إدارة الحساب</div>
+      <a href="{% url 'company_settings' %}" class="nav-link {% if '/settings/company' in request.path %}active{% endif %}">إعدادات الشركة</a>
+      <a href="{% url 'users_list' %}" class="nav-link {% if '/settings/users' in request.path %}active{% endif %}">المستخدمون والصلاحيات</a>
+      <a href="{% url 'billing' %}" class="nav-link {% if '/billing' in request.path %}active{% endif %}">الاشتراك والفوترة</a>
+      {% endif %}
+      {% if user.is_superuser %}
+      <div class="nav-section">المنصة</div>
+      <a href="{% url 'platform_dashboard' %}" class="nav-link {% if '/platform' in request.path %}active{% endif %}">إدارة المنصة</a>
+      {% endif %}
     </nav>
   </aside>
   <div class="main">
@@ -41,12 +57,22 @@
       <button class="menu-toggle" type="button" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
       <div class="topbar-title">{% block heading %}{% endblock %}</div>
       <div class="user-box">
-        <span>{{ user.get_full_name|default:user.username }}</span>
-        {% if user.is_staff %}<a href="{% url 'admin:index' %}">الإدارة</a>{% endif %}
+        {% if current_company %}
+          {% if user_memberships|length > 1 %}
+          <form method="post" class="company-switch" onchange="this.action='/switch-company/'+this.company.value+'/';this.submit()">{% csrf_token %}
+            <select name="company" class="form-select">{% for m in user_memberships %}<option value="{{ m.company_id }}" {% if m.company_id == current_company.pk %}selected{% endif %}>{{ m.company }}</option>{% endfor %}</select>
+          </form>
+          {% else %}<strong class="company-name">{{ current_company }}</strong>{% endif %}
+        {% endif %}
+        <span>{{ user.get_full_name|default:user.username }}{% if current_membership %} · {{ current_membership.get_role_display }}{% endif %}</span>
+        {% if user.is_superuser %}<a href="{% url 'admin:index' %}">لوحة Django</a>{% endif %}
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link-btn">تسجيل الخروج</button></form>
       </div>
     </header>
     <main class="content">
+      {% if subscription and subscription.is_valid and subscription.status == 'trial' and subscription.days_left <= 7 %}
+        <div class="alert alert-warning">تنتهي الفترة التجريبية خلال {{ subscription.days_left }} يوماً.{% if current_membership.can_manage %} <a href="{% url 'billing' %}">اشترك الآن</a> لتستمر دون انقطاع.{% endif %}</div>
+      {% endif %}
       {% for message in messages %}
         <div class="alert alert-{{ message.tags }}">{{ message }}</div>
       {% endfor %}

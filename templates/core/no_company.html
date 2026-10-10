@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}لا توجد شركة{% endblock %}
+{% block auth_content %}{% endblock %}
+{% block content %}
+<div class="card"><h3>حسابك غير مرتبط بأي شركة</h3>
+<p>اطلب من مدير شركتك إضافتك، أو <a href="{% url 'signup' %}">أسّس حساباً لمنشأتك</a>.</p></div>
+{% endblock %}

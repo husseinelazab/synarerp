@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "buying",
     "hr",
     "pos",
+    "saas",
 ]
 
 MIDDLEWARE = [
@@ -32,6 +33,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "core.middleware.TenantMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -98,3 +100,10 @@ LOGOUT_REDIRECT_URL = "login"
 # اسم النظام المعروض في الواجهة
 ERP_NAME = "سِينار"
 ERP_NAME_EN = "Synar ERP"
+
+# تعليمات الدفع التي تظهر للعملاء في صفحة الاشتراك (حساب بنكي، رقم تواصل...)
+SYNAR_BILLING_INSTRUCTIONS = os.environ.get(
+    "SYNAR_BILLING_INSTRUCTIONS",
+    "للاشتراك أو التجديد: حوّل قيمة الباقة إلى حسابنا البنكي ثم أرسل الإيصال، وسيتم تفعيل اشتراكك خلال يوم عمل.",
+)
+SYNAR_SUPPORT_CONTACT = os.environ.get("SYNAR_SUPPORT_CONTACT", "")

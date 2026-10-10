@@ -136,3 +136,7 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
 .brand small { display: block; font-size: 12px; font-weight: 500; color: #9fb6cc; letter-spacing: 1px; direction: ltr; text-align: right; }
 .login-en { text-align: center; color: var(--muted); letter-spacing: 2px; direction: ltr; }
 .toolbar .filters .form-control, .toolbar .filters .form-select { width: auto; }
+.company-switch .form-select { padding: 4px 8px; min-width: 180px; }
+.company-name { color: var(--primary); }
+.signup-card { width: 640px; max-width: 94vw; margin: 30px 0; }
+.signup-section { margin: 18px 0 8px; font-size: 15px; color: var(--primary); }

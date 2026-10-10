@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ company }}{% endblock %}
+{% block heading %}إدارة المنصة: {{ company }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <a class="btn" href="{% url 'platform_dashboard' %}">كل الشركات</a>
+  <div class="actions">
+    <form method="post">{% csrf_token %}<button class="btn" name="action" value="enter">الدخول للشركة (دعم فني)</button></form>
+    {% if subscription.status == 'suspended' %}
+      <form method="post">{% csrf_token %}<button class="btn btn-success" name="action" value="reactivate">إعادة تفعيل</button></form>
+    {% else %}
+      <form method="post" onsubmit="return confirm('إيقاف اشتراك الشركة؟')">{% csrf_token %}<button class="btn btn-danger-outline" name="action" value="suspend">إيقاف الاشتراك</button></form>
+    {% endif %}
+  </div>
+</div>
+<div class="grid-2">
+  <div class="card"><h3>البيانات</h3>
+    <div class="total-line"><span>الرقم الضريبي</span><strong>{{ company.tax_id|default:"—" }}</strong></div>
+    <div class="total-line"><span>الجوال</span><strong dir="ltr">{{ company.phone|default:"—" }}</strong></div>
+    <div class="total-line"><span>الباقة</span><strong>{{ subscription.plan }}</strong></div>
+    <div class="total-line"><span>الحالة</span><strong>{{ subscription.state_label }}</strong></div>
+    <div class="total-line"><span>صالح حتى</span><strong>{{ subscription.period_end|date:"Y-m-d" }}</strong></div>
+    <div class="total-line"><span>تاريخ التسجيل</span><strong>{{ subscription.created_at|date:"Y-m-d" }}</strong></div>
+    <h3 style="margin-top:16px">المستخدمون</h3>
+    {% for m in members %}<div class="total-line"><span>{{ m.user.get_full_name|default:m.user.username }} ({{ m.user.email|default:m.user.username }})</span><strong>{{ m.get_role_display }}{% if not m.is_active %} - موقوف{% endif %}</strong></div>{% endfor %}
+  </div>
+  <div class="card"><h3>تسجيل دفعة وتمديد الاشتراك</h3>
+    <form method="post" novalidate>{% csrf_token %}
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+      <button class="btn btn-primary" name="action" value="payment" style="margin-top:12px">تسجيل الدفعة</button>
+    </form>
+  </div>
+</div>
+<div class="card"><h3>سجل المدفوعات</h3>
+  <table class="table"><thead><tr><th>التاريخ</th><th>الباقة</th><th>الأشهر</th><th>الفترة</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead>
+  <tbody>{% for p in payments %}<tr><td>{{ p.created_at|date:"Y-m-d" }}</td><td>{{ p.plan }}</td><td>{{ p.months }}</td><td>{{ p.period_start|date:"Y-m-d" }} ← {{ p.period_end|date:"Y-m-d" }}</td><td>{{ p.amount|money }}</td><td>{{ p.get_method_display }}</td><td>{{ p.reference }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لا توجد مدفوعات</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}

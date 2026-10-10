@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-primary">حفظ</button>
+      {% if member %}
+        {% if member.is_active %}<button class="btn btn-danger-outline" name="action" value="deactivate" onclick="return confirm('إيقاف وصول هذا المستخدم للشركة؟')">إيقاف المستخدم</button>
+        {% else %}<button class="btn btn-success" name="action" value="activate">إعادة تفعيل</button>{% endif %}
+      {% endif %}
+      <a class="btn" href="{% url 'users_list' %}">رجوع</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

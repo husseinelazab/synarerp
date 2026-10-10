@@ -9,8 +9,8 @@ from core.utils import flt
 def _locked_bin(item, warehouse):
     from stock.models import Bin
 
-    Bin.objects.get_or_create(item=item, warehouse=warehouse)
-    return Bin.objects.select_for_update().get(item=item, warehouse=warehouse)
+    Bin.all_objects.get_or_create(item=item, warehouse=warehouse, defaults={"company": warehouse.company})
+    return Bin.all_objects.select_for_update().get(item=item, warehouse=warehouse)
 
 
 def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None):
@@ -61,8 +61,8 @@ def cancel_stock_ledger_entries(doc):
     """عكس أثر حركات المستند على الأرصدة ووسمها كملغاة."""
     from stock.models import StockLedgerEntry
 
-    entries = StockLedgerEntry.objects.filter(
-        voucher_type=doc.doctype_slug, voucher_no=doc.name, is_cancelled=False
+    entries = StockLedgerEntry.all_objects.filter(
+        voucher_type=doc.doctype_slug, voucher_id=doc.pk, is_cancelled=False
     ).select_related("item", "warehouse").order_by("-id")
     for sle in entries:
         b = _locked_bin(sle.item, sle.warehouse)

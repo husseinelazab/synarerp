@@ -3,11 +3,13 @@ from django.db import models
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.invoice import InvoiceDocument, InvoiceItem
+from core.models import TenantModel
+from core.tenancy import tenant_unique
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 
 
-class Supplier(models.Model):
-    name = models.CharField("اسم المورد", max_length=200, unique=True)
+class Supplier(TenantModel):
+    name = models.CharField("اسم المورد", max_length=200)
     tax_id = models.CharField("الرقم الضريبي", max_length=20, blank=True)
     phone = models.CharField("الجوال", max_length=30, blank=True)
     email = models.EmailField("البريد الإلكتروني", blank=True)
@@ -19,6 +21,7 @@ class Supplier(models.Model):
         verbose_name = "مورد"
         verbose_name_plural = "الموردون"
         ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="supplier")]
 
     def __str__(self):
         return self.name

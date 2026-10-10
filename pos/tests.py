@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from accounts.models import GLEntry
 from buying.models import PurchaseInvoice, Supplier
-from core.models import Company, DocStatus
+from core.models import Company, DocStatus, Membership, Role
 from core.zatca import decode_payload, qr_payload
 from pos.models import POSProfile, POSShift
 from pos.services import checkout
@@ -26,10 +26,11 @@ class POSTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("setup_erp", tax_id="310122393500003", verbosity=0, stdout=open("/dev/null", "w"))
-        cls.company = Company.get_default()
+        cls.company = Company.current()
         cls.profile = POSProfile.objects.get()
         cls.wh = Warehouse.objects.get(name="المستودع الرئيسي")
         cls.user = User.objects.create_user("cashier", password="pass12345")
+        Membership.objects.create(user=cls.user, company=Company.current(), role=Role.CASHIER)
         group, uom = ItemGroup.objects.first(), UOM.objects.first()
         cls.item = Item.objects.create(code="W1", name="ماء", item_group=group, uom=uom, selling_rate=115, buying_rate=50)
         cls.service = Item.objects.create(code="S1", name="تغليف", item_group=group, uom=uom, selling_rate=23,
@@ -137,6 +138,7 @@ class POSViewTests(TestCase):
     def setUpTestData(cls):
         call_command("setup_erp", demo=True, tax_id="310122393500003", verbosity=0, stdout=open("/dev/null", "w"))
         cls.user = User.objects.create_user("cashier", password="pass12345")
+        Membership.objects.create(user=cls.user, company=Company.current(), role=Role.CASHIER)
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -180,6 +182,7 @@ class POSReturnTests(TestCase):
     def setUpTestData(cls):
         call_command("setup_erp", demo=True, tax_id="310122393500003", verbosity=0, stdout=open("/dev/null", "w"))
         cls.user = User.objects.create_user("cashier", password="pass12345")
+        Membership.objects.create(user=cls.user, company=Company.current(), role=Role.CASHIER)
         cls.profile = POSProfile.objects.get()
         cls.item = Item.objects.get(code="MOU-001")  # 75 شامل الضريبة
 

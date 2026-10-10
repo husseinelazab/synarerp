@@ -1,0 +1,78 @@
+"""تأسيس شركة جديدة على المنصة بكل بياناتها الأساسية."""
+import datetime
+
+from django.db import transaction
+from django.utils import timezone
+
+from core.models import Company, Currency, FiscalYear, Membership, Role
+from core.setup_data import CHART_OF_ACCOUNTS, DEFAULT_ACCOUNTS, DEPARTMENTS, DESIGNATIONS, ITEM_GROUPS, UOMS
+from core.tenancy import tenant_context
+
+
+def default_currency():
+    currency, _ = Currency.objects.get_or_create(code="SAR", defaults={"name": "ريال سعودي", "symbol": "ر.س"})
+    return currency
+
+
+def _create_accounts(nodes, parent, root_type):
+    from accounts.models import Account
+
+    for number, name, kind, children in nodes:
+        is_root = parent is None
+        node_root = kind if is_root else root_type
+        account = Account.objects.create(
+            number=number, name=name, parent=parent, is_group=children is not None, root_type=node_root,
+            account_type="" if (is_root or children is not None) else (kind or ""),
+        )
+        if children:
+            _create_accounts(children, account, node_root)
+
+
+@transaction.atomic
+def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None, demo=False):
+    """ينشئ الشركة ودليل حساباتها ومستودعاتها وإعدادات نقطة البيع، ويربط المالك بها ويبدأ اشتراكها."""
+    from accounts.models import Account
+    from hr.models import Department, Designation
+    from pos.models import POSProfile
+    from selling.models import Customer
+    from stock.models import UOM, ItemGroup, Warehouse
+
+    company = Company.objects.create(name=name, abbr=abbr or name[:10], tax_id=tax_id, phone=phone,
+                                     currency=default_currency())
+    with tenant_context(company):
+        _create_accounts(CHART_OF_ACCOUNTS, None, None)
+        accounts = {a.number: a for a in Account.objects.all()}
+        for field, number in DEFAULT_ACCOUNTS.items():
+            setattr(company, field, accounts[number])
+        company.save()
+
+        year = timezone.localdate().year
+        FiscalYear.objects.create(name=str(year), start_date=datetime.date(year, 1, 1), end_date=datetime.date(year, 12, 31))
+        for uom in UOMS:
+            UOM.objects.create(name=uom)
+        for group in ITEM_GROUPS:
+            ItemGroup.objects.create(name=group)
+        main = Warehouse.objects.create(name="المستودع الرئيسي")
+        Warehouse.objects.create(name="مستودع الفرع")
+        for department in DEPARTMENTS:
+            Department.objects.create(name=department)
+        for designation in DESIGNATIONS:
+            Designation.objects.create(name=designation)
+        walk_in = Customer.objects.create(name="عميل نقدي", customer_type="individual")
+        POSProfile.objects.create(
+            name="الكاشير الرئيسي", warehouse=main, default_customer=walk_in,
+            cash_account=company.default_cash_account, card_account=accounts["1102"],
+            tax_rate=company.default_tax_rate,
+        )
+        if demo:
+            from core.demo import create_demo_data
+
+            create_demo_data(company)
+
+    if owner is not None:
+        Membership.objects.create(user=owner, company=company, role=Role.OWNER)
+
+    from saas.services import start_subscription
+
+    start_subscription(company, plan)
+    return company

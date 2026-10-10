@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}الاشتراك{% endblock %}
+{% block heading %}الاشتراك والفوترة{% endblock %}
+{% block content %}
+<div class="grid-2">
+  <div class="card">
+    <h3>اشتراكك الحالي</h3>
+    {% if subscription %}
+    <div class="total-line"><span>الباقة</span><strong>{{ subscription.plan.name }}</strong></div>
+    <div class="total-line"><span>الحالة</span><strong class="{% if subscription.is_valid %}ok{% else %}neg{% endif %}">{{ subscription.state_label }}</strong></div>
+    <div class="total-line"><span>صالح حتى</span><strong>{{ subscription.period_end|date:"Y-m-d" }}{% if subscription.is_valid %} (متبقٍ {{ subscription.days_left }} يوماً){% endif %}</strong></div>
+    <div class="total-line"><span>المستخدمون</span><strong>{{ users_count }} من {{ subscription.plan.max_users }}</strong></div>
+    <div class="total-line"><span>نقاط البيع</span><strong>{% if subscription.plan.includes_pos %}متاحة{% else %}غير متاحة في هذه الباقة{% endif %}</strong></div>
+    {% else %}<p class="muted">لا يوجد اشتراك.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h3>التجديد والترقية</h3>
+    <p>{{ instructions|linebreaksbr }}</p>
+    {% if support %}<p>للتواصل: <strong dir="ltr">{{ support }}</strong></p>{% endif %}
+    <p class="muted">اذكر اسم منشأتك «{{ current_company }}» والباقة المطلوبة عند التحويل.</p>
+  </div>
+</div>
+<div class="card">
+  <h3>الباقات المتاحة</h3>
+  <table class="table">
+    <thead><tr><th>الباقة</th><th>شهرياً</th><th>سنوياً</th><th>المستخدمون</th><th>نقاط البيع</th></tr></thead>
+    <tbody>{% for p in plans %}<tr class="{% if subscription.plan_id == p.id %}group{% endif %}"><td>{{ p.name }}{% if subscription.plan_id == p.id %} (الحالية){% endif %}</td><td>{{ p.price_monthly|money }}</td><td>{{ p.price_yearly|money }}</td><td>{{ p.max_users }}</td><td>{% if p.includes_pos %}✓{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+<div class="card">
+  <h3>سجل المدفوعات</h3>
+  <table class="table">
+    <thead><tr><th>التاريخ</th><th>الباقة</th><th>المدة</th><th>الفترة</th><th>المبلغ</th><th>الطريقة</th></tr></thead>
+    <tbody>{% for pay in payments %}<tr><td>{{ pay.created_at|date:"Y-m-d" }}</td><td>{{ pay.plan }}</td><td>{{ pay.months }} شهر</td><td>{{ pay.period_start|date:"Y-m-d" }} ← {{ pay.period_end|date:"Y-m-d" }}</td><td>{{ pay.amount|money }}</td><td>{{ pay.get_method_display }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="muted center">لا توجد مدفوعات بعد</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

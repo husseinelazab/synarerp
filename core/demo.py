@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from accounts.models import JournalEntry, PaymentEntry
+from accounts.models import Account, JournalEntry, PaymentEntry
 from buying.models import PurchaseInvoice, Supplier
 from hr.models import Department, Designation, Employee
 from selling.models import Customer, SalesInvoice
@@ -12,6 +12,7 @@ from stock.models import UOM, Item, ItemGroup, Warehouse
 
 
 def create_demo_data(company):
+    """تُستدعى داخل tenant_context للشركة."""
     if Item.objects.exists():
         return
     today = timezone.localdate()
@@ -38,7 +39,7 @@ def create_demo_data(company):
     # رأس المال
     je = JournalEntry.objects.create(posting_date=today.replace(day=1), entry_type="opening", remarks="إيداع رأس المال")
     je.accounts.create(account=company.default_cash_account, debit=Decimal("100000"))
-    je.accounts.create(account=company.accounts.get(number="3101"), credit=Decimal("100000"))
+    je.accounts.create(account=Account.objects.get(number="3101"), credit=Decimal("100000"))
     je.calculate_totals()
     je.save()
     je.submit()

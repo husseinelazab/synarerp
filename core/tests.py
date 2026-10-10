@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from accounts.models import GLEntry, JournalEntry, PaymentEntry
 from buying.models import PurchaseInvoice, Supplier
-from core.models import Company, DocStatus
+from core.models import Company, DocStatus, Membership, Role
 from core.registry import REGISTRY
 from selling.models import Customer, SalesInvoice
 from stock.models import UOM, Bin, Item, ItemGroup, StockEntry, Warehouse
@@ -23,7 +23,7 @@ class ERPFlowTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("setup_erp", company="شركة الاختبار", verbosity=0, stdout=open("/dev/null", "w"))
-        cls.company = Company.get_default()
+        cls.company = Company.current()
         cls.wh = Warehouse.objects.get(name="المستودع الرئيسي")
         cls.item = Item.objects.create(
             code="T1", name="صنف اختبار", item_group=ItemGroup.objects.first(), uom=UOM.objects.first(),
@@ -150,14 +150,17 @@ class ViewSmokeTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("setup_erp", demo=True, verbosity=0, stdout=open("/dev/null", "w"))
-        cls.user = User.objects.create_superuser("tester", "", "pass12345")
+        cls.user = User.objects.create_user("tester", "", "pass12345")
+        Membership.objects.create(user=cls.user, company=Company.current(), role=Role.OWNER)
 
     def setUp(self):
         self.client.force_login(self.user)
 
     def test_login_required(self):
         self.client.logout()
-        self.assertEqual(self.client.get("/").status_code, 302)
+        self.assertContains(self.client.get("/"), "ابدأ مجاناً")  # الصفحة التعريفية للزوار
+        self.assertEqual(self.client.get("/app/item/").status_code, 302)
+        self.assertEqual(self.client.get("/reports/accounts/trial-balance/").status_code, 302)
 
     def test_all_pages_render(self):
         urls = [
@@ -201,7 +204,7 @@ class ReturnTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("setup_erp", company="شركة الاختبار", verbosity=0, stdout=open("/dev/null", "w"))
-        cls.company = Company.get_default()
+        cls.company = Company.current()
         cls.wh = Warehouse.objects.get(name="المستودع الرئيسي")
         cls.item = Item.objects.create(
             code="R1", name="صنف", item_group=ItemGroup.objects.first(), uom=UOM.objects.first(),
@@ -325,7 +328,8 @@ class ReturnTests(TestCase):
     def test_return_ui_flow(self):
         self.purchase(10, 100)
         inv = self.sale(2)
-        user = User.objects.create_superuser("u", "", "pass12345")
+        user = User.objects.create_user("u", "", "pass12345")
+        Membership.objects.create(user=user, company=self.company, role=Role.ADMIN)
         self.client.force_login(user)
         self.assertContains(self.client.get(f"/app/sales-invoice/{inv.pk}/"), "إنشاء مرتجع")
         response = self.client.post(f"/app/sales-invoice/{inv.pk}/return/")

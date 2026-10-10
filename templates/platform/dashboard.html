@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}إدارة المنصة{% endblock %}
+{% block heading %}إدارة المنصة{% endblock %}
+{% block content %}
+<div class="kpis">{% for label, value in stats %}<div class="card kpi"><div class="kpi-label">{{ label }}</div><div class="kpi-value">{% if forloop.counter > 4 %}{{ value|money }}{% else %}{{ value }}{% endif %}</div></div>{% endfor %}</div>
+{% if expiring %}
+<div class="card"><h3>اشتراكات تنتهي خلال 7 أيام</h3>
+<table class="table"><tbody>{% for s in expiring %}<tr><td><a href="{% url 'platform_company' s.company_id %}">{{ s.company }}</a></td><td>{{ s.plan }}</td><td>{{ s.get_status_display }}</td><td>{{ s.period_end|date:"Y-m-d" }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<div class="toolbar">
+  <form method="get" class="filters"><input type="search" name="q" value="{{ query }}" class="form-control" placeholder="بحث بالاسم أو الرقم الضريبي أو الجوال"><button class="btn">بحث</button></form>
+  <a class="btn" href="{% url 'admin:saas_plan_changelist' %}">إدارة الباقات</a>
+</div>
+<div class="card">
+  <table class="table table-hover">
+    <thead><tr><th>الشركة</th><th>الجوال</th><th>الباقة</th><th>الحالة</th><th>ينتهي</th><th>المستخدمون</th></tr></thead>
+    <tbody>{% for c in companies %}<tr class="clickable" data-href="{% url 'platform_company' c.pk %}">
+      <td><a href="{% url 'platform_company' c.pk %}">{{ c.name }}</a></td><td dir="ltr" style="text-align:right">{{ c.phone }}</td>
+      <td>{{ c.subscription.plan }}</td>
+      <td><span class="badge {% if c.subscription.is_valid %}{% if c.subscription.status == 'active' %}status-1{% else %}status-0{% endif %}{% else %}status-2{% endif %}">{{ c.subscription.state_label }}</span></td>
+      <td>{{ c.subscription.period_end|date:"Y-m-d" }}</td><td>{{ c.users }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="muted center">لا توجد شركات</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

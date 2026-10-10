@@ -16,7 +16,7 @@ register(DocType(
 ))
 register(DocType(
     slug="warehouse", model=Warehouse, module="stock",
-    list_fields=["name", "company", "address", "disabled"], search_fields=["name"],
+    list_fields=["name", "address", "disabled"], search_fields=["name"],
 ))
 register(DocType(
     slug="item-group", model=ItemGroup, module="stock",

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}إنشاء حساب{% endblock %}
+{% block auth_content %}
+<div class="login-page">
+  <form method="post" class="card login-card signup-card" novalidate>
+    {% csrf_token %}
+    <h1>{{ ERP_NAME }}</h1>
+    <div class="login-en">{{ ERP_NAME_EN }}</div>
+    <p class="muted">أسّس حساب منشأتك وابدأ فترتك التجريبية المجانية</p>
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+    <h3 class="signup-section">بيانات المنشأة</h3>
+    <div class="form-grid">
+      {% for field in form %}{% if field.name in "company_name,tax_id,phone,plan" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+    </div>
+    <h3 class="signup-section">حساب المالك</h3>
+    <div class="form-grid">
+      {% for field in form %}{% if field.name not in "company_name,tax_id,phone,plan" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+    </div>
+    <button type="submit" class="btn btn-success btn-block">إنشاء الحساب وبدء التجربة</button>
+    <p class="center muted">لديك حساب؟ <a href="{% url 'login' %}">تسجيل الدخول</a> · <a href="/">الرئيسية</a></p>
+  </form>
+</div>
+{% endblock %}

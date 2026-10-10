@@ -2,7 +2,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
-from core.models import Company, SubmittableDocument
+from core.models import SubmittableDocument, TenantModel
+from core.tenancy import tenant_unique
 from core.utils import flt
 
 
@@ -29,8 +30,7 @@ class AccountType(models.TextChoices):
     EQUITY = "equity", "حقوق ملكية"
 
 
-class Account(models.Model):
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="accounts", verbose_name="الشركة")
+class Account(TenantModel):
     number = models.CharField("رقم الحساب", max_length=20, blank=True)
     name = models.CharField("اسم الحساب", max_length=150)
     parent = models.ForeignKey(
@@ -45,7 +45,7 @@ class Account(models.Model):
         verbose_name = "حساب"
         verbose_name_plural = "دليل الحسابات"
         ordering = ["number", "name"]
-        unique_together = [("company", "name")]
+        constraints = [tenant_unique("name", model_label="account")]
 
     def __str__(self):
         return f"{self.number} - {self.name}" if self.number else self.name
@@ -79,10 +79,9 @@ class PartyType(models.TextChoices):
     SUPPLIER = "supplier", "مورد"
 
 
-class GLEntry(models.Model):
+class GLEntry(TenantModel):
     """قيد في دفتر الأستاذ العام - يُنشأ تلقائياً عند اعتماد المستندات."""
 
-    company = models.ForeignKey(Company, on_delete=models.PROTECT, verbose_name="الشركة")
     posting_date = models.DateField("التاريخ", db_index=True)
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="gl_entries", verbose_name="الحساب")
     debit = models.DecimalField("مدين", max_digits=18, decimal_places=2, default=0)
@@ -100,7 +99,7 @@ class GLEntry(models.Model):
         verbose_name = "قيد أستاذ عام"
         verbose_name_plural = "قيود الأستاذ العام"
         ordering = ["posting_date", "id"]
-        indexes = [models.Index(fields=["voucher_type", "voucher_no"]), models.Index(fields=["account", "posting_date"])]
+        indexes = [models.Index(fields=["voucher_type", "voucher_id"]), models.Index(fields=["account", "posting_date"])]
 
     def __str__(self):
         return f"{self.voucher_no} | {self.account}"

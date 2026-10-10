@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 
 from core.display import detail_fields, display_value, field_label
 from core.forms import build_form_class, build_formset_class, style_form
-from core.models import Company, DocStatus
+from core.models import DocStatus
 from core.registry import get_doctype
 
 
@@ -19,8 +19,11 @@ def _error_text(exc):
     return " ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
 
 
-@login_required
 def dashboard(request):
+    if not request.user.is_authenticated:
+        from saas.views import landing
+
+        return landing(request)
     from accounts.models import AccountType, GLEntry
     from buying.models import PurchaseInvoice
     from selling.models import SalesInvoice
@@ -48,7 +51,7 @@ def dashboard(request):
     ]
     context = {
         "kpis": kpis,
-        "company": Company.get_default(),
+        "company": request.company,
         "recent_sales": SalesInvoice.objects.select_related("customer")[:8],
         "recent_purchases": PurchaseInvoice.objects.select_related("supplier")[:8],
     }
@@ -114,7 +117,7 @@ def doc_form(request, slug, pk=None):
                                       formfield_callback=formfield_callback)
     FormSetClass = build_formset_class(dt) if dt.child else None
     initial = {}
-    company = Company.get_default()
+    company = request.company
     if instance is None and company:
         if "tax_rate" in FormClass.base_fields:
             initial["tax_rate"] = company.default_tax_rate
@@ -131,8 +134,11 @@ def doc_form(request, slug, pk=None):
     form = FormClass(request.POST or None, instance=instance, initial=initial)
     formset = FormSetClass(request.POST or None, instance=instance) if FormSetClass else None
     style_form(form)
+    empty_form = None
     if formset is not None:
-        for f in formset.forms + [formset.empty_form]:
+        # empty_form يُبنى من جديد عند كل استدعاء، لذا نحتفظ بنسخة واحدة منسقة للقالب
+        empty_form = formset.empty_form
+        for f in formset.forms + [empty_form]:
             style_form(f)
 
     if request.method == "POST" and form.is_valid() and (formset is None or formset.is_valid()):
@@ -151,6 +157,8 @@ def doc_form(request, slug, pk=None):
                     obj.save()
         except ValidationError as exc:
             form.add_error(None, _error_text(exc))
+        except IntegrityError:
+            form.add_error(None, "يوجد سجل آخر بنفس القيمة في هذه الشركة.")
         else:
             messages.success(request, f"تم حفظ {dt.label} بنجاح.")
             if request.POST.get("_submit") and dt.is_submittable:
@@ -158,7 +166,7 @@ def doc_form(request, slug, pk=None):
             return redirect("doc_detail", slug=slug, pk=obj.pk)
 
     return render(request, "core/form.html", {
-        "dt": dt, "form": form, "formset": formset, "instance": instance, "is_return": is_return,
+        "dt": dt, "form": form, "formset": formset, "empty_form": empty_form, "instance": instance, "is_return": is_return,
     })
 
 
@@ -166,7 +174,7 @@ def _linked_entries(obj):
     from accounts.models import GLEntry
     from stock.models import StockLedgerEntry
 
-    key = {"voucher_type": obj.doctype_slug, "voucher_no": obj.name}
+    key = {"voucher_type": obj.doctype_slug, "voucher_id": obj.pk}
     gl = GLEntry.objects.filter(**key).select_related("account", "customer", "supplier")
     sle = StockLedgerEntry.objects.filter(**key).select_related("item", "warehouse")
     return gl, sle
@@ -215,7 +223,7 @@ def doc_print(request, slug, pk):
         qr = invoice_qr_svg(obj)
     return render(request, "core/print.html", {
         "qr": qr,
-        "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": obj.company if hasattr(obj, "company") else Company.get_default(),
+        "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
         "totals": [(field_label(dt.model, f), display_value(obj, f)) for f in dt.totals if f != "outstanding_amount"],
     })
 

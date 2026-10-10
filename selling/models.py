@@ -4,6 +4,8 @@ from django.db.models import Sum
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.invoice import InvoiceDocument, InvoiceItem
+from core.models import TenantModel
+from core.tenancy import tenant_unique
 from core.utils import allocate, flt
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 
@@ -13,8 +15,8 @@ class CustomerType(models.TextChoices):
     INDIVIDUAL = "individual", "فرد"
 
 
-class Customer(models.Model):
-    name = models.CharField("اسم العميل", max_length=200, unique=True)
+class Customer(TenantModel):
+    name = models.CharField("اسم العميل", max_length=200)
     customer_type = models.CharField("نوع العميل", max_length=20, choices=CustomerType.choices, default=CustomerType.COMPANY)
     tax_id = models.CharField("الرقم الضريبي", max_length=20, blank=True)
     phone = models.CharField("الجوال", max_length=30, blank=True)
@@ -28,6 +30,7 @@ class Customer(models.Model):
         verbose_name = "عميل"
         verbose_name_plural = "العملاء"
         ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="customer")]
 
     def __str__(self):
         return self.name
@@ -123,7 +126,7 @@ class SalesInvoice(InvoiceDocument):
         if not self.return_against_id:
             return None
         agg = StockLedgerEntry.objects.filter(
-            voucher_type=self.doctype_slug, voucher_no=self.return_against.name, item=item, is_cancelled=False,
+            voucher_type=self.doctype_slug, voucher_id=self.return_against_id, item=item, is_cancelled=False,
         ).aggregate(qty=Sum("actual_qty"), value=Sum("stock_value_difference"))
         return agg["value"] / agg["qty"] if agg["qty"] else None
 

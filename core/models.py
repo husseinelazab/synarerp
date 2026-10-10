@@ -4,6 +4,8 @@ from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from core.tenancy import TenantManager, get_current_company, tenant_unique
+
 
 class Currency(models.Model):
     code = models.CharField("رمز العملة", max_length=3, unique=True)
@@ -73,8 +75,13 @@ class Company(models.Model):
         return self.name
 
     @classmethod
-    def get_default(cls):
-        return cls.objects.order_by("id").first()
+    def current(cls):
+        """الشركة الحالية للطلب، أو الشركة الوحيدة في النظام (لأوامر الإدارة والاختبارات)."""
+        company = get_current_company()
+        if company is not None:
+            return company
+        companies = list(cls.objects.all()[:2])
+        return companies[0] if len(companies) == 1 else None
 
     def require_account(self, field):
         account = getattr(self, field)
@@ -84,8 +91,37 @@ class Company(models.Model):
         return account
 
 
-class FiscalYear(models.Model):
-    name = models.CharField("السنة المالية", max_length=20, unique=True)
+class TenantModel(models.Model):
+    """نموذج مملوك لشركة؛ يُرشَّح تلقائياً بالشركة الحالية."""
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="+", editable=False, verbose_name="الشركة")
+
+    objects = TenantManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self.company_id:
+            company = Company.current()
+            if company is None:
+                raise ValidationError("لم يتم تحديد الشركة الحالية.")
+            self.company = company
+        super().save(*args, **kwargs)
+
+    def validate_constraints(self, exclude=None):
+        # حقل الشركة لا يظهر في النماذج، لكن قيود التفرد داخل الشركة يجب أن تُفحص
+        if exclude and "company" in exclude:
+            if not self.company_id and Company.current() is not None:
+                self.company = Company.current()
+            if self.company_id:
+                exclude = set(exclude) - {"company"}
+        super().validate_constraints(exclude=exclude)
+
+
+class FiscalYear(TenantModel):
+    name = models.CharField("السنة المالية", max_length=20)
     start_date = models.DateField("تاريخ البداية")
     end_date = models.DateField("تاريخ النهاية")
     is_closed = models.BooleanField("مقفلة", default=False)
@@ -94,6 +130,7 @@ class FiscalYear(models.Model):
         verbose_name = "سنة مالية"
         verbose_name_plural = "السنوات المالية"
         ordering = ["-start_date"]
+        constraints = [tenant_unique("name", model_label="fiscalyear")]
 
     def __str__(self):
         return self.name
@@ -103,22 +140,23 @@ class FiscalYear(models.Model):
             raise ValidationError("تاريخ النهاية يجب أن يكون بعد تاريخ البداية.")
 
 
-class NamingSeries(models.Model):
-    prefix = models.CharField("البادئة", max_length=30, unique=True)
+class NamingSeries(TenantModel):
+    prefix = models.CharField("البادئة", max_length=30)
     current = models.PositiveIntegerField("الرقم الحالي", default=0)
 
     class Meta:
         verbose_name = "سلسلة ترقيم"
         verbose_name_plural = "سلاسل الترقيم"
+        constraints = [tenant_unique("prefix", model_label="namingseries")]
 
     def __str__(self):
         return f"{self.prefix} ({self.current})"
 
     @classmethod
-    def next_name(cls, prefix):
+    def next_name(cls, company, prefix):
         with transaction.atomic():
-            cls.objects.get_or_create(prefix=prefix)
-            series = cls.objects.select_for_update().get(prefix=prefix)
+            cls.all_objects.get_or_create(company=company, prefix=prefix)
+            series = cls.all_objects.select_for_update().get(company=company, prefix=prefix)
             series.current += 1
             series.save(update_fields=["current"])
             return f"{prefix}-{series.current:05d}"
@@ -130,13 +168,12 @@ class DocStatus(models.IntegerChoices):
     CANCELLED = 2, "ملغى"
 
 
-class SubmittableDocument(models.Model):
+class SubmittableDocument(TenantModel):
     """مستند قابل للاعتماد والإلغاء على غرار ERPNext (docstatus)."""
 
     naming_prefix = "DOC"
 
-    name = models.CharField("الرقم", max_length=40, unique=True, editable=False)
-    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+", editable=False, verbose_name="الشركة")
+    name = models.CharField("الرقم", max_length=40, editable=False)
     posting_date = models.DateField("التاريخ", default=timezone.localdate)
     docstatus = models.PositiveSmallIntegerField("الحالة", choices=DocStatus.choices, default=DocStatus.DRAFT, editable=False)
     remarks = models.TextField("ملاحظات", blank=True)
@@ -149,18 +186,21 @@ class SubmittableDocument(models.Model):
     class Meta:
         abstract = True
         ordering = ["-posting_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["company", "name"], name="%(app_label)s_%(class)s_name_per_company"),
+        ]
 
     def __str__(self):
         return self.name
 
     def save(self, *args, **kwargs):
         if not self.company_id:
-            company = Company.get_default()
+            company = Company.current()
             if company is None:
-                raise ValidationError("لا توجد شركة معرّفة. يرجى تشغيل أمر الإعداد setup_erp أولاً.")
+                raise ValidationError("لم يتم تحديد الشركة الحالية.")
             self.company = company
         if not self.name:
-            self.name = NamingSeries.next_name(f"{self.get_naming_prefix()}-{self.posting_date.year}")
+            self.name = NamingSeries.next_name(self.company, f"{self.get_naming_prefix()}-{self.posting_date.year}")
         super().save(*args, **kwargs)
 
     def get_naming_prefix(self):
@@ -215,3 +255,32 @@ class SubmittableDocument(models.Model):
             self.docstatus = DocStatus.CANCELLED
             self.save()
             self.on_cancel()
+
+
+class Role(models.TextChoices):
+    OWNER = "owner", "مالك الحساب"
+    ADMIN = "admin", "مدير"
+    USER = "user", "مستخدم"
+    CASHIER = "cashier", "كاشير"
+
+
+class Membership(models.Model):
+    """عضوية مستخدم في شركة مع دوره فيها. المستخدم الواحد قد ينتمي لعدة شركات."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships", verbose_name="المستخدم")
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="memberships", verbose_name="الشركة")
+    role = models.CharField("الدور", max_length=10, choices=Role.choices, default=Role.USER)
+    is_active = models.BooleanField("نشط", default=True)
+    created_at = models.DateTimeField("تاريخ الإضافة", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "عضوية"
+        verbose_name_plural = "أعضاء الشركات"
+        constraints = [models.UniqueConstraint(fields=["user", "company"], name="membership_user_company")]
+
+    def __str__(self):
+        return f"{self.user} @ {self.company} ({self.get_role_display()})"
+
+    @property
+    def can_manage(self):
+        return self.role in (Role.OWNER, Role.ADMIN)

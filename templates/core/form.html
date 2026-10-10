@@ -20,7 +20,7 @@
     <table class="table child-table" data-prefix="{{ formset.prefix }}" data-rate-type="{{ dt.child.rate_type }}">
       <thead><tr>
         <th>#</th>
-        {% for field in formset.empty_form.visible_fields %}{% if field.name != 'DELETE' %}<th>{{ field.label }}</th>{% endif %}{% endfor %}
+        {% for field in empty_form.visible_fields %}{% if field.name != 'DELETE' %}<th>{{ field.label }}</th>{% endif %}{% endfor %}
         {% if dt.child.rate_type %}<th>المبلغ</th>{% endif %}
         <th>حذف</th>
       </tr></thead>
@@ -40,9 +40,9 @@
     <template id="empty-row">
       <tr class="child-row">
         <td class="row-idx"></td>
-        {% for field in formset.empty_form.visible_fields %}{% if field.name != 'DELETE' %}<td>{{ field }}</td>{% endif %}{% endfor %}
+        {% for field in empty_form.visible_fields %}{% if field.name != 'DELETE' %}<td>{{ field }}</td>{% endif %}{% endfor %}
         {% if dt.child.rate_type %}<td class="row-amount">0.00</td>{% endif %}
-        <td>{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{{ formset.empty_form.DELETE }}</td>
+        <td>{% for h in empty_form.hidden_fields %}{{ h }}{% endfor %}{{ empty_form.DELETE }}</td>
       </tr>
     </template>
     <button type="button" class="btn add-row">+ إضافة سطر</button>

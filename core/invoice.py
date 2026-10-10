@@ -9,6 +9,7 @@ from django.db.models import Sum
 
 from core.models import SubmittableDocument
 from core.utils import flt
+from core.vat import REASON_CHOICES, VATCategory, validate_category
 
 
 def tax_totals(total, discount, rate, inclusive):
@@ -61,6 +62,11 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
     exchange_rate = models.DecimalField("سعر الصرف", max_digits=18, decimal_places=6, null=True, blank=True,
                                         help_text="يُترك فارغاً لاستخدام آخر سعر في جدول أسعار الصرف")
     tax_rate = models.DecimalField("نسبة الضريبة %", max_digits=5, decimal_places=2, default=15)
+    vat_category = models.CharField("فئة الضريبة", max_length=1, choices=VATCategory.choices,
+                                    default=VATCategory.STANDARD,
+                                    help_text="تُحدد تلقائياً من الأصناف إن كانت كلها صفرية أو معفاة")
+    vat_exemption_reason = models.CharField("سبب الإعفاء / النسبة الصفرية", max_length=20, choices=REASON_CHOICES,
+                                            blank=True)
     cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True, related_name="+",
                                     limit_choices_to={"is_group": False, "disabled": False},
                                     verbose_name="مركز التكلفة / الفرع")
@@ -87,7 +93,8 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
     party_field = ""
     return_prefix = "RET"
     # حقول تُنسخ من الفاتورة الأصلية إلى المرتجع ولا يجوز تغييرها فيه
-    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "currency", "exchange_rate"]
+    return_locked_fields = ["tax_rate", "vat_category", "vat_exemption_reason", "update_stock", "cost_center", "currency",
+                            "exchange_rate"]
 
     class Meta(SubmittableDocument.Meta):
         abstract = True
@@ -182,6 +189,12 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
             row.save(update_fields=["qty", "rate", "amount"])
             total += row.amount
         self.total = total
+        if not original and self.is_draft:
+            self.apply_item_vat_category()
+        if self.vat_category != VATCategory.STANDARD:
+            self.tax_rate = 0
+        elif not flt(self.tax_rate) and self.company_id and self.company.default_tax_rate:
+            self.tax_rate = self.company.default_tax_rate  # عاد للفئة الأساسية بعد أن كانت صفرية
         if original:
             # الخصم في المرتجع يُحسب تلقائياً بنسبة ما أُرجع من الفاتورة الأصلية
             self.discount_amount = flt(original.discount_amount * total / original.total) if original.total else flt(0)
@@ -197,6 +210,29 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
         self.base_net_total = self.to_base(self.net_total)
         self.base_tax_amount = self.to_base(self.tax_amount)
         self.base_grand_total = self.base_net_total + self.base_tax_amount
+
+    def apply_item_vat_category(self):
+        """إن كانت كل الأصناف بفئة واحدة غير أساسية (صفرية/معفاة) تُطبق على الفاتورة مع سببها."""
+        items = [row.item for row in self.items.select_related("item")]
+        categories = {item.vat_category for item in items}
+        if len(categories) == 1 and self.vat_category == VATCategory.STANDARD:
+            category = categories.pop()
+            if category != VATCategory.STANDARD:
+                self.vat_category = category
+                self.vat_exemption_reason = self.vat_exemption_reason or items[0].vat_exemption_reason
+
+    def validate_vat(self, rows):
+        error = validate_category(self.vat_category, self.vat_exemption_reason, "الفاتورة")
+        if error:
+            raise ValidationError(error)
+        if self.vat_category == VATCategory.STANDARD and flt(self.tax_rate) <= 0:
+            raise ValidationError("الفئة الأساسية تتطلب نسبة ضريبة أكبر من صفر؛ اختر الفئة الصفرية أو المعفاة إن لزم.")
+        mixed = sorted({row.item.vat_category for row in rows} - {self.vat_category})
+        if mixed:
+            names = "، ".join(row.item.name for row in rows if row.item.vat_category != self.vat_category)
+            raise ValidationError(
+                f"أصناف بفئة ضريبية مختلفة عن الفاتورة ({names}). افصلها في فاتورة مستقلة لكل فئة "
+                "(الفوترة الإلكترونية تتطلب فئة واحدة صحيحة لكل بند).")
 
     def save(self, *args, **kwargs):
         self.ensure_currency()
@@ -219,6 +255,7 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
             raise ValidationError("يرجى تحديد المستودع لتحديث المخزون.")
         if self.due_date and self.due_date < self.posting_date:
             raise ValidationError("تاريخ الاستحقاق لا يمكن أن يسبق تاريخ الفاتورة.")
+        self.validate_vat(rows)
         if self.is_return:
             self._validate_return(rows)
 

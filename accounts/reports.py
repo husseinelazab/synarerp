@@ -195,15 +195,51 @@ def balance_sheet(request):
 
 @login_required
 def vat_report(request):
+    """إقرار ضريبة القيمة المضافة مقسماً حسب بنود نموذج الإقرار لدى الهيئة."""
+    from core.vat import VATCategory
+
     from_date, to_date = _period(request)
     flt_kw = {"docstatus": DocStatus.SUBMITTED, "posting_date__gte": from_date, "posting_date__lte": to_date}
-    sales = SalesInvoice.objects.filter(**flt_kw).aggregate(net=Sum("base_net_total"), tax=Sum("base_tax_amount"))
-    purchases = PurchaseInvoice.objects.filter(**flt_kw).aggregate(net=Sum("base_net_total"), tax=Sum("base_tax_amount"))
-    output_tax, input_tax = flt(sales["tax"]), flt(purchases["tax"])
+
+    def grouped(model):
+        rows = model.objects.filter(**flt_kw).values("vat_category", "vat_exemption_reason").annotate(
+            net=Sum("base_net_total"), tax=Sum("base_tax_amount"))
+        return [(r["vat_category"], r["vat_exemption_reason"], flt(r["net"]), flt(r["tax"])) for r in rows]
+
+    def sales_line(category, reason):
+        if category == VATCategory.STANDARD:
+            return 1
+        if category == VATCategory.ZERO:
+            return 2 if reason in ("VATEX-SA-EDU", "VATEX-SA-HEA") else 4 if reason in ("VATEX-SA-32", "VATEX-SA-33") else 3
+        return 5 if category == VATCategory.EXEMPT else None
+
+    def purchase_line(category, reason):
+        return {VATCategory.STANDARD: 7, VATCategory.ZERO: 10, VATCategory.EXEMPT: 11}.get(category)
+
+    labels = {
+        1: "المبيعات الخاضعة للنسبة الأساسية", 2: "المبيعات للمواطنين (خدمات صحية وتعليمية خاصة)",
+        3: "المبيعات المحلية الخاضعة للنسبة الصفرية", 4: "الصادرات", 5: "المبيعات المعفاة",
+        7: "المشتريات الخاضعة للنسبة الأساسية", 10: "المشتريات الخاضعة للنسبة الصفرية", 11: "المشتريات المعفاة",
+    }
+    lines = {n: {"no": n, "label": labels[n], "net": flt(0), "tax": flt(0)} for n in labels}
+    out_of_scope = {"sales": flt(0), "purchases": flt(0)}
+    for kind, model, mapper in (("sales", SalesInvoice, sales_line), ("purchases", PurchaseInvoice, purchase_line)):
+        for category, reason, net, tax in grouped(model):
+            line = mapper(category, reason)
+            if line is None:
+                out_of_scope[kind] += net
+                continue
+            lines[line]["net"] += net
+            lines[line]["tax"] += tax
+    sales_rows = [lines[n] for n in (1, 2, 3, 4, 5)]
+    purchase_rows = [lines[n] for n in (7, 10, 11)]
+    output_tax = sum((r["tax"] for r in sales_rows), flt(0))
+    input_tax = sum((r["tax"] for r in purchase_rows), flt(0))
     return render(request, "reports/vat.html", {
         "title": "إقرار ضريبة القيمة المضافة", "from_date": from_date, "to_date": to_date,
-        "sales_net": flt(sales["net"]), "output_tax": output_tax,
-        "purchases_net": flt(purchases["net"]), "input_tax": input_tax,
+        "sales_rows": sales_rows, "purchase_rows": purchase_rows, "out_of_scope": out_of_scope,
+        "sales_net": sum((r["net"] for r in sales_rows), flt(0)), "output_tax": output_tax,
+        "purchases_net": sum((r["net"] for r in purchase_rows), flt(0)), "input_tax": input_tax,
         "net_vat": output_tax - input_tax,
     })
 

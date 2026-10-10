@@ -77,7 +77,7 @@ class PurchaseInvoice(InvoiceDocument):
     naming_prefix = "PINV"
     return_prefix = "PRET"
     party_field = "supplier"
-    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "currency", "exchange_rate", "supplier"]
+    return_locked_fields = InvoiceDocument.return_locked_fields + ["supplier"]
 
     supplier = models.ForeignKey(Supplier, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="المورد")
     bill_no = models.CharField("رقم فاتورة المورد", max_length=50, blank=True)

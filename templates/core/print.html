@@ -39,6 +39,8 @@
   <div class="meta">
     <div>الرقم: <strong>{{ obj.name }}</strong></div>
     <div>التاريخ: {{ obj.posting_date|date:"Y-m-d" }}</div>
+    {% if obj.is_debit_note %}<div>إشعار مدين على الفاتورة: <strong>{{ obj.debit_note_against }}</strong> بتاريخ {{ obj.debit_note_against.posting_date|date:"Y-m-d" }}</div>{% endif %}
+    {% if obj.vat_category and obj.vat_category != 'S' %}<div>فئة الضريبة: <strong>{{ obj.get_vat_category_display }}</strong>{% if obj.vat_exemption_reason %} — {{ obj.get_vat_exemption_reason_display }}{% endif %}</div>{% endif %}
     {% if obj.is_return %}<div>مرتجع من الفاتورة: <strong>{{ obj.return_against }}</strong> بتاريخ {{ obj.return_against.posting_date|date:"Y-m-d" }}</div>{% endif %}
     {% if obj.customer %}<div>العميل: <strong>{{ obj.customer }}</strong></div>{% if obj.customer.tax_id %}<div>الرقم الضريبي للعميل: {{ obj.customer.tax_id }}</div>{% endif %}{% endif %}
     {% if obj.supplier %}<div>المورد: <strong>{{ obj.supplier }}</strong></div>{% endif %}

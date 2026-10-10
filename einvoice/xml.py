@@ -84,6 +84,9 @@ class InvoiceData:
     billing_reference: str = ""
     reason: str = ""
     tax_currency: str = "SAR"
+    vat_category: str = "S"
+    exemption_code: str = ""
+    exemption_reason: str = ""
     extra: dict = field(default_factory=dict)
 
 
@@ -109,10 +112,14 @@ def _postal_address(parent, party):
     _el(_el(address, "cac:Country"), "cbc:IdentificationCode", party.country or "SA")
 
 
-def _tax_category(parent, rate, tag="cac:TaxCategory"):
+def _tax_category(parent, rate, tag="cac:TaxCategory", code="S", exemption=None):
+    """فئة الضريبة (S/Z/E/O)؛ سبب الإعفاء يُذكر في فئة ملخص الضريبة فقط وليس في فئة البند."""
     category = _el(parent, tag)
-    _el(category, "cbc:ID", "S")
-    _el(category, "cbc:Percent", amount(rate))
+    _el(category, "cbc:ID", code)
+    _el(category, "cbc:Percent", amount(rate if code == "S" else 0))
+    if exemption and code != "S":
+        _el(category, "cbc:TaxExemptionReasonCode", exemption[0])
+        _el(category, "cbc:TaxExemptionReason", exemption[1])
     _el(_el(category, "cac:TaxScheme"), "cbc:ID", "VAT")
     return category
 
@@ -175,7 +182,7 @@ def build_unsigned_xml(data: InvoiceData):
         _el(allowance, "cbc:ChargeIndicator", "false")
         _el(allowance, "cbc:AllowanceChargeReason", "خصم")
         _el(allowance, "cbc:Amount", amount(data.allowance), currencyID=data.currency)
-        _tax_category(allowance, data.tax_rate)
+        _tax_category(allowance, data.tax_rate, code=data.vat_category)
 
     # إجمالي الضريبة بعملة الضريبة (ريال)، ثم بعملة المستند مع التفصيل حسب الفئة
     _el(_el(root, "cac:TaxTotal"), "cbc:TaxAmount", amount(data.tax_amount_sar), currencyID=data.tax_currency)
@@ -184,7 +191,8 @@ def build_unsigned_xml(data: InvoiceData):
     subtotal = _el(tax_total, "cac:TaxSubtotal")
     _el(subtotal, "cbc:TaxableAmount", amount(data.tax_exclusive), currencyID=data.currency)
     _el(subtotal, "cbc:TaxAmount", amount(data.tax_amount), currencyID=data.currency)
-    _tax_category(subtotal, data.tax_rate)
+    _tax_category(subtotal, data.tax_rate, code=data.vat_category,
+                  exemption=(data.exemption_code, data.exemption_reason) if data.exemption_code else None)
 
     totals = _el(root, "cac:LegalMonetaryTotal")
     _el(totals, "cbc:LineExtensionAmount", amount(data.line_extension), currencyID=data.currency)
@@ -204,7 +212,7 @@ def build_unsigned_xml(data: InvoiceData):
         _el(line_tax, "cbc:RoundingAmount", amount(line.net_amount + line.tax_amount), currencyID=data.currency)
         item = _el(row, "cac:Item")
         _el(item, "cbc:Name", line.name)
-        _tax_category(item, data.tax_rate, tag="cac:ClassifiedTaxCategory")
+        _tax_category(item, data.tax_rate, tag="cac:ClassifiedTaxCategory", code=data.vat_category)
         _el(_el(row, "cac:Price"), "cbc:PriceAmount", f"{line.unit_price:f}", currencyID=data.currency)
 
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + etree.tostring(root, encoding="unicode", pretty_print=True)

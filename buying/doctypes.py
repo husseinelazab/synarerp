@@ -5,7 +5,7 @@ register(DocType(
     slug="purchase-invoice", model=PurchaseInvoice, module="buying",
     list_fields=["name", "posting_date", "supplier", "bill_no", "is_return", "grand_total", "outstanding_amount"],
     form_fields=["supplier", "bill_no", "posting_date", "due_date", "currency", "exchange_rate", "update_stock", "warehouse",
-                 "cost_center", "tax_rate",
+                 "cost_center", "tax_rate", "vat_category", "vat_exemption_reason",
                  "remarks"],
     search_fields=["name", "supplier__name", "bill_no"],
     child=ChildTable(PurchaseInvoiceItem, ["item", "qty", "rate"], rate_type="buying"),

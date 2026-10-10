@@ -5,6 +5,7 @@ from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.models import SubmittableDocument, TenantModel
 from core.tenancy import tenant_unique
 from core.utils import flt
+from core.vat import REASON_CHOICES, VATCategory
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 
 
@@ -53,6 +54,10 @@ class Item(TenantModel):
         limit_choices_to={"is_group": False, "root_type": "expense"}, verbose_name="حساب المصروف",
     )
     description = models.TextField("الوصف", blank=True)
+    vat_category = models.CharField("فئة ضريبة القيمة المضافة", max_length=1, choices=VATCategory.choices,
+                                    default=VATCategory.STANDARD)
+    vat_exemption_reason = models.CharField("سبب الإعفاء / النسبة الصفرية", max_length=20, choices=REASON_CHOICES,
+                                            blank=True)
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:

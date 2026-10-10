@@ -189,7 +189,7 @@ class ViewSmokeTests(TestCase):
         wh = Warehouse.objects.get(name="المستودع الرئيسي")
         data = {
             "customer": customer.pk, "posting_date": "2026-05-01", "update_stock": "on", "warehouse": wh.pk,
-            "tax_rate": "15", "discount_amount": "0", "remarks": "",
+            "tax_rate": "15", "vat_category": "S", "discount_amount": "0", "remarks": "",
             "items-TOTAL_FORMS": "1", "items-INITIAL_FORMS": "0", "items-MIN_NUM_FORMS": "1", "items-MAX_NUM_FORMS": "1000",
             "items-0-item": item.pk, "items-0-qty": "3", "items-0-rate": "75", "_submit": "1",
         }

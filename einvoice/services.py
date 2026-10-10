@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.utils import allocate, flt
+from core.vat import REASON_TEXT
 from einvoice import crypto
 from einvoice.api import ZatcaClient, ZatcaError, error_messages
 from einvoice.models import (FIRST_INVOICE_PIH, EInvoice, EInvoiceSettings, EInvoiceStatus, EInvoiceType,
@@ -34,8 +35,9 @@ def einvoice_type(invoice, settings):
         return EInvoiceType.STANDARD
     if settings.invoice_types == "0100":
         return EInvoiceType.SIMPLIFIED
-    if invoice.is_return and invoice.return_against_id:
-        original = EInvoice.all_objects.filter(sales_invoice_id=invoice.return_against_id).first()
+    original_id = invoice.return_against_id if invoice.is_return else invoice.debit_note_against_id
+    if original_id:
+        original = EInvoice.all_objects.filter(sales_invoice_id=original_id).first()
         if original:
             return original.invoice_type
     if invoice.is_pos or not invoice.customer.tax_id:
@@ -61,8 +63,10 @@ def seller_errors(settings):
 
 def invoice_errors(invoice, settings, kind):
     errors = seller_errors(settings)
-    if flt(invoice.tax_rate) != flt(15):
-        errors.append("الفوترة الإلكترونية تدعم حالياً نسبة الضريبة الأساسية 15% فقط.")
+    if invoice.vat_category == "S" and flt(invoice.tax_rate) != flt(15):
+        errors.append("الفئة الأساسية في الفوترة الإلكترونية بنسبة 15% فقط.")
+    if invoice.vat_category != "S" and not invoice.vat_exemption_reason:
+        errors.append("الفاتورة الصفرية أو المعفاة تتطلب سبب الإعفاء.")
     if kind == EInvoiceType.STANDARD:
         customer = invoice.customer
         if not VAT_RE.match(customer.tax_id or ""):
@@ -106,15 +110,20 @@ def build_invoice_data(invoice, settings, kind, icv, pih, uuid, issued_at):
     local = timezone.localtime(issued_at)
     return InvoiceData(
         number=invoice.name, uuid=str(uuid), issue_date=local.strftime("%Y-%m-%d"), issue_time=local.strftime("%H:%M:%S"),
-        type_code=CREDIT_NOTE if invoice.is_return else INVOICE, simplified=kind == EInvoiceType.SIMPLIFIED,
+        type_code=CREDIT_NOTE if invoice.is_return else DEBIT_NOTE if invoice.is_debit_note else INVOICE,
+        simplified=kind == EInvoiceType.SIMPLIFIED,
         currency=invoice.currency.code if invoice.currency_id else "SAR", icv=icv, pih=pih,
         seller=seller_party(settings), buyer=buyer, lines=lines, tax_rate=rate,
         line_extension=sum((line.net_amount for line in lines), flt(0)), allowance=discount,
         tax_exclusive=abs(invoice.net_total), tax_amount=abs(invoice.tax_amount),
         tax_inclusive=abs(invoice.grand_total), tax_amount_sar=abs(invoice.base_tax_amount or invoice.tax_amount),
         supply_date=invoice.posting_date.strftime("%Y-%m-%d"), payment_means=means,
-        billing_reference=invoice.return_against.name if invoice.is_return and invoice.return_against_id else "",
-        reason=(invoice.remarks or "إرجاع أصناف") if invoice.is_return else "",
+        billing_reference=(invoice.return_against.name if invoice.is_return and invoice.return_against_id
+                           else invoice.debit_note_against.name if invoice.is_debit_note else ""),
+        reason=((invoice.remarks or "إرجاع أصناف") if invoice.is_return
+                else invoice.remarks if invoice.is_debit_note else ""),
+        vat_category=invoice.vat_category, exemption_code=invoice.vat_exemption_reason,
+        exemption_reason=REASON_TEXT.get(invoice.vat_exemption_reason, ""),
     )
 
 

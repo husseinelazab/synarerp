@@ -143,6 +143,48 @@ class EInvoiceTests(TestCase):
         self.assertTrue(root.findtext("cac:PaymentMeans/cbc:InstructionNote", namespaces=ns))
         self.assertEqual(root.findtext("cac:LegalMonetaryTotal/cbc:PayableAmount", namespaces=ns), "115.00")
 
+    def test_debit_note_type_383_with_reference_and_reason(self):
+        self.onboard()
+        original = self.sale(customer=self.b2b_customer(), qty=2)
+        note = original.make_debit_note(self.user)
+        self.assertTrue(note.name.startswith("SDN-"))
+        note.items.create(item=self.item, qty=1, rate=40)
+        note.calculate_totals()
+        note.save()
+        with self.assertRaisesMessage(ValidationError, "سبب الإشعار المدين"):
+            note.submit()
+        note.remarks += " فرق سعر بعد تعديل العقد"
+        note.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            note.submit()
+        root = etree.fromstring(EInvoice.objects.get(sales_invoice=note).xml.encode())
+        ns = {"cbc": NS["cbc"], "cac": NS["cac"]}
+        self.assertEqual(root.findtext("cbc:InvoiceTypeCode", namespaces=ns), "383")
+        self.assertEqual(root.findtext("cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID", namespaces=ns),
+                         original.name)
+        self.assertIn("فرق سعر", root.findtext("cac:PaymentMeans/cbc:InstructionNote", namespaces=ns))
+        self.assertEqual(root.findtext("cac:LegalMonetaryTotal/cbc:PayableAmount", namespaces=ns), "46.00")
+
+    def test_zero_rated_export_carries_category_and_exemption_reason(self):
+        self.onboard()
+        self.item.vat_category, self.item.vat_exemption_reason = "Z", "VATEX-SA-32"
+        self.item.save()
+        invoice = self.sale(customer=self.b2b_customer(), qty=2)
+        self.assertEqual((invoice.vat_category, invoice.tax_amount, invoice.grand_total), ("Z", 0, Decimal("200.00")))
+        einvoice = EInvoice.objects.get(sales_invoice=invoice)
+        root = etree.fromstring(einvoice.xml.encode())
+        ns = {"cbc": NS["cbc"], "cac": NS["cac"]}
+        category = root.find("cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory", namespaces=ns)
+        self.assertEqual(category.findtext("cbc:ID", namespaces=ns), "Z")
+        self.assertEqual(category.findtext("cbc:Percent", namespaces=ns), "0.00")
+        self.assertEqual(category.findtext("cbc:TaxExemptionReasonCode", namespaces=ns), "VATEX-SA-32")
+        self.assertEqual(category.findtext("cbc:TaxExemptionReason", namespaces=ns), "صادرات السلع من المملكة")
+        line_category = root.find("cac:InvoiceLine/cac:Item/cac:ClassifiedTaxCategory", namespaces=ns)
+        self.assertEqual(line_category.findtext("cbc:ID", namespaces=ns), "Z")
+        self.assertIsNone(line_category.find("cbc:TaxExemptionReasonCode", namespaces=ns))
+        # QR: الضريبة صفر
+        self.assertEqual(decode_qr(einvoice.qr)[5].decode(), "0.00")
+
     def test_network_failure_keeps_invoice_posted_and_command_resubmits(self):
         self.onboard()
         self.fake.fail_network = True

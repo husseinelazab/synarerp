@@ -153,8 +153,7 @@ class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
     return_prefix = "SRET"
     party_field = "customer"
-    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "currency", "exchange_rate", "prices_include_tax",
-                            "customer"]
+    return_locked_fields = InvoiceDocument.return_locked_fields + ["prices_include_tax", "customer"]
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)
@@ -172,6 +171,11 @@ class SalesInvoice(InvoiceDocument):
     paid_card = models.DecimalField("المدفوع بالبطاقة", max_digits=18, decimal_places=2, default=0, editable=False)
     change_amount = models.DecimalField("المبلغ المرتجع (الباقي)", max_digits=18, decimal_places=2, default=0, editable=False)
 
+    # الإشعار المدين: زيادة على فاتورة سابقة (فرق سعر، رسوم إضافية...) دون حركة مخزون
+    is_debit_note = models.BooleanField("إشعار مدين", default=False, editable=False)
+    debit_note_against = models.ForeignKey("self", models.PROTECT, null=True, blank=True, related_name="debit_notes",
+                                           editable=False, verbose_name="إشعار مدين على الفاتورة")
+
     class Meta(InvoiceDocument.Meta):
         verbose_name = "فاتورة مبيعات"
         verbose_name_plural = "فواتير المبيعات"
@@ -180,14 +184,48 @@ class SalesInvoice(InvoiceDocument):
     def cash_received(self):
         return flt(self.paid_cash - self.change_amount)
 
+    def get_naming_prefix(self):
+        return "SDN" if self.is_debit_note else super().get_naming_prefix()
+
+    @property
+    def available_actions(self):
+        if self.is_submitted and not self.is_return and not self.is_debit_note:
+            return [("make_debit_note", "إنشاء إشعار مدين")]
+        return []
+
+    def make_debit_note(self, user=None):
+        """مسودة إشعار مدين على هذه الفاتورة بنفس العميل والعملة والضريبة؛ تُضاف بنود الزيادة يدوياً."""
+        if not self.is_submitted or self.is_return or self.is_debit_note:
+            raise ValidationError("يُنشأ الإشعار المدين من فاتورة مبيعات معتمدة فقط.")
+        note = SalesInvoice.objects.create(
+            company=self.company, customer=self.customer, is_debit_note=True, debit_note_against=self,
+            currency=self.currency, exchange_rate=self.exchange_rate, tax_rate=self.tax_rate,
+            vat_category=self.vat_category, vat_exemption_reason=self.vat_exemption_reason,
+            prices_include_tax=self.prices_include_tax, cost_center=self.cost_center, update_stock=False,
+            created_by=user, remarks=f"إشعار مدين على الفاتورة {self.name}: ")
+        return note
+
     @property
     def document_title(self):
+        if self.is_debit_note:
+            return "إشعار مدين مبسط" if self.is_pos else "إشعار مدين ضريبي"
         if self.is_return:
             return "إشعار دائن مبسط" if self.is_pos else "إشعار دائن (مرتجع مبيعات)"
         return "فاتورة ضريبية مبسطة" if self.is_pos else "فاتورة ضريبية"
 
     def validate_for_submit(self):
         super().validate_for_submit()
+        if self.is_debit_note:
+            original = self.debit_note_against
+            if original is None or not original.is_submitted:
+                raise ValidationError("الإشعار المدين يجب أن يرتبط بفاتورة معتمدة.")
+            if original.customer_id != self.customer_id:
+                raise ValidationError("عميل الإشعار المدين يجب أن يطابق عميل الفاتورة الأصلية.")
+            if self.update_stock:
+                raise ValidationError("الإشعار المدين لا يحرك المخزون؛ لإرسال كميات إضافية أصدر فاتورة جديدة.")
+            reason = self.remarks.replace(f"إشعار مدين على الفاتورة {original.name}:", "").strip()
+            if not reason:
+                raise ValidationError("اكتب سبب الإشعار المدين في الملاحظات (مطلوب في الفوترة الإلكترونية).")
         if self.is_pos:
             if not self.pos_shift_id or not self.pos_shift.is_open:
                 raise ValidationError("لا توجد وردية مفتوحة لهذه الفاتورة.")
@@ -208,7 +246,8 @@ class SalesInvoice(InvoiceDocument):
 
     @property
     def linked_documents(self):
-        return [doc for doc in (self.quotation, self.order) if doc is not None]
+        docs = [doc for doc in (self.quotation, self.order, self.debit_note_against) if doc is not None]
+        return docs + list(self.debit_notes.exclude(docstatus=2)) if self.pk else docs
 
     def on_submit(self):
         update_order_billing(self, +1)
@@ -239,6 +278,7 @@ class SalesInvoice(InvoiceDocument):
             entries.append({"account": company.require_account("default_cogs_account"), "debit": cogs_total, "base": True})
             entries.append({"account": company.require_account("default_stock_account"), "credit": cogs_total, "base": True})
         default_remarks = (f"مرتجع مبيعات من الفاتورة {self.return_against}" if self.is_return
+                           else f"إشعار مدين على الفاتورة {self.debit_note_against}" if self.is_debit_note
                            else f"فاتورة مبيعات للعميل {self.customer}")
         make_gl_entries(self, entries, remarks=self.remarks or default_remarks, exchange_rate=self.exchange_rate)
         self.apply_return_to_original()
@@ -275,6 +315,8 @@ class SalesInvoice(InvoiceDocument):
 
         assert_cancellable(self)
         super().before_cancel()
+        if self.debit_notes.filter(docstatus=1).exists():
+            raise ValidationError("لا يمكن إلغاء الفاتورة لوجود إشعارات مدينة معتمدة عليها. ألغِها أولاً.")
         if self.is_pos and not self.pos_shift.is_open:
             raise ValidationError("لا يمكن إلغاء فاتورة نقطة بيع من وردية مغلقة.")
 

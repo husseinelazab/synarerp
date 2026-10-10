@@ -12,6 +12,7 @@ from core.tenancy import tenant_context
 from saas.tests import make_company
 from selling.models import Customer, Quotation, SalesInvoice, SalesOrder
 from stock.models import UOM, Bin, Item, ItemGroup, Warehouse
+from django.urls import reverse
 
 
 class CommercialCycleTests(TestCase):
@@ -161,3 +162,100 @@ class CommercialCycleTests(TestCase):
             self.assertEqual(self.client.get(f"/app/{slug}/new/").status_code, 200)
             self.assertEqual(self.client.get(f"/app/{slug}/template.xlsx").status_code, 200)
         self.assertContains(self.client.get("/"), "بانتظار الفوترة")
+
+
+class VATCategoryAndDebitNoteTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة الفئات الضريبية", "vatboss")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.client.force_login(self.user)
+        group, uom = ItemGroup.objects.first(), UOM.objects.first()
+        self.std = Item.objects.create(code="STD", name="خدمة عادية", item_group=group, uom=uom, is_stock_item=False)
+        self.med = Item.objects.create(code="MED", name="جهاز طبي", item_group=group, uom=uom, is_stock_item=False,
+                                       vat_category="Z", vat_exemption_reason="VATEX-SA-35")
+        self.fin = Item.objects.create(code="FIN", name="عمولة تمويل", item_group=group, uom=uom, is_stock_item=False,
+                                       vat_category="E", vat_exemption_reason="VATEX-SA-29")
+        self.customer = Customer.objects.create(name="عميل الضريبة")
+
+    def invoice(self, *lines, submit=True, **kwargs):
+        inv = SalesInvoice.objects.create(customer=self.customer, update_stock=False, **kwargs)
+        for item, rate in lines:
+            inv.items.create(item=item, qty=1, rate=rate)
+        inv.calculate_totals()
+        inv.save()
+        if submit:
+            inv.submit()
+        return inv
+
+    def test_category_taken_from_items_and_no_tax(self):
+        inv = self.invoice((self.med, 1000))
+        self.assertEqual((inv.vat_category, inv.vat_exemption_reason, inv.tax_rate), ("Z", "VATEX-SA-35", 0))
+        self.assertEqual((inv.tax_amount, inv.grand_total), (0, Decimal("1000.00")))
+        self.assertFalse(GLEntry.objects.filter(voucher_id=inv.pk, account__name__contains="مخرجات").exists())
+
+    def test_mixed_categories_must_be_split(self):
+        with self.assertRaisesMessage(ValidationError, "افصلها"):
+            self.invoice((self.std, 100), (self.med, 100))
+
+    def test_reason_required_and_must_match(self):
+        with self.assertRaisesMessage(ValidationError, "سبب الإعفاء"):
+            self.invoice((self.std, 100), vat_category="E")
+        with self.assertRaisesMessage(ValidationError, "لا يتوافق"):
+            self.invoice((self.std, 100), vat_category="E", vat_exemption_reason="VATEX-SA-32")
+
+    def test_back_to_standard_restores_rate(self):
+        inv = self.invoice((self.std, 100), vat_category="O", vat_exemption_reason="VATEX-SA-OOS", submit=False)
+        self.assertEqual(inv.tax_rate, 0)
+        inv.vat_category, inv.vat_exemption_reason = "S", ""
+        inv.calculate_totals()
+        self.assertEqual((inv.tax_rate, inv.tax_amount), (15, Decimal("15.00")))
+
+    def test_return_keeps_category(self):
+        inv = self.invoice((self.fin, 500))
+        ret = inv.make_return()
+        self.assertEqual((ret.vat_category, ret.vat_exemption_reason, ret.tax_amount), ("E", "VATEX-SA-29", 0))
+        ret.submit()
+
+    def test_debit_note(self):
+        inv = self.invoice((self.std, 1000))
+        note = inv.make_debit_note(self.user)
+        self.assertEqual((note.customer, note.tax_rate, note.update_stock), (self.customer, 15, False))
+        note.items.create(item=self.std, qty=1, rate=200)
+        note.remarks += " زيادة سعر متفق عليها"
+        note.calculate_totals()
+        note.save()
+        note.submit()
+        self.assertEqual((note.grand_total, note.outstanding_amount), (Decimal("230.00"), Decimal("230.00")))
+        self.assertEqual(note.document_title, "إشعار مدين ضريبي")
+        receivable = sum(g.debit - g.credit for g in GLEntry.objects.filter(account__number="1103", is_cancelled=False))
+        self.assertEqual(receivable, Decimal("1380.00"))
+        self.assertIn(note, inv.linked_documents)
+        with self.assertRaisesMessage(ValidationError, "إشعارات مدينة"):
+            inv.cancel()
+        self.assertEqual(note.available_actions, [])
+        # من صفحة الفاتورة
+        response = self.client.post(reverse("doc_action", args=["sales-invoice", inv.pk, "make_debit_note"]))
+        draft = SalesInvoice.objects.filter(is_debit_note=True, docstatus=0).get()
+        self.assertRedirects(response, reverse("doc_edit", args=["sales-invoice", draft.pk]), fetch_redirect_response=False)
+
+    def test_vat_report_lines(self):
+        export = Item.objects.create(code="EXP", name="بضاعة مصدرة", item_group=ItemGroup.objects.first(),
+                                     uom=UOM.objects.first(), is_stock_item=False, vat_category="Z",
+                                     vat_exemption_reason="VATEX-SA-32")
+        today = datetime.date.today()
+        self.invoice((self.std, 1000), posting_date=today)
+        self.invoice((self.med, 300), posting_date=today)
+        self.invoice((export, 700), posting_date=today)
+        self.invoice((self.fin, 50), posting_date=today)
+        page = self.client.get(reverse("vat_report") + f"?from_date={today.replace(day=1)}&to_date={today}")
+        rows = {r["no"]: (r["net"], r["tax"]) for r in page.context["sales_rows"]}
+        self.assertEqual(rows[1], (Decimal("1000.00"), Decimal("150.00")))
+        self.assertEqual(rows[3][0], Decimal("300.00"))
+        self.assertEqual(rows[4][0], Decimal("700.00"))
+        self.assertEqual(rows[5][0], Decimal("50.00"))
+        self.assertEqual(page.context["output_tax"], Decimal("150.00"))

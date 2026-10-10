@@ -24,38 +24,9 @@ def dashboard(request):
         from saas.views import landing
 
         return landing(request)
-    from accounts.models import AccountType, GLEntry
-    from buying.models import PurchaseInvoice
-    from selling.models import SalesInvoice
-    from stock.models import Bin
+    from core.dashboard import dashboard_context
 
-    today = timezone.localdate()
-    month_start = today.replace(day=1)
-    submitted = {"docstatus": DocStatus.SUBMITTED}
-
-    def total(qs, field):
-        return qs.aggregate(v=Sum(field))["v"] or 0
-
-    def party_balance(account_type):
-        agg = GLEntry.objects.filter(is_cancelled=False, account__account_type=account_type).aggregate(
-            d=Sum("debit"), c=Sum("credit"))
-        return (agg["d"] or 0) - (agg["c"] or 0)
-
-    kpis = [
-        ("مبيعات الشهر", total(SalesInvoice.objects.filter(posting_date__gte=month_start, **submitted), "grand_total")),
-        ("مشتريات الشهر", total(PurchaseInvoice.objects.filter(posting_date__gte=month_start, **submitted), "grand_total")),
-        ("مستحقات العملاء", party_balance(AccountType.RECEIVABLE)),
-        ("مستحقات الموردين", -party_balance(AccountType.PAYABLE)),
-        ("قيمة المخزون", total(Bin.objects.all(), "stock_value")),
-        ("رصيد النقدية والبنوك", party_balance(AccountType.CASH) + party_balance(AccountType.BANK)),
-    ]
-    context = {
-        "kpis": kpis,
-        "company": request.company,
-        "recent_sales": SalesInvoice.objects.select_related("customer")[:8],
-        "recent_purchases": PurchaseInvoice.objects.select_related("supplier")[:8],
-    }
-    return render(request, "core/dashboard.html", context)
+    return render(request, "core/dashboard.html", dashboard_context(request))
 
 
 @login_required
@@ -70,6 +41,8 @@ def module_page(request, module):
 
 @login_required
 def doc_list(request, slug):
+    if slug == "account":
+        return redirect("chart_of_accounts")
     dt = get_doctype(slug)
     qs = dt.model.objects.all()
     query = request.GET.get("q", "").strip()
@@ -78,6 +51,12 @@ def doc_list(request, slug):
         for f in dt.search_fields:
             cond |= Q(**{f"{f}__icontains": query})
         qs = qs.filter(cond)
+    choice_filters = {}
+    for field in dt.model._meta.concrete_fields:
+        value = request.GET.get(field.name)
+        if field.choices and field.name != "docstatus" and value in dict(field.choices):
+            choice_filters[field.name] = value
+    qs = qs.filter(**choice_filters)
     status = request.GET.get("status", "")
     if dt.is_submittable and status in ("0", "1", "2"):
         qs = qs.filter(docstatus=int(status))
@@ -94,6 +73,9 @@ def doc_list(request, slug):
         "query": query,
         "status": status,
         "statuses": DocStatus.choices,
+        "choice_filters": choice_filters,
+        "filter_query": "&".join(f"{k}={v}" for k, v in choice_filters.items()),
+        "filter_label": " / ".join(dict(dt.model._meta.get_field(k).choices)[v] for k, v in choice_filters.items()),
     })
 
 
@@ -160,7 +142,10 @@ def doc_form(request, slug, pk=None):
         except IntegrityError:
             form.add_error(None, "يوجد سجل آخر بنفس القيمة في هذه الشركة.")
         else:
-            messages.success(request, f"تم حفظ {dt.label} بنجاح.")
+            if dt.is_submittable and not request.POST.get("_submit"):
+                messages.warning(request, f"تم حفظ {dt.label} كمسودة. لم تُرحّل القيود بعد — اضغط «اعتماد وترحيل» لإتمامها.")
+            elif not dt.is_submittable:
+                messages.success(request, f"تم حفظ {dt.label} بنجاح.")
             if request.POST.get("_submit") and dt.is_submittable:
                 return _run_action(request, dt, obj, "submit")
             return redirect("doc_detail", slug=slug, pk=obj.pk)
@@ -201,11 +186,14 @@ def doc_detail(request, slug, pk):
     context = {
         "dt": dt, "obj": obj,
         "fields": detail_fields(obj, exclude=exclude),
-        "totals": [(field_label(dt.model, f), display_value(obj, f)) for f in dt.totals],
+        "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals],
         "child_headers": child_headers, "child_rows": child_rows,
     }
     if dt.is_submittable and not obj.is_draft:
         context["gl_entries"], context["stock_entries"] = _linked_entries(obj)
+        debit = sum(g.debit for g in context["gl_entries"])
+        credit = sum(g.credit for g in context["gl_entries"])
+        context["gl_totals"] = {"debit": debit, "credit": credit, "balanced": debit == credit}
     if hasattr(obj, "payments"):
         context["payments"] = obj.payments.all()
     return render(request, "core/detail.html", context)
@@ -224,7 +212,7 @@ def doc_print(request, slug, pk):
     return render(request, "core/print.html", {
         "qr": qr,
         "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
-        "totals": [(field_label(dt.model, f), display_value(obj, f)) for f in dt.totals if f != "outstanding_amount"],
+        "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals if f != "outstanding_amount"],
     })
 
 
@@ -232,7 +220,7 @@ def _run_action(request, dt, obj, action):
     try:
         if action == "submit":
             obj.submit()
-            messages.success(request, f"تم اعتماد {dt.label} {obj}.")
+            messages.success(request, f"تم اعتماد {dt.label} {obj} وترحيل قيوده.")
         elif action == "cancel":
             obj.cancel()
             messages.success(request, f"تم إلغاء {dt.label} {obj}.")

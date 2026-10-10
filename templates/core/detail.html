@@ -39,6 +39,19 @@
   </div>
 </div>
 
+{% if dt.is_submittable %}
+  {% if obj.is_draft %}
+  <div class="posting-banner draft">
+    <div><strong>مسودة — لم تُرحّل القيود المحاسبية بعد.</strong><br><span>لن يظهر هذا المستند في الحسابات أو المخزون أو التقارير حتى يتم اعتماده.</span></div>
+    <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل قيوده؟')">{% csrf_token %}<button class="btn btn-success btn-lg">اعتماد وترحيل الآن</button></form>
+  </div>
+  {% elif obj.is_submitted %}
+  <div class="posting-banner posted"><strong>✓ معتمد ومُرحّل</strong> — القيد المحاسبي{% if stock_entries %} وحركة المخزون{% endif %} في أسفل الصفحة.</div>
+  {% else %}
+  <div class="posting-banner cancelled"><strong>ملغى</strong> — تم عكس القيود المحاسبية وحركات المخزون لهذا المستند.</div>
+  {% endif %}
+{% endif %}
+
 <div class="card">
   <dl class="detail-grid">
     {% for label, value in fields %}<div><dt>{{ label }}</dt><dd>{{ value|linebreaksbr }}</dd></div>{% endfor %}
@@ -57,7 +70,7 @@
 
 {% if totals %}
 <div class="card totals-card">
-  {% for label, value in totals %}<div class="total-line"><span>{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}
+  {% for label, value in totals %}<div class="total-line{% if forloop.last and dt.slug != 'journal-entry' %} grand{% endif %}"><span>{{ label }}</span><strong>{{ value|cur }}</strong></div>{% endfor %}
 </div>
 {% endif %}
 
@@ -83,10 +96,14 @@
 
 {% if gl_entries %}
 <div class="card">
-  <h3>القيود المحاسبية</h3>
-  <table class="table">
-    <thead><tr><th>الحساب</th><th>الطرف</th><th>مدين</th><th>دائن</th><th>الحالة</th></tr></thead>
-    <tbody>{% for g in gl_entries %}<tr class="{% if g.is_cancelled %}cancelled{% endif %}"><td>{{ g.account }}</td><td>{{ g.party|default:"" }}</td><td>{{ g.debit|money }}</td><td>{{ g.credit|money }}</td><td>{% if g.is_cancelled %}ملغى{% else %}فعّال{% endif %}</td></tr>{% endfor %}</tbody>
+  <div class="card-head">
+    <h3>القيد المحاسبي {% if obj.is_cancelled %}(ملغى){% endif %}</h3>
+    <span class="muted">رقم القيد: {{ obj.name }} · التاريخ: {{ obj.posting_date|date:"Y-m-d" }}</span>
+  </div>
+  <table class="table journal">
+    <thead><tr><th>الحساب</th><th>الطرف</th><th>البيان</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead>
+    <tbody>{% for g in gl_entries %}<tr class="{% if g.is_cancelled %}cancelled{% endif %}"><td><a href="{% url 'general_ledger' %}?account={{ g.account_id }}">{{ g.account }}</a></td><td>{{ g.party|default:"" }}</td><td class="muted">{{ g.remarks }}</td><td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>{% endfor %}</tbody>
+    <tfoot><tr><th colspan="3">الإجمالي {% if gl_totals.balanced %}<span class="ok">✓ متوازن</span>{% endif %}</th><th class="num">{{ gl_totals.debit|cur }}</th><th class="num">{{ gl_totals.credit|cur }}</th></tr></tfoot>
   </table>
 </div>
 {% endif %}

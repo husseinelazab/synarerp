@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>نوع المستند <select name="voucher_type" class="form-select"><option value="">كل المستندات</option>{% for slug, label in types %}<option value="{{ slug }}" {% if slug == voucher_type %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+<div class="journal-summary card">
+  <div><span class="muted">عدد القيود</span><strong>{{ count }}</strong></div>
+  <div><span class="muted">إجمالي المدين</span><strong>{{ total_debit|cur }}</strong></div>
+  <div><span class="muted">إجمالي الدائن</span><strong>{{ total_credit|cur }}</strong></div>
+  <div><span class="muted">التوازن</span><strong class="{% if total_debit == total_credit %}ok{% else %}neg{% endif %}">{% if total_debit == total_credit %}✓ متوازن{% else %}غير متوازن{% endif %}</strong></div>
+</div>
+{% for v in page.object_list %}
+<div class="card journal-voucher">
+  <div class="card-head">
+    <h3><a href="{% url 'doc_detail' v.type v.id %}">{{ v.type|voucher_label }} {{ v.no }}</a></h3>
+    <span class="muted">{{ v.date|date:"Y-m-d" }}</span>
+  </div>
+  <table class="table journal">
+    <thead><tr><th>الحساب</th><th>الطرف</th><th>البيان</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead>
+    <tbody>{% for g in v.lines %}<tr><td>{{ g.account }}</td><td>{{ g.party|default:"" }}</td><td class="muted">{{ g.remarks }}</td><td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>{% endfor %}</tbody>
+    <tfoot><tr><th colspan="3">إجمالي القيد</th><th class="num">{{ v.debit|money }}</th><th class="num">{{ v.credit|money }}</th></tr></tfoot>
+  </table>
+</div>
+{% empty %}
+<div class="card muted center">لا توجد قيود مرحّلة في هذه الفترة. تذكّر أن المسودات لا تُرحّل حتى يتم اعتمادها.</div>
+{% endfor %}
+{% if page.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page.has_previous %}<a class="btn" href="?from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}&voucher_type={{ voucher_type }}&page={{ page.previous_page_number }}">السابق</a>{% endif %}
+  <span>صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn" href="?from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}&voucher_type={{ voucher_type }}&page={{ page.next_page_number }}">التالي</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

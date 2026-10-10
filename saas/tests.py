@@ -123,7 +123,7 @@ class SignupTests(TestCase):
         self.assertTrue(company.subscription.is_valid)
         self.assertEqual(Membership.objects.get(company=company).role, Role.OWNER)
         self.assertIsNotNone(company.default_receivable_account)
-        self.assertContains(self.client.get("/"), "مبيعات الشهر")
+        self.assertContains(self.client.get("/"), "صافي المبيعات هذا الشهر")
 
     def test_signup_rejects_duplicates_and_mismatch(self):
         make_company("موجودة", "taken")
@@ -207,7 +207,7 @@ class SubscriptionAndRoleTests(TestCase):
     def test_owner_updates_company_settings(self):
         self.client.force_login(self.owner)
         form = self.client.get("/settings/company/").context["form"]
-        data = {k: (v.pk if hasattr(v, "pk") else v) for k, v in form.initial.items() if v is not None and k != "currency"}
+        data = {k: (v.pk if hasattr(v, "pk") else v) for k, v in form.initial.items() if v is not None}
         data.update({"name": "شركة الاشتراك المحدثة", "tax_id": "310000000000003"})
         self.assertRedirects(self.client.post("/settings/company/", data), "/settings/company/")
         self.company.refresh_from_db()

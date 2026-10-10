@@ -237,10 +237,23 @@ class SubmittableDocument(TenantModel):
     def on_cancel(self):
         pass
 
+    def validate_posting_period(self):
+        """الترحيل مسموح فقط داخل سنة مالية مفتوحة للشركة."""
+        year = FiscalYear.all_objects.filter(
+            company=self.company, start_date__lte=self.posting_date, end_date__gte=self.posting_date,
+        ).first()
+        if year is None:
+            raise ValidationError(
+                f"لا توجد سنة مالية تشمل تاريخ {self.posting_date:%Y-%m-%d}. أضفها من «الإعدادات ← السنوات المالية»."
+            )
+        if year.is_closed:
+            raise ValidationError(f"السنة المالية {year} مقفلة، ولا يمكن الترحيل أو الإلغاء فيها.")
+
     def submit(self):
         if not self.is_draft:
             raise ValidationError("يمكن اعتماد المسودات فقط.")
         with transaction.atomic():
+            self.validate_posting_period()
             self.calculate_totals()
             self.validate_for_submit()
             self.docstatus = DocStatus.SUBMITTED
@@ -251,6 +264,7 @@ class SubmittableDocument(TenantModel):
         if not self.is_submitted:
             raise ValidationError("يمكن إلغاء المستندات المعتمدة فقط.")
         with transaction.atomic():
+            self.validate_posting_period()
             self.before_cancel()
             self.docstatus = DocStatus.CANCELLED
             self.save()

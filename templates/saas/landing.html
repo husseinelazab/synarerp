@@ -7,6 +7,7 @@
   <meta name="description" content="سِينار نظام تخطيط موارد مؤسسات سحابي عربي بالكامل: محاسبة، مبيعات، مشتريات، مخزون، نقاط بيع، وفوترة متوافقة مع هيئة الزكاة والضريبة والجمارك.">
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/erp.css' %}">
+  <link rel="stylesheet" href="{% static 'css/currency.css' %}">
   <link rel="stylesheet" href="{% static 'css/landing.css' %}">
 </head>
 <body class="landing">
@@ -55,8 +56,8 @@
           {% if plan.code == 'pro' %}<div class="l-badge">الأكثر طلباً</div>{% endif %}
           <h3>{{ plan.name }}</h3>
           <p class="muted">{{ plan.description }}</p>
-          <div class="l-price">{{ plan.price_monthly|floatformat:0 }} <small>ر.س / شهرياً</small></div>
-          <div class="muted">أو {{ plan.price_yearly|floatformat:0 }} ر.س سنوياً</div>
+          <div class="l-price">{{ plan.price_monthly|floatformat:0 }}<span class="cur">⃁</span> <small>شهرياً</small></div>
+          <div class="muted">أو {{ plan.price_yearly|floatformat:0 }}<span class="cur">⃁</span> سنوياً</div>
           <ul>
             <li>حتى {{ plan.max_users }} مستخدمين</li>
             <li>المحاسبة والمبيعات والمشتريات والمخزون</li>

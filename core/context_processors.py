@@ -1,6 +1,6 @@
 from django.conf import settings
 
-from core.registry import menu
+from core.navigation import ICONS, build_menu
 
 
 def erp(request):
@@ -8,7 +8,8 @@ def erp(request):
     if request.user.is_authenticated:
         membership = getattr(request, "membership", None)
         context.update({
-            "erp_menu": menu() if membership else [],
+            "nav_modules": build_menu(request),
+            "home_icon": ICONS["home"],
             "current_company": getattr(request, "company", None),
             "current_membership": membership,
             "user_memberships": request.user.memberships.filter(is_active=True).select_related("company"),

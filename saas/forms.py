@@ -58,11 +58,19 @@ class SignupForm(forms.Form):
 class CompanySettingsForm(forms.ModelForm):
     class Meta:
         model = Company
-        exclude = ["currency"]
+        fields = "__all__"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         style_form(self)
+
+    def clean_currency(self):
+        from accounts.models import GLEntry
+
+        currency = self.cleaned_data["currency"]
+        if currency != self.instance.currency and GLEntry.all_objects.filter(company=self.instance).exists():
+            raise forms.ValidationError("لا يمكن تغيير عملة الشركة بعد ترحيل قيود محاسبية.")
+        return currency
 
 
 class MemberCreateForm(forms.Form):

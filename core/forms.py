@@ -44,7 +44,7 @@ def build_formset_class(doctype):
         doctype.model,
         child.model,
         fk_name=child.fk_name,
-        fields=child.fields,
+        fields=list(child.fields),
         extra=0,
         min_num=1,
         can_delete=True,

@@ -341,3 +341,85 @@ class ReturnTests(TestCase):
         self.assertTrue(ret.is_submitted)
         self.assertContains(self.client.get(f"/app/sales-invoice/{ret.pk}/print/"), "إشعار دائن")
         self.assertNotContains(self.client.get(f"/app/sales-invoice/{inv.pk}/"), "إنشاء مرتجع")
+
+
+class AccountingRigorTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("setup_erp", demo=True, verbosity=0, stdout=open("/dev/null", "w"))
+        cls.company = Company.current()
+        cls.user = User.objects.create_user("acc", "", "pass12345")
+        Membership.objects.create(user=cls.user, company=cls.company, role=Role.OWNER)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def _sale(self, date):
+        inv = SalesInvoice.objects.create(customer=Customer.objects.first(), update_stock=False, posting_date=date)
+        inv.items.create(item=Item.objects.get(code="SRV-001"), qty=1, rate=100)
+        return inv
+
+    def test_posting_requires_open_fiscal_year(self):
+        import datetime
+
+        from core.models import FiscalYear
+
+        with self.assertRaises(ValidationError) as ctx:
+            self._sale(datetime.date(2010, 1, 1)).submit()
+        self.assertIn("لا توجد سنة مالية", " ".join(ctx.exception.messages))
+        inv = self._sale(datetime.date.today())
+        inv.submit()
+        FiscalYear.objects.update(is_closed=True)
+        with self.assertRaises(ValidationError):
+            inv.cancel()  # لا إلغاء في سنة مقفلة
+        with self.assertRaises(ValidationError):
+            self._sale(datetime.date.today()).submit()
+
+    def test_draft_is_not_posted_and_save_and_post_button_posts(self):
+        draft = self._sale(datetime_today())
+        self.assertFalse(GLEntry.objects.filter(voucher_type="sales-invoice", voucher_id=draft.pk).exists())
+        page = self.client.get(f"/app/sales-invoice/{draft.pk}/")
+        self.assertContains(page, "لم تُرحّل القيود المحاسبية بعد")
+        self.client.post(f"/app/sales-invoice/{draft.pk}/submit/")
+        page = self.client.get(f"/app/sales-invoice/{draft.pk}/")
+        self.assertContains(page, "معتمد ومُرحّل")
+        self.assertContains(page, "✓ متوازن")
+        self.assertContains(page, "⃁")  # رمز الريال الجديد في الإجماليات
+
+    def test_trial_balance_tree_heads_equal_sum_of_branches(self):
+        rows = self.client.get("/reports/accounts/trial-balance/").context["rows"]
+        totals = self.client.get("/reports/accounts/trial-balance/").context["totals"]
+        self.assertEqual(totals[4], totals[5])  # الميزان متوازن
+        by_id = {row["account"].id: row for row in rows}
+        for row in rows:
+            if row["is_group"]:
+                children = [r for r in rows if r["account"].parent_id == row["account"].id]
+                self.assertEqual(row["values"], [sum(c["values"][i] for c in children) for i in range(4)])
+        level1 = self.client.get("/reports/accounts/trial-balance/?level=1").context["rows"]
+        self.assertTrue(level1 and all(r["depth"] == 0 for r in level1))
+        self.assertTrue(by_id)
+
+    def test_general_journal_groups_all_vouchers_and_balances(self):
+        context = self.client.get("/reports/accounts/general-journal/").context
+        self.assertEqual(context["total_debit"], context["total_credit"])
+        types = {v["type"] for v in context["page"].object_list}
+        self.assertTrue({"sales-invoice", "purchase-invoice", "payment-entry", "journal-entry"} <= types)
+        for voucher in context["page"].object_list:
+            self.assertEqual(voucher["debit"], voucher["credit"])
+
+    def test_payment_list_filters_by_type(self):
+        response = self.client.get("/app/payment-entry/?payment_type=pay")
+        self.assertContains(response, "سند صرف جديد")
+        self.assertTrue(all(row["obj"].payment_type == "pay" for row in response.context["rows"]))
+
+    def test_dashboard_renders_chart_with_valid_coordinates(self):
+        html = self.client.get("/").content.decode()
+        self.assertIn('class="bar bar-sales"', html)
+        import re
+        for value in re.findall(r'(?:x|y|x1|x2|y1|y2)="([^"]+)"', html):
+            self.assertNotIn(",", value)
+
+
+def datetime_today():
+    import datetime
+    return datetime.date.today()

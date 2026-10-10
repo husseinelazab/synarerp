@@ -9,7 +9,7 @@
     <tr><td>المبيعات (ضريبة المخرجات)</td><td>{{ sales_net|money }}</td><td>{{ output_tax|money }}</td></tr>
     <tr><td>المشتريات (ضريبة المدخلات)</td><td>{{ purchases_net|money }}</td><td>{{ input_tax|money }}</td></tr>
   </tbody>
-  <tfoot><tr><th colspan="2">صافي الضريبة {% if net_vat >= 0 %}المستحقة للهيئة{% else %}القابلة للاسترداد{% endif %}</th><th>{{ net_vat|money }}</th></tr></tfoot>
+  <tfoot><tr><th colspan="2">صافي الضريبة {% if net_vat >= 0 %}المستحقة للهيئة{% else %}القابلة للاسترداد{% endif %}</th><th>{{ net_vat|cur }}</th></tr></tfoot>
 </table>
 </div>
 {% endblock %}

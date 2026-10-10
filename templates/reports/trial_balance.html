@@ -5,14 +5,16 @@
 <div class="card">
 <table class="table report">
   <thead>
-    <tr><th rowspan="2">الحساب</th><th colspan="2">الرصيد الافتتاحي</th><th colspan="2">حركة الفترة</th><th colspan="2">الرصيد الختامي</th></tr>
-    <tr><th>مدين</th><th>دائن</th><th>مدين</th><th>دائن</th><th>مدين</th><th>دائن</th></tr>
+    <tr><th rowspan="2">الحساب</th><th colspan="2" class="center">الرصيد الافتتاحي</th><th colspan="2" class="center">حركة الفترة</th><th colspan="2" class="center">الرصيد الختامي</th></tr>
+    <tr><th class="num">مدين</th><th class="num">دائن</th><th class="num">مدين</th><th class="num">دائن</th><th class="num">مدين</th><th class="num">دائن</th></tr>
   </thead>
   <tbody>
-    {% for row in rows %}<tr><td><a href="{% url 'general_ledger' %}?account={{ row.account.id }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{{ row.account }}</a></td>{% for v in row.values %}<td>{{ v|money }}</td>{% endfor %}</tr>
+    {% for row in rows %}<tr class="{% if row.is_group %}group depth-{{ row.depth }}{% else %}leaf{% endif %}">
+      <td style="padding-inline-start: {{ row.depth|add:1 }}.2em">{% if row.is_group %}{{ row.account }}{% else %}<a href="{% url 'general_ledger' %}?account={{ row.account.id }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{{ row.account }}</a>{% endif %}</td>
+      {% for v in row.columns %}<td class="num">{% if v %}{{ v|money }}{% endif %}</td>{% endfor %}</tr>
     {% empty %}<tr><td colspan="7" class="muted center">لا توجد حركات</td></tr>{% endfor %}
   </tbody>
-  <tfoot><tr><th>الإجمالي</th>{% for v in totals %}<th>{{ v|money }}</th>{% endfor %}</tr></tfoot>
+  <tfoot><tr><th>الإجمالي</th>{% for v in totals %}<th class="num">{{ v|cur }}</th>{% endfor %}</tr></tfoot>
 </table>
 </div>
 {% endblock %}

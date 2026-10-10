@@ -29,3 +29,21 @@ def allocate(target, weights):
         allocated += share
     result[keys[-1]] = target - allocated
     return result
+
+
+SAR_SIGN = "⃁"  # رمز الريال السعودي الجديد (Unicode 17)
+
+
+def currency_symbol_html(currency=None):
+    """رمز عملة الشركة الحالية بصيغة HTML؛ الريال السعودي يُعرض برمزه الرسمي الجديد."""
+    from django.utils.html import escape
+
+    if currency is None:
+        from core.tenancy import get_current_company
+
+        company = get_current_company()
+        currency = company.currency if company else None
+    code = currency.code if currency else "SAR"
+    if code == "SAR":
+        return f'<span class="cur" title="ريال سعودي" aria-label="ريال سعودي">{SAR_SIGN}</span>'
+    return f'<span class="cur" title="{escape(currency.name)}">{escape(currency.symbol or code)}</span>'

@@ -9,9 +9,21 @@ from core.setup_data import CHART_OF_ACCOUNTS, DEFAULT_ACCOUNTS, DEPARTMENTS, DE
 from core.tenancy import tenant_context
 
 
+CURRENCIES = [
+    ("SAR", "ريال سعودي", "ر.س"), ("AED", "درهم إماراتي", "د.إ"), ("KWD", "دينار كويتي", "د.ك"),
+    ("QAR", "ريال قطري", "ر.ق"), ("BHD", "دينار بحريني", "د.ب"), ("OMR", "ريال عماني", "ر.ع"),
+    ("EGP", "جنيه مصري", "ج.م"), ("JOD", "دينار أردني", "د.أ"), ("USD", "دولار أمريكي", "$"), ("EUR", "يورو", "€"),
+]
+
+
+def ensure_currencies():
+    for code, name, symbol in CURRENCIES:
+        Currency.objects.get_or_create(code=code, defaults={"name": name, "symbol": symbol})
+
+
 def default_currency():
-    currency, _ = Currency.objects.get_or_create(code="SAR", defaults={"name": "ريال سعودي", "symbol": "ر.س"})
-    return currency
+    ensure_currencies()
+    return Currency.objects.get(code="SAR")
 
 
 def _create_accounts(nodes, parent, root_type):

@@ -56,7 +56,7 @@
       return '<button class="product' + (out ? " out" : "") + '" data-id="' + i.id + '">' +
         '<span class="product-name">' + esc(i.name) + '</span>' +
         '<span class="product-code">' + esc(i.code) + '</span>' +
-        '<span class="product-price">' + fmt(i.rate) + '</span>' +
+        '<span class="product-price">' + fmt(i.rate) + config.currencyHtml + '</span>' +
         (i.stock ? '<span class="product-qty">المتوفر: ' + i.qty + " " + esc(i.uom) + "</span>" : '<span class="product-qty">خدمة</span>') +
         "</button>";
     }).join("");
@@ -94,7 +94,7 @@
     $("t-total").textContent = fmt(t.total);
     $("t-net").textContent = fmt(t.net);
     $("t-tax").textContent = fmt(t.tax);
-    $("t-grand").textContent = fmt(t.grand);
+    $("t-grand").innerHTML = fmt(t.grand) + config.currencyHtml;
   }
 
   // البحث ومسح الباركود: Enter يضيف الصنف المطابق تماماً للباركود أو الكود
@@ -172,7 +172,7 @@
       alert("الخصم يتجاوز الحد المسموح (" + config.maxDiscountPercent + "%).");
       return;
     }
-    $("m-grand").textContent = fmt(t.grand);
+    $("m-grand").innerHTML = fmt(t.grand) + config.currencyHtml;
     cashEl.value = t.grand.toFixed(2);
     cardEl.value = 0;
     errEl.hidden = true;
@@ -185,7 +185,7 @@
     var change = round2(num(cashEl.value) + num(cardEl.value) - totals().grand);
     var label = $("m-change-label"), out = $("m-change");
     label.textContent = change < 0 ? "المتبقي على العميل: " : "الباقي للعميل: ";
-    out.textContent = fmt(Math.abs(change));
+    out.innerHTML = fmt(Math.abs(change)) + config.currencyHtml;
     out.classList.toggle("neg", change < 0);
     $("m-confirm").disabled = change < 0;
   }
@@ -228,7 +228,7 @@
         $("d-title").textContent = "✓ تمت عملية البيع";
         $("d-change-label").textContent = "الباقي للعميل: ";
         $("d-name").textContent = res.data.name;
-        $("d-change").textContent = fmt(num(res.data.change));
+        $("d-change").innerHTML = fmt(num(res.data.change)) + config.currencyHtml;
         $("d-print").href = res.data.receipt_url + "?print=1";
         $("done-modal").hidden = false;
         $("d-new").focus();
@@ -316,7 +316,7 @@
         $("d-title").textContent = "✓ تم تنفيذ المرتجع";
         $("d-name").textContent = res.data.name;
         $("d-change-label").textContent = num(res.data.refund_card) > 0 ? "مبلغ الرد للبطاقة: " : "مبلغ الرد نقداً للعميل: ";
-        $("d-change").textContent = fmt(num(res.data.refund));
+        $("d-change").innerHTML = fmt(num(res.data.refund)) + config.currencyHtml;
         $("d-print").href = res.data.receipt_url + "?print=1";
         $("done-modal").hidden = false;
         $("d-new").focus();

@@ -49,8 +49,12 @@
   </div>
   {% endif %}
   <div class="form-actions">
-    <button type="submit" class="btn btn-primary">حفظ</button>
-    {% if dt.is_submittable %}<button type="submit" name="_submit" value="1" class="btn btn-success" onclick="return confirm('سيتم حفظ المستند واعتماده وترحيل قيوده. متابعة؟')">حفظ واعتماد</button>{% endif %}
+    {% if dt.is_submittable %}
+      <button type="submit" name="_submit" value="1" class="btn btn-success btn-lg" onclick="return confirm('سيتم حفظ المستند واعتماده وترحيل قيوده المحاسبية. متابعة؟')">حفظ واعتماد وترحيل</button>
+      <button type="submit" class="btn">حفظ كمسودة</button>
+    {% else %}
+      <button type="submit" class="btn btn-primary btn-lg">حفظ</button>
+    {% endif %}
     <a class="btn" href="{% if instance %}{% url 'doc_detail' dt.slug instance.pk %}{% else %}{% url 'doc_list' dt.slug %}{% endif %}">إلغاء</a>
   </div>
 </form>

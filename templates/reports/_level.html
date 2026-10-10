@@ -1,0 +1,6 @@
+<label>مستوى العرض
+  <select name="level" class="form-select">
+    <option value="0" {% if not level %}selected{% endif %}>كل المستويات (الرؤوس والفروع)</option>
+    {% for l in levels %}<option value="{{ l }}" {% if level == l %}selected{% endif %}>حتى المستوى {{ l }}{% if forloop.first %} (الرؤوس الرئيسية){% endif %}</option>{% endfor %}
+  </select>
+</label>

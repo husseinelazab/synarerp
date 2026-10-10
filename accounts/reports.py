@@ -34,24 +34,43 @@ def _active_gl():
     return GLEntry.objects.filter(is_cancelled=False)
 
 
+def _level(request):
+    try:
+        return max(int(request.GET.get("level", 0)), 0) or None
+    except ValueError:
+        return None
+
+
 @login_required
 def trial_balance(request):
+    from accounts.tree import max_tree_depth, tree_rows
+
     from_date, to_date = _period(request)
+    level = _level(request)
     opening = _sums(_active_gl().filter(posting_date__lt=from_date))
     period = _sums(_active_gl().filter(posting_date__gte=from_date, posting_date__lte=to_date))
-    rows, totals = [], [flt(0)] * 6
-    for account in Account.objects.filter(is_group=False):
-        od, oc = opening.get(account.id, (flt(0), flt(0)))
-        pd, pc = period.get(account.id, (flt(0), flt(0)))
-        if not any((od, oc, pd, pc)):
-            continue
-        ob = od - oc
-        cb = ob + pd - pc
-        values = [max(ob, 0), max(-ob, 0), pd, pc, max(cb, 0), max(-cb, 0)]
-        totals = [t + v for t, v in zip(totals, values)]
-        rows.append({"account": account, "values": values})
+    raw = {}
+    for account_id in set(opening) | set(period):
+        od, oc = opening.get(account_id, (flt(0), flt(0)))
+        pd, pc = period.get(account_id, (flt(0), flt(0)))
+        raw[account_id] = [od, oc, pd, pc]
+
+    def columns(values):
+        od, oc, pd, pc = values
+        ob, cb = od - oc, od - oc + pd - pc
+        return [max(ob, 0), max(-ob, 0), pd, pc, max(cb, 0), max(-cb, 0)]
+
+    rows = []
+    for row in tree_rows(raw, 4, max_depth=level):
+        row["columns"] = columns(row["values"])
+        rows.append(row)
+    # الإجمالي من الحسابات الفرعية فقط حتى لا تتكرر المبالغ
+    totals = [flt(0)] * 6
+    for values in raw.values():
+        totals = [t + v for t, v in zip(totals, columns(values))]
     return render(request, "reports/trial_balance.html", {
         "title": "ميزان المراجعة", "from_date": from_date, "to_date": to_date, "rows": rows, "totals": totals,
+        "level": level or 0, "levels": range(1, max_tree_depth() + 1),
     })
 
 
@@ -88,7 +107,10 @@ def general_ledger(request):
     })
 
 
-def _grouped_balances(root_types, to_date, from_date=None):
+def _grouped_balances(root_types, to_date, from_date=None, level=None):
+    """أقسام القوائم المالية بشكل شجري: لكل نوع جذري صفوفه (رؤوس بمجاميعها وفروع) وإجماليه."""
+    from accounts.tree import tree_rows
+
     qs = _active_gl().filter(posting_date__lte=to_date, account__root_type__in=root_types)
     if from_date:
         qs = qs.filter(posting_date__gte=from_date)
@@ -96,25 +118,27 @@ def _grouped_balances(root_types, to_date, from_date=None):
     sections = []
     for root in root_types:
         credit_nature = root in (RootType.INCOME, RootType.LIABILITY, RootType.EQUITY)
-        rows = []
-        for account in Account.objects.filter(root_type=root, is_group=False):
-            d, c = sums.get(account.id, (flt(0), flt(0)))
-            amount = (c - d) if credit_nature else (d - c)
-            if amount:
-                rows.append({"account": account, "amount": amount})
-        sections.append({
-            "root": root, "label": RootType(root).label, "rows": rows,
-            "total": sum((r["amount"] for r in rows), flt(0)),
-        })
+        values = {aid: [(c - d) if credit_nature else (d - c)] for aid, (d, c) in sums.items()}
+        rows = tree_rows(values, 1, root_types=[root], max_depth=level)
+        for row in rows:
+            row["amount"] = row["values"][0]
+        # الصف الجذري يمثل القسم نفسه؛ يُعرض إجماله في التذييل
+        body = [row for row in rows if row["depth"] > 0]
+        total = sum((row["amount"] for row in rows if row["depth"] == 0), flt(0))
+        sections.append({"root": root, "label": RootType(root).label, "rows": body, "total": total})
     return sections
 
 
 @login_required
 def profit_and_loss(request):
+    from accounts.tree import max_tree_depth
+
     from_date, to_date = _period(request)
-    income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date, from_date)
+    level = _level(request)
+    income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date, from_date, level=level)
     return render(request, "reports/statement.html", {
         "title": "قائمة الدخل", "from_date": from_date, "to_date": to_date,
+        "level": level or 0, "levels": range(2, max_tree_depth() + 1),
         "sections": [income, expense],
         "result_label": "صافي الربح / (الخسارة)", "result": income["total"] - expense["total"],
     })
@@ -122,15 +146,21 @@ def profit_and_loss(request):
 
 @login_required
 def balance_sheet(request):
+    from accounts.tree import max_tree_depth
+
     from_date, to_date = _period(request)
-    assets, liabilities, equity = _grouped_balances([RootType.ASSET, RootType.LIABILITY, RootType.EQUITY], to_date)
+    level = _level(request)
+    assets, liabilities, equity = _grouped_balances([RootType.ASSET, RootType.LIABILITY, RootType.EQUITY], to_date,
+                                                    level=level)
     income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date)
     profit = income["total"] - expense["total"]
     if profit:
-        equity["rows"].append({"account": "أرباح (خسائر) الفترة غير المرحلة", "amount": profit})
+        equity["rows"].append({"account": "أرباح (خسائر) الفترة غير المرحلة", "amount": profit, "depth": 1,
+                               "is_group": False})
         equity["total"] += profit
     return render(request, "reports/statement.html", {
         "title": "الميزانية العمومية (قائمة المركز المالي)", "to_date": to_date, "as_of": True,
+        "level": level or 0, "levels": range(2, max_tree_depth() + 1),
         "sections": [assets, liabilities, equity],
         "result_label": "الخصوم + حقوق الملكية", "result": liabilities["total"] + equity["total"],
         "balanced": assets["total"] == liabilities["total"] + equity["total"],
@@ -201,3 +231,40 @@ def chart_of_accounts(request):
     for root in children.get(None, []):
         flatten(walk(root, 0), rows)
     return render(request, "reports/chart_of_accounts.html", {"title": "شجرة الحسابات", "rows": rows})
+
+
+@login_required
+def general_journal(request):
+    """دفتر اليومية العام: كل القيود (اليدوية والآلية من الفواتير والسندات والمخزون) مجمعة حسب المستند."""
+    from django.core.paginator import Paginator
+
+    from core.registry import REGISTRY
+
+    from_date, to_date = _period(request)
+    voucher_type = request.GET.get("voucher_type", "")
+    entries = _active_gl().filter(posting_date__gte=from_date, posting_date__lte=to_date).select_related(
+        "account", "customer", "supplier").order_by("posting_date", "voucher_type", "voucher_id", "id")
+    if voucher_type:
+        entries = entries.filter(voucher_type=voucher_type)
+
+    vouchers, index = [], {}
+    for gle in entries:
+        key = (gle.voucher_type, gle.voucher_id)
+        if key not in index:
+            index[key] = {"type": gle.voucher_type, "id": gle.voucher_id, "no": gle.voucher_no,
+                          "date": gle.posting_date, "lines": [], "debit": flt(0), "credit": flt(0)}
+            vouchers.append(index[key])
+        voucher = index[key]
+        voucher["lines"].append(gle)
+        voucher["debit"] += gle.debit
+        voucher["credit"] += gle.credit
+
+    page = Paginator(vouchers, 50).get_page(request.GET.get("page"))
+    types = [(slug, dt.label) for slug, dt in REGISTRY.items() if dt.is_submittable]
+    return render(request, "reports/general_journal.html", {
+        "title": "دفتر اليومية العام", "from_date": from_date, "to_date": to_date, "page": page,
+        "types": types, "voucher_type": voucher_type,
+        "total_debit": sum((v["debit"] for v in vouchers), flt(0)),
+        "total_credit": sum((v["credit"] for v in vouchers), flt(0)),
+        "count": len(vouchers),
+    })

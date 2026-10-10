@@ -1,7 +1,8 @@
-{% load erp %}<!doctype html>
+{% load erp static %}<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
+  <link rel="stylesheet" href="{% static 'css/currency.css' %}">
   <title>{{ obj.name }}</title>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -41,7 +42,7 @@
     {% if obj.supplier %}<div>المورد: <strong>{{ obj.supplier }}</strong></div>{% endif %}
     {% if obj.bill_no %}<div>رقم فاتورة المورد: {{ obj.bill_no }}</div>{% endif %}
     {% if obj.due_date %}<div>تاريخ الاستحقاق: {{ obj.due_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.amount %}<div>المبلغ: <strong>{{ obj.amount|money }}</strong></div>{% endif %}
+    {% if obj.amount %}<div>المبلغ: <strong>{{ obj.amount|cur }}</strong></div>{% endif %}
   </div>
   {% if child_rows %}
   <table>
@@ -53,7 +54,7 @@
   {% endif %}
   {% if totals %}
   <table class="totals">
-    {% for label, value in totals %}<tr><th>{{ label }}</th><td>{{ value }}</td></tr>{% endfor %}
+    {% for label, value in totals %}<tr><th>{{ label }}</th><td>{{ value|abs|cur }}</td></tr>{% endfor %}
   </table>
   {% endif %}
   {% if qr %}<div class="qr">{{ qr|safe }}</div>{% endif %}

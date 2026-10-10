@@ -1,0 +1,17 @@
+/* رمز الريال السعودي الجديد (U+20C1) — خط مفتوح المصدر برخصة OFL 1.1، انظر static/fonts/saudi-riyal */
+@font-face {
+  font-family: "SaudiRiyal";
+  src: url("../fonts/saudi-riyal/saudi_riyal.woff2") format("woff2");
+  font-weight: 400;
+  unicode-range: U+20C1;
+  font-display: block;
+}
+@font-face {
+  font-family: "SaudiRiyal";
+  src: url("../fonts/saudi-riyal/saudi_riyal_bold.woff2") format("woff2");
+  font-weight: 700 900;
+  unicode-range: U+20C1;
+  font-display: block;
+}
+.cur { font-family: "SaudiRiyal", "Tajawal", sans-serif; font-style: normal; margin-inline-start: .2em; white-space: nowrap; }
+.amount { white-space: nowrap; font-variant-numeric: tabular-nums; }

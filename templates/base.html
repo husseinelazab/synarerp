@@ -7,49 +7,28 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/erp.css' %}">
+  <link rel="stylesheet" href="{% static 'css/currency.css' %}">
 </head>
 <body>
 {% if user.is_authenticated %}
 <div class="layout">
   <aside class="sidebar" id="sidebar">
     <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
-    <nav>
+    <nav class="side-nav">
       {% if current_membership %}
-      <a href="{% url 'dashboard' %}" class="nav-link {% if request.path == '/' %}active{% endif %}">لوحة التحكم</a>
-      {% if subscription.plan.includes_pos %}
-      <a href="{% url 'pos_terminal' %}" class="nav-link nav-pos">نقطة البيع</a>
-      <a href="{% url 'pos_shifts' %}" class="nav-link {% if '/pos/shifts' in request.path %}active{% endif %}">ورديات نقاط البيع</a>
+      <a href="{% url 'dashboard' %}" class="nav-top {% if request.path == '/' %}active{% endif %}"><svg viewBox="0 0 24 24">{{ home_icon|safe }}</svg>لوحة التحكم</a>
       {% endif %}
-      {% endif %}
-      {% for section in erp_menu %}
-        <div class="nav-section">{{ section.label }}</div>
-        {% for dt in section.doctypes %}
-          <a href="{% url 'doc_list' dt.slug %}" class="nav-link {% if dt.slug in request.path %}active{% endif %}">{{ dt.label_plural }}</a>
-        {% endfor %}
+      {% for module in nav_modules %}
+      <details class="nav-module" {% if module.open %}open{% endif %}>
+        <summary class="{% if module.open %}current{% endif %}"><svg viewBox="0 0 24 24">{{ module.icon|safe }}</svg><span>{{ module.label }}</span><i class="chev"></i></summary>
+        <div class="nav-children">
+          {% for section in module.sections %}
+            {% if section.title %}<div class="nav-subtitle">{{ section.title }}</div>{% endif %}
+            {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}">{{ item.label }}</a>{% endfor %}
+          {% endfor %}
+        </div>
+      </details>
       {% endfor %}
-      {% if current_membership %}
-      <div class="nav-section">التقارير</div>
-      <a href="{% url 'chart_of_accounts' %}" class="nav-link">شجرة الحسابات</a>
-      <a href="{% url 'trial_balance' %}" class="nav-link">ميزان المراجعة</a>
-      <a href="{% url 'general_ledger' %}" class="nav-link">دفتر الأستاذ العام</a>
-      <a href="{% url 'profit_and_loss' %}" class="nav-link">قائمة الدخل</a>
-      <a href="{% url 'balance_sheet' %}" class="nav-link">الميزانية العمومية</a>
-      <a href="{% url 'vat_report' %}" class="nav-link">إقرار ضريبة القيمة المضافة</a>
-      <a href="{% url 'party_balances' 'customer' %}" class="nav-link">أرصدة العملاء</a>
-      <a href="{% url 'party_balances' 'supplier' %}" class="nav-link">أرصدة الموردين</a>
-      <a href="{% url 'stock_balance' %}" class="nav-link">أرصدة المخزون</a>
-      <a href="{% url 'stock_ledger' %}" class="nav-link">دفتر حركة المخزون</a>
-      {% endif %}
-      {% if current_membership.can_manage %}
-      <div class="nav-section">إدارة الحساب</div>
-      <a href="{% url 'company_settings' %}" class="nav-link {% if '/settings/company' in request.path %}active{% endif %}">إعدادات الشركة</a>
-      <a href="{% url 'users_list' %}" class="nav-link {% if '/settings/users' in request.path %}active{% endif %}">المستخدمون والصلاحيات</a>
-      <a href="{% url 'billing' %}" class="nav-link {% if '/billing' in request.path %}active{% endif %}">الاشتراك والفوترة</a>
-      {% endif %}
-      {% if user.is_superuser %}
-      <div class="nav-section">المنصة</div>
-      <a href="{% url 'platform_dashboard' %}" class="nav-link {% if '/platform' in request.path %}active{% endif %}">إدارة المنصة</a>
-      {% endif %}
     </nav>
   </aside>
   <div class="main">

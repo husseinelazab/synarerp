@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from core.utils import currency_symbol_html
 from core.zatca import invoice_qr_svg
 from pos.models import POSProfile, POSShift
 from pos.services import checkout, find_returnable_invoice, pos_return
@@ -37,6 +38,7 @@ def terminal(request):
         "maxDiscountPercent": float(profile.max_discount_percent),
         "allowRateChange": profile.allow_rate_change,
         "defaultCustomer": profile.default_customer_id,
+        "currencyHtml": currency_symbol_html(profile.company.currency),
     }
     return render(request, "pos/terminal.html", {
         "shift": shift, "profile": profile, "config": config,

@@ -12,7 +12,7 @@
     {% for b in bins %}<tr><td>{{ b.item }}</td><td>{{ b.warehouse }}</td><td>{{ b.item.uom }}</td><td>{{ b.actual_qty|floatformat:-3 }}</td><td>{{ b.valuation_rate|money }}</td><td>{{ b.stock_value|money }}</td></tr>
     {% empty %}<tr><td colspan="6" class="muted center">لا توجد أرصدة</td></tr>{% endfor %}
   </tbody>
-  <tfoot><tr><th colspan="5">إجمالي قيمة المخزون</th><th>{{ total_value|money }}</th></tr></tfoot>
+  <tfoot><tr><th colspan="5">إجمالي قيمة المخزون</th><th>{{ total_value|cur }}</th></tr></tfoot>
 </table>
 </div>
 {% endblock %}

@@ -4,7 +4,7 @@ from django.db import models
 
 from core.utils import money
 
-HIDDEN_FIELDS = {"id", "created_at", "modified_at", "parent"}
+HIDDEN_FIELDS = {"id", "created_at", "modified_at", "parent", "company", "created_by", "docstatus"}
 
 
 def display_value(obj, field_name):
@@ -25,6 +25,10 @@ def detail_fields(obj, exclude=()):
     rows = []
     for field in obj._meta.concrete_fields:
         if field.name in HIDDEN_FIELDS or field.name in exclude:
+            continue
+        value = getattr(obj, field.name)
+        # حقول النظام (غير القابلة للتحرير) تُعرض فقط إن كانت ذات قيمة: مرتجع، وردية، مدفوع...
+        if not field.editable and not field.choices and (value is None or value is False or value == 0 or value == ""):
             continue
         rows.append((field.verbose_name, display_value(obj, field.name)))
     return rows

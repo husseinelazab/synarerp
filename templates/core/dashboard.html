@@ -1,46 +1,101 @@
 {% extends "base.html" %}
-{% load erp %}
+{% load erp l10n %}
 {% block title %}لوحة التحكم{% endblock %}
 {% block heading %}لوحة التحكم{% endblock %}
 {% block content %}
-{% if not company %}
-  <div class="alert alert-warning">لم يتم إعداد الشركة بعد. شغّل الأمر: <code>python manage.py setup_erp</code></div>
+<div class="dash-head">
+  <div>
+    <h2>أهلاً {{ user.first_name|default:user.username }}</h2>
+    <span class="muted">{{ today|date:"l j F Y" }} · {{ current_company }}</span>
+  </div>
+  <details class="dropdown">
+    <summary class="btn btn-primary">+ إنشاء جديد</summary>
+    <div class="dropdown-menu">
+      <a href="{% url 'doc_new' 'sales-invoice' %}">فاتورة مبيعات</a>
+      <a href="{% url 'doc_new' 'purchase-invoice' %}">فاتورة مشتريات</a>
+      <a href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive">سند قبض</a>
+      <a href="{% url 'doc_new' 'payment-entry' %}?payment_type=pay">سند صرف</a>
+      <a href="{% url 'doc_new' 'journal-entry' %}">قيد يومية</a>
+      <a href="{% url 'doc_new' 'stock-entry' %}">حركة مخزنية</a>
+      <hr>
+      <a href="{% url 'doc_new' 'customer' %}">عميل</a>
+      <a href="{% url 'doc_new' 'supplier' %}">مورد</a>
+      <a href="{% url 'doc_new' 'item' %}">صنف</a>
+    </div>
+  </details>
+</div>
+
+{% if drafts or overdue_count %}
+<div class="attention">
+  <strong>يحتاج انتباهك:</strong>
+  {% for d in drafts %}<a href="{{ d.url }}" class="chip-alert warn">{{ d.count }} {{ d.label }} مسودة لم تُرحّل</a>{% endfor %}
+  {% if overdue_count %}<a href="{% url 'party_balances' 'customer' %}" class="chip-alert danger">{{ overdue_count }} فاتورة متأخرة السداد بقيمة {{ overdue_amount|cur }}</a>{% endif %}
+</div>
 {% endif %}
-<div class="kpis">
-  {% for label, value in kpis %}
-  <div class="card kpi"><div class="kpi-label">{{ label }}</div><div class="kpi-value">{{ value|money }}</div></div>
+
+<div class="kpi-row">
+  {% for k in kpis %}
+  <a class="card kpi-card" href="{{ k.url }}">
+    <div class="kpi-label">{{ k.label }}</div>
+    <div class="kpi-value {% if k.value < 0 %}neg{% endif %}">{{ k.value|cur }}</div>
+    <div class="kpi-foot">
+      {% if k.change is not None %}<span class="trend {% if k.change >= 0 %}up{% else %}down{% endif %}">{% if k.change >= 0 %}▲{% else %}▼{% endif %} {{ k.change|abs }}%</span> عن الشهر الماضي
+      {% else %}<span class="muted">{{ k.hint }}</span>{% endif %}
+    </div>
+  </a>
   {% endfor %}
 </div>
-<div class="quick-actions">
-  <a class="btn btn-success" href="{% url 'pos_terminal' %}">نقطة البيع</a>
-  <a class="btn btn-primary" href="{% url 'doc_new' 'sales-invoice' %}">+ فاتورة مبيعات</a>
-  <a class="btn" href="{% url 'doc_new' 'purchase-invoice' %}">+ فاتورة مشتريات</a>
-  <a class="btn" href="{% url 'doc_new' 'payment-entry' %}">+ سند قبض / صرف</a>
-  <a class="btn" href="{% url 'doc_new' 'journal-entry' %}">+ قيد يومية</a>
-  <a class="btn" href="{% url 'doc_new' 'stock-entry' %}">+ حركة مخزنية</a>
+
+<div class="dash-grid">
+  <div class="card chart-card">
+    <div class="card-head">
+      <h3>المبيعات والمشتريات — آخر 6 أشهر</h3>
+      <div class="legend"><span><i class="sw sw-1"></i>المبيعات</span><span><i class="sw sw-2"></i>المشتريات</span></div>
+    </div>
+    {% localize off %}
+    <svg class="bar-chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-label="مخطط المبيعات والمشتريات الشهرية">
+      {% for t in chart.ticks %}
+        <line x1="{{ chart.plot_left }}" x2="{{ chart.plot_right }}" y1="{{ t.y }}" y2="{{ t.y }}" class="grid{% if forloop.first %} base{% endif %}"/>
+        <text x="{{ chart.axis_x }}" y="{{ t.y }}" class="tick" dominant-baseline="middle">{{ t.value|floatformat:"0" }}</text>
+      {% endfor %}
+      {% for m in chart.data %}
+        {% for b in m.bars %}{% if b.d %}<path d="{{ b.d }}" class="bar bar-{{ b.key }}"><title>{{ m.label }} — {% if b.key == 'sales' %}المبيعات{% else %}المشتريات{% endif %}: {{ b.value|money }}</title></path>{% endif %}{% endfor %}
+        <text x="{{ m.x_label }}" y="{{ chart.height|add:'-8' }}" class="month" text-anchor="middle">{{ m.label }}</text>
+      {% endfor %}
+    </svg>
+    {% endlocalize %}
+    <details class="table-view">
+      <summary>عرض كجدول</summary>
+      <table class="table"><thead><tr><th>الشهر</th><th>المبيعات</th><th>المشتريات</th></tr></thead>
+      <tbody>{% for m in chart.data %}<tr><td>{{ m.label }}</td><td>{{ m.sales|money }}</td><td>{{ m.purchases|money }}</td></tr>{% endfor %}</tbody></table>
+    </details>
+  </div>
+  <div class="card">
+    <h3>الأرصدة</h3>
+    {% for label, value, url in balances %}
+    <a class="balance-line" href="{{ url }}"><span>{{ label }}</span><strong>{{ value|cur }}</strong></a>
+    {% endfor %}
+  </div>
 </div>
-<div class="grid-2">
-  <div class="card">
-    <h3>أحدث فواتير المبيعات</h3>
-    <table class="table">
-      <thead><tr><th>الرقم</th><th>العميل</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
-      <tbody>
-      {% for inv in recent_sales %}
-        <tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.customer }}</td><td>{{ inv.grand_total|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>
-      {% empty %}<tr><td colspan="4" class="muted">لا توجد فواتير بعد</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <div class="card">
-    <h3>أحدث فواتير المشتريات</h3>
-    <table class="table">
-      <thead><tr><th>الرقم</th><th>المورد</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
-      <tbody>
-      {% for inv in recent_purchases %}
-        <tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.supplier }}</td><td>{{ inv.grand_total|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>
-      {% empty %}<tr><td colspan="4" class="muted">لا توجد فواتير بعد</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </div>
+
+<div class="card">
+  <div class="card-head"><h3>آخر الفواتير</h3><span><a href="{% url 'doc_list' 'sales-invoice' %}">المبيعات</a> · <a href="{% url 'doc_list' 'purchase-invoice' %}">المشتريات</a></span></div>
+  <table class="table table-hover">
+    <thead><tr><th>الرقم</th><th>النوع</th><th>الطرف</th><th>التاريخ</th><th class="num">الإجمالي</th><th>الحالة</th></tr></thead>
+    <tbody>
+    {% for doc in recent %}
+      <tr class="clickable" data-href="{{ doc.get_absolute_url }}">
+        <td><a href="{{ doc.get_absolute_url }}">{{ doc.name }}</a></td>
+        <td>{{ doc.document_title }}</td>
+        <td>{{ doc.party }}</td>
+        <td>{{ doc.posting_date|date:"Y-m-d" }}</td>
+        <td class="num">{{ doc.grand_total|cur }}</td>
+        <td><span class="badge status-{{ doc.docstatus }}">{{ doc.get_docstatus_display }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="muted center">لا توجد فواتير بعد — ابدأ من «إنشاء جديد».</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

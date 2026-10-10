@@ -3,6 +3,7 @@ from django.urls import path
 from accounts import reports
 
 urlpatterns = [
+    path("general-journal/", reports.general_journal, name="general_journal"),
     path("trial-balance/", reports.trial_balance, name="trial_balance"),
     path("general-ledger/", reports.general_ledger, name="general_ledger"),
     path("profit-and-loss/", reports.profit_and_loss, name="profit_and_loss"),

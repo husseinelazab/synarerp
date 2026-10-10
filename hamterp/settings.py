@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "selling",
     "buying",
     "hr",
+    "pos",
 ]
 
 MIDDLEWARE = [
@@ -94,4 +95,5 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
-ERP_NAME = "همت ERP"
+# اسم النظام المعروض في الواجهة، ويمكن تغييره دون تعديل الكود
+ERP_NAME = os.environ.get("HAMTERP_NAME", "همت ERP")

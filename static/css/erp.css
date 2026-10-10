@@ -131,3 +131,5 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
   .content { padding: 0; }
   .card { border: 0; }
 }
+.nav-pos { background: var(--success); color: #fff !important; margin: 8px 16px; border-radius: 8px; text-align: center; font-weight: 700; }
+.nav-pos:hover { background: #17692a !important; }

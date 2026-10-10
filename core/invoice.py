@@ -18,8 +18,18 @@ class InvoiceDocument(SubmittableDocument):
     grand_total = models.DecimalField("الإجمالي شامل الضريبة", max_digits=18, decimal_places=2, default=0, editable=False)
     outstanding_amount = models.DecimalField("المبلغ المتبقي", max_digits=18, decimal_places=2, default=0, editable=False)
 
+    # فواتير المبيعات تعيد تعريفه كحقل؛ المشتريات تعمل دائماً بأسعار غير شاملة للضريبة
+    prices_include_tax = False
+
     class Meta(SubmittableDocument.Meta):
         abstract = True
+
+    @property
+    def discount_excluding_tax(self):
+        """قيمة الخصم قبل الضريبة (عند الأسعار الشاملة يُستخرج منها جزء الضريبة)."""
+        if not self.prices_include_tax:
+            return flt(self.discount_amount)
+        return flt(flt(self.discount_amount) * 100 / (100 + flt(self.tax_rate)))
 
     @property
     def paid_amount(self):
@@ -32,9 +42,14 @@ class InvoiceDocument(SubmittableDocument):
             row.save(update_fields=["amount"])
             total += row.amount
         self.total = total
-        self.net_total = flt(total - flt(self.discount_amount))
-        self.tax_amount = flt(self.net_total * flt(self.tax_rate) / 100)
-        self.grand_total = flt(self.net_total + self.tax_amount)
+        if self.prices_include_tax:
+            self.grand_total = flt(total - flt(self.discount_amount))
+            self.tax_amount = flt(self.grand_total * flt(self.tax_rate) / (100 + flt(self.tax_rate)))
+            self.net_total = self.grand_total - self.tax_amount
+        else:
+            self.net_total = flt(total - flt(self.discount_amount))
+            self.tax_amount = flt(self.net_total * flt(self.tax_rate) / 100)
+            self.grand_total = flt(self.net_total + self.tax_amount)
         if self.is_draft:
             self.outstanding_amount = self.grand_total
 

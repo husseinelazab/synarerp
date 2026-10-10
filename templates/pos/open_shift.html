@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}فتح وردية{% endblock %}
+{% block heading %}نقطة البيع - فتح وردية{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px">
+  {% if profiles %}
+  <h3>ابدأ وردية جديدة</h3>
+  <form method="post" action="{% url 'pos_open_shift' %}" class="form-grid" style="grid-template-columns:1fr">
+    {% csrf_token %}
+    <div class="field"><label>نقطة البيع</label>
+      <select name="profile" class="form-select" required>{% for p in profiles %}<option value="{{ p.id }}">{{ p.name }} — {{ p.warehouse }}</option>{% endfor %}</select>
+    </div>
+    <div class="field"><label>النقدية الافتتاحية في الدرج</label>
+      <input type="number" name="opening_cash" step="0.01" min="0" value="0" class="form-control">
+    </div>
+    <div><button class="btn btn-primary">فتح الوردية</button> <a class="btn" href="{% url 'pos_shifts' %}">الورديات السابقة</a></div>
+  </form>
+  {% else %}
+  <div class="alert alert-warning">لا توجد نقطة بيع معرّفة. <a href="{% url 'doc_new' 'pos-profile' %}">أنشئ ملف نقطة بيع</a> أولاً.</div>
+  {% endif %}
+</div>
+{% endblock %}

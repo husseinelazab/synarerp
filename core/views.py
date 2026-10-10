@@ -199,7 +199,13 @@ def doc_print(request, slug, pk):
     dt = get_doctype(slug)
     obj = get_object_or_404(dt.model, pk=pk)
     child_headers, child_rows = _child_table(dt, obj)
+    qr = ""
+    if slug == "sales-invoice" and not obj.is_draft:
+        from core.zatca import invoice_qr_svg
+
+        qr = invoice_qr_svg(obj)
     return render(request, "core/print.html", {
+        "qr": qr,
         "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": obj.company if hasattr(obj, "company") else Company.get_default(),
         "totals": [(field_label(dt.model, f), display_value(obj, f)) for f in dt.totals if f != "outstanding_amount"],
     })

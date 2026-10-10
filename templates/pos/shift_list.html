@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}ورديات نقاط البيع{% endblock %}
+{% block heading %}ورديات نقاط البيع{% endblock %}
+{% block content %}
+<div class="toolbar"><span></span><a class="btn btn-primary" href="{% url 'pos_terminal' %}">فتح نقطة البيع</a></div>
+<div class="card">
+<table class="table table-hover">
+  <thead><tr><th>#</th><th>نقطة البيع</th><th>الكاشير</th><th>الفتح</th><th>الإغلاق</th><th>النقدية المتوقعة</th><th>الفعلية</th><th>الفرق</th><th>الحالة</th></tr></thead>
+  <tbody>
+  {% for s in shifts %}
+    <tr class="clickable" data-href="{% url 'pos_shift_report' s.pk %}"><td><a href="{% url 'pos_shift_report' s.pk %}">{{ s.pk }}</a></td><td>{{ s.profile }}</td><td>{{ s.user }}</td><td>{{ s.opened_at|date:"Y-m-d H:i" }}</td><td>{{ s.closed_at|date:"Y-m-d H:i"|default:"—" }}</td>
+    <td>{% if s.is_open %}—{% else %}{{ s.expected_cash|money }}{% endif %}</td><td>{% if s.is_open %}—{% else %}{{ s.closing_cash|money }}{% endif %}</td>
+    <td class="{% if s.difference < 0 %}neg{% elif s.difference > 0 %}pos{% endif %}">{% if s.is_open %}—{% else %}{{ s.difference|money }}{% endif %}</td>
+    <td><span class="badge {% if s.is_open %}status-0{% else %}status-1{% endif %}">{{ s.get_status_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="9" class="muted center">لا توجد ورديات</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

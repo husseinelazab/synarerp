@@ -12,6 +12,7 @@
   {% endfor %}
 </div>
 <div class="quick-actions">
+  <a class="btn btn-success" href="{% url 'pos_terminal' %}">نقطة البيع</a>
   <a class="btn btn-primary" href="{% url 'doc_new' 'sales-invoice' %}">+ فاتورة مبيعات</a>
   <a class="btn" href="{% url 'doc_new' 'purchase-invoice' %}">+ فاتورة مشتريات</a>
   <a class="btn" href="{% url 'doc_new' 'payment-entry' %}">+ سند قبض / صرف</a>

@@ -1,0 +1,60 @@
+{% load erp %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>{{ inv.name }}</title>
+  <style>
+    @page { size: 80mm auto; margin: 0; }
+    body { font-family: "Tajawal", Tahoma, Arial, sans-serif; width: 72mm; margin: 0 auto; padding: 4mm 0; font-size: 12px; color: #000; }
+    .c { text-align: center; }
+    h1 { font-size: 16px; margin: 0 0 2px; }
+    hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: 2px 0; text-align: right; vertical-align: top; }
+    .n { text-align: left; white-space: nowrap; }
+    .grand td { font-weight: bold; font-size: 14px; }
+    .qr svg { width: 34mm; height: 34mm; }
+    .stamp { font-weight: bold; font-size: 14px; }
+    @media screen { body { box-shadow: 0 0 6px #aaa; padding: 4mm; margin-top: 12px; } .no-print { margin-top: 8px; } }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="c">
+    <h1>{{ company.name }}</h1>
+    {% if company.address %}<div>{{ company.address }}</div>{% endif %}
+    {% if company.tax_id %}<div>الرقم الضريبي: {{ company.tax_id }}</div>{% endif %}
+    {% if company.commercial_register %}<div>س.ت: {{ company.commercial_register }}</div>{% endif %}
+    <div class="stamp">فاتورة ضريبية مبسطة</div>
+    {% if inv.is_cancelled %}<div class="stamp">*** ملغاة ***</div>{% endif %}
+  </div>
+  <hr>
+  <div>رقم الفاتورة: {{ inv.name }}</div>
+  <div>التاريخ: {{ inv.created_at|date:"Y-m-d H:i" }}</div>
+  <div>العميل: {{ inv.customer }}</div>
+  {% if inv.created_by %}<div>الكاشير: {{ inv.created_by.get_full_name|default:inv.created_by.username }}</div>{% endif %}
+  <hr>
+  <table>
+    <thead><tr><th>الصنف</th><th class="n">الكمية × السعر</th><th class="n">المبلغ</th></tr></thead>
+    <tbody>{% for r in rows %}<tr><td>{{ r.item.name }}</td><td class="n">{{ r.qty|floatformat:-3 }} × {{ r.rate|money }}</td><td class="n">{{ r.amount|money }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <hr>
+  <table>
+    <tr><td>الإجمالي{% if inv.prices_include_tax %} (شامل الضريبة){% endif %}</td><td class="n">{{ inv.total|money }}</td></tr>
+    {% if inv.discount_amount %}<tr><td>الخصم</td><td class="n">{{ inv.discount_amount|money }}</td></tr>{% endif %}
+    <tr><td>الصافي قبل الضريبة</td><td class="n">{{ inv.net_total|money }}</td></tr>
+    <tr><td>ضريبة القيمة المضافة {{ inv.tax_rate|floatformat:-2 }}%</td><td class="n">{{ inv.tax_amount|money }}</td></tr>
+    <tr class="grand"><td>الإجمالي شامل الضريبة</td><td class="n">{{ inv.grand_total|money }}</td></tr>
+    {% if inv.is_pos %}
+    {% if inv.paid_cash %}<tr><td>نقداً</td><td class="n">{{ inv.paid_cash|money }}</td></tr>{% endif %}
+    {% if inv.paid_card %}<tr><td>بطاقة</td><td class="n">{{ inv.paid_card|money }}</td></tr>{% endif %}
+    {% if inv.change_amount %}<tr><td>الباقي</td><td class="n">{{ inv.change_amount|money }}</td></tr>{% endif %}
+    {% endif %}
+  </table>
+  <hr>
+  {% if qr %}<div class="c qr">{{ qr|safe }}</div>{% endif %}
+  {% if footer %}<div class="c">{{ footer }}</div>{% endif %}
+  <div class="c no-print"><button onclick="window.print()">طباعة</button></div>
+  {% if auto_print %}<script>window.addEventListener("load", function () { window.print(); });</script>{% endif %}
+</body>
+</html>

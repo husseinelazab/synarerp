@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}تقرير الوردية #{{ shift.pk }}{% endblock %}
+{% block heading %}تقرير الوردية #{{ shift.pk }} — {{ shift.profile }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <span class="badge badge-lg {% if shift.is_open %}status-0{% else %}status-1{% endif %}">{{ shift.get_status_display }}</span>
+  <div class="actions"><a class="btn" href="{% url 'pos_shifts' %}">كل الورديات</a><button class="btn" onclick="window.print()">طباعة</button></div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <h3>البيانات</h3>
+    <div class="total-line"><span>الكاشير</span><strong>{{ shift.user.get_full_name|default:shift.user.username }}</strong></div>
+    <div class="total-line"><span>وقت الفتح</span><strong>{{ shift.opened_at|date:"Y-m-d H:i" }}</strong></div>
+    <div class="total-line"><span>وقت الإغلاق</span><strong>{{ shift.closed_at|date:"Y-m-d H:i"|default:"—" }}</strong></div>
+    {% if not shift.is_open %}
+    <div class="total-line"><span>النقدية الفعلية</span><strong>{{ shift.closing_cash|money }}</strong></div>
+    <div class="total-line grand"><span>الفرق</span><strong class="{% if shift.difference < 0 %}neg{% elif shift.difference > 0 %}pos{% endif %}">{{ shift.difference|money }}</strong></div>
+    {% if shift.notes %}<p>{{ shift.notes }}</p>{% endif %}
+    {% endif %}
+  </div>
+  <div class="card"><h3>الملخص</h3>{% include "pos/_summary.html" %}</div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <h3>الأصناف الأكثر مبيعاً</h3>
+    <table class="table"><thead><tr><th>الصنف</th><th>الكمية</th><th>القيمة</th></tr></thead>
+    <tbody>{% for r in top_items %}<tr><td>{{ r.items__item__name }}</td><td>{{ r.qty|floatformat:-3 }}</td><td>{{ r.amount|money }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">لا توجد مبيعات</td></tr>{% endfor %}</tbody></table>
+  </div>
+  <div class="card">
+    <h3>الفواتير</h3>
+    <table class="table"><thead><tr><th>الفاتورة</th><th>الوقت</th><th>الإجمالي</th><th>نقداً</th><th>بطاقة</th><th>الحالة</th></tr></thead>
+    <tbody>{% for inv in invoices %}<tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.created_at|date:"H:i" }}</td><td>{{ inv.grand_total|money }}</td><td>{{ inv.cash_received|money }}</td><td>{{ inv.paid_card|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>{% empty %}<tr><td colspan="6" class="muted">لا توجد فواتير</td></tr>{% endfor %}</tbody></table>
+  </div>
+</div>
+{% endblock %}

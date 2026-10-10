@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}إغلاق الوردية{% endblock %}
+{% block heading %}إغلاق الوردية #{{ shift.pk }} — {{ shift.profile }}{% endblock %}
+{% block content %}
+<div class="grid-2">
+  <div class="card">
+    <h3>ملخص الوردية</h3>
+    {% include "pos/_summary.html" %}
+  </div>
+  <div class="card">
+    <h3>جرد النقدية</h3>
+    <form method="post">
+      {% csrf_token %}
+      <div class="field"><label>النقدية الفعلية في الدرج</label>
+        <input type="number" name="closing_cash" step="0.01" min="0" class="form-control" required value="{{ summary.expected_cash }}">
+      </div>
+      <div class="field"><label>ملاحظات</label><textarea name="notes" rows="3" class="form-control"></textarea></div>
+      <p class="muted">سيتم احتساب العجز أو الزيادة بمقارنة النقدية الفعلية بالمتوقعة.</p>
+      <button class="btn btn-danger" onclick="return confirm('إغلاق الوردية نهائياً؟')">إغلاق الوردية</button>
+      <a class="btn" href="{% url 'pos_terminal' %}">رجوع لنقطة البيع</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

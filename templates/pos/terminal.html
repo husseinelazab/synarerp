@@ -1,0 +1,98 @@
+{% load static erp %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>نقطة البيع | {{ ERP_NAME }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/erp.css' %}">
+  <link rel="stylesheet" href="{% static 'css/pos.css' %}">
+</head>
+<body class="pos-body">
+{% csrf_token %}
+<header class="pos-header">
+  <div class="pos-brand">{{ ERP_NAME }} <span>· {{ profile.name }}</span></div>
+  <div class="pos-shift">الكاشير: {{ shift.user.get_full_name|default:shift.user.username }} · وردية #{{ shift.pk }} منذ {{ shift.opened_at|date:"H:i" }}</div>
+  <div class="pos-nav">
+    <a class="btn" href="{% url 'pos_shift_report' shift.pk %}" target="_blank">ملخص الوردية</a>
+    <a class="btn" href="{% url 'pos_close_shift' %}">إغلاق الوردية</a>
+    <a class="btn" href="{% url 'dashboard' %}">النظام</a>
+  </div>
+</header>
+
+<div class="pos-layout">
+  <section class="pos-products">
+    <div class="pos-search">
+      <input id="search" class="form-control" placeholder="ابحث بالاسم أو الكود أو امسح الباركود (F2)" autocomplete="off" autofocus>
+    </div>
+    <div class="pos-groups" id="groups">
+      <button class="chip active" data-group="">الكل</button>
+      {% for g in groups %}<button class="chip" data-group="{{ g.id }}">{{ g.name }}</button>{% endfor %}
+    </div>
+    <div class="pos-grid" id="grid"><div class="muted">جارٍ تحميل الأصناف...</div></div>
+  </section>
+
+  <aside class="pos-cart">
+    <div class="field">
+      <label>العميل</label>
+      <select id="customer" class="form-select">
+        {% for c in customers %}<option value="{{ c.id }}" {% if c.id == profile.default_customer_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="cart-lines" id="cart"></div>
+    <div class="cart-totals">
+      <div class="total-line"><span>الإجمالي</span><span id="t-total">0.00</span></div>
+      {% if profile.allow_discount %}
+      <div class="total-line"><span>الخصم</span><input id="discount" type="number" min="0" step="0.01" value="0" class="form-control discount-input"></div>
+      {% endif %}
+      <div class="total-line"><span>الصافي قبل الضريبة</span><span id="t-net">0.00</span></div>
+      <div class="total-line"><span>ضريبة القيمة المضافة ({{ profile.tax_rate|floatformat:-2 }}%)</span><span id="t-tax">0.00</span></div>
+      <div class="total-line grand"><span>المطلوب</span><span id="t-grand">0.00</span></div>
+    </div>
+    <div class="cart-actions">
+      <button class="btn btn-danger-outline" id="clear">تفريغ</button>
+      <button class="btn btn-success pay-btn" id="pay">الدفع (F9)</button>
+    </div>
+    <div class="muted small">{% if profile.prices_include_tax %}الأسعار شاملة الضريبة{% else %}الأسعار غير شاملة الضريبة{% endif %}</div>
+  </aside>
+</div>
+
+<div class="modal" id="pay-modal" hidden>
+  <div class="modal-box">
+    <h2>الدفع</h2>
+    <div class="pay-due">المطلوب: <strong id="m-grand">0.00</strong></div>
+    <div class="field"><label>نقداً</label><input id="m-cash" type="number" min="0" step="0.01" class="form-control big-input"></div>
+    <div class="field"><label>بطاقة (مدى / فيزا)</label><input id="m-card" type="number" min="0" step="0.01" class="form-control big-input" value="0"></div>
+    <div class="quick-pay">
+      <button class="btn" data-quick="exact">المبلغ المطلوب نقداً</button>
+      <button class="btn" data-quick="card">كامل المبلغ بطاقة</button>
+      <button class="btn" data-quick="50">50</button>
+      <button class="btn" data-quick="100">100</button>
+      <button class="btn" data-quick="200">200</button>
+      <button class="btn" data-quick="500">500</button>
+    </div>
+    <div class="pay-change"><span id="m-change-label">الباقي للعميل: </span><strong id="m-change">0.00</strong></div>
+    <div class="alert alert-error" id="m-error" hidden></div>
+    <div class="cart-actions">
+      <button class="btn" id="m-cancel">رجوع</button>
+      <button class="btn btn-success pay-btn" id="m-confirm">تأكيد البيع</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="done-modal" hidden>
+  <div class="modal-box center">
+    <h2 class="ok">✓ تمت عملية البيع</h2>
+    <p>الفاتورة: <strong id="d-name"></strong></p>
+    <p class="pay-change">الباقي للعميل: <strong id="d-change"></strong></p>
+    <div class="cart-actions">
+      <a class="btn" id="d-print" target="_blank">طباعة الإيصال</a>
+      <button class="btn btn-primary pay-btn" id="d-new">عملية جديدة (Enter)</button>
+    </div>
+  </div>
+</div>
+
+{{ config|json_script:"pos-config" }}
+<script src="{% static 'js/pos.js' %}"></script>
+</body>
+</html>

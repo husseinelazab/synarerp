@@ -15,6 +15,8 @@
     <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}</a>
     <nav>
       <a href="{% url 'dashboard' %}" class="nav-link {% if request.path == '/' %}active{% endif %}">لوحة التحكم</a>
+      <a href="{% url 'pos_terminal' %}" class="nav-link nav-pos">نقطة البيع</a>
+      <a href="{% url 'pos_shifts' %}" class="nav-link {% if '/pos/shifts' in request.path %}active{% endif %}">ورديات نقاط البيع</a>
       {% for section in erp_menu %}
         <div class="nav-section">{{ section.label }}</div>
         {% for dt in section.doctypes %}

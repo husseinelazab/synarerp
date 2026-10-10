@@ -54,6 +54,8 @@ class Command(BaseCommand):
         for name in DESIGNATIONS:
             Designation.objects.get_or_create(name=name)
 
+        self._setup_pos(company)
+
         if opts["admin"]:
             User = get_user_model()
             if not User.objects.filter(username=opts["admin"]).exists():
@@ -78,3 +80,15 @@ class Command(BaseCommand):
             )
             if children:
                 self._create_accounts(company, children, account, node_root)
+
+    def _setup_pos(self, company):
+        from pos.models import POSProfile
+        from selling.models import Customer
+
+        walk_in, _ = Customer.objects.get_or_create(name="عميل نقدي", defaults={"customer_type": "individual"})
+        if not POSProfile.objects.exists():
+            POSProfile.objects.create(
+                company=company, name="الكاشير الرئيسي", warehouse=Warehouse.objects.get(name="المستودع الرئيسي"),
+                default_customer=walk_in, cash_account=company.default_cash_account,
+                card_account=company.accounts.get(number="1102"), tax_rate=company.default_tax_rate,
+            )

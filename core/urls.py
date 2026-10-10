@@ -1,6 +1,7 @@
 from django.urls import path
 
 from core import import_views, views
+from stock import tools as stock_tools
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -14,6 +15,7 @@ urlpatterns = [
     path("platform/email/", views.platform_email_settings, name="platform_email_settings"),
     path("account/notifications/<int:pk>/", views.notification_open, name="notification_open"),
     path("api/item/<int:pk>/", views.item_api, name="item_api"),
+    path("api/item/lookup/", stock_tools.lookup_api, name="item_lookup"),
     path("app/<slug:slug>/", views.doc_list, name="doc_list"),
     path("app/<slug:slug>/new/", views.doc_form, name="doc_new"),
     path("app/<slug:slug>/import/", import_views.import_page, name="doc_import"),

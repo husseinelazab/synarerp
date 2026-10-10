@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}فاحص الأسعار{% endblock %}
+{% block heading %}فاحص الأسعار{% endblock %}
+{% block content %}
+<div class="pc-wrap">
+  <div class="card">
+    <div class="scan-inputs">
+      <input id="pc-code" class="form-control big-input" placeholder="امسح باركود الصنف لمعرفة سعره…" autocomplete="off" autofocus dir="ltr">
+      <button type="button" class="btn" id="pc-camera" hidden>📷 الكاميرا</button>
+    </div>
+  </div>
+  <div class="card pc-result" id="pc-result"><div class="muted">امسح أي صنف ليظهر سعره شاملاً الضريبة ورصيده في المستودعات.</div></div>
+</div>
+<script src="{% static 'js/scan.js' %}"></script>
+<script>
+(function () {
+  "use strict";
+  var codeEl = document.getElementById("pc-code"), out = document.getElementById("pc-result"), timer = null;
+  var currencyHtml = '{{ currency_html|escapejs }}';
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+  function lookup(code) {
+    if (!code.trim()) return;
+    fetch("{% url 'item_lookup' %}?stock=1&code=" + encodeURIComponent(code.trim()), { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        SynarScan.beep(res.ok);
+        if (!res.ok) { out.innerHTML = '<div class="pc-name text-danger">' + esc(res.data.error) + '</div><div class="pc-meta" dir="ltr">' + esc(code) + "</div>"; }
+        else {
+          var d = res.data;
+          out.innerHTML = '<div class="pc-name">' + esc(d.name) + '</div><div class="pc-price">' +
+            parseFloat(d.price).toLocaleString("en-US", { minimumFractionDigits: 2 }) + ' <span style="font-size:.6em">' + currencyHtml + "</span></div>" +
+            '<div class="pc-meta">السعر شامل ضريبة القيمة المضافة · ' + esc(d.uom) + ' · <span dir="ltr">' + esc(d.barcode || d.code) + "</span>" +
+            (d.shelf ? " · الرف " + esc(d.shelf) : "") + "</div>" +
+            (d.stock && d.stock.length ? '<div class="pc-stock">' + d.stock.map(function (s) { return "<span>" + esc(s.warehouse) + ": <b>" + s.qty + "</b></span>"; }).join("") + "</div>" : '<div class="pc-meta">لا يوجد رصيد</div>');
+        }
+        clearTimeout(timer);
+        timer = setTimeout(function () { out.innerHTML = '<div class="muted">امسح صنفاً آخر…</div>'; }, 20000);
+      });
+  }
+  codeEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); lookup(codeEl.value); codeEl.value = ""; }
+  });
+  document.addEventListener("click", function (e) { if (!e.target.closest("input, button, a")) codeEl.focus(); });
+  if (SynarScan.cameraSupported()) {
+    var cam = document.getElementById("pc-camera");
+    cam.hidden = false;
+    cam.addEventListener("click", function () { SynarScan.openCamera(lookup); });
+  }
+})();
+</script>
+{% endblock %}

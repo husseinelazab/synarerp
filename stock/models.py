@@ -58,6 +58,8 @@ class Item(TenantModel):
                                     default=VATCategory.STANDARD)
     vat_exemption_reason = models.CharField("سبب الإعفاء / النسبة الصفرية", max_length=20, choices=REASON_CHOICES,
                                             blank=True)
+    shelf_location = models.CharField("موقع الرف", max_length=30, blank=True,
+                                      help_text="مثل A-03-2 (الممر-الرف-المستوى)؛ يُطبع على ملصق الرف")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -68,6 +70,21 @@ class Item(TenantModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    @classmethod
+    def find_by_code(cls, code, queryset=None):
+        """البحث بالباركود أو كود الصنف كما يقرؤه الماسح (مع مطابقة UPC-A وEAN-13 بالصفر البادئ)."""
+        code = (code or "").strip()
+        if not code:
+            return None
+        qs = queryset if queryset is not None else cls.objects.filter(disabled=False)
+        candidates = [code]
+        if code.isdigit() and len(code) == 12:
+            candidates.append("0" + code)
+        elif code.isdigit() and len(code) == 13 and code.startswith("0"):
+            candidates.append(code[1:])
+        item = qs.filter(barcode__in=candidates).order_by("id").first()
+        return item or qs.filter(code__iexact=code).first()
 
 
 class Warehouse(TenantModel):
@@ -348,6 +365,72 @@ class StockCount(SubmittableDocument):
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
+
+    # ---------- الجرد بالماسح الضوئي ----------
+    def scan(self, code, qty=1, user=None):
+        """تسجيل قراءة ماسح: يعيد الصنف وإجمالي ما عُدّ منه في هذا الجرد."""
+        from django.db.models import Sum
+
+        if not self.is_draft:
+            raise ValidationError("الجرد معتمد أو ملغى؛ لا يمكن المسح عليه.")
+        item = Item.find_by_code(code)
+        if item is None:
+            raise ValidationError(f"لا يوجد صنف بهذا الباركود: {code}")
+        if not item.is_stock_item:
+            raise ValidationError(f"«{item.name}» ليس صنفاً مخزنياً.")
+        if self.item_group_id and item.item_group_id != self.item_group_id:
+            raise ValidationError(f"«{item.name}» ليس من مجموعة هذا الجرد ({self.item_group}).")
+        qty = flt(qty, 3)
+        if qty == 0:
+            raise ValidationError("الكمية لا تكون صفراً.")
+        total = flt(self.scans.filter(item=item).aggregate(t=Sum("qty"))["t"] or 0, 3) + qty
+        if total < 0:
+            raise ValidationError("لا يمكن أن يصبح المعدود بالسالب.")
+        StockCountScan.objects.create(parent=self, item=item, qty=qty, code=str(code)[:60], user=user)
+        return item, total
+
+    def scanned_totals(self):
+        from django.db.models import Count, Max, Sum
+
+        return list(self.scans.values("item_id", "item__code", "item__name", "item__barcode")
+                    .annotate(qty=Sum("qty"), reads=Count("id"), last=Max("id")).order_by("-last"))
+
+    def apply_scans(self, zero_unscanned=False):
+        """نقل نتائج المسح إلى «الكمية المعدودة». zero_unscanned: الأصناف غير الممسوحة تُعتبر صفراً (جرد كامل)."""
+        if not self.is_draft:
+            raise ValidationError("الجرد معتمد أو ملغى.")
+        totals = {row["item_id"]: row["qty"] for row in self.scanned_totals()}
+        if not totals:
+            raise ValidationError("لم يُمسح أي صنف بعد.")
+        if not self.items.exists():
+            self.fetch_items()
+        rows = {row.item_id: row for row in self.items.all()}
+        for item_id, qty in totals.items():
+            row = rows.get(item_id) or StockCountItem(parent=self, item_id=item_id)
+            row.counted_qty = flt(qty, 3)
+            row.save()
+            rows[item_id] = row
+        if zero_unscanned:
+            self.items.exclude(item_id__in=totals).update(counted_qty=0)
+        self.calculate_totals()
+        self.save()
+        return len(totals)
+
+
+class StockCountScan(models.Model):
+    """سجل المسح بالماسح الضوئي أثناء الجرد: كل قراءة سطر، ويمكن لأكثر من شخص المسح معاً على أجهزة مختلفة."""
+
+    parent = models.ForeignKey(StockCount, models.CASCADE, related_name="scans")
+    item = models.ForeignKey(Item, models.PROTECT, related_name="+", verbose_name="الصنف")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    code = models.CharField("الكود الممسوح", max_length=60, blank=True)
+    user = models.ForeignKey("auth.User", models.SET_NULL, null=True, related_name="+", verbose_name="بواسطة")
+    created_at = models.DateTimeField("الوقت", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "قراءة جرد"
+        verbose_name_plural = "قراءات الجرد"
+        ordering = ["id"]
 
 
 class StockCountItem(models.Model):

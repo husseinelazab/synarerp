@@ -15,6 +15,10 @@
     {% if not dt.is_submittable or obj.is_draft %}
       <a class="btn" href="{% url 'doc_edit' dt.slug obj.pk %}">تعديل</a>
     {% endif %}
+    {% if dt.slug == 'item' %}<a class="btn" href="{% url 'stock_labels' %}?item={{ obj.pk }}">طباعة ملصق باركود</a>{% endif %}
+    {% if dt.slug == 'stock-count' and obj.is_draft %}<a class="btn btn-primary" href="{% url 'stock_count_scan' obj.pk %}">الجرد بالماسح الضوئي</a>{% endif %}
+    {% if obj.is_submitted and dt.slug == 'purchase-receipt' %}<a class="btn" href="{% url 'stock_labels' %}?doc=pr-{{ obj.pk }}">ملصقات الأصناف المستلمة</a>{% endif %}
+    {% if obj.is_submitted and dt.slug == 'purchase-invoice' and obj.update_stock and not obj.is_return %}<a class="btn" href="{% url 'stock_labels' %}?doc=pinv-{{ obj.pk }}">ملصقات الأصناف المستلمة</a>{% endif %}
     {% if dt.is_submittable %}
       <a class="btn" href="{% url 'doc_print' dt.slug obj.pk %}" target="_blank">طباعة</a>
       {% if obj.is_draft %}

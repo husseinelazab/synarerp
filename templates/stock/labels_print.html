@@ -1,0 +1,77 @@
+{% load static %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ملصقات ({{ labels|length }})</title>
+<link rel="stylesheet" href="{% static 'css/currency.css' %}">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --w: {{ mm.w }}; --h: {{ mm.h }}; --accent: {{ ps.accent_color|default:"#1f4e79" }}; }
+  @page { {% if pages %}size: A4; margin: 0;{% else %}size: {{ mm.w }} {{ mm.h }}; margin: 0;{% endif %} }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: "Tajawal", Tahoma, sans-serif; color: #000; background: #e9edf2; }
+  .toolbar { position: sticky; top: 0; z-index: 2; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;
+    padding: 10px; background: #fff; border-bottom: 1px solid #d5dce4; font-size: 14px; }
+  .toolbar button { font: inherit; padding: 7px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
+  .roll { display: flex; flex-wrap: wrap; gap: 4mm; justify-content: center; padding: 8mm; }
+  .sheet { width: 210mm; height: 297mm; margin: 6mm auto; background: #fff; padding: {{ mm.top|default:"0mm" }} {{ mm.side|default:"0mm" }} 0;
+    display: grid; grid-template-columns: repeat({{ size.cols|default:1 }}, var(--w)); grid-auto-rows: var(--h);
+    column-gap: {{ mm.gap_x|default:"0mm" }}; row-gap: {{ mm.gap_y|default:"0mm" }}; align-content: start; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+  .lbl { width: var(--w); height: var(--h); overflow: hidden; background: #fff; display: flex; flex-direction: column;
+    padding: calc(var(--h) * .05) calc(var(--w) * .04); text-align: center; line-height: 1.15; }
+  .roll .lbl { outline: 1px dashed #aab4c0; }
+  .sheet .lbl { outline: 1px dashed #dde3ea; }
+  .lbl svg { width: 100%; height: 100%; display: block; }
+  .co { font-size: calc(var(--h) * .075); font-weight: 700; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .code { font-size: calc(var(--h) * .085); letter-spacing: .5px; font-weight: 700; }
+  .note { font-size: calc(var(--h) * .07); font-weight: 500; }
+  .bc { min-height: 0; padding: calc(var(--h) * .02) 0; }
+  .grow { flex: 1; }
+  /* ملصق الصنف */
+  .it-name { font-size: calc(var(--h) * .1); font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .it-price { font-size: calc(var(--h) * .13); }
+  .it-price b { font-size: min(calc(var(--h) * .15), calc(var(--w) * .085)); font-weight: 800; }
+  .exp { font-size: calc(var(--h) * .075); white-space: nowrap; overflow: hidden; }
+  /* بطاقة السعر */
+  .lbl-price { justify-content: center; gap: calc(var(--h) * .03); }
+  .pr-name { font-size: calc(var(--h) * .13); font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pr-price { white-space: nowrap; font-size: min(calc(var(--h) * .3), calc(var(--w) * .16)); font-weight: 800; color: var(--accent); }
+  /* ملصق الرف */
+  .lbl-shelf { text-align: right; border-inline-start: calc(var(--w) * .025) solid var(--accent); gap: calc(var(--h) * .02); }
+  .sh-name { font-size: calc(var(--h) * .11); font-weight: 800; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sh-mid { display: flex; align-items: center; gap: 3%; flex: 1; min-height: 0; }
+  .sh-price { font-size: min(calc(var(--h) * .3), calc(var(--w) * .13)); font-weight: 800; color: var(--accent); white-space: nowrap; }
+  .sh-unit { font-size: calc(var(--h) * .07); color: #333; }
+  .sh-foot { display: flex; align-items: flex-end; gap: 3%; height: 30%; }
+  .sh-bc { width: 55%; height: 100%; display: flex; flex-direction: column; }
+  .sh-bc svg { flex: 1; min-height: 0; }
+  .sh-bc .code { font-size: calc(var(--h) * .065); text-align: center; }
+  .sh-info { flex: 1; font-size: calc(var(--h) * .065); text-align: left; color: #333; }
+  .sh-info .shelf { display: inline-block; background: #000; color: #fff; font-weight: 800; padding: 0 1.2mm; border-radius: 1mm; font-size: calc(var(--h) * .08); }
+  .lbl .cur { font-size: .85em; }
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .roll { display: block; padding: 0; }
+    .roll .lbl { outline: 0; break-after: page; page-break-after: always; }
+    .roll .lbl:last-child { break-after: auto; page-break-after: auto; }
+    .sheet { margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
+    .sheet:last-child { break-after: auto; page-break-after: auto; }
+    .sheet .lbl { outline: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>{{ labels|length }} ملصق · {{ size.label }}</span>
+  <button onclick="window.print()">🖨 طباعة</button>
+</div>
+{% if pages %}
+  {% for page in pages %}<div class="sheet">{% for l in page %}{% include "stock/_label.html" %}{% endfor %}</div>{% endfor %}
+{% else %}
+  <div class="roll">{% for l in labels %}{% include "stock/_label.html" %}{% endfor %}</div>
+{% endif %}
+</body>
+</html>

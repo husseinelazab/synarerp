@@ -253,3 +253,49 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .notif-list a { display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border, #e5e7eb); color: var(--text); }
 .notif-list a.unread { font-weight: 700; }
 .notif-list a.unread::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--primary, #1f4e79); align-self: center; flex: none; }
+
+/* ===== الماسح الضوئي والملصقات ===== */
+.big-input { font-size: 20px; padding: 10px 14px; }
+label.check { display: flex; gap: 8px; align-items: center; margin: 6px 0; cursor: pointer; }
+.scan-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.scan-inputs { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.scan-inputs #scan-code, .scan-inputs #pc-code { flex: 1; min-width: 220px; }
+.scan-qty { display: flex; flex-direction: column; gap: 4px; width: 110px; font-size: 13px; color: var(--muted); }
+.scan-last { margin-top: 14px; padding: 14px 16px; border-radius: var(--radius); font-size: 17px; }
+.scan-last.ok { background: #e9f7ee; color: var(--success); }
+.scan-last.fail { background: #fdecec; color: var(--danger); font-weight: 700; }
+.scan-name { font-size: 22px; font-weight: 800; color: var(--text); }
+.scan-total b { font-size: 26px; }
+.scan-list-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+tr.row-hl td { background: #fff7d6; }
+.cam-overlay { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; align-items: center; justify-content: center; }
+.cam-overlay video { width: 100%; height: 100%; object-fit: cover; }
+.cam-frame { position: absolute; width: 72%; height: 26%; border: 3px solid #3ddc84; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); }
+.cam-close { position: absolute; bottom: 24px; }
+.form-scan { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.form-scan input { max-width: 340px; }
+.form-scan .scan-msg { font-size: 13px; }
+
+/* فاحص الأسعار */
+.pc-wrap { max-width: 760px; margin: 0 auto; }
+.pc-result { text-align: center; padding: 28px 16px; }
+.pc-name { font-size: 28px; font-weight: 800; }
+.pc-price { font-size: 64px; font-weight: 800; color: var(--primary); line-height: 1.2; margin: 10px 0; }
+.pc-meta { color: var(--muted); }
+.pc-stock { margin-top: 14px; display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.pc-stock span { background: var(--primary-light); border-radius: 20px; padding: 4px 12px; font-size: 14px; }
+
+/* صفحة الملصقات */
+.labels-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+.labels-grid > * { min-width: 0; }
+.labels-grid .sticky-side { position: sticky; top: 76px; }
+.label-sources { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.label-sources .full { grid-column: 1 / -1; }
+.label-rows input { min-width: 70px; }
+.label-rows input.copies { width: 80px; }
+.label-rows input.date { width: 150px; }
+.search-results { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; background: #fff; }
+.search-results div { padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.search-results div:hover { background: var(--primary-light); }
+@media (max-width: 1000px) { .labels-grid, .label-sources { grid-template-columns: 1fr; } .labels-grid .sticky-side { position: static; } }
+.btn-sm { padding: 3px 10px; font-size: 13px; }

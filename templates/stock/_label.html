@@ -1,0 +1,36 @@
+{% load erp %}<div class="lbl lbl-{{ kind }}">
+{% if l %}
+  {% if kind == 'shelf' %}
+    <div class="sh-name">{{ l.item.name }}</div>
+    <div class="sh-mid">
+      <div class="sh-price">{{ l.price|cur:currency }}</div>
+      <div class="sh-unit">{% if show.show_vat_note %}<div>شامل الضريبة</div>{% endif %}<div>لكل {{ l.item.uom }}</div></div>
+    </div>
+    <div class="sh-foot">
+      {% if l.svg %}<div class="sh-bc">{{ l.svg|safe }}{% if show.show_code %}<div class="code" dir="ltr">{{ l.code }}</div>{% endif %}</div>{% endif %}
+      <div class="sh-info">
+        {% if l.item.shelf_location %}<div class="shelf" dir="ltr">{{ l.item.shelf_location }}</div>{% endif %}
+        {% if show.show_company %}<div>{{ company.name }}</div>{% endif %}
+        <div dir="ltr">{{ today|date:"Y-m-d" }}</div>
+      </div>
+    </div>
+  {% elif kind == 'price' %}
+    {% if show.show_company %}<div class="co">{{ company.name }}</div>{% endif %}
+    <div class="pr-name">{{ l.item.name }}</div>
+    <div class="pr-price">{{ l.price|cur:currency }}</div>
+    {% if show.show_vat_note %}<div class="note">شامل ضريبة القيمة المضافة</div>{% endif %}
+  {% elif kind == 'barcode' %}
+    <div class="bc grow">{{ l.svg|safe }}</div>
+    {% if show.show_code %}<div class="code" dir="ltr">{{ l.code }}</div>{% endif %}
+  {% else %}
+    {% if show.show_company %}<div class="co">{{ company.name }}</div>{% endif %}
+    <div class="it-name">{{ l.item.name }}</div>
+    <div class="it-price"><b>{{ l.price|cur:currency }}</b>{% if show.show_vat_note %} <span class="note">شامل الضريبة</span>{% endif %}</div>
+    <div class="bc grow">{{ l.svg|safe }}</div>
+    {% if show.show_code %}<div class="code" dir="ltr">{{ l.code }}</div>{% endif %}
+    {% if show.show_expiry %}{% if l.expiry or l.production or l.batch %}
+    <div class="exp">{% if l.production %}إنتاج <span dir="ltr">{{ l.production|date:"Y-m-d" }}</span> {% endif %}{% if l.expiry %}انتهاء <b dir="ltr">{{ l.expiry|date:"Y-m-d" }}</b> {% endif %}{% if l.batch %}<span dir="ltr">#{{ l.batch }}</span>{% endif %}</div>
+    {% endif %}{% endif %}
+  {% endif %}
+{% endif %}
+</div>

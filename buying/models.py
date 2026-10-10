@@ -175,6 +175,9 @@ class PurchaseInvoiceItem(InvoiceItem):
     receipt_item = models.ForeignKey("buying.PurchaseReceiptItem", models.PROTECT, null=True, blank=True,
                                      editable=False, related_name="invoice_items", verbose_name="بند إذن الاستلام")
 
+    batch_no = models.CharField("رقم التشغيلة", max_length=40, blank=True)
+    expiry_date = models.DateField("تاريخ الانتهاء", null=True, blank=True)
+
     class Meta:
         verbose_name = "بند فاتورة مشتريات"
         verbose_name_plural = "الأصناف"
@@ -225,6 +228,9 @@ class PurchaseReceiptItem(FulfillmentItem):
     parent = models.ForeignKey(PurchaseReceipt, models.CASCADE, related_name="items")
     order_item = models.ForeignKey(PurchaseOrderItem, models.PROTECT, null=True, blank=True, editable=False,
                                    related_name="receipt_items", verbose_name="بند أمر الشراء")
+
+    batch_no = models.CharField("رقم التشغيلة", max_length=40, blank=True)
+    expiry_date = models.DateField("تاريخ الانتهاء", null=True, blank=True)
 
     class Meta:
         verbose_name = "بند إذن استلام"

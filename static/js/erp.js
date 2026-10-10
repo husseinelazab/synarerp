@@ -89,5 +89,48 @@
     recalc();
   });
 
+  // إضافة الأصناف بالماسح الضوئي: يزيد كمية السطر الموجود أو يملأ سطراً فارغاً أو يضيف سطراً جديداً
+  var scanInput = document.getElementById("form-scan");
+  if (scanInput) {
+    var scanMsg = document.getElementById("form-scan-msg");
+    var activeRows = function () {
+      return Array.prototype.filter.call(tbody.querySelectorAll("tr.child-row"), function (row) {
+        var del = field(row, "DELETE");
+        return !(del && del.checked);
+      });
+    };
+    scanInput.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var text = scanInput.value.trim();
+      scanInput.value = "";
+      if (!text) return;
+      var m = /^(\d+(?:\.\d+)?)\s*[*xX×]\s*(.+)$/.exec(text), qty = m ? parseFloat(m[1]) : 1, code = m ? m[2] : text;
+      fetch("/api/item/lookup/?code=" + encodeURIComponent(code), { credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { scanMsg.className = "scan-msg text-danger"; scanMsg.textContent = "✗ " + res.data.error + " (" + code + ")"; return; }
+          var id = String(res.data.id), rows = activeRows(), row = null;
+          rows.forEach(function (r) { var s = field(r, "item"); if (!row && s && s.value === id) row = r; });
+          if (row) {
+            var q = field(row, "qty");
+            if (q) q.value = Math.round((num(q.value) + qty) * 1000) / 1000;
+          } else {
+            rows.forEach(function (r) { var s = field(r, "item"); if (!row && s && !s.value) row = r; });
+            if (!row) { document.querySelector(".add-row").click(); row = tbody.querySelector("tr.child-row:last-child"); }
+            var select = field(row, "item");
+            select.value = id;
+            if (select.value !== id) { scanMsg.className = "scan-msg text-danger"; scanMsg.textContent = "✗ الصنف غير متاح في هذا المستند"; return; }
+            var q2 = field(row, "qty");
+            if (q2) q2.value = qty;
+            fetchRate(select);
+          }
+          scanMsg.className = "scan-msg ok";
+          scanMsg.textContent = "✓ " + res.data.name;
+          recalc();
+        });
+    });
+  }
+
   recalc();
 })();

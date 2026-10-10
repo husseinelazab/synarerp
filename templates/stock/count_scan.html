@@ -1,0 +1,146 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}الجرد بالماسح — {{ count.name }}{% endblock %}
+{% block heading %}الجرد بالماسح الضوئي{% endblock %}
+{% block content %}
+<div class="card scan-head">
+  <div>
+    <div><b>{{ count.name }}</b> · المستودع: <b>{{ count.warehouse }}</b>{% if count.item_group %} · المجموعة: <b>{{ count.item_group }}</b>{% endif %}</div>
+    <div class="muted small">امسح كل قطعة، أو اكتب الكمية قبل المسح، أو امسح بصيغة <code dir="ltr">12*الباركود</code>. يمكن لأكثر من شخص المسح على أجهزة مختلفة في نفس الوقت.</div>
+  </div>
+  <a class="btn" href="{% url 'doc_detail' 'stock-count' count.pk %}">رجوع للجرد</a>
+</div>
+
+<div class="card scan-box">
+  <div class="scan-inputs">
+    <label class="scan-qty"><span>الكمية</span><input id="scan-qty" type="number" min="0.001" step="any" value="1" class="form-control big-input"></label>
+    <input id="scan-code" class="form-control big-input" placeholder="امسح الباركود هنا…" autocomplete="off" autofocus dir="ltr">
+    <button type="button" class="btn" id="scan-camera" hidden>📷 الكاميرا</button>
+    <button type="button" class="btn" id="scan-undo">↶ تراجع عن آخر مسح</button>
+  </div>
+  <div class="scan-last" id="scan-last" hidden></div>
+</div>
+
+<div class="card">
+  <div class="scan-list-head">
+    <h3>الأصناف الممسوحة <span class="muted" id="scan-summary"></span></h3>
+    <input id="scan-filter" class="form-control" placeholder="بحث في الممسوح…" style="max-width:240px">
+  </div>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>الصنف</th><th>الكود</th><th>الباركود</th><th>عدد القراءات</th><th>المعدود</th><th></th></tr></thead>
+    <tbody id="scan-rows"><tr><td colspan="6" class="muted">لم يُمسح شيء بعد.</td></tr></tbody>
+  </table>
+  </div>
+</div>
+
+<form method="post" action="{% url 'stock_count_apply' count.pk %}" class="card" onsubmit="return confirm('نقل نتائج المسح إلى الجرد؟')">
+  {% csrf_token %}
+  <h3>إنهاء المسح</h3>
+  <label class="check"><input type="checkbox" name="zero_unscanned"> الأصناف التي لم تُمسح تُعتبر كميتها <b>صفراً</b> (جرد كامل للمستودع{% if count.item_group %} أو المجموعة{% endif %})</label>
+  <p class="muted small">بدون هذا الخيار يبقى ما لم يُمسح على كميته الدفترية (جرد جزئي لما مسحته فقط). بعد النقل راجع الفروقات في الجرد ثم اعتمده.</p>
+  <button class="btn btn-primary btn-lg">نقل النتائج إلى الجرد</button>
+</form>
+
+<script src="{% static 'js/scan.js' %}"></script>
+<script>
+(function () {
+  "use strict";
+  var api = "{% url 'stock_count_scan_api' count.pk %}";
+  var csrf = "{{ csrf_token }}";
+  var codeEl = document.getElementById("scan-code"), qtyEl = document.getElementById("scan-qty");
+  var lastEl = document.getElementById("scan-last"), rowsEl = document.getElementById("scan-rows");
+  var filterEl = document.getElementById("scan-filter"), rows = [], lastItem = null, busy = false, queue = [];
+
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+  function fmtQty(n) { return (Math.round(n * 1000) / 1000).toLocaleString("en-US"); }
+
+  function post(body) {
+    return fetch(api, { method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function show(ok, html) {
+    lastEl.hidden = false;
+    lastEl.className = "scan-last " + (ok ? "ok" : "fail");
+    lastEl.innerHTML = html;
+  }
+
+  function render() {
+    var q = filterEl.value.trim().toLowerCase();
+    var list = rows.filter(function (r) { return !q || (r.name + " " + r.code + " " + (r.barcode || "")).toLowerCase().indexOf(q) >= 0; });
+    rowsEl.innerHTML = list.length ? list.map(function (r) {
+      return '<tr' + (r.item === lastItem ? ' class="row-hl"' : "") + "><td>" + esc(r.name) + '</td><td dir="ltr">' + esc(r.code) +
+        '</td><td dir="ltr">' + esc(r.barcode) + "</td><td>" + r.reads + '</td><td class="strong">' + fmtQty(r.qty) +
+        '</td><td><button type="button" class="btn btn-sm" data-set="' + r.item + '" data-qty="' + r.qty + '">تعديل</button></td></tr>';
+    }).join("") : '<tr><td colspan="6" class="muted">لم يُمسح شيء بعد.</td></tr>';
+  }
+
+  function apply(data) {
+    if (data.rows) { rows = data.rows; render(); }
+    var total = rows.reduce(function (s, r) { return s + r.qty; }, 0);
+    document.getElementById("scan-summary").textContent = "(" + rows.length + " صنف · " + fmtQty(total) + " قطعة · " + (data.reads || 0) + " قراءة)";
+  }
+
+  // القراءات تُرسل بالترتيب حتى لو مسح الكاشير بسرعة
+  function next() {
+    if (busy || !queue.length) return;
+    busy = true;
+    var job = queue.shift();
+    post(job).then(function (res) {
+      if (!res.ok) { SynarScan.beep(false); show(false, "✗ " + esc(res.data.error)); return; }
+      SynarScan.beep(true);
+      if (res.data.undone) {
+        show(true, "↶ أُلغيت قراءة " + esc(res.data.undone.name) + " (" + fmtQty(res.data.undone.qty) + ")");
+      } else {
+        lastItem = res.data.item.id || lastItem;
+        show(true, '<div class="scan-name">' + esc(res.data.item.name) + "</div>" +
+          (res.data.qty ? '<div>+' + fmtQty(res.data.qty) + "</div>" : "") +
+          '<div class="scan-total">المعدود: <b>' + fmtQty(res.data.total) + "</b></div>");
+      }
+      apply(res.data);
+    }).catch(function () {
+      SynarScan.beep(false);
+      show(false, "✗ انقطع الاتصال؛ أعد مسح آخر صنف.");
+    }).finally(function () { busy = false; next(); });
+  }
+
+  function submitCode(text) {
+    if (!text.trim()) return;
+    var parsed = SynarScan.parse(text, parseFloat(qtyEl.value) || 1);
+    queue.push({ action: "scan", code: parsed.code, qty: parsed.qty });
+    qtyEl.value = 1;
+    next();
+  }
+
+  codeEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); submitCode(codeEl.value); codeEl.value = ""; }
+  });
+  qtyEl.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); codeEl.focus(); } });
+  document.getElementById("scan-undo").addEventListener("click", function () { queue.push({ action: "undo" }); next(); codeEl.focus(); });
+  filterEl.addEventListener("input", render);
+  rowsEl.addEventListener("click", function (e) {
+    var id = e.target.dataset.set;
+    if (!id) return;
+    var value = prompt("الكمية المعدودة الصحيحة لهذا الصنف:", e.target.dataset.qty);
+    if (value === null || value.trim() === "" || isNaN(parseFloat(value))) return;
+    queue.push({ action: "set", item: parseInt(id, 10), qty: parseFloat(value) });
+    next();
+  });
+  // يبقى المؤشر في خانة المسح دائماً (الماسح يكتب حيث المؤشر)
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("input, button, a, label, select, textarea")) codeEl.focus();
+  });
+  if (SynarScan.cameraSupported()) {
+    var cam = document.getElementById("scan-camera");
+    cam.hidden = false;
+    cam.addEventListener("click", function () { SynarScan.openCamera(submitCode); });
+  }
+  fetch(api, { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(apply);
+  // تحديث دوري لرؤية مسح الزملاء على الأجهزة الأخرى
+  setInterval(function () {
+    if (!busy && !queue.length) fetch(api, { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(apply).catch(function () {});
+  }, 10000);
+})();
+</script>
+{% endblock %}

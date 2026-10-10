@@ -1,0 +1,185 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}طباعة الملصقات{% endblock %}
+{% block heading %}طباعة ملصقات الباركود والأسعار{% endblock %}
+{% block content %}
+{% if missing_barcodes %}
+<div class="alert alert-info" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+  <span>{{ missing_barcodes }} صنف بدون باركود. سيُطبع لها كود الصنف بصيغة Code 128، أو ولّد لها باركوداً داخلياً EAN-13 يقرؤه أي ماسح.</span>
+  {% if request.membership.can_manage %}
+  <form method="post" action="{% url 'stock_generate_barcodes' %}" onsubmit="return confirm('توليد باركود داخلي (يبدأ بـ 200) لكل صنف ليس له باركود؟')">{% csrf_token %}<button class="btn">توليد باركود داخلي</button></form>
+  {% endif %}
+</div>
+{% endif %}
+<form method="post" id="labels-form" target="_blank">
+  {% csrf_token %}
+  <input type="hidden" name="rows" id="rows-json">
+  <div class="labels-grid">
+    <div>
+      <div class="card">
+        <h3>اختيار الأصناف</h3>
+        <div class="label-sources">
+          <div class="full">
+            <label class="muted small">بحث بالاسم أو الكود، أو امسح الباركود مباشرة</label>
+            <div class="scan-inputs"><input id="lb-search" class="form-control" autocomplete="off" placeholder="اكتب أو امسح…"></div>
+            <div class="search-results" id="lb-results" hidden></div>
+          </div>
+          <div>
+            <label class="muted small">كل أصناف مجموعة</label>
+            <div class="scan-inputs"><select id="lb-group" class="form-select"><option value="">— اختر مجموعة —</option>{% for g in groups %}<option value="{{ g.pk }}">{{ g }}</option>{% endfor %}</select>
+            <button type="button" class="btn" id="lb-add-group">إضافة</button></div>
+          </div>
+          <div>
+            <label class="muted small">من إذن استلام أو فاتورة مشتريات (بالكميات والصلاحية)</label>
+            <div class="scan-inputs"><select id="lb-doc" class="form-select"><option value="">— اختر مستنداً —</option>{% for v, label in docs %}<option value="{{ v }}">{{ label }}</option>{% endfor %}</select>
+            <button type="button" class="btn" id="lb-add-doc">إضافة</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="scan-list-head"><h3>الملصقات <span class="muted" id="lb-count"></span></h3><button type="button" class="btn btn-sm" id="lb-clear">مسح القائمة</button></div>
+        <div class="table-wrap">
+        <table class="table label-rows">
+          <thead><tr><th>الصنف</th><th>السعر شامل الضريبة</th><th>عدد النسخ</th><th>التشغيلة</th><th>تاريخ الإنتاج</th><th>تاريخ الانتهاء</th><th></th></tr></thead>
+          <tbody id="lb-rows"></tbody>
+        </table>
+        </div>
+        <p class="muted small">السعر يُحسب من سعر البيع في بطاقة الصنف ويمكن تعديله هنا للطباعة فقط. اترك التواريخ فارغة إن لم يكن للصنف صلاحية.</p>
+      </div>
+    </div>
+    <div class="card sticky-side">
+      <h3>شكل الملصق</h3>
+      <div class="field"><label>النوع</label><select name="type" class="form-select">{% for k, v in types.items %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+      <div class="field"><label>المقاس</label><select name="size" id="lb-size" class="form-select">{% for k, s in sizes.items %}<option value="{{ k }}"{% if k == '50x25' %} selected{% endif %}>{{ s.label }}</option>{% endfor %}</select></div>
+      <div class="field" id="lb-start" hidden><label>ابدأ من الملصق رقم (لورقة مستخدمة جزئياً)</label><input type="number" name="start_at" value="1" min="1" class="form-control"></div>
+      <label class="check"><input type="checkbox" name="includes_tax" id="lb-inc" {% if includes_tax %}checked{% endif %}> أسعار البيع في بطاقات الأصناف شاملة الضريبة</label>
+      <label class="check"><input type="checkbox" name="show_company" checked> اسم المتجر</label>
+      <label class="check"><input type="checkbox" name="show_code" checked> رقم الباركود مكتوباً</label>
+      <label class="check"><input type="checkbox" name="show_expiry" checked> التشغيلة وتواريخ الإنتاج والانتهاء (إن وُجدت)</label>
+      <label class="check"><input type="checkbox" name="show_vat_note" checked> عبارة «شامل الضريبة»</label>
+      <button class="btn btn-primary btn-lg" style="width:100%;margin-top:12px" id="lb-print">معاينة وطباعة</button>
+      <p class="muted small" style="margin-top:10px">الطابعات الحرارية (Zebra / Xprinter / TSC…): اضبط في إعدادات الطابعة نفس مقاس الملصق، وفي نافذة الطباعة اختر الهوامش «بلا» والمقياس 100%.</p>
+    </div>
+  </div>
+</form>
+<script>
+(function () {
+  "use strict";
+  var KEY = "synar-labels-v1";
+  var rowsEl = document.getElementById("lb-rows"), search = document.getElementById("lb-search"), results = document.getElementById("lb-results");
+  var rows = [];
+  try { rows = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { rows = []; }
+  var inc = document.getElementById("lb-inc");
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} }
+  function render() {
+    rowsEl.innerHTML = rows.map(function (r, i) {
+      return "<tr><td><b>" + esc(r.name) + '</b><div class="muted small" dir="ltr">' + esc(r.barcode || r.code) + "</div></td>" +
+        '<td><input class="form-control" data-i="' + i + '" data-f="price" value="' + esc(r.price) + '" inputmode="decimal"></td>' +
+        '<td><input class="form-control copies" type="number" min="0" data-i="' + i + '" data-f="copies" value="' + esc(r.copies) + '"></td>' +
+        '<td><input class="form-control" data-i="' + i + '" data-f="batch" value="' + esc(r.batch || "") + '"></td>' +
+        '<td><input class="form-control date" type="date" data-i="' + i + '" data-f="production" value="' + esc(r.production || "") + '"></td>' +
+        '<td><input class="form-control date" type="date" data-i="' + i + '" data-f="expiry" value="' + esc(r.expiry || "") + '"></td>' +
+        '<td><button type="button" class="btn btn-sm" data-del="' + i + '">✕</button></td></tr>';
+    }).join("") || '<tr><td colspan="7" class="muted">أضف أصنافاً من الأعلى.</td></tr>';
+    var total = rows.reduce(function (s, r) { return s + (parseInt(r.copies, 10) || 0); }, 0);
+    document.getElementById("lb-count").textContent = rows.length ? "(" + rows.length + " صنف · " + total + " ملصق)" : "";
+    save();
+  }
+  function add(items) {
+    items.forEach(function (it) {
+      var existing = rows.find(function (r) { return r.id === it.id && (r.batch || "") === (it.batch || "") && (r.expiry || "") === (it.expiry || ""); });
+      if (existing) existing.copies = (parseInt(existing.copies, 10) || 0) + (it.copies || 1);
+      else rows.push({ id: it.id, name: it.name, code: it.code, barcode: it.barcode, price: it.price, rate: it.rate,
+                       zero: it.zero_vat, edited: false, copies: it.copies || 1,
+                       batch: it.batch || "", expiry: it.expiry || "", production: "" });
+    });
+    render();
+  }
+  function get(params) {
+    params.set("inc", inc.checked ? "1" : "");
+    return fetch("{% url 'stock_items_api' %}?" + params.toString(), { credentials: "same-origin" })
+      .then(function (r) { return r.json(); });
+  }
+  var t = null;
+  search.addEventListener("input", function () {
+    clearTimeout(t);
+    var q = search.value.trim();
+    if (q.length < 2) { results.hidden = true; return; }
+    t = setTimeout(function () {
+      get(new URLSearchParams({ q: q })).then(function (d) {
+        if (search.value.trim() !== q) return;  // أُضيف الصنف بالمسح قبل وصول النتائج
+        results.hidden = !d.items.length;
+        results.innerHTML = d.items.slice(0, 50).map(function (it, i) {
+          return '<div data-k="' + i + '">' + esc(it.name) + ' <span class="muted small" dir="ltr">' + esc(it.barcode || it.code) + "</span></div>";
+        }).join("");
+        results._items = d.items;
+      });
+    }, 200);
+  });
+  results.addEventListener("click", function (e) {
+    var el = e.target.closest("[data-k]");
+    if (!el) return;
+    add([results._items[parseInt(el.dataset.k, 10)]]);
+    results.hidden = true; search.value = ""; search.focus();
+  });
+  // مسح الباركود في خانة البحث يضيف الصنف مباشرة
+  search.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    var code = search.value.trim();
+    if (!code) return;
+    fetch("{% url 'item_lookup' %}?code=" + encodeURIComponent(code), { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        clearTimeout(t);
+        if (res.ok) { add([res.data]); search.value = ""; results.hidden = true; }
+        else if (results._items && results._items.length) { add([results._items[0]]); search.value = ""; results.hidden = true; }
+      });
+  });
+  document.getElementById("lb-add-group").addEventListener("click", function () {
+    var g = document.getElementById("lb-group").value;
+    if (g) get(new URLSearchParams({ group: g })).then(function (d) { add(d.items); });
+  });
+  document.getElementById("lb-add-doc").addEventListener("click", function () {
+    var v = document.getElementById("lb-doc").value;
+    if (v) get(new URLSearchParams({ doc: v })).then(function (d) { add(d.items || []); });
+  });
+  document.getElementById("lb-clear").addEventListener("click", function () { if (confirm("مسح كل الأصناف من القائمة؟")) { rows = []; render(); } });
+  rowsEl.addEventListener("input", function (e) {
+    var i = e.target.dataset.i;
+    if (i !== undefined) {
+      rows[i][e.target.dataset.f] = e.target.value;
+      if (e.target.dataset.f === "price") rows[i].edited = true;
+      save();
+    }
+  });
+  rowsEl.addEventListener("change", render);
+  rowsEl.addEventListener("click", function (e) {
+    if (e.target.dataset.del !== undefined) { rows.splice(parseInt(e.target.dataset.del, 10), 1); render(); }
+  });
+  // تغيير «الأسعار شاملة الضريبة» يعيد حساب الأسعار غير المعدلة يدوياً
+  var taxRate = parseFloat("{{ tax_rate }}") || 0;
+  inc.addEventListener("change", function () {
+    rows.forEach(function (r) {
+      if (r.edited || r.rate === undefined) return;
+      var rate = parseFloat(r.rate) || 0;
+      r.price = (inc.checked || r.zero ? rate : Math.round(rate * (100 + taxRate)) / 100).toFixed(2);
+    });
+    render();
+  });
+  var size = document.getElementById("lb-size");
+  function toggleStart() { document.getElementById("lb-start").hidden = size.value.indexOf("a4") !== 0; }
+  size.addEventListener("change", toggleStart);
+  document.getElementById("labels-form").addEventListener("submit", function (e) {
+    if (!rows.length) { e.preventDefault(); alert("أضف صنفاً واحداً على الأقل."); return; }
+    document.getElementById("rows-json").value = JSON.stringify(rows);
+  });
+  // فتح الصفحة من صنف أو مستند: ?item=ID أو ?doc=pr-ID
+  var params = new URLSearchParams(location.search);
+  if (params.get("doc")) get(new URLSearchParams({ doc: params.get("doc") })).then(function (d) { add(d.items || []); });
+  if (params.get("item")) get(new URLSearchParams({ id: params.get("item") })).then(function (d) { add(d.items || []); });
+  toggleStart();
+  render();
+})();
+</script>
+{% endblock %}

@@ -33,6 +33,7 @@ urlpatterns = [
         template_name="registration/password_change_done.html"), name="password_change_done"),
     path("reports/accounts/", include("accounts.urls")),
     path("reports/stock/", include("stock.urls")),
+    path("stock/", include("stock.tool_urls")),
     path("pos/", include("pos.urls")),
     path("einvoice/", include("einvoice.urls")),
     path("hr/", include("hr.urls")),

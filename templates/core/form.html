@@ -15,6 +15,13 @@
   <div class="card">
     <h3>{{ dt.child.label }}</h3>
     {% if dt.child.help %}<p class="muted small">{{ dt.child.help }}</p>{% endif %}
+    {% if "item" in dt.child.fields %}
+    <div class="form-scan">
+      <input type="text" class="form-control" id="form-scan" placeholder="امسح الباركود لإضافة صنف…" autocomplete="off" dir="ltr">
+      <span class="muted small">كل مسح يضيف قطعة؛ استخدم <code>5*الباركود</code> لكمية أكبر.</span>
+      <span class="scan-msg" id="form-scan-msg"></span>
+    </div>
+    {% endif %}
     {{ formset.management_form }}
     {% if formset.non_form_errors %}<div class="alert alert-error">{{ formset.non_form_errors }}</div>{% endif %}
     <div class="table-wrap">

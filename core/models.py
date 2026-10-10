@@ -489,3 +489,50 @@ class UserTwoFactor(models.Model):
 
 def has_two_factor(user):
     return UserTwoFactor.objects.filter(user=user, enabled=True).exists()
+
+
+class ApiKey(models.Model):
+    """مفتاح الواجهة البرمجية: مرتبط بمستخدم في شركة فتسري عليه صلاحياته. يُخزن مجزّأً ويظهر مرة واحدة."""
+
+    company = models.ForeignKey(Company, models.CASCADE, related_name="api_keys", verbose_name="الشركة")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, related_name="api_keys",
+                             verbose_name="يعمل بصلاحيات المستخدم")
+    name = models.CharField("اسم المفتاح", max_length=100, help_text="مثل: ربط المتجر الإلكتروني")
+    prefix = models.CharField(max_length=12, unique=True, editable=False)
+    key_hash = models.CharField(max_length=64, editable=False)
+    created_at = models.DateTimeField("أنشئ في", auto_now_add=True)
+    last_used_at = models.DateTimeField("آخر استخدام", null=True, blank=True)
+    revoked = models.BooleanField("ملغى", default=False)
+
+    class Meta:
+        verbose_name = "مفتاح API"
+        verbose_name_plural = "مفاتيح API"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.prefix}…)"
+
+    @classmethod
+    def issue(cls, company, user, name):
+        """ينشئ مفتاحاً ويعيد (السجل، المفتاح الكامل) — المفتاح لا يُخزن ولا يُعرض مرة أخرى."""
+        import hashlib
+        import secrets
+
+        prefix = secrets.token_hex(4)
+        raw = f"snr_{prefix}_{secrets.token_urlsafe(32)}"
+        key = cls.objects.create(company=company, user=user, name=name, prefix=prefix,
+                                 key_hash=hashlib.sha256(raw.encode()).hexdigest())
+        return key, raw
+
+    @classmethod
+    def authenticate(cls, raw):
+        import hashlib
+        import hmac
+
+        parts = (raw or "").split("_")
+        if len(parts) < 3 or parts[0] != "snr":
+            return None
+        key = cls.objects.filter(prefix=parts[1], revoked=False).select_related("company", "user").first()
+        if key is None or not hmac.compare_digest(key.key_hash, hashlib.sha256(raw.encode()).hexdigest()):
+            return None
+        return key

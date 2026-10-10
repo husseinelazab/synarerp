@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}الواجهة البرمجية{% endblock %}
+{% block heading %}الواجهة البرمجية (REST API){% endblock %}
+{% block content %}
+<div class="card">
+  <p>اربط {{ ERP_NAME }} بالمتجر الإلكتروني أو أي نظام آخر: إنشاء العملاء والأصناف والفواتير والأوامر، وقراءة الأرصدة.
+    كل مفتاح يعمل <strong>بصلاحيات المستخدم المرتبط به</strong> (الوحدات، الاعتماد، الفروع) — أنشئ مستخدماً خاصاً بالربط بأقل الصلاحيات اللازمة.</p>
+  <p>العنوان الأساسي: <code dir="ltr">{{ base_url }}</code> · <a href="{% url 'api_docs' %}">التوثيق الكامل والأمثلة</a></p>
+</div>
+{% if new_key %}
+<div class="card" style="border:2px solid var(--primary,#1f4e79)">
+  <h3>المفتاح الجديد — انسخه الآن</h3>
+  <p>لن يظهر مرة أخرى. احفظه في إعدادات النظام المرتبط كسرّ، ولا ترسله في رسائل.</p>
+  <div class="filters"><input class="form-control" dir="ltr" readonly value="{{ new_key }}" id="newkey" style="font-family:monospace">
+    <button class="btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('newkey').value);this.textContent='تم النسخ'">نسخ</button></div>
+</div>
+{% endif %}
+<form method="post" class="card">
+  {% csrf_token %}
+  <h3>مفتاح جديد</h3>
+  <div class="filters">
+    <input name="name" class="form-control" placeholder="اسم المفتاح، مثل: المتجر الإلكتروني" required>
+    <select name="member" class="form-select" required>
+      <option value="">— يعمل بصلاحيات المستخدم —</option>
+      {% for m in members %}<option value="{{ m.pk }}">{{ m.user.get_full_name|default:m.user.username }} ({{ m.get_role_display }})</option>{% endfor %}
+    </select>
+    <button class="btn btn-primary">إنشاء المفتاح</button>
+  </div>
+</form>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>الاسم</th><th>البادئة</th><th>المستخدم</th><th>أنشئ</th><th>آخر استخدام</th><th>الحالة</th><th></th></tr></thead>
+    <tbody>{% for k in keys %}<tr class="{% if k.revoked %}cancelled{% endif %}">
+      <td>{{ k.name }}</td><td dir="ltr"><code>snr_{{ k.prefix }}_…</code></td><td>{{ k.user.username }}</td>
+      <td>{{ k.created_at|date:"Y-m-d" }}</td><td>{{ k.last_used_at|date:"Y-m-d H:i"|default:"—" }}</td>
+      <td>{% if k.revoked %}ملغى{% else %}<span class="badge status-1">فعّال</span>{% endif %}</td>
+      <td>{% if not k.revoked %}<form method="post" onsubmit="return confirm('إلغاء المفتاح نهائياً؟')">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="key" value="{{ k.pk }}"><button class="btn btn-sm btn-danger-outline">إلغاء</button></form>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="7" class="muted center">لا توجد مفاتيح</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

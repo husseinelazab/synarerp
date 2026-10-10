@@ -432,3 +432,40 @@ def healthz(request):
     except Exception:
         return HttpResponse("db-error", status=503, content_type="text/plain")
     return HttpResponse("ok", content_type="text/plain")
+
+
+@login_required
+def api_keys(request):
+    """إدارة مفاتيح الواجهة البرمجية (للمالك والمدير)."""
+    from core.models import ApiKey, Membership, Role
+
+    company = request.company
+    members = Membership.objects.filter(company=company, is_active=True).exclude(
+        role__in=[Role.EMPLOYEE, Role.CASHIER]).select_related("user")
+    new_key = None
+    if request.method == "POST":
+        if request.POST.get("action") == "revoke":
+            ApiKey.objects.filter(company=company, pk=request.POST.get("key")).update(revoked=True)
+            messages.success(request, "تم إلغاء المفتاح؛ أي نظام يستخدمه سيُرفض فوراً.")
+            return redirect("api_keys")
+        name = request.POST.get("name", "").strip()
+        member = members.filter(pk=request.POST.get("member")).first()
+        if not name or member is None:
+            messages.error(request, "أدخل اسماً للمفتاح واختر المستخدم.")
+        else:
+            _, new_key = ApiKey.issue(company, member.user, name)
+            messages.success(request, "تم إنشاء المفتاح. انسخه الآن؛ لن يظهر مرة أخرى.")
+    return render(request, "settings/api_keys.html", {
+        "keys": ApiKey.objects.filter(company=company).select_related("user"), "members": members,
+        "new_key": new_key, "base_url": request.build_absolute_uri("/api/v1/"),
+    })
+
+
+@login_required
+def api_docs(request):
+    from core.api import doctype_schema
+    from core.registry import REGISTRY
+
+    schemas = sorted((doctype_schema(dt) for dt in REGISTRY.values()), key=lambda s: (s["module"], s["slug"]))
+    return render(request, "settings/api_docs.html", {"schemas": schemas,
+                                                      "base_url": request.build_absolute_uri("/api/v1/")})

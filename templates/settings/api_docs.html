@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}توثيق الواجهة البرمجية{% endblock %}
+{% block heading %}توثيق الواجهة البرمجية v1{% endblock %}
+{% block content %}
+<style>.api pre{direction:ltr;text-align:left;background:var(--surface-2,#f4f6f9);padding:12px;border-radius:8px;overflow:auto;font-size:13px}
+.api code{direction:ltr;unicode-bidi:embed}.api td code{font-size:12.5px}</style>
+<div class="api">
+<div class="card">
+  <h3>المصادقة</h3>
+  <p>أرسل المفتاح في الترويسة <code>Authorization: Bearer snr_…</code> (أو <code>X-API-Key</code>). البيانات JSON بترميز UTF-8،
+    والمبالغ نصوص عشرية (مثل <code>"115.00"</code>)، والتواريخ <code>YYYY-MM-DD</code>، والروابط بالمعرّف الرقمي <code>id</code>.
+    الحد: 120 طلباً في الدقيقة لكل مفتاح.</p>
+  <pre>curl {{ base_url }} -H "Authorization: Bearer snr_xxxx_yyyy"</pre>
+  <p>يعيد اسم الشركة وكل أنواع المستندات المتاحة لك مع حقولها (المخطط الآلي).</p>
+</div>
+<div class="card">
+  <h3>العمليات</h3>
+  <table class="table">
+    <thead><tr><th>الطريقة والمسار</th><th>الوظيفة</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /api/v1/{slug}/</code></td><td>القائمة: <code>?q=</code> بحث، <code>?docstatus=1</code>، تصفية بأي حقل مثل <code>?customer=5</code> أو <code>?posting_date__gte=2026-01-01</code>، <code>?modified_since=</code>، <code>?page=</code> و<code>?page_size=</code> (حتى 100)</td></tr>
+      <tr><td><code>GET /api/v1/{slug}/{id}/</code></td><td>مستند كامل مع بنوده والحقول المحسوبة (الإجماليات، الضريبة، الحالة)</td></tr>
+      <tr><td><code>POST /api/v1/{slug}/</code></td><td>إنشاء (أضف <code>"submit": true</code> للاعتماد مباشرة)</td></tr>
+      <tr><td><code>PATCH /api/v1/{slug}/{id}/</code></td><td>تعديل مسودة؛ إرسال البنود يستبدلها بالكامل</td></tr>
+      <tr><td><code>DELETE /api/v1/{slug}/{id}/</code></td><td>حذف مسودة أو سجل</td></tr>
+      <tr><td><code>POST /api/v1/{slug}/{id}/submit/</code> · <code>/cancel/</code></td><td>اعتماد وترحيل · إلغاء وعكس القيود</td></tr>
+      <tr><td><code>POST /api/v1/{slug}/{id}/{action}/</code></td><td>إجراءات المستند، مثل <code>make_invoice</code> و<code>make_fulfillment</code> و<code>make_debit_note</code> — يعيد المستند الجديد في <code>created</code></td></tr>
+      <tr><td><code>GET /api/v1/reports/stock-balance/</code></td><td>أرصدة المخزون (<code>?warehouse=</code>، <code>?item=</code>)</td></tr>
+      <tr><td><code>GET /api/v1/reports/account-balances/</code></td><td>أرصدة الحسابات كما في <code>?as_of=</code></td></tr>
+    </tbody>
+  </table>
+  <p>الأخطاء: <code>{"error": {"code": "validation_error", "message": "…", "fields": {"customer": ["…"]}}}</code> مع رموز HTTP:
+    400 بيانات، 401 مفتاح، 403 صلاحية، 404 غير موجود، 409 مستند معتمد، 429 تجاوز الحد.</p>
+</div>
+<div class="card">
+  <h3>مثال: فاتورة مبيعات معتمدة</h3>
+  <pre>curl -X POST {{ base_url }}sales-invoice/ \
+  -H "Authorization: Bearer snr_xxxx_yyyy" -H "Content-Type: application/json" \
+  -d '{"customer": 12, "posting_date": "2026-10-10", "warehouse": 1, "update_stock": true,
+       "tax_rate": "15", "vat_category": "S",
+       "items": [{"item": 3, "qty": "2", "rate": "150"}],
+       "submit": true}'</pre>
+  <p>تُطبق نفس قواعد الشاشات: الرصيد، الفترة المالية، الصلاحيات، والفوترة الإلكترونية إن كانت مفعّلة.</p>
+</div>
+{% for s in schemas %}
+<div class="card" id="{{ s.slug }}">
+  <div class="card-head"><h3>{{ s.label_plural }} <code>{{ s.slug }}</code></h3>{% if s.submittable %}<span class="badge status-0">يُعتمد ويُلغى</span>{% endif %}</div>
+  <table class="table">
+    <thead><tr><th>الحقل</th><th>الاسم</th><th>النوع</th><th>مطلوب</th><th>ملاحظات</th></tr></thead>
+    <tbody>{% for f in s.fields %}<tr><td><code>{{ f.name }}</code></td><td>{{ f.label }}</td><td>{{ f.type }}</td><td>{% if f.required %}نعم{% endif %}</td>
+      <td class="small">{% if f.link_to %}رابط إلى {{ f.link_to }}{% endif %}{% for c in f.choices %}<code>{{ c.value }}</code> {{ c.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>{% endfor %}
+    {% if s.child %}<tr><td><code>{{ s.child.key }}</code></td><td>{{ s.child.label }}</td><td>list</td><td></td>
+      <td class="small">كل بند: {% for f in s.child.fields %}<code>{{ f.name }}</code> ({{ f.label }}){% if not forloop.last %}، {% endif %}{% endfor %}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+</div>
+{% endblock %}

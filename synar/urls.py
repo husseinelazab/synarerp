@@ -11,6 +11,7 @@ admin.site.index_title = "إدارة النظام"
 
 urlpatterns = [
     path("healthz/", core_views.healthz, name="healthz"),
+    path("api/v1/", include("core.api_urls")),
     path("admin/", admin.site.urls),
     path("login/", two_factor.LoginView.as_view(), name="login"),
     path("login/verify/", two_factor.verify_login, name="login_verify"),

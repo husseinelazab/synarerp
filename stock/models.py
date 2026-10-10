@@ -255,3 +255,107 @@ class StockEntryItem(models.Model):
     class Meta:
         verbose_name = "بند حركة مخزنية"
         verbose_name_plural = "بنود الحركة"
+
+
+class StockCount(SubmittableDocument):
+    """الجرد الفعلي: مطابقة الكميات المعدودة مع الدفترية وترحيل الفروقات (زيادة أو عجز) لحساب تسويات المخزون."""
+
+    naming_prefix = "CNT"
+
+    warehouse = models.ForeignKey(Warehouse, models.PROTECT, verbose_name="المستودع")
+    item_group = models.ForeignKey(ItemGroup, models.PROTECT, null=True, blank=True, verbose_name="مجموعة الأصناف",
+                                   help_text="اختياري: لجرد مجموعة واحدة. يُترك فارغاً لكل الأصناف")
+    difference_value = models.DecimalField("صافي فرق القيمة", max_digits=18, decimal_places=2, default=0,
+                                           editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "جرد مخزون"
+        verbose_name_plural = "الجرد"
+
+    def fetch_items(self):
+        """يجلب أصناف المستودع (أو المجموعة) بالكمية الدفترية كقيمة مبدئية للمعدود."""
+        items = Item.objects.filter(is_stock_item=True, disabled=False)
+        if self.item_group_id:
+            items = items.filter(item_group=self.item_group)
+        balances = {b.item_id: b for b in Bin.objects.filter(warehouse=self.warehouse)}
+        existing = set(self.items.values_list("item_id", flat=True))
+        StockCountItem.objects.bulk_create([
+            StockCountItem(parent=self, item=item, counted_qty=balances[item.id].actual_qty if item.id in balances else 0)
+            # أصناف لها رصيد في المستودع، أو كل أصناف المجموعة عند تحديدها (لاكتشاف أصناف موجودة غير مسجلة)
+            for item in items.order_by("code") if item.id not in existing
+            and (self.item_group_id or (item.id in balances and balances[item.id].actual_qty))
+        ])
+
+    def calculate_totals(self):
+        if not self.pk:
+            return
+        if self.is_draft and not self.items.exists():
+            self.fetch_items()
+        balances = {b.item_id: b for b in Bin.objects.filter(warehouse=self.warehouse)}
+        total = flt(0)
+        for row in self.items.select_related("item"):
+            b = balances.get(row.item_id)
+            if self.is_draft:
+                row.system_qty = b.actual_qty if b else 0
+                current_rate = b.valuation_rate if b and b.actual_qty else row.item.buying_rate
+                row.valuation_rate = row.valuation_rate or current_rate
+            row.difference_qty = flt(flt(row.counted_qty, 3) - flt(row.system_qty, 3), 3)
+            row.difference_value = flt(row.difference_qty * row.valuation_rate)
+            row.save(update_fields=["system_qty", "valuation_rate", "difference_qty", "difference_value"])
+            total += row.difference_value
+        self.difference_value = flt(total)
+
+    def validate_for_submit(self):
+        rows = list(self.items.select_related("item"))
+        if not rows:
+            raise ValidationError("لا توجد أصناف في الجرد.")
+        seen = set()
+        for row in rows:
+            if row.item_id in seen:
+                raise ValidationError(f"الصنف {row.item} مكرر في الجرد.")
+            seen.add(row.item_id)
+            if not row.item.is_stock_item:
+                raise ValidationError(f"الصنف {row.item} ليس صنفاً مخزنياً.")
+            if row.counted_qty < 0:
+                raise ValidationError(f"الكمية المعدودة للصنف {row.item} لا تكون سالبة.")
+        if not any(row.difference_qty for row in rows):
+            raise ValidationError("لا توجد فروقات بين المعدود والدفتري؛ لا حاجة لاعتماد الجرد.")
+
+    def on_submit(self):
+        value_change = flt(0)
+        for row in self.items.select_related("item"):
+            if row.difference_qty > 0:
+                value_change += make_stock_ledger_entry(self, row.item, self.warehouse, row.difference_qty,
+                                                        row.valuation_rate)
+            elif row.difference_qty < 0:
+                value_change += make_stock_ledger_entry(self, row.item, self.warehouse, row.difference_qty)
+        self.difference_value = value_change
+        self.save(update_fields=["difference_value"])
+        if value_change:
+            stock = self.company.require_account("default_stock_account")
+            adjustment = self.company.require_account("default_stock_adjustment_account")
+            gain = value_change > 0
+            make_gl_entries(self, [
+                {"account": stock, "debit": value_change if gain else 0, "credit": 0 if gain else -value_change},
+                {"account": adjustment, "debit": 0 if gain else -value_change, "credit": value_change if gain else 0},
+            ], remarks=f"فروقات جرد {self.warehouse}")
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+
+
+class StockCountItem(models.Model):
+    parent = models.ForeignKey(StockCount, models.CASCADE, related_name="items")
+    item = models.ForeignKey(Item, models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
+                             verbose_name="الصنف")
+    counted_qty = models.DecimalField("الكمية المعدودة", max_digits=18, decimal_places=3, default=0)
+    valuation_rate = models.DecimalField("تكلفة الوحدة", max_digits=18, decimal_places=6, default=0,
+                                         help_text="تُستخدم لتقييم الزيادة؛ تؤخذ من متوسط التكلفة إن تُركت صفراً")
+    system_qty = models.DecimalField("الكمية الدفترية", max_digits=18, decimal_places=3, default=0, editable=False)
+    difference_qty = models.DecimalField("فرق الكمية", max_digits=18, decimal_places=3, default=0, editable=False)
+    difference_value = models.DecimalField("فرق القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name = "صنف جرد"
+        verbose_name_plural = "أصناف الجرد"

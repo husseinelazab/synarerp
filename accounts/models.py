@@ -24,6 +24,7 @@ class AccountType(models.TextChoices):
     STOCK = "stock", "مخزون"
     TAX = "tax", "ضريبة"
     FIXED_ASSET = "fixed_asset", "أصل ثابت"
+    ACCUMULATED_DEPRECIATION = "accumulated_depreciation", "مجمع إهلاك"
     COGS = "cogs", "تكلفة البضاعة المباعة"
     STOCK_ADJUSTMENT = "stock_adjustment", "تسوية مخزون"
     INCOME = "income_account", "حساب إيراد"
@@ -193,8 +194,16 @@ class JournalEntry(SubmittableDocument):
             for line in self.accounts.select_related("account", "customer", "supplier")
         ])
 
+    def before_cancel(self):
+        from assets.services import check_journal_cancel
+
+        check_journal_cancel(self)
+
     def on_cancel(self):
+        from assets.services import on_journal_cancel
+
         cancel_gl_entries(self)
+        on_journal_cancel(self)
 
 
 class JournalEntryAccount(models.Model):

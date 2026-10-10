@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "pos",
     "saas",
     "einvoice",
+    "assets",
 ]
 
 MIDDLEWARE = [

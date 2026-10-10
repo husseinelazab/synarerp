@@ -1,5 +1,6 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import UOM, Item, ItemGroup, OpeningStock, OpeningStockItem, StockEntry, StockEntryItem, Warehouse
+from stock.models import (UOM, Item, ItemGroup, OpeningStock, OpeningStockItem, StockCount, StockCountItem, StockEntry,
+                          StockEntryItem, Warehouse)
 
 register(DocType(
     slug="item", model=Item, module="stock",
@@ -31,4 +32,16 @@ register(DocType(
     search_fields=["name", "remarks"],
     child=ChildTable(OpeningStockItem, ["item", "qty", "rate"], label="الأصناف", rate_type="buying"),
     totals=["total_amount"],
+))
+register(DocType(
+    slug="stock-count", model=StockCount, module="stock",
+    list_fields=["name", "posting_date", "warehouse", "item_group", "difference_value"],
+    form_fields=["warehouse", "item_group", "posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(StockCountItem, ["item", "counted_qty", "valuation_rate"], label="الأصناف المعدودة", min_rows=0,
+                     display_fields=["item", "system_qty", "counted_qty", "difference_qty", "valuation_rate",
+                                     "difference_value"],
+                     help="اترك الجدول فارغاً واحفظ لتُجلب أصناف المستودع بكمياتها الدفترية، ثم اطبع ورقة الجرد وعدّل "
+                          "«الكمية المعدودة» لما يختلف فقط. الفروقات تُرحّل لحساب تسويات المخزون عند الاعتماد."),
+    totals=["difference_value"],
 ))

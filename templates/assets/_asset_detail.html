@@ -1,0 +1,27 @@
+{% load erp %}
+{% if obj.is_submitted %}
+<div class="card">
+  <div class="card-head"><h3>القيمة الدفترية</h3>
+    {% if obj.status != 'disposed' %}<a class="btn" href="{% url 'asset_dispose' obj.pk %}">بيع / استبعاد الأصل</a>{% endif %}</div>
+  <dl class="detail-grid">
+    <div><dt>التكلفة</dt><dd>{{ obj.gross_amount|cur }}</dd></div>
+    <div><dt>مجمع الإهلاك المرحّل</dt><dd>{{ obj.accumulated_depreciation|cur }}</dd></div>
+    <div><dt>القيمة الدفترية</dt><dd><strong>{{ obj.book_value|cur }}</strong></dd></div>
+    <div><dt>القسط الشهري</dt><dd>{% with first=obj.schedule.first %}{{ first.amount|cur }}{% endwith %} × {{ obj.life_months }} شهر</dd></div>
+    {% if obj.disposal_entry %}<div><dt>قيد الاستبعاد</dt><dd><a href="{{ obj.disposal_entry.get_absolute_url }}">{{ obj.disposal_entry }}</a> ({{ obj.disposal_date|date:"Y-m-d" }})</dd></div>{% endif %}
+  </dl>
+</div>
+{% endif %}
+{% if obj.schedule.exists %}
+<div class="card">
+  <details>
+    <summary><strong>جدول الإهلاك</strong> <span class="muted small">({{ obj.schedule.count }} قسط — اضغط للعرض)</span></summary>
+    <table class="table">
+      <thead><tr><th>#</th><th>التاريخ</th><th class="num">القسط</th><th class="num">المجمع بعده</th><th class="num">القيمة الدفترية</th><th>القيد</th></tr></thead>
+      <tbody>{% for r in obj.schedule.all %}<tr><td>{{ forloop.counter }}</td><td>{{ r.schedule_date|date:"Y-m-d" }}</td><td class="num">{{ r.amount|money }}</td><td class="num">{{ r.accumulated_after|money }}</td>
+        <td class="num">{{ obj.gross_amount|sub_money:r.accumulated_after }}</td>
+        <td>{% if r.journal_entry %}<a href="{{ r.journal_entry.get_absolute_url }}">{{ r.journal_entry }}</a>{% else %}<span class="muted">لم يُرحّل</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+</div>
+{% endif %}

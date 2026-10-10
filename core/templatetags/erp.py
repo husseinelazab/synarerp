@@ -66,3 +66,14 @@ def hijri(value):
     from core.hijri import format_hijri
 
     return format_hijri(value) if value else ""
+
+
+@register.filter
+def sub_money(value, arg):
+    """طرح مبلغين وتنسيق الناتج (بديل آمن لـ add الذي يقرّب الكسور)."""
+    from decimal import Decimal
+
+    try:
+        return _money(Decimal(str(value)) - Decimal(str(arg)))
+    except Exception:
+        return ""

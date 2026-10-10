@@ -9,5 +9,5 @@ class CoreConfig(AppConfig):
         # تحميل تعريفات المستندات من كل الوحدات
         from importlib import import_module
 
-        for app in ("core", "accounts", "stock", "selling", "buying", "hr", "pos"):
+        for app in ("core", "accounts", "stock", "selling", "buying", "hr", "pos", "assets"):
             import_module(f"{app}.doctypes")

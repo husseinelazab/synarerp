@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}بيع / استبعاد أصل{% endblock %}
+{% block heading %}بيع / استبعاد: {{ asset }}{% endblock %}
+{% block content %}
+<div class="card">
+  <dl class="detail-grid">
+    <div><dt>التكلفة</dt><dd>{{ asset.gross_amount|cur }}</dd></div>
+    <div><dt>مجمع الإهلاك المرحّل</dt><dd>{{ asset.accumulated_depreciation|cur }}</dd></div>
+    <div><dt>القيمة الدفترية الحالية</dt><dd>{{ asset.book_value|cur }}</dd></div>
+  </dl>
+  <p class="muted small">يُرحّل أولاً أي إهلاك مستحق حتى تاريخ الاستبعاد، ثم يُقفل الأصل ومجمع إهلاكه، والفرق بين الثمن والقيمة الدفترية
+    يُسجل ربحاً أو خسارة في «أرباح وخسائر استبعاد الأصول».</p>
+  <div class="alert alert-warning">بيع الأصل لمنشأة أو فرد خاضع للضريبة يتطلب إصدار فاتورة ضريبية إلكترونية للمشتري. هذا القيد يثبت الأثر المحاسبي فقط؛
+    إن احتجت فاتورة إلكترونية أصدرها من فواتير المبيعات بصنف خدمي على حساب وسيط ثم اختر ذلك الحساب هنا، أو راجع محاسبك.</div>
+</div>
+<form method="post" novalidate class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+  <div class="form-actions"><button class="btn btn-danger" onclick="return confirm('تأكيد البيع/الاستبعاد وترحيل القيد؟')">تأكيد وترحيل</button>
+    <a class="btn" href="{{ asset.get_absolute_url }}">رجوع</a></div>
+</form>
+{% endblock %}

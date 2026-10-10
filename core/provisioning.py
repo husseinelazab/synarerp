@@ -79,6 +79,12 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
         from hr.models import DEFAULT_LEAVE_TYPES, LeaveType, PayrollSettings, add_official_holidays
 
         add_official_holidays(year)
+        from assets.models import DEFAULT_CATEGORIES, AssetCategory
+
+        for category, number, months in DEFAULT_CATEGORIES:
+            AssetCategory.objects.create(name=category, asset_account=accounts[number], useful_life_months=months,
+                                         accumulated_depreciation_account=accounts["1204"],
+                                         depreciation_expense_account=accounts["5208"])
         from hr.models import DEFAULT_APPRAISAL_CRITERIA, AppraisalTemplate
 
         template = AppraisalTemplate.objects.create(name="تقييم الأداء السنوي")

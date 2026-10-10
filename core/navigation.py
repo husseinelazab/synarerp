@@ -51,6 +51,8 @@ def build_menu(request):
         {"key": "accounts", "label": "المحاسبة", "sections": [
             {"items": [doc("قيود اليومية", "journal-entry"), doc("سندات القبض والصرف", "payment-entry"),
                        _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
+            {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
+                                                 _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
             {"title": "البنوك", "items": [_item("التسوية البنكية", "bank_reconciliation"),
                                          doc("حركات كشف البنك", "bank-transaction")]},
             {"title": "تقارير", "items": [
@@ -65,7 +67,8 @@ def build_menu(request):
             {"title": "نهاية السنة", "items": [doc("إقفال السنة المالية", "period-closing")]},
         ]},
         {"key": "stock", "label": "المخزون", "sections": [
-            {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("المستودعات", "warehouse"),
+            {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("الجرد", "stock-count"),
+                       doc("المستودعات", "warehouse"),
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
             {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger")]},
         ]},

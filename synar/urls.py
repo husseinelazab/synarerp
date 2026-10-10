@@ -28,6 +28,7 @@ urlpatterns = [
     path("pos/", include("pos.urls")),
     path("einvoice/", include("einvoice.urls")),
     path("hr/", include("hr.urls")),
+    path("assets/", include("assets.urls")),
     path("me/", include("hr.portal_urls")),
     path("", include("saas.urls")),
     path("", include("core.urls")),

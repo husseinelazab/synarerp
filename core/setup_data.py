@@ -16,6 +16,7 @@ CHART_OF_ACCOUNTS = [
             ("1201", "الأثاث والمفروشات", "fixed_asset", None),
             ("1202", "الأجهزة والمعدات", "fixed_asset", None),
             ("1203", "السيارات", "fixed_asset", None),
+            ("1204", "مجمع إهلاك الأصول الثابتة", "accumulated_depreciation", None),
         ]),
     ]),
     ("2", "الخصوم", "liability", [
@@ -42,6 +43,7 @@ CHART_OF_ACCOUNTS = [
         ("4102", "إيرادات الخدمات", "income_account", None),
         ("4103", "إيرادات أخرى", "income_account", None),
         ("4104", "فروق أسعار الصرف", "income_account", None),
+        ("4105", "أرباح وخسائر استبعاد الأصول", "income_account", None),
     ]),
     ("5", "المصروفات", "expense", [
         ("51", "تكلفة المبيعات", None, [

@@ -1,0 +1,11 @@
+# Caddy يصدر شهادة HTTPS مجانية تلقائياً (Let's Encrypt) للنطاق ويجددها قبل انتهائها
+{$SYNAR_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:8000
+	request_body {
+		max_size 20MB
+	}
+	header {
+		-Server
+	}
+}

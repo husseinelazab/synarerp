@@ -4,9 +4,12 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("SYNAR_SECRET_KEY", "dev-insecure-change-me")
 DEBUG = os.environ.get("SYNAR_DEBUG", "1") == "1"
-ALLOWED_HOSTS = os.environ.get("SYNAR_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+SECRET_KEY = os.environ.get("SYNAR_SECRET_KEY", "dev-insecure-change-me" if DEBUG else "")
+if not SECRET_KEY or (not DEBUG and SECRET_KEY.startswith("dev-insecure")):
+    # في الإنتاج يجب مفتاح سري قوي وثابت: تتغير بتغييره كل الجلسات وتُفقد مفاتيح الفوترة وكلمة مرور البريد المشفرة
+    raise RuntimeError("اضبط SYNAR_SECRET_KEY بقيمة عشوائية طويلة قبل التشغيل في الإنتاج (SYNAR_DEBUG=0).")
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("SYNAR_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("SYNAR_CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
 # التشغيل داخل GitHub Codespaces: السماح برابط المعاينة الذي يوفره GitHub
@@ -35,6 +38,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -74,6 +78,8 @@ if os.environ.get("SYNAR_DB_NAME"):
             "PASSWORD": os.environ.get("SYNAR_DB_PASSWORD", ""),
             "HOST": os.environ.get("SYNAR_DB_HOST", "localhost"),
             "PORT": os.environ.get("SYNAR_DB_PORT", "5432"),
+            "CONN_MAX_AGE": int(os.environ.get("SYNAR_DB_CONN_MAX_AGE", "60")),
+            "CONN_HEALTH_CHECKS": True,
         }
     }
 else:
@@ -85,7 +91,10 @@ else:
     }
 
 AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
 # اللغة العربية افتراضياً وبالكامل
@@ -98,6 +107,13 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # الملفات الثابتة تُخدم مضغوطة وبأسماء ثابتة التجزئة (WhiteNoise) في الإنتاج
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG
+                    else "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+MEDIA_ROOT = Path(os.environ.get("SYNAR_MEDIA_ROOT", BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -129,3 +145,31 @@ if SYNAR_EMAIL_ENABLED:
 else:
     EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
 SYNAR_SITE_URL = os.environ.get("SYNAR_SITE_URL", "")
+
+# ───────── الأمان في الإنتاج ─────────
+if not DEBUG:
+    # يفترض أن النظام خلف وكيل عكسي (Caddy/Nginx) يتولى شهادة HTTPS
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = os.environ.get("SYNAR_SSL_REDIRECT", "1") == "1"
+    SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
+    SECURE_HSTS_SECONDS = int(os.environ.get("SYNAR_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get("SYNAR_HSTS_SUBDOMAINS", "0") == "1"
+    SECURE_HSTS_PRELOAD = False
+    # قرار يخص مالك النطاق: تشمل HSTS النطاقات الفرعية فقط إن كانت كلها على HTTPS، والإدراج في قائمة المتصفحات اختياري
+    SILENCED_SYSTEM_CHECKS = ["security.W021"] + ([] if SECURE_HSTS_INCLUDE_SUBDOMAINS else ["security.W005"])
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    X_FRAME_OPTIONS = "DENY"
+    # مسار فحص الصحة يُطلب داخلياً عبر HTTP من Docker
+    SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = int(os.environ.get("SYNAR_SESSION_HOURS", "12")) * 3600
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
+    "root": {"handlers": ["console"], "level": os.environ.get("SYNAR_LOG_LEVEL", "INFO")},
+    "loggers": {"django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False}},
+}

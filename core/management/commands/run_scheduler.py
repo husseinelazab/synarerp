@@ -1,0 +1,45 @@
+"""مُجدول المهام الدورية (يعمل في حاوية مستقلة في الإنتاج).
+
+- يومياً في الساعة SYNAR_REMINDERS_HOUR (افتراضي 7 صباحاً): تنبيهات الموارد البشرية (hr_reminders).
+- كل ساعة: إعادة إرسال الفواتير الإلكترونية المعلقة — للشركات التي فعّلت الربط مع منصة فاتورة بنفسها فقط.
+"""
+import os
+import time
+
+from django.core.management import call_command
+from django.core.management.base import BaseCommand
+from django.db import close_old_connections
+from django.utils import timezone
+
+
+class Command(BaseCommand):
+    help = "تشغيل المهام الدورية بشكل مستمر (التنبيهات اليومية وإعادة إرسال الفواتير الإلكترونية)"
+
+    def add_arguments(self, parser):
+        parser.add_argument("--once", action="store_true", help="تشغيل كل المهام مرة واحدة ثم الخروج")
+
+    def run(self, name, *args):
+        close_old_connections()
+        try:
+            call_command(name, *args, stdout=self.stdout)
+        except Exception as exc:  # فشل مهمة لا يوقف المجدول
+            self.stderr.write(f"فشلت المهمة {name}: {exc}")
+
+    def handle(self, *args, **options):
+        reminders_hour = int(os.environ.get("SYNAR_REMINDERS_HOUR", "7"))
+        if options["once"]:
+            self.run("hr_reminders")
+            self.run("zatca_submit")
+            return
+        self.stdout.write("المجدول يعمل.")
+        last_daily = last_hourly = None
+        while True:
+            now = timezone.localtime()
+            hour_key = now.strftime("%Y%m%d%H")
+            if hour_key != last_hourly:
+                last_hourly = hour_key
+                self.run("zatca_submit")
+            if now.hour >= reminders_hour and now.date() != last_daily:
+                last_daily = now.date()
+                self.run("hr_reminders")
+            time.sleep(60)

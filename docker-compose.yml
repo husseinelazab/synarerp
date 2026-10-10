@@ -1,0 +1,83 @@
+# تشغيل سِينار للإنتاج: قاعدة بيانات + التطبيق + المهام الدورية + HTTPS تلقائي + نسخ احتياطي يومي
+# الاستخدام:  cp .env.example .env  ثم عدّل القيم  ثم:  docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SYNAR_DB_NAME:-synar}
+      POSTGRES_USER: ${SYNAR_DB_USER:-synar}
+      POSTGRES_PASSWORD: ${SYNAR_DB_PASSWORD:?اضبط SYNAR_DB_PASSWORD في ملف .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      retries: 10
+
+  web:
+    build: .
+    image: synar-erp:latest
+    restart: unless-stopped
+    env_file: .env
+    environment: &app_env
+      SYNAR_DB_HOST: db
+      SYNAR_DB_NAME: ${SYNAR_DB_NAME:-synar}
+      SYNAR_DB_USER: ${SYNAR_DB_USER:-synar}
+      SYNAR_DB_PASSWORD: ${SYNAR_DB_PASSWORD}
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["web"]
+
+  scheduler:
+    image: synar-erp:latest
+    restart: unless-stopped
+    env_file: .env
+    environment: *app_env
+    depends_on:
+      web:
+        condition: service_healthy
+    command: ["scheduler"]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SYNAR_DOMAIN: ${SYNAR_DOMAIN:?اضبط SYNAR_DOMAIN في ملف .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGDATABASE: ${SYNAR_DB_NAME:-synar}
+      PGUSER: ${SYNAR_DB_USER:-synar}
+      PGPASSWORD: ${SYNAR_DB_PASSWORD}
+      BACKUP_KEEP_DAYS: ${SYNAR_BACKUP_KEEP_DAYS:-14}
+      BACKUP_HOUR: ${SYNAR_BACKUP_HOUR:-2}
+      TZ: Asia/Riyadh
+    volumes:
+      - ./backups:/backups
+      - ./deploy/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh", "loop"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  media:
+  caddy_data:
+  caddy_config:

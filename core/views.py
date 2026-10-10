@@ -386,3 +386,16 @@ def profile(request):
         messages.success(request, "تم حفظ بياناتك.")
         return redirect("profile")
     return render(request, "settings/profile.html", {"form": form})
+
+
+def healthz(request):
+    """فحص صحة الخدمة وقاعدة البيانات (لـ Docker والمراقبة)."""
+    from django.db import connection
+    from django.http import HttpResponse
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception:
+        return HttpResponse("db-error", status=503, content_type="text/plain")
+    return HttpResponse("ok", content_type="text/plain")

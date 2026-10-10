@@ -8,7 +8,7 @@ from core.tenancy import reset_current_company, set_current_company
 SESSION_KEY = "company_id"
 
 # مسارات لا تحتاج شركة حالية
-PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/favicon.ico", "/password-reset/")
+PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/favicon.ico", "/password-reset/", "/healthz/")
 # مسارات متاحة حتى مع انتهاء الاشتراك
 BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 # ما يُسمح للكاشير بالوصول إليه

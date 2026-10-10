@@ -26,7 +26,7 @@ def _gl_balance(**filters):
 
 def _net(model, start, end):
     return flt(model.objects.filter(docstatus=DocStatus.SUBMITTED, posting_date__gte=start,
-                                    posting_date__lt=end).aggregate(v=Sum("net_total"))["v"])
+                                    posting_date__lt=end).aggregate(v=Sum("base_net_total"))["v"])
 
 
 def _change(current, previous):

@@ -42,7 +42,7 @@
     {% if obj.supplier %}<div>المورد: <strong>{{ obj.supplier }}</strong></div>{% endif %}
     {% if obj.bill_no %}<div>رقم فاتورة المورد: {{ obj.bill_no }}</div>{% endif %}
     {% if obj.due_date %}<div>تاريخ الاستحقاق: {{ obj.due_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.amount %}<div>المبلغ: <strong>{{ obj.amount|cur }}</strong></div>{% endif %}
+    {% if obj.amount %}<div>المبلغ: <strong>{{ obj.amount|cur:doc_currency }}</strong></div>{% endif %}
   </div>
   {% if child_rows %}
   <table>
@@ -54,7 +54,8 @@
   {% endif %}
   {% if totals %}
   <table class="totals">
-    {% for label, value in totals %}<tr><th>{{ label }}</th><td>{{ value|abs|cur }}</td></tr>{% endfor %}
+    {% for label, value in totals %}<tr><th>{{ label }}</th><td>{{ value|abs|cur:doc_currency }}</td></tr>{% endfor %}
+    {% if obj.is_foreign_currency and obj.base_grand_total %}<tr><th>سعر الصرف</th><td><bdi dir="ltr">1 {{ obj.currency.code }} = {{ obj.exchange_rate|plain_number }} {{ obj.company.currency.code }}</bdi></td></tr><tr><th>الإجمالي بعملة الشركة</th><td>{{ obj.base_grand_total|abs|cur }}</td></tr>{% endif %}
   </table>
   {% endif %}
   {% if qr %}<div class="qr">{{ qr|safe }}</div>{% endif %}

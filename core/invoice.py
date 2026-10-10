@@ -11,10 +11,44 @@ from core.models import SubmittableDocument
 from core.utils import flt
 
 
-class InvoiceDocument(SubmittableDocument):
+class CurrencyMixin:
+    """عملة المستند وسعر صرفه؛ القيود تُسجل دائماً بعملة الشركة."""
+
+    def ensure_currency(self):
+        from core.models import Company, ExchangeRate
+
+        company = self.company if self.company_id else Company.current()
+        if company is None:
+            return
+        if not self.currency_id:
+            self.currency_id = company.currency_id
+        if self.currency_id == company.currency_id:
+            self.exchange_rate = 1
+        elif not self.exchange_rate:
+            self.exchange_rate = ExchangeRate.lookup(company, self.currency, self.posting_date)
+
+    @property
+    def is_foreign_currency(self):
+        return bool(self.currency_id) and self.currency_id != self.company.currency_id
+
+    def validate_currency(self):
+        self.ensure_currency()
+        if not self.exchange_rate or self.exchange_rate <= 0:
+            raise ValidationError(
+                f"أدخل سعر صرف {self.currency} في المستند، أو أضفه في «الإعدادات ← أسعار الصرف».")
+
+    def to_base(self, amount):
+        return flt(flt(amount) * (self.exchange_rate or 1))
+
+
+class InvoiceDocument(CurrencyMixin, SubmittableDocument):
     due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True)
     update_stock = models.BooleanField("تحديث المخزون", default=True)
     warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="المستودع")
+    currency = models.ForeignKey("core.Currency", models.PROTECT, null=True, blank=True, related_name="+",
+                                 verbose_name="العملة")
+    exchange_rate = models.DecimalField("سعر الصرف", max_digits=18, decimal_places=6, null=True, blank=True,
+                                        help_text="يُترك فارغاً لاستخدام آخر سعر في جدول أسعار الصرف")
     tax_rate = models.DecimalField("نسبة الضريبة %", max_digits=5, decimal_places=2, default=15)
     cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True, related_name="+",
                                     limit_choices_to={"is_group": False, "disabled": False},
@@ -25,6 +59,9 @@ class InvoiceDocument(SubmittableDocument):
     tax_amount = models.DecimalField("مبلغ الضريبة", max_digits=18, decimal_places=2, default=0, editable=False)
     grand_total = models.DecimalField("الإجمالي شامل الضريبة", max_digits=18, decimal_places=2, default=0, editable=False)
     outstanding_amount = models.DecimalField("المبلغ المتبقي", max_digits=18, decimal_places=2, default=0, editable=False)
+    base_net_total = models.DecimalField("الصافي بعملة الشركة", max_digits=18, decimal_places=2, default=0, editable=False)
+    base_tax_amount = models.DecimalField("الضريبة بعملة الشركة", max_digits=18, decimal_places=2, default=0, editable=False)
+    base_grand_total = models.DecimalField("الإجمالي بعملة الشركة", max_digits=18, decimal_places=2, default=0, editable=False)
 
     is_return = models.BooleanField("مرتجع", default=False, editable=False)
     return_against = models.ForeignKey(
@@ -39,7 +76,7 @@ class InvoiceDocument(SubmittableDocument):
     party_field = ""
     return_prefix = "RET"
     # حقول تُنسخ من الفاتورة الأصلية إلى المرتجع ولا يجوز تغييرها فيه
-    return_locked_fields = ["tax_rate", "update_stock", "cost_center"]
+    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "currency", "exchange_rate"]
 
     class Meta(SubmittableDocument.Meta):
         abstract = True
@@ -147,8 +184,17 @@ class InvoiceDocument(SubmittableDocument):
             self.grand_total = flt(self.net_total + self.tax_amount)
         if self.is_draft:
             self.outstanding_amount = self.grand_total
+        self.ensure_currency()
+        self.base_net_total = self.to_base(self.net_total)
+        self.base_tax_amount = self.to_base(self.tax_amount)
+        self.base_grand_total = self.base_net_total + self.base_tax_amount
+
+    def save(self, *args, **kwargs):
+        self.ensure_currency()
+        super().save(*args, **kwargs)
 
     def validate_for_submit(self):
+        self.validate_currency()
         rows = list(self.items.select_related("item"))
         if not rows:
             raise ValidationError("يجب إضافة صنف واحد على الأقل.")

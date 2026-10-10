@@ -37,15 +37,24 @@ def abs_filter(value):
 
 
 @register.filter
-def cur(value):
-    """مبلغ منسق مع رمز عملة الشركة."""
+def cur(value, currency=None):
+    """مبلغ منسق مع رمز العملة (عملة المستند إن مُررت، وإلا عملة الشركة)."""
     try:
         text = _money(value)
     except Exception:
         return value
-    return mark_safe(f'<span class="amount"><bdi dir="ltr">{text}</bdi>{currency_symbol_html()}</span>')
+    return mark_safe(f'<span class="amount"><bdi dir="ltr">{text}</bdi>{currency_symbol_html(currency or None)}</span>')
 
 
 @register.simple_tag
 def currency_symbol():
     return mark_safe(currency_symbol_html())
+
+
+@register.filter
+def plain_number(value):
+    """رقم بدون أصفار زائدة وبالنقطة العشرية (لأسعار الصرف)."""
+    try:
+        return f"{value.normalize():f}"
+    except AttributeError:
+        return value

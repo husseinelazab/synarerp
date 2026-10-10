@@ -4,10 +4,15 @@ from django.core.exceptions import ValidationError
 from core.utils import flt
 
 
-def make_gl_entries(doc, entries, remarks=""):
+ROUNDING_TOLERANCE = flt("0.05")
+
+
+def make_gl_entries(doc, entries, remarks="", exchange_rate=None):
     """إنشاء قيود الأستاذ لمستند معتمد بعد التحقق من التوازن.
 
-    كل عنصر في entries قاموس يحتوي: account, debit, credit, customer, supplier, remarks
+    كل عنصر في entries قاموس يحتوي: account, debit, credit, customer, supplier, cost_center, remarks.
+    إذا مُرر exchange_rate تُحوّل المبالغ من عملة المستند إلى عملة الشركة، إلا العناصر المعلّمة base=True
+    (مثل تكلفة المخزون المحسوبة أصلاً بعملة الشركة). فرق التقريب الناتج عن التحويل يُحمّل على سطر الطرف.
     """
     from accounts.models import GLEntry, RootType
 
@@ -31,8 +36,9 @@ def make_gl_entries(doc, entries, remarks=""):
             "account": account, "customer": customer, "supplier": supplier, "cost_center": center,
             "debit": flt(0), "credit": flt(0), "remarks": entry.get("remarks") or remarks or doc.remarks,
         })
-        row["debit"] += flt(entry.get("debit"))
-        row["credit"] += flt(entry.get("credit"))
+        rate = exchange_rate if exchange_rate and not entry.get("base") else 1
+        row["debit"] += flt(flt(entry.get("debit")) * rate)
+        row["credit"] += flt(flt(entry.get("credit")) * rate)
 
     rows = []
     for row in merged.values():
@@ -43,6 +49,13 @@ def make_gl_entries(doc, entries, remarks=""):
 
     total_debit = sum((r["debit"] for r in rows), flt(0))
     total_credit = sum((r["credit"] for r in rows), flt(0))
+    difference = total_debit - total_credit
+    if difference and exchange_rate and exchange_rate != 1 and abs(difference) <= ROUNDING_TOLERANCE:
+        # فرق تقريب التحويل يُسوّى على سطر العميل/المورد (أو أكبر سطر)
+        target = next((r for r in rows if r["customer"] or r["supplier"]), max(rows, key=lambda r: r["debit"] + r["credit"]))
+        net = target["debit"] - target["credit"] - difference
+        target["debit"], target["credit"] = (net, flt(0)) if net > 0 else (flt(0), -net)
+        total_debit = total_credit = sum((r["debit"] for r in rows), flt(0))
     if total_debit != total_credit:
         raise ValidationError(f"القيد غير متوازن: المدين {total_debit} والدائن {total_credit}.")
 

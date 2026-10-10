@@ -39,6 +39,7 @@ CHART_OF_ACCOUNTS = [
         ("4101", "المبيعات", "income_account", None),
         ("4102", "إيرادات الخدمات", "income_account", None),
         ("4103", "إيرادات أخرى", "income_account", None),
+        ("4104", "فروق أسعار الصرف", "income_account", None),
     ]),
     ("5", "المصروفات", "expense", [
         ("51", "تكلفة المبيعات", None, [
@@ -72,6 +73,7 @@ DEFAULT_ACCOUNTS = {
     "default_discount_account": "5206",
     "default_opening_account": "3104",
     "default_retained_earnings_account": "3102",
+    "default_exchange_account": "4104",
 }
 
 UOMS = ["حبة", "كرتون", "علبة", "كيلوجرام", "جرام", "لتر", "متر", "ساعة", "خدمة"]

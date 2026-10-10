@@ -31,7 +31,7 @@ class PurchaseInvoice(InvoiceDocument):
     naming_prefix = "PINV"
     return_prefix = "PRET"
     party_field = "supplier"
-    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "supplier"]
+    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "currency", "exchange_rate", "supplier"]
 
     supplier = models.ForeignKey(Supplier, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="المورد")
     bill_no = models.CharField("رقم فاتورة المورد", max_length=50, blank=True)
@@ -54,13 +54,15 @@ class PurchaseInvoice(InvoiceDocument):
         entries = []
         for row in self.items.select_related("item", "item__expense_account"):
             if self.update_stock and row.item.is_stock_item:
+                # المخزون يُقيّم بعملة الشركة: سعر الشراء × سعر الصرف.
                 # المرتجع يخرج بسعر التقييم الحالي؛ فرقه عن سعر الشراء يذهب لحساب تسويات المخزون
-                value = make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate)
-                entries.append({"account": company.require_account("default_stock_account"), "debit": value})
-                if row.amount != value:
+                base_amount = self.to_base(row.amount)
+                value = make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate)
+                entries.append({"account": company.require_account("default_stock_account"), "debit": value, "base": True})
+                if base_amount != value:
                     entries.append({
                         "account": company.require_account("default_stock_adjustment_account"),
-                        "debit": row.amount - value,
+                        "debit": base_amount - value, "base": True,
                     })
             else:
                 account = row.item.expense_account or company.require_account("default_expense_account")
@@ -73,7 +75,7 @@ class PurchaseInvoice(InvoiceDocument):
         })
         default_remarks = (f"مرتجع مشتريات من الفاتورة {self.return_against}" if self.is_return
                            else f"فاتورة مشتريات من المورد {self.supplier}")
-        make_gl_entries(self, entries, remarks=self.remarks or default_remarks)
+        make_gl_entries(self, entries, remarks=self.remarks or default_remarks, exchange_rate=self.exchange_rate)
         self.apply_return_to_original()
 
     def on_cancel(self):

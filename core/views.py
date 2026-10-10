@@ -107,6 +107,8 @@ def doc_form(request, slug, pk=None):
     initial = {}
     company = request.company
     if instance is None and company:
+        if "currency" in FormClass.base_fields:
+            initial["currency"] = company.currency_id
         if "tax_rate" in FormClass.base_fields:
             initial["tax_rate"] = company.default_tax_rate
         if "company" in FormClass.base_fields:
@@ -190,7 +192,7 @@ def doc_detail(request, slug, pk):
     child_headers, child_rows = _child_table(dt, obj)
     exclude = set(dt.totals) | {"name", "docstatus"}
     context = {
-        "dt": dt, "obj": obj,
+        "dt": dt, "obj": obj, "doc_currency": getattr(obj, "currency", None),
         "fields": detail_fields(obj, exclude=exclude),
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals],
         "child_headers": child_headers, "child_rows": child_rows,
@@ -216,7 +218,7 @@ def doc_print(request, slug, pk):
 
         qr = invoice_qr_svg(obj)
     return render(request, "core/print.html", {
-        "qr": qr,
+        "qr": qr, "doc_currency": getattr(obj, "currency", None),
         "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals if f != "outstanding_amount"],
     })

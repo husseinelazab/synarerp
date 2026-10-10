@@ -40,7 +40,8 @@ class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
     return_prefix = "SRET"
     party_field = "customer"
-    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "prices_include_tax", "customer"]
+    return_locked_fields = ["tax_rate", "update_stock", "cost_center", "currency", "exchange_rate", "prices_include_tax",
+                            "customer"]
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)
@@ -110,11 +111,12 @@ class SalesInvoice(InvoiceDocument):
         if self.tax_amount:
             entries.append({"account": company.require_account("default_output_tax_account"), "credit": self.tax_amount})
         if cogs_total:
-            entries.append({"account": company.require_account("default_cogs_account"), "debit": cogs_total})
-            entries.append({"account": company.require_account("default_stock_account"), "credit": cogs_total})
+            # تكلفة المخزون محسوبة أصلاً بعملة الشركة فلا تُحوّل
+            entries.append({"account": company.require_account("default_cogs_account"), "debit": cogs_total, "base": True})
+            entries.append({"account": company.require_account("default_stock_account"), "credit": cogs_total, "base": True})
         default_remarks = (f"مرتجع مبيعات من الفاتورة {self.return_against}" if self.is_return
                            else f"فاتورة مبيعات للعميل {self.customer}")
-        make_gl_entries(self, entries, remarks=self.remarks or default_remarks)
+        make_gl_entries(self, entries, remarks=self.remarks or default_remarks, exchange_rate=self.exchange_rate)
         self.apply_return_to_original()
         if self.is_pos:
             self._post_pos_payment()

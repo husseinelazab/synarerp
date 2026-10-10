@@ -4,7 +4,8 @@ from selling.models import Customer, SalesInvoice, SalesInvoiceItem
 register(DocType(
     slug="sales-invoice", model=SalesInvoice, module="selling",
     list_fields=["name", "posting_date", "customer", "is_return", "grand_total", "outstanding_amount"],
-    form_fields=["customer", "posting_date", "due_date", "update_stock", "warehouse", "cost_center", "tax_rate", "prices_include_tax", "discount_amount", "remarks"],
+    form_fields=["customer", "posting_date", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center",
+                 "tax_rate", "prices_include_tax", "discount_amount", "remarks"],
     search_fields=["name", "customer__name"],
     child=ChildTable(SalesInvoiceItem, ["item", "qty", "rate"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total", "outstanding_amount"],

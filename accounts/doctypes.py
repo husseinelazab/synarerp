@@ -14,7 +14,7 @@ register(DocType(
 register(DocType(
     slug="payment-entry", model=PaymentEntry, module="accounts",
     list_fields=["name", "posting_date", "payment_type", "customer", "supplier", "amount"],
-    form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount",
+    form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount", "currency", "exchange_rate",
                  "sales_invoice", "purchase_invoice", "reference_no", "remarks"],
     search_fields=["name", "customer__name", "supplier__name", "reference_no"],
 ))

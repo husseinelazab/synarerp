@@ -4,7 +4,9 @@ from django.db import models
 
 from core.utils import money
 
-HIDDEN_FIELDS = {"id", "created_at", "modified_at", "parent", "company", "created_by", "docstatus"}
+HIDDEN_FIELDS = {"id", "created_at", "modified_at", "parent", "company", "created_by", "docstatus",
+                 # تظهر في بطاقة الإجماليات بدلاً من تفاصيل المستند
+                 "base_net_total", "base_tax_amount", "base_grand_total", "base_amount"}
 
 
 def display_value(obj, field_name):

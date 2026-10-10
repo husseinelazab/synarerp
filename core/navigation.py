@@ -70,7 +70,7 @@ def build_menu(request):
     modules.append({"key": "hr", "label": "الموارد البشرية", "sections": [
         {"items": [doc("الموظفون", "employee"), doc("الأقسام", "department"), doc("المسميات الوظيفية", "designation")]},
     ]})
-    settings_items = [doc("السنوات المالية", "fiscal-year")]
+    settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
     if membership.can_manage:
         settings_items = [_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
                           _item("الاشتراك والفوترة", "billing")] + settings_items

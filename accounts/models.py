@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
+from core.invoice import CurrencyMixin
 from core.models import SubmittableDocument, TenantModel
 from core.tenancy import tenant_unique
 from core.utils import flt
@@ -229,7 +230,7 @@ class PaymentType(models.TextChoices):
     PAY = "pay", "سند صرف"
 
 
-class PaymentEntry(SubmittableDocument):
+class PaymentEntry(CurrencyMixin, SubmittableDocument):
     naming_prefix = "PAY"
 
     payment_type = models.CharField("نوع السند", max_length=10, choices=PaymentType.choices, default=PaymentType.RECEIVE)
@@ -240,6 +241,13 @@ class PaymentEntry(SubmittableDocument):
         limit_choices_to={"is_group": False, "account_type__in": [AccountType.CASH, AccountType.BANK]},
     )
     amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
+    currency = models.ForeignKey("core.Currency", models.PROTECT, null=True, blank=True, related_name="+",
+                                 verbose_name="العملة")
+    exchange_rate = models.DecimalField("سعر الصرف", max_digits=18, decimal_places=6, null=True, blank=True,
+                                        help_text="يُترك فارغاً لاستخدام آخر سعر في جدول أسعار الصرف")
+    base_amount = models.DecimalField("المبلغ بعملة الشركة", max_digits=18, decimal_places=2, default=0, editable=False)
+    exchange_difference = models.DecimalField("فرق سعر الصرف (ربح + / خسارة −)", max_digits=18, decimal_places=2,
+                                              default=0, editable=False)
     sales_invoice = models.ForeignKey(
         "selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="فاتورة المبيعات"
     )
@@ -266,9 +274,20 @@ class PaymentEntry(SubmittableDocument):
         normal = (self.payment_type == PaymentType.RECEIVE) == bool(self.customer_id)
         return 1 if normal else -1
 
+    def save(self, *args, **kwargs):
+        self.ensure_currency()
+        super().save(*args, **kwargs)
+
+    def calculate_totals(self):
+        self.ensure_currency()
+        self.base_amount = self.to_base(self.amount)
+
     def validate_for_submit(self):
+        self.validate_currency()
         if flt(self.amount) <= 0:
             raise ValidationError("المبلغ يجب أن يكون أكبر من صفر.")
+        if self.invoice and self.invoice.currency_id != self.currency_id:
+            raise ValidationError(f"عملة السند يجب أن تطابق عملة الفاتورة ({self.invoice.currency}).")
         if bool(self.customer_id) == bool(self.supplier_id):
             raise ValidationError("حدد عميلاً أو مورداً واحداً فقط.")
         if self.customer_id and self.purchase_invoice_id or self.supplier_id and self.sales_invoice_id:
@@ -292,16 +311,27 @@ class PaymentEntry(SubmittableDocument):
         else:
             party_account = self.company.require_account("default_payable_account")
         party = {"customer": self.customer, "supplier": self.supplier}
+        # النقدية بسعر صرف السند، والذمة بسعر صرف الفاتورة التي نشأت بها؛ الفرق ربح أو خسارة صرف
+        cash_base = self.to_base(amount)
+        party_base = flt(amount * (self.invoice.exchange_rate if self.invoice else self.exchange_rate))
         if self.payment_type == PaymentType.RECEIVE:
             entries = [
-                {"account": self.account, "debit": amount},
-                {"account": party_account, "credit": amount, **party},
+                {"account": self.account, "debit": cash_base, "base": True},
+                {"account": party_account, "credit": party_base, "base": True, **party},
             ]
+            gain = cash_base - party_base
         else:
             entries = [
-                {"account": party_account, "debit": amount, **party},
-                {"account": self.account, "credit": amount},
+                {"account": party_account, "debit": party_base, "base": True, **party},
+                {"account": self.account, "credit": cash_base, "base": True},
             ]
+            gain = party_base - cash_base
+        if gain:
+            fx_account = self.company.require_account("default_exchange_account")
+            entries.append({"account": fx_account, "credit": gain if gain > 0 else 0, "debit": -gain if gain < 0 else 0,
+                            "base": True, "remarks": "فرق سعر الصرف"})
+        self.exchange_difference = gain
+        self.save(update_fields=["exchange_difference"])
         make_gl_entries(self, entries, remarks=self.remarks or self.get_payment_type_display())
         self._update_invoice_outstanding(-amount * self.direction)
 

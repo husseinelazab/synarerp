@@ -62,6 +62,9 @@ class Company(models.Model):
     default_input_tax_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب ضريبة المدخلات (المشتريات)"
     )
+    default_exchange_account = models.ForeignKey(
+        "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب فروق أسعار الصرف"
+    )
     default_cost_center = models.ForeignKey(
         "accounts.CostCenter", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="مركز التكلفة الافتراضي"
     )
@@ -334,3 +337,32 @@ class DataImport(TenantModel):
         verbose_name = "عملية استيراد"
         verbose_name_plural = "سجل الاستيراد"
         ordering = ["-created_at"]
+
+
+class ExchangeRate(TenantModel):
+    """سعر صرف عملة أجنبية مقابل عملة الشركة في تاريخ معين."""
+
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, verbose_name="العملة")
+    date = models.DateField("التاريخ", default=timezone.localdate)
+    rate = models.DecimalField("سعر الصرف", max_digits=18, decimal_places=6,
+                               help_text="قيمة وحدة واحدة من العملة الأجنبية بعملة الشركة")
+
+    class Meta:
+        verbose_name = "سعر صرف"
+        verbose_name_plural = "أسعار الصرف"
+        ordering = ["-date"]
+        constraints = [tenant_unique("currency", "date", model_label="exchangerate")]
+
+    def __str__(self):
+        return f"{self.currency.code} {self.date:%Y-%m-%d} = {self.rate}"
+
+    def clean(self):
+        if self.rate is not None and self.rate <= 0:
+            raise ValidationError({"rate": "سعر الصرف يجب أن يكون أكبر من صفر."})
+
+    @classmethod
+    def lookup(cls, company, currency, date):
+        if currency.pk == company.currency_id:
+            return 1
+        found = cls.all_objects.filter(company=company, currency=currency, date__lte=date).order_by("-date").first()
+        return found.rate if found else None

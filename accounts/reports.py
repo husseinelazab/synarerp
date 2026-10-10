@@ -197,8 +197,8 @@ def balance_sheet(request):
 def vat_report(request):
     from_date, to_date = _period(request)
     flt_kw = {"docstatus": DocStatus.SUBMITTED, "posting_date__gte": from_date, "posting_date__lte": to_date}
-    sales = SalesInvoice.objects.filter(**flt_kw).aggregate(net=Sum("net_total"), tax=Sum("tax_amount"))
-    purchases = PurchaseInvoice.objects.filter(**flt_kw).aggregate(net=Sum("net_total"), tax=Sum("tax_amount"))
+    sales = SalesInvoice.objects.filter(**flt_kw).aggregate(net=Sum("base_net_total"), tax=Sum("base_tax_amount"))
+    purchases = PurchaseInvoice.objects.filter(**flt_kw).aggregate(net=Sum("base_net_total"), tax=Sum("base_tax_amount"))
     output_tax, input_tax = flt(sales["tax"]), flt(purchases["tax"])
     return render(request, "reports/vat.html", {
         "title": "إقرار ضريبة القيمة المضافة", "from_date": from_date, "to_date": to_date,

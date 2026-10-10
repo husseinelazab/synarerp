@@ -267,3 +267,112 @@ class BankReconciliationTests(TestCase):
         response = self.client.post("/reports/accounts/bank-reconciliation/", {"action": "auto", "account": self.bank.pk})
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.get("/app/bank-transaction/template.xlsx").status_code, 200)
+
+
+class MultiCurrencyTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة الاستيراد الدولي", "fx")
+
+    def setUp(self):
+        from core.models import Currency
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.usd = Currency.objects.get(code="USD")
+        self.item = Item.objects.create(code="IMP", name="جهاز مستورد", item_group=ItemGroup.objects.first(),
+                                        uom=UOM.objects.first())
+        self.supplier = Supplier.objects.create(name="Global Supplies Inc")
+        self.customer = Customer.objects.create(name="عميل خارجي")
+        self.wh = Warehouse.objects.first()
+        self.bank = Account.objects.get(number="1102")
+
+    def purchase_usd(self, rate="3.75"):
+        from buying.models import PurchaseInvoice
+        inv = PurchaseInvoice.objects.create(supplier=self.supplier, warehouse=self.wh, currency=self.usd,
+                                             exchange_rate=Decimal(rate))
+        inv.items.create(item=self.item, qty=10, rate=100)
+        inv.submit()
+        return inv
+
+    def pay(self, invoice, amount, rate, **kwargs):
+        from accounts.models import PaymentEntry
+        party = {"supplier": invoice.supplier, "purchase_invoice": invoice} if hasattr(invoice, "supplier") \
+            else {"customer": invoice.customer, "sales_invoice": invoice}
+        payment = PaymentEntry.objects.create(payment_type="pay" if "supplier" in party else "receive",
+                                              account=self.bank, amount=amount, currency=self.usd,
+                                              exchange_rate=Decimal(rate), **party, **kwargs)
+        payment.submit()
+        return payment
+
+    def test_foreign_purchase_posts_in_company_currency_and_values_stock(self):
+        inv = self.purchase_usd()
+        self.assertEqual(inv.grand_total, Decimal("1150.00"))           # بالدولار
+        self.assertEqual(inv.base_grand_total, Decimal("4312.50"))      # بالريال
+        self.assertEqual(balance(supplier=self.supplier), Decimal("-4312.50"))
+        self.assertEqual(balance(account=self.company.default_stock_account), Decimal("3750"))
+        self.assertEqual(balance(account=self.company.default_input_tax_account), Decimal("562.50"))
+        self.assertEqual(Bin.objects.get(item=self.item).valuation_rate, Decimal("375"))
+        self.assertEqual(balance(), 0)
+
+    def test_payment_at_different_rate_books_exchange_loss_and_gain(self):
+        inv = self.purchase_usd("3.75")
+        payment = self.pay(inv, Decimal("1150"), "3.80")                # الدولار ارتفع: خسارة
+        self.assertEqual(payment.exchange_difference, Decimal("-57.50"))
+        self.assertEqual(balance(account=self.company.default_exchange_account), Decimal("57.50"))
+        self.assertEqual(balance(supplier=self.supplier), 0)           # الذمة أُقفلت بسعر الفاتورة
+        self.assertEqual(balance(account=self.bank), Decimal("-4370"))
+        inv.refresh_from_db()
+        self.assertEqual(inv.outstanding_amount, 0)
+        # بيع بالدولار وتحصيل بسعر أعلى: ربح
+        from selling.models import SalesInvoice
+        sale = SalesInvoice.objects.create(customer=self.customer, warehouse=self.wh, currency=self.usd,
+                                           exchange_rate=Decimal("3.75"))
+        sale.items.create(item=self.item, qty=1, rate=200)
+        sale.submit()
+        receipt = self.pay(sale, Decimal("230"), "3.76")
+        self.assertEqual(receipt.exchange_difference, Decimal("2.30"))
+        self.assertEqual(balance(customer=self.customer), 0)
+        self.assertEqual(balance(), 0)
+
+    def test_rate_lookup_missing_rate_and_same_currency(self):
+        from buying.models import PurchaseInvoice
+        from core.models import Currency, ExchangeRate
+        eur = Currency.objects.get(code="EUR")
+        missing = PurchaseInvoice.objects.create(supplier=self.supplier, warehouse=self.wh, currency=eur)
+        missing.items.create(item=self.item, qty=1, rate=10)
+        with self.assertRaises(ValidationError):
+            missing.submit()
+        ExchangeRate.objects.create(currency=eur, date=datetime.date.today() - datetime.timedelta(days=3), rate="4.1")
+        found = PurchaseInvoice.objects.create(supplier=self.supplier, warehouse=self.wh, currency=eur)
+        found.items.create(item=self.item, qty=1, rate=10)
+        found.submit()
+        self.assertEqual(found.exchange_rate, Decimal("4.1"))
+        local = PurchaseInvoice.objects.create(supplier=self.supplier, warehouse=self.wh, exchange_rate=Decimal("2"))
+        local.items.create(item=self.item, qty=1, rate=10)
+        local.submit()
+        self.assertEqual(local.exchange_rate, 1)                        # عملة الشركة سعرها 1 دائماً
+
+    def test_rounding_stays_balanced_and_currency_mismatch_rejected(self):
+        from buying.models import PurchaseInvoice
+        inv = PurchaseInvoice.objects.create(supplier=self.supplier, warehouse=self.wh, currency=self.usd,
+                                             exchange_rate=Decimal("3.751333"))
+        inv.items.create(item=self.item, qty=3, rate=Decimal("33.33"))
+        inv.items.create(item=self.item, qty=7, rate=Decimal("1.07"))
+        inv.submit()
+        self.assertEqual(balance(), 0)
+        from accounts.models import PaymentEntry
+        mismatch = PaymentEntry.objects.create(payment_type="pay", supplier=self.supplier, account=self.bank,
+                                               amount=10, purchase_invoice=inv)  # بالريال على فاتورة دولار
+        with self.assertRaises(ValidationError):
+            mismatch.submit()
+
+    def test_vat_report_and_detail_page_in_company_currency(self):
+        self.purchase_usd()
+        self.client.force_login(self.user)
+        report = self.client.get("/reports/accounts/vat/").context
+        self.assertEqual(report["input_tax"], Decimal("562.50"))
+        from buying.models import PurchaseInvoice
+        page = self.client.get(f"/app/purchase-invoice/{PurchaseInvoice.objects.get().pk}/")
+        self.assertContains(page, "الإجمالي بعملة الشركة")
+        self.assertContains(page, "$")

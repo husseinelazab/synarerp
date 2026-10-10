@@ -70,7 +70,13 @@
 
 {% if totals %}
 <div class="card totals-card">
-  {% for label, value in totals %}<div class="total-line{% if forloop.last and dt.slug != 'journal-entry' %} grand{% endif %}"><span>{{ label }}</span><strong>{{ value|cur }}</strong></div>{% endfor %}
+  {% for label, value in totals %}<div class="total-line{% if forloop.last and dt.slug != 'journal-entry' %} grand{% endif %}"><span>{{ label }}</span><strong>{{ value|cur:doc_currency }}</strong></div>{% endfor %}
+  {% if obj.is_foreign_currency %}
+  <div class="total-line"><span>سعر الصرف</span><strong><bdi dir="ltr">1 {{ obj.currency.code }} = {{ obj.exchange_rate|plain_number }} {{ obj.company.currency.code }}</bdi></strong></div>
+  {% if obj.base_grand_total %}<div class="total-line"><span>الإجمالي بعملة الشركة</span><strong>{{ obj.base_grand_total|cur }}</strong></div>{% endif %}
+  {% if obj.base_amount %}<div class="total-line"><span>المبلغ بعملة الشركة</span><strong>{{ obj.base_amount|cur }}</strong></div>{% endif %}
+  {% if obj.exchange_difference %}<div class="total-line"><span>{% if obj.exchange_difference > 0 %}ربح{% else %}خسارة{% endif %} فروق الصرف</span><strong>{{ obj.exchange_difference|abs|cur }}</strong></div>{% endif %}
+  {% endif %}
 </div>
 {% endif %}
 

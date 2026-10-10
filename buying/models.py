@@ -3,8 +3,10 @@ from django.db import models
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.commercial import CommercialStatus, OrderDocument, OrderItem, update_order_billing
+from core.fulfillment import FulfillmentDocument, FulfillmentItem, srbnb_account, update_fulfillment_billing
 from core.invoice import InvoiceDocument, InvoiceItem
 from core.models import TenantModel
+from core.utils import flt
 from core.tenancy import tenant_unique
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 
@@ -47,17 +49,28 @@ class PurchaseOrder(OrderDocument):
     def invoice_model(self):
         return PurchaseInvoice
 
+    def fulfillment_model(self):
+        return PurchaseReceipt
+
     @property
     def available_actions(self):
         if self.is_open_for_billing:
-            return [("make_invoice", "إنشاء فاتورة مشتريات"), ("close_order", "إغلاق الأمر")]
+            actions = [("make_invoice", "إنشاء فاتورة مشتريات"), ("close_order", "إغلاق الأمر")]
+            if self.remaining_to_deliver():
+                actions.insert(0, ("make_fulfillment", "إنشاء إذن استلام"))
+            return actions
         if self.status == CommercialStatus.CLOSED:
             return [("reopen_order", "إعادة فتح الأمر")]
         return []
 
     @property
     def linked_documents(self):
-        return list(self.invoices.all())
+        return list(self.receipts.all()) + list(self.invoices.all())
+
+    def before_cancel(self):
+        super().before_cancel()
+        if self.receipts.filter(docstatus=1).exists():
+            raise ValidationError("لا يمكن إلغاء الأمر لوجود أذون استلام معتمدة عليه. ألغِها أولاً.")
 
     def validate_for_submit(self):
         super().validate_for_submit()
@@ -96,6 +109,13 @@ class PurchaseInvoice(InvoiceDocument):
         super().validate_for_submit()
         if self.discount_amount:
             raise ValidationError("الخصم في فاتورة المشتريات غير مدعوم حالياً؛ أدخل الأسعار بعد الخصم.")
+        if self.update_stock and not self.is_return:
+            rows = list(self.items.select_related("order_item", "receipt_item"))
+            if any(r.receipt_item_id for r in rows):
+                raise ValidationError("البضاعة استُلمت بإذن الاستلام؛ ألغِ «تحديث المخزون» في هذه الفاتورة.")
+            if any(r.order_item_id and r.order_item.delivered_qty > 0 for r in rows):
+                raise ValidationError("صدرت أذون استلام لهذا الأمر؛ أنشئ الفاتورة من إذن الاستلام "
+                                      "أو ألغِ «تحديث المخزون» حتى لا تُدخل البضاعة مرتين.")
 
     @property
     def linked_documents(self):
@@ -103,10 +123,19 @@ class PurchaseInvoice(InvoiceDocument):
 
     def on_submit(self):
         update_order_billing(self, +1)
+        update_fulfillment_billing(self, "receipt_item", +1)
         company = self.company
         entries = []
-        for row in self.items.select_related("item", "item__expense_account"):
-            if self.update_stock and row.item.is_stock_item:
+        for row in self.items.select_related("item", "item__expense_account", "receipt_item__parent"):
+            if row.receipt_item_id and not self.is_return:
+                # البضاعة دخلت المخزون بإذن الاستلام: يُقفل الحساب الوسيط بقيمة الاستلام، وفرق السعر لتسويات المخزون
+                received = flt(row.qty * row.receipt_item.base_rate)
+                base_amount = self.to_base(row.amount)
+                entries.append({"account": srbnb_account(company), "debit": received, "base": True})
+                if base_amount != received:
+                    entries.append({"account": company.require_account("default_stock_adjustment_account"),
+                                    "debit": base_amount - received, "base": True})
+            elif self.update_stock and row.item.is_stock_item:
                 # المخزون يُقيّم بعملة الشركة: سعر الشراء × سعر الصرف.
                 # المرتجع يخرج بسعر التقييم الحالي؛ فرقه عن سعر الشراء يذهب لحساب تسويات المخزون
                 base_amount = self.to_base(row.amount)
@@ -136,13 +165,71 @@ class PurchaseInvoice(InvoiceDocument):
         cancel_gl_entries(self)
         self.unapply_return_from_original()
         update_order_billing(self, -1)
+        update_fulfillment_billing(self, "receipt_item", -1)
 
 
 class PurchaseInvoiceItem(InvoiceItem):
     parent = models.ForeignKey(PurchaseInvoice, models.CASCADE, related_name="items")
     order_item = models.ForeignKey(PurchaseOrderItem, models.PROTECT, null=True, blank=True, editable=False,
                                    related_name="invoice_items", verbose_name="بند أمر الشراء")
+    receipt_item = models.ForeignKey("buying.PurchaseReceiptItem", models.PROTECT, null=True, blank=True,
+                                     editable=False, related_name="invoice_items", verbose_name="بند إذن الاستلام")
 
     class Meta:
         verbose_name = "بند فاتورة مشتريات"
         verbose_name_plural = "الأصناف"
+
+
+class PurchaseReceipt(FulfillmentDocument):
+    """إذن استلام: يُدخل البضاعة للمخزون قبل وصول فاتورة المورد، مقابل حساب وسيط."""
+
+    naming_prefix = "PR"
+    party_field = "supplier"
+    invoice_link_field = "receipt_item"
+
+    supplier = models.ForeignKey(Supplier, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="المورد")
+    supplier_delivery_no = models.CharField("رقم إشعار تسليم المورد", max_length=50, blank=True)
+    order = models.ForeignKey(PurchaseOrder, models.PROTECT, null=True, blank=True, related_name="receipts",
+                              editable=False, verbose_name="أمر الشراء")
+
+    class Meta(FulfillmentDocument.Meta):
+        verbose_name = "إذن استلام"
+        verbose_name_plural = "أذون الاستلام"
+
+    def invoice_model(self):
+        return PurchaseInvoice
+
+    @property
+    def linked_documents(self):
+        invoices = PurchaseInvoice.objects.filter(items__receipt_item__parent=self).distinct()
+        return ([self.order] if self.order_id else []) + list(invoices)
+
+    def on_submit(self):
+        value = flt(0)
+        for row in self.items.select_related("item"):
+            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate)
+        if value:
+            make_gl_entries(self, [
+                {"account": self.company.require_account("default_stock_account"), "debit": value, "base": True},
+                {"account": srbnb_account(self.company), "credit": value, "base": True},
+            ], remarks=self.remarks or f"استلام بضاعة من المورد {self.supplier}")
+        self.update_order_delivery(+1)
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+        self.update_order_delivery(-1)
+
+
+class PurchaseReceiptItem(FulfillmentItem):
+    parent = models.ForeignKey(PurchaseReceipt, models.CASCADE, related_name="items")
+    order_item = models.ForeignKey(PurchaseOrderItem, models.PROTECT, null=True, blank=True, editable=False,
+                                   related_name="receipt_items", verbose_name="بند أمر الشراء")
+
+    class Meta:
+        verbose_name = "بند إذن استلام"
+        verbose_name_plural = "الأصناف"
+
+    @property
+    def base_rate(self):
+        return self.rate * (self.parent.exchange_rate or 1)

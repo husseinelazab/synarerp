@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
-from selling.models import (Customer, Quotation, QuotationItem, SalesInvoice, SalesInvoiceItem, SalesOrder,
-                            SalesOrderItem)
+from selling.models import (Customer, DeliveryNote, DeliveryNoteItem, Quotation, QuotationItem, SalesInvoice,
+                            SalesInvoiceItem, SalesOrder, SalesOrderItem)
 
 register(DocType(
     slug="sales-invoice", model=SalesInvoice, module="selling",
@@ -33,4 +33,12 @@ register(DocType(
     search_fields=["name", "customer__name"],
     child=ChildTable(SalesOrderItem, ["item", "qty", "rate"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total"],
+))
+register(DocType(
+    slug="delivery-note", model=DeliveryNote, module="selling",
+    list_fields=["name", "posting_date", "customer", "warehouse", "total_amount", "status"],
+    form_fields=["customer", "posting_date", "warehouse", "cost_center", "currency", "exchange_rate", "tax_rate", "remarks"],
+    search_fields=["name", "customer__name"],
+    child=ChildTable(DeliveryNoteItem, ["item", "qty", "rate"], rate_type="selling"),
+    totals=["total_amount"],
 ))

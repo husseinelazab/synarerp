@@ -5,6 +5,7 @@ from django.db.models import Sum
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.commercial import (CommercialDocument, CommercialItem, CommercialStatus, OrderDocument, OrderItem,
                              update_order_billing)
+from core.fulfillment import FulfillmentDocument, FulfillmentItem, update_fulfillment_billing
 from core.invoice import InvoiceDocument, InvoiceItem
 from core.models import TenantModel
 from core.tenancy import tenant_unique
@@ -118,17 +119,28 @@ class SalesOrder(OrderDocument):
     def invoice_model(self):
         return SalesInvoice
 
+    def fulfillment_model(self):
+        return DeliveryNote
+
     @property
     def available_actions(self):
         if self.is_open_for_billing:
-            return [("make_invoice", "إنشاء فاتورة مبيعات"), ("close_order", "إغلاق الأمر")]
+            actions = [("make_invoice", "إنشاء فاتورة مبيعات"), ("close_order", "إغلاق الأمر")]
+            if self.remaining_to_deliver():
+                actions.insert(0, ("make_fulfillment", "إنشاء إذن تسليم"))
+            return actions
         if self.status == CommercialStatus.CLOSED:
             return [("reopen_order", "إعادة فتح الأمر")]
         return []
 
     @property
     def linked_documents(self):
-        return ([self.quotation] if self.quotation_id else []) + list(self.invoices.all())
+        return ([self.quotation] if self.quotation_id else []) + list(self.delivery_notes.all()) + list(self.invoices.all())
+
+    def before_cancel(self):
+        super().before_cancel()
+        if self.delivery_notes.filter(docstatus=1).exists():
+            raise ValidationError("لا يمكن إلغاء الأمر لوجود أذون تسليم معتمدة عليه. ألغِها أولاً.")
 
     def on_submit(self):
         super().on_submit()
@@ -215,6 +227,13 @@ class SalesInvoice(InvoiceDocument):
 
     def validate_for_submit(self):
         super().validate_for_submit()
+        if self.update_stock and not self.is_return:
+            rows = list(self.items.select_related("order_item", "delivery_note_item"))
+            if any(r.delivery_note_item_id for r in rows):
+                raise ValidationError("البضاعة سُلّمت بإذن التسليم؛ ألغِ «تحديث المخزون» في هذه الفاتورة.")
+            if any(r.order_item_id and r.order_item.delivered_qty > 0 for r in rows):
+                raise ValidationError("صدرت أذون تسليم لهذا الأمر؛ أنشئ الفاتورة من إذن التسليم "
+                                      "أو ألغِ «تحديث المخزون» حتى لا تُخرج البضاعة مرتين.")
         if self.is_debit_note:
             original = self.debit_note_against
             if original is None or not original.is_submitted:
@@ -251,6 +270,7 @@ class SalesInvoice(InvoiceDocument):
 
     def on_submit(self):
         update_order_billing(self, +1)
+        update_fulfillment_billing(self, "delivery_note_item", +1)
         if self.quotation_id:
             self.quotation.refresh_status()
         company = self.company
@@ -325,6 +345,7 @@ class SalesInvoice(InvoiceDocument):
         cancel_gl_entries(self)
         self.unapply_return_from_original()
         update_order_billing(self, -1)
+        update_fulfillment_billing(self, "delivery_note_item", -1)
         if self.quotation_id:
             self.quotation.refresh_status()
         if self.is_pos:
@@ -336,7 +357,60 @@ class SalesInvoiceItem(InvoiceItem):
     parent = models.ForeignKey(SalesInvoice, models.CASCADE, related_name="items")
     order_item = models.ForeignKey(SalesOrderItem, models.PROTECT, null=True, blank=True, editable=False,
                                    related_name="invoice_items", verbose_name="بند أمر البيع")
+    delivery_note_item = models.ForeignKey("selling.DeliveryNoteItem", models.PROTECT, null=True, blank=True,
+                                           editable=False, related_name="invoice_items", verbose_name="بند إذن التسليم")
 
     class Meta:
         verbose_name = "بند فاتورة مبيعات"
+        verbose_name_plural = "الأصناف"
+
+
+class DeliveryNote(FulfillmentDocument):
+    """إذن تسليم: يُخرج البضاعة للعميل ويقيّد تكلفتها، وتُصدر الفاتورة منه لاحقاً."""
+
+    naming_prefix = "DN"
+    party_field = "customer"
+    invoice_link_field = "delivery_note_item"
+
+    customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
+    order = models.ForeignKey(SalesOrder, models.PROTECT, null=True, blank=True, related_name="delivery_notes",
+                              editable=False, verbose_name="أمر البيع")
+
+    class Meta(FulfillmentDocument.Meta):
+        verbose_name = "إذن تسليم"
+        verbose_name_plural = "أذون التسليم"
+
+    def invoice_model(self):
+        return SalesInvoice
+
+    @property
+    def linked_documents(self):
+        invoices = SalesInvoice.objects.filter(items__delivery_note_item__parent=self).distinct()
+        return ([self.order] if self.order_id else []) + list(invoices)
+
+    def on_submit(self):
+        cost = flt(0)
+        for row in self.items.select_related("item"):
+            cost += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.qty)
+        if cost:
+            company = self.company
+            make_gl_entries(self, [
+                {"account": company.require_account("default_cogs_account"), "debit": cost},
+                {"account": company.require_account("default_stock_account"), "credit": cost},
+            ], remarks=self.remarks or f"تسليم بضاعة للعميل {self.customer}")
+        self.update_order_delivery(+1)
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+        self.update_order_delivery(-1)
+
+
+class DeliveryNoteItem(FulfillmentItem):
+    parent = models.ForeignKey(DeliveryNote, models.CASCADE, related_name="items")
+    order_item = models.ForeignKey(SalesOrderItem, models.PROTECT, null=True, blank=True, editable=False,
+                                   related_name="delivery_items", verbose_name="بند أمر البيع")
+
+    class Meta:
+        verbose_name = "بند إذن تسليم"
         verbose_name_plural = "الأصناف"

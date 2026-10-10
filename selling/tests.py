@@ -10,7 +10,7 @@ from buying.models import PurchaseInvoice, PurchaseOrder, Supplier
 from core.commercial import CommercialStatus
 from core.tenancy import tenant_context
 from saas.tests import make_company
-from selling.models import Customer, Quotation, SalesInvoice, SalesOrder
+from selling.models import Customer, DeliveryNote, Quotation, SalesInvoice, SalesOrder
 from stock.models import UOM, Bin, Item, ItemGroup, Warehouse
 from django.urls import reverse
 
@@ -259,3 +259,132 @@ class VATCategoryAndDebitNoteTests(TestCase):
         self.assertEqual(rows[4][0], Decimal("700.00"))
         self.assertEqual(rows[5][0], Decimal("50.00"))
         self.assertEqual(page.context["output_tax"], Decimal("150.00"))
+
+
+class FulfillmentTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة الأذون", "dnboss")
+
+    def setUp(self):
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.client.force_login(self.user)
+        self.wh = Warehouse.objects.get(name="المستودع الرئيسي")
+        self.item = Item.objects.create(code="DSK", name="مكتب", item_group=ItemGroup.objects.first(),
+                                        uom=UOM.objects.first(), selling_rate=500, buying_rate=300)
+        self.customer = Customer.objects.create(name="عميل التسليم")
+        self.supplier = Supplier.objects.create(name="مورد الاستلام")
+
+    def gl(self, account_name):
+        return sum(g.debit - g.credit for g in GLEntry.objects.filter(account__name=account_name, is_cancelled=False))
+
+    def receive(self, qty=10, rate=300):
+        po = PurchaseOrder.objects.create(supplier=self.supplier, warehouse=self.wh)
+        po.items.create(item=self.item, qty=qty, rate=rate)
+        po.submit()
+        pr = po.make_fulfillment(self.user)
+        pr.submit()
+        return po, pr
+
+    def test_purchase_receipt_then_invoice_clears_interim_account(self):
+        po, pr = self.receive()
+        self.assertEqual(Bin.objects.get(item=self.item).actual_qty, 10)
+        self.assertEqual(self.gl("المخزون"), Decimal("3000.00"))
+        self.assertEqual(self.gl("بضائع مستلمة لم تصل فواتيرها"), Decimal("-3000.00"))
+        po.refresh_from_db()
+        self.assertEqual(po.per_delivered, 100)
+        # فاتورة المورد بسعر أعلى قليلاً: الفرق لتسويات المخزون
+        invoice = pr.make_invoice(self.user)
+        self.assertFalse(invoice.update_stock)
+        row = invoice.items.get()
+        row.rate = 310
+        row.save()
+        invoice.calculate_totals()
+        invoice.save()
+        invoice.submit()
+        self.assertEqual(Bin.objects.get(item=self.item).actual_qty, 10)  # لم تتكرر
+        self.assertEqual(self.gl("بضائع مستلمة لم تصل فواتيرها"), 0)
+        self.assertEqual(self.gl("تسويات المخزون"), Decimal("100.00"))
+        self.assertEqual(self.gl("الموردون"), Decimal("-3565.00"))  # 3100 + 15%
+        pr.refresh_from_db()
+        po.refresh_from_db()
+        self.assertEqual((pr.status, po.status), ("billed", CommercialStatus.BILLED))
+        with self.assertRaisesMessage(ValidationError, "فُوتر"):
+            pr.cancel()
+
+    def test_delivery_note_then_invoice(self):
+        self.receive()
+        so = SalesOrder.objects.create(customer=self.customer, warehouse=self.wh)
+        so.items.create(item=self.item, qty=6, rate=500)
+        so.submit()
+        self.assertIn("make_fulfillment", dict(so.available_actions))
+        dn = so.make_fulfillment(self.user)
+        row = dn.items.get()
+        row.qty = 4  # تسليم جزئي
+        row.save()
+        dn.calculate_totals()
+        dn.save()
+        dn.submit()
+        self.assertEqual(Bin.objects.get(item=self.item).actual_qty, 6)
+        self.assertEqual(self.gl("تكلفة البضاعة المباعة"), Decimal("1200.00"))  # 4 × 300 عند التسليم
+        so.refresh_from_db()
+        self.assertEqual(so.per_delivered, Decimal("66.67"))
+        invoice = dn.make_invoice(self.user)
+        self.assertEqual((invoice.update_stock, invoice.order, invoice.items.get().qty), (False, so, 4))
+        invoice.submit()
+        self.assertEqual(Bin.objects.get(item=self.item).actual_qty, 6)
+        self.assertEqual(self.gl("تكلفة البضاعة المباعة"), Decimal("1200.00"))  # لا تكلفة مكررة
+        self.assertEqual(self.gl("المبيعات"), Decimal("-2000.00"))
+        so.refresh_from_db()
+        dn.refresh_from_db()
+        self.assertEqual((so.status, dn.status), (CommercialStatus.PARTLY_BILLED, "billed"))
+        # الفاتورة المباشرة من الأمر لا تُخرج المخزون مرة ثانية
+        direct = so.make_invoice(self.user)
+        self.assertFalse(direct.update_stock)
+        direct.update_stock = True
+        direct.save()
+        with self.assertRaisesMessage(ValidationError, "إذن التسليم"):
+            direct.submit()
+        with self.assertRaisesMessage(ValidationError, "لا يمكن إلغاء الأمر"):
+            so.cancel()
+        invoice.cancel()
+        with self.assertRaisesMessage(ValidationError, "أذون تسليم"):
+            so.cancel()
+
+    def test_cannot_deliver_more_than_ordered_or_stock(self):
+        self.receive(qty=2)
+        so = SalesOrder.objects.create(customer=self.customer, warehouse=self.wh)
+        so.items.create(item=self.item, qty=1, rate=500)
+        so.submit()
+        dn = so.make_fulfillment(self.user)
+        row = dn.items.get()
+        row.qty = 3
+        row.save()
+        with self.assertRaisesMessage(ValidationError, "تتجاوز المتبقي"):
+            dn.submit()
+        free = DeliveryNote.objects.create(customer=self.customer, warehouse=self.wh)
+        free.items.create(item=self.item, qty=5, rate=500)
+        with self.assertRaisesMessage(ValidationError, "الرصيد غير كافٍ"):
+            free.submit()
+
+    def test_cancel_delivery_restores_stock_and_order(self):
+        self.receive()
+        dn = DeliveryNote.objects.create(customer=self.customer, warehouse=self.wh)
+        dn.items.create(item=self.item, qty=3, rate=500)
+        dn.calculate_totals()
+        dn.save()
+        dn.submit()
+        dn.cancel()
+        self.assertEqual(Bin.objects.get(item=self.item).actual_qty, 10)
+        self.assertEqual(self.gl("تكلفة البضاعة المباعة"), 0)
+
+    def test_pages(self):
+        _, pr = self.receive()
+        self.assertContains(self.client.get(pr.get_absolute_url()), "إنشاء فاتورة مشتريات")
+        for slug in ("delivery-note", "purchase-receipt"):
+            self.assertEqual(self.client.get(reverse("doc_list", args=[slug])).status_code, 200)
+            self.assertEqual(self.client.get(reverse("doc_new", args=[slug])).status_code, 200)
+            self.assertEqual(self.client.get(reverse("doc_import_template", args=[slug, "xlsx"])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("doc_print", args=["purchase-receipt", pr.pk])).status_code, 200)

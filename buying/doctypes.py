@@ -1,4 +1,5 @@
-from buying.models import PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, Supplier
+from buying.models import (PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
+                           PurchaseReceiptItem, Supplier)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -24,4 +25,13 @@ register(DocType(
     search_fields=["name", "supplier__name"],
     child=ChildTable(PurchaseOrderItem, ["item", "qty", "rate"], rate_type="buying"),
     totals=["total", "net_total", "tax_amount", "grand_total"],
+))
+register(DocType(
+    slug="purchase-receipt", model=PurchaseReceipt, module="buying",
+    list_fields=["name", "posting_date", "supplier", "warehouse", "total_amount", "status"],
+    form_fields=["supplier", "supplier_delivery_no", "posting_date", "warehouse", "cost_center", "currency",
+                 "exchange_rate", "tax_rate", "remarks"],
+    search_fields=["name", "supplier__name", "supplier_delivery_no"],
+    child=ChildTable(PurchaseReceiptItem, ["item", "qty", "rate"], rate_type="buying"),
+    totals=["total_amount"],
 ))

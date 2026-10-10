@@ -144,9 +144,36 @@ class OrderDocument(CommercialDocument):
 
     submitted_status = CommercialStatus.TO_BILL
     per_billed = models.DecimalField("نسبة الفوترة %", max_digits=6, decimal_places=2, default=0, editable=False)
+    per_delivered = models.DecimalField("نسبة التسليم / الاستلام %", max_digits=6, decimal_places=2, default=0,
+                                        editable=False)
 
     class Meta(CommercialDocument.Meta):
         abstract = True
+
+    @property
+    def has_deliveries(self):
+        return self.items.filter(delivered_qty__gt=0).exists()
+
+    def remaining_to_deliver(self):
+        return {row: row.qty - row.delivered_qty for row in self.items.select_related("item")
+                if row.item.is_stock_item and row.qty > row.delivered_qty}
+
+    def update_delivery_status(self):
+        rows = [r for r in self.items.select_related("item") if r.item.is_stock_item]
+        ordered = sum((r.qty for r in rows), flt(0, 3))
+        delivered = sum((min(r.delivered_qty, r.qty) for r in rows), flt(0, 3))
+        self.per_delivered = flt(delivered * 100 / ordered) if ordered else flt(0)
+        self.save(update_fields=["per_delivered"])
+
+    def make_fulfillment(self, user=None):
+        """إذن تسليم (لأمر البيع) أو استلام (لأمر الشراء) بالكميات المتبقية."""
+        if not self.is_submitted or self.status in (CommercialStatus.CLOSED, CommercialStatus.CANCELLED):
+            raise ValidationError("الأمر غير معتمد أو مغلق.")
+        remaining = self.remaining_to_deliver()
+        if not remaining:
+            raise ValidationError("سُلّمت أو استُلمت كل الكميات المخزنية في هذا الأمر.")
+        return self._copy_to(self.fulfillment_model(), user, remaining, link_field="order_item",
+                             extra={"order": self})
 
     @property
     def is_open_for_billing(self):
@@ -188,12 +215,16 @@ class OrderDocument(CommercialDocument):
     def make_invoice(self, user=None):
         if not self.is_open_for_billing:
             raise ValidationError("الأمر مفوتر بالكامل أو مغلق.")
+        # إن سُلّمت/استُلمت البضاعة بأذون فالفاتورة لا تحرّك المخزون مرة أخرى
+        extra = {"order": self, **({"update_stock": False} if self.has_deliveries else {})}
         return self._copy_to(self.invoice_model(), user, self.remaining_quantities(), link_field="order_item",
-                             extra={"order": self})
+                             extra=extra)
 
 
 class OrderItem(CommercialItem):
     billed_qty = models.DecimalField("الكمية المفوترة", max_digits=18, decimal_places=3, default=0, editable=False)
+    delivered_qty = models.DecimalField("الكمية المسلّمة / المستلمة", max_digits=18, decimal_places=3, default=0,
+                                        editable=False)
 
     class Meta:
         abstract = True

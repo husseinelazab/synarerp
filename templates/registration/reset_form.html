@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}استعادة كلمة المرور{% endblock %}
+{% block auth_content %}
+<div class="login-page"><form method="post" class="card login-card">{% csrf_token %}
+  <h1>استعادة كلمة المرور</h1>
+  <p class="muted">أدخل البريد الإلكتروني المسجل في حسابك وسنرسل لك رابطاً لتعيين كلمة مرور جديدة.</p>
+  {% for e in form.email.errors %}<div class="alert alert-error">{{ e }}</div>{% endfor %}
+  <label>البريد الإلكتروني</label>
+  <input type="email" name="email" class="form-control" dir="ltr" autofocus required>
+  <button class="btn btn-primary btn-block">إرسال الرابط</button>
+  <p class="center small" style="margin-top:12px"><a href="{% url 'login' %}">رجوع لتسجيل الدخول</a></p>
+</form></div>
+{% endblock %}

@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -319,3 +320,69 @@ def notification_open(request, pk):
     item.is_read = True
     item.save(update_fields=["is_read"])
     return redirect(item.url or "notifications")
+
+
+def email_settings_page(request, obj, platform):
+    from core.forms import EmailSettingsForm
+    from core.mail import active_config, send_test
+
+    form = EmailSettingsForm(request.POST or None, instance=obj, platform=platform)
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+        if action == "test":
+            to = request.POST.get("test_to", "").strip() or request.user.email
+            if not to:
+                messages.error(request, "أدخل بريداً لاستلام رسالة الاختبار.")
+            else:
+                ok, message = send_test(obj, to)
+                (messages.success if ok else messages.error)(request, message)
+            return redirect(request.path)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "تم حفظ إعدادات البريد." + (" الإرسال مفعّل الآن." if obj.enabled else
+                                                                   " الإرسال غير مفعّل بعد."))
+            return redirect(request.path)
+    company = None if platform else request.company
+    return render(request, "settings/email.html", {
+        "form": form, "obj": obj, "platform": platform, "active": active_config(company),
+        "platform_settings": None if platform else type(obj).objects.filter(company__isnull=True).first(),
+    })
+
+
+@login_required
+def company_email_settings(request):
+    from core.models import EmailSettings
+
+    return email_settings_page(request, EmailSettings.for_company(request.company), platform=False)
+
+
+@login_required
+def platform_email_settings(request):
+    from core.models import EmailSettings
+
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+    return email_settings_page(request, EmailSettings.platform(), platform=True)
+
+
+class ProfileForm(forms.Form):
+    first_name = forms.CharField(label="الاسم الأول", max_length=150, required=False)
+    last_name = forms.CharField(label="اسم العائلة", max_length=150, required=False)
+    email = forms.EmailField(label="البريد الإلكتروني", required=False,
+                             help_text="تصلك عليه التنبيهات (إن فُعّل البريد) ورابط استعادة كلمة المرور")
+
+
+@login_required
+def profile(request):
+    from core.forms import style_form
+
+    user = request.user
+    form = style_form(ProfileForm(request.POST or None, initial={
+        "first_name": user.first_name, "last_name": user.last_name, "email": user.email}))
+    if request.method == "POST" and form.is_valid():
+        for field in ("first_name", "last_name", "email"):
+            setattr(user, field, form.cleaned_data[field])
+        user.save(update_fields=["first_name", "last_name", "email"])
+        messages.success(request, "تم حفظ بياناتك.")
+        return redirect("profile")
+    return render(request, "settings/profile.html", {"form": form})

@@ -5,6 +5,10 @@ from core.navigation import ICONS, build_menu
 
 def erp(request):
     context = {"ERP_NAME": settings.ERP_NAME, "ERP_NAME_EN": settings.ERP_NAME_EN}
+    if not request.user.is_authenticated and request.path.startswith("/login/"):
+        from core.password_reset import reset_available
+
+        context["PASSWORD_RESET_ENABLED"] = reset_available()
     if request.user.is_authenticated:
         membership = getattr(request, "membership", None)
         context.update({

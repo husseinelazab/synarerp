@@ -25,14 +25,15 @@ def build_menu(request):
     if membership is None:
         if request.user.is_superuser:
             return [{"key": "platform", "label": "إدارة المنصة", "icon": ICONS["platform"],
-                     "sections": [{"items": [_item("الشركات والاشتراكات", "platform_dashboard")]}]}]
+                     "sections": [{"items": [_item("الشركات والاشتراكات", "platform_dashboard"),
+                                             _item("خادم البريد", "platform_email_settings")]}]}]
         return []
     subscription = getattr(request.company, "subscription", None)
     doc = lambda label, slug: _item(label, "doc_list", slug)  # noqa: E731
     if membership.role == "employee":
         return _mark_active(request, [{"key": "hr", "label": "بوابة الموظف", "sections": [{"items": [
             _item("صفحتي", "portal_home"), _item("طلب إجازة", "portal_leave"), _item("طلب سلفة", "portal_loan"),
-            _item("حضوري", "portal_attendance")]}]}])
+            _item("حضوري", "portal_attendance"), _item("حسابي", "profile")]}]}])
 
     modules = [
         {"key": "selling", "label": "المبيعات", "sections": [
@@ -97,11 +98,12 @@ def build_menu(request):
     settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
     if membership.can_manage:
         settings_items = [_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
+                          _item("البريد الإلكتروني", "company_email_settings"),
                           _item("الاشتراك والفوترة", "billing")] + settings_items
     modules.append({"key": "settings", "label": "الإعدادات", "sections": [{"items": settings_items}]})
     if request.user.is_superuser:
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [
-            {"items": [_item("الشركات والاشتراكات", "platform_dashboard")]}]})
+            {"items": [_item("الشركات والاشتراكات", "platform_dashboard"), _item("خادم البريد", "platform_email_settings")]}]})
 
     return _mark_active(request, modules)
 

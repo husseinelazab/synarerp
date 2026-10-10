@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}استعادة كلمة المرور{% endblock %}
+{% block auth_content %}
+<div class="login-page"><div class="card login-card">
+  <h1>استعادة كلمة المرور</h1>
+  <p>استعادة كلمة المرور بالبريد غير مفعّلة حالياً. تواصل مع مدير النظام في شركتك ليعيد تعيين كلمة مرورك.</p>
+  <a class="btn btn-block" href="{% url 'login' %}">رجوع لتسجيل الدخول</a>
+</div></div>
+{% endblock %}

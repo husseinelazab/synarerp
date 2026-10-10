@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}تم تعيين كلمة المرور{% endblock %}
+{% block auth_content %}
+<div class="login-page"><div class="card login-card">
+  <h1>✓ تم تعيين كلمة المرور</h1>
+  <p>يمكنك الآن الدخول بكلمة المرور الجديدة.</p>
+  <a class="btn btn-primary btn-block" href="{% url 'login' %}">تسجيل الدخول</a>
+</div></div>
+{% endblock %}

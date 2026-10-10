@@ -391,3 +391,57 @@ class Notification(TenantModel):
 
     def __str__(self):
         return self.title
+
+
+class EmailSecurity(models.TextChoices):
+    TLS = "tls", "STARTTLS (المنفذ 587 غالباً)"
+    SSL = "ssl", "SSL/TLS (المنفذ 465 غالباً)"
+    NONE = "none", "بدون تشفير (غير مستحسن)"
+
+
+class EmailSettings(models.Model):
+    """إعدادات خادم البريد (SMTP). سجل بلا شركة = إعدادات المنصة لكل الشركات،
+    وسجل لشركة = خادم خاص بها يتقدم على إعدادات المنصة متى فُعّل."""
+
+    company = models.OneToOneField(Company, models.CASCADE, null=True, blank=True, related_name="email_settings",
+                                   verbose_name="الشركة")
+    enabled = models.BooleanField("تفعيل إرسال البريد", default=False)
+    host = models.CharField("خادم البريد (SMTP)", max_length=255, blank=True, help_text="مثل smtp.office365.com أو smtp.gmail.com")
+    port = models.PositiveIntegerField("المنفذ", default=587)
+    security = models.CharField("نوع التشفير", max_length=10, choices=EmailSecurity.choices, default=EmailSecurity.TLS)
+    username = models.CharField("اسم المستخدم", max_length=255, blank=True, help_text="غالباً عنوان البريد نفسه")
+    password_encrypted = models.TextField(blank=True, editable=False)
+    from_email = models.EmailField("بريد المرسل", blank=True, help_text="العنوان الذي تظهر منه الرسائل")
+    from_name = models.CharField("اسم المرسل", max_length=100, blank=True, help_text="مثل: الموارد البشرية - شركتي")
+    site_url = models.URLField("رابط النظام", blank=True,
+                               help_text="مثل https://erp.example.com — يُستخدم لإضافة روابط مباشرة داخل الرسائل")
+    last_test_at = models.DateTimeField("آخر اختبار", null=True, blank=True, editable=False)
+    last_test_ok = models.BooleanField(default=False, editable=False)
+    last_test_message = models.CharField(max_length=500, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "إعدادات البريد"
+        verbose_name_plural = "إعدادات البريد"
+        constraints = [models.UniqueConstraint(fields=["company"], condition=models.Q(company__isnull=True),
+                                               name="single_platform_email_settings")]
+
+    def __str__(self):
+        return f"بريد {self.company or 'المنصة'}"
+
+    @classmethod
+    def platform(cls):
+        obj, _ = cls.objects.get_or_create(company=None)
+        return obj
+
+    @classmethod
+    def for_company(cls, company):
+        obj, _ = cls.objects.get_or_create(company=company)
+        return obj
+
+    @property
+    def has_password(self):
+        return bool(self.password_encrypted)
+
+    @property
+    def is_configured(self):
+        return bool(self.host and self.from_email)

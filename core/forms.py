@@ -52,3 +52,47 @@ def build_formset_class(doctype):
         can_delete=True,
         formfield_callback=formfield_callback,
     )
+
+
+class EmailSettingsForm(forms.ModelForm):
+    password = forms.CharField(label="كلمة المرور", required=False, widget=forms.PasswordInput(render_value=False),
+                               help_text="اتركها فارغة للإبقاء على كلمة المرور المحفوظة. لحساب Gmail أو Microsoft 365 "
+                                         "استخدم «كلمة مرور التطبيقات» (App Password).")
+    clear_password = forms.BooleanField(label="حذف كلمة المرور المحفوظة", required=False)
+
+    class Meta:
+        from core.models import EmailSettings
+
+        model = EmailSettings
+        fields = ["enabled", "host", "port", "security", "username", "password", "clear_password", "from_email",
+                  "from_name", "site_url"]
+
+    def __init__(self, *args, platform=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not platform:
+            self.fields["enabled"].label = "استخدام خادم بريد خاص بالشركة"
+        if self.instance.has_password:
+            self.fields["password"].widget.attrs["placeholder"] = "•••••••• (محفوظة)"
+        else:
+            del self.fields["clear_password"]
+        style_form(self)
+
+    def clean(self):
+        data = super().clean()
+        if data.get("enabled"):
+            missing = [self.fields[f].label for f in ("host", "from_email") if not data.get(f)]
+            if missing:
+                raise forms.ValidationError("لتفعيل الإرسال أدخل: " + "، ".join(missing))
+        return data
+
+    def save(self, commit=True):
+        from core.mail import encrypt_password
+
+        obj = super().save(commit=False)
+        if self.cleaned_data.get("password"):
+            obj.password_encrypted = encrypt_password(self.cleaned_data["password"])
+        elif self.cleaned_data.get("clear_password"):
+            obj.password_encrypted = ""
+        if commit:
+            obj.save()
+        return obj

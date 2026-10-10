@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}إعدادات البريد الإلكتروني{% endblock %}
+{% block heading %}{% if platform %}خادم البريد للمنصة{% else %}البريد الإلكتروني للشركة{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+  {% if active %}
+    <div class="alert alert-success" style="margin:0">✓ البريد مفعّل — تُرسل الرسائل عبر
+      <strong dir="ltr">{{ active.host }}</strong> من <strong dir="ltr">{{ active.from_email }}</strong>
+      ({% if active.source == 'company' %}خادم الشركة{% elif active.source == 'platform' %}خادم المنصة{% else %}متغيرات البيئة{% endif %}).</div>
+  {% else %}
+    <div class="alert alert-info" style="margin:0">البريد غير مفعّل — التنبيهات تظهر داخل النظام فقط، ولا يتصل النظام بأي خادم بريد.
+      يمكنك تعبئة البيانات الآن وتفعيلها لاحقاً متى شئت.</div>
+  {% endif %}
+  {% if platform %}
+    <p class="muted small" style="margin-top:10px">خادم المنصة يُستخدم لكل الشركات التي لم تضبط خادماً خاصاً بها، ولرسائل استعادة كلمة المرور.</p>
+  {% else %}
+    <p class="muted small" style="margin-top:10px">
+      {% if platform_settings.enabled %}مزوّد المنصة يرسل بريد شركتك افتراضياً. فعّل خادماً خاصاً هنا إن أردت أن تصل الرسائل من نطاق شركتك (مثل hr@company.com).
+      {% else %}لم يُفعَّل بريد المنصة؛ اضبط خادم بريد شركتك هنا لتصل التنبيهات بالبريد.{% endif %}</p>
+  {% endif %}
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card">
+    <h3>بيانات الخادم</h3>
+    <div class="form-grid">
+      {% for field in form %}{% if field.name in "host port security username password clear_password" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h3>المرسل</h3>
+    <div class="form-grid">
+      {% for field in form %}{% if field.name in "from_email from_name site_url" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h3>التفعيل</h3>
+    {% include "core/_field.html" with field=form.enabled %}
+    <p class="muted small">عند التفعيل تُرسل التنبيهات بالبريد لمن لديه بريد مسجل في «حسابي». يمكنك الحفظ بدون تفعيل وتجربة الإعدادات أولاً.</p>
+  </div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg" name="action" value="save">حفظ الإعدادات</button></div>
+</form>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  <h3>إرسال رسالة اختبار</h3>
+  <p class="muted small">تُرسل بالإعدادات المحفوظة أعلاه (احفظ أولاً). هذا هو الإجراء الوحيد الذي يتصل بخادم البريد قبل التفعيل.</p>
+  <div class="filters">
+    <input type="email" name="test_to" class="form-control" placeholder="البريد المستلم" value="{{ user.email }}" dir="ltr">
+    <button class="btn" name="action" value="test">إرسال رسالة اختبار</button>
+  </div>
+  {% if obj.last_test_at %}
+  <p class="small" style="margin-top:10px">آخر اختبار {{ obj.last_test_at|date:"Y-m-d H:i" }}:
+    <span class="{% if obj.last_test_ok %}ok{% else %}text-danger{% endif %}">{{ obj.last_test_message }}</span></p>
+  {% endif %}
+</form>
+
+<div class="card muted small">
+  <strong>إعدادات شائعة:</strong>
+  Microsoft 365: <bdi dir="ltr">smtp.office365.com</bdi> · 587 · STARTTLS —
+  Gmail / Google Workspace: <bdi dir="ltr">smtp.gmail.com</bdi> · 587 · STARTTLS (بكلمة مرور تطبيقات) —
+  Zoho: <bdi dir="ltr">smtp.zoho.com</bdi> · 465 · SSL.
+  كلمة المرور تُحفظ مشفرة.
+</div>
+{% endblock %}

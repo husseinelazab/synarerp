@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}تم الإرسال{% endblock %}
+{% block auth_content %}
+<div class="login-page"><div class="card login-card">
+  <h1>تحقق من بريدك</h1>
+  <p>إن كان البريد مسجلاً لدينا فسيصلك رابط تعيين كلمة المرور خلال دقائق. تحقق من مجلد الرسائل غير المرغوبة أيضاً.</p>
+  <a class="btn btn-block" href="{% url 'login' %}">رجوع لتسجيل الدخول</a>
+</div></div>
+{% endblock %}

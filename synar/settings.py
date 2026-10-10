@@ -167,7 +167,8 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = "same-origin"
     X_FRAME_OPTIONS = "DENY"
     # مسار فحص الصحة يُطلب داخلياً عبر HTTP من Docker
-    SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
+    # أجهزة البصمة كثير منها يرسل عبر HTTP فقط ولا يتبع التحويل إلى HTTPS
+    SECURE_REDIRECT_EXEMPT = [r"^healthz/$", r"^iclock/"]
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = int(os.environ.get("SYNAR_SESSION_HOURS", "12")) * 3600
 

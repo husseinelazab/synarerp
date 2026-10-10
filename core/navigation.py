@@ -89,7 +89,9 @@ def build_menu(request):
         {"title": "الحضور والانصراف", "items": [_item("تسجيل الحضور اليومي", "attendance_daily"),
                                                  _item("تقرير الحضور الشهري", "attendance_monthly"),
                                                  doc("سجل الحضور", "attendance"),
-                                                 _item("استيراد سجلات البصمة", "attendance_punches")]},
+                                                 _item("استيراد سجلات البصمة", "attendance_punches"),
+                                                 _item("سجل البصمات الخام", "raw_punches")]
+                                                + ([_item("أجهزة البصمة", "attendance_devices")] if membership.can_manage else [])},
         {"title": "الإجازات", "items": [doc("طلبات الإجازات", "leave-application"), _item("أرصدة الإجازات", "leave_balances"),
                                         doc("أنواع الإجازات", "leave-type")]},
         {"title": "الأداء", "items": [doc("تقييمات الأداء", "appraisal"), doc("نماذج التقييم", "appraisal-template")]},

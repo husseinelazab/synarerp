@@ -887,3 +887,96 @@ class HijriAppraisalNotificationTests(TestCase):
         from core.notify import notify_managers
         notify_managers(self.company, "اختبار")
         self.assertEqual(len(mail.outbox), 0)
+
+
+class DevicePushTests(TestCase):
+    """محاكاة جهاز ZKTeco يرسل البصمات بروتوكول ADMS كما يرسلها الجهاز الحقيقي."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.user = make_company("شركة الأجهزة", "deviceboss")
+        cls.other, _ = make_company("شركة أخرى للأجهزة", "otherdev")
+
+    def setUp(self):
+        from hr.models import AttendanceDevice
+        self.ctx = tenant_context(self.company)
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__, None, None, None)
+        self.emp = Employee.objects.create(employee_number="E7", full_name="خالد", gender="male", device_id="7",
+                                           date_of_joining=d(1, 1), basic_salary=5000, gosi_subscribed=False)
+        self.device = AttendanceDevice.objects.create(name="البوابة", serial_number="CQZ7232560123")
+
+    def push(self, lines, sn="CQZ7232560123", ip="127.0.0.1"):
+        body = "\n".join(lines)
+        return self.client.post(f"/iclock/cdata?SN={sn}&table=ATTLOG&Stamp=9999", data=body,
+                                content_type="text/plain", REMOTE_ADDR=ip)
+
+    def test_handshake_and_options(self):
+        response = self.client.get("/iclock/cdata?SN=CQZ7232560123&options=all&pushver=2.4.1&language=69")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("GET OPTION FROM: CQZ7232560123", response.content.decode())
+        self.device.refresh_from_db()
+        self.assertTrue(self.device.is_online)
+        self.assertEqual(self.device.firmware, "2.4.1")
+        self.assertEqual(self.client.get("/iclock/getrequest?SN=CQZ7232560123").content, b"OK")
+
+    def test_realtime_punches_build_attendance(self):
+        from hr.models import Attendance, AttendancePunch
+        r = self.push([f"7\t{YEAR}-06-01 08:25:13\t0\t1\t0\t0\t0"])  # حضور
+        self.assertEqual(r.content, b"OK: 1")
+        record = Attendance.objects.get(employee=self.emp, attendance_date=d(6, 1))
+        self.assertEqual((record.check_in, record.check_out, record.late_minutes), (datetime.time(8, 25), None, 25))
+        self.push([f"7\t{YEAR}-06-01 12:01:00\t2\t1\t0\t0", f"7\t{YEAR}-06-01 17:03:40\t1\t1\t0\t0"])
+        record.refresh_from_db()
+        self.assertEqual((record.check_in, record.check_out), (datetime.time(8, 25), datetime.time(17, 3)))
+        # الجهاز يعيد إرسال نفس الحركات بعد انقطاع: لا تكرار
+        self.push([f"7\t{YEAR}-06-01 08:25:13\t0\t1\t0\t0"])
+        self.assertEqual(AttendancePunch.objects.count(), 3)
+        self.assertEqual(AttendancePunch.objects.first().device, self.device)
+
+    def test_unknown_and_disabled_devices_rejected(self):
+        from hr.models import AttendanceDevice, AttendancePunch
+        self.assertEqual(self.push([f"7\t{YEAR}-06-01 08:00:00"], sn="FAKE123").status_code, 401)
+        self.device.allowed_ips = "10.0.0.5"
+        self.device.save()
+        self.assertEqual(self.push([f"7\t{YEAR}-06-01 08:00:00"], ip="1.2.3.4").status_code, 401)
+        self.assertEqual(self.push([f"7\t{YEAR}-06-01 08:00:00"], ip="10.0.0.5").status_code, 200)
+        AttendanceDevice.objects.update(enabled=False)
+        self.assertEqual(self.push([f"7\t{YEAR}-06-02 08:00:00"]).status_code, 401)
+        self.assertEqual(AttendancePunch.objects.count(), 1)
+
+    def test_punches_stay_in_device_company(self):
+        from hr.models import AttendancePunch
+        self.push([f"7\t{YEAR}-06-01 08:00:00"])
+        with tenant_context(self.other):
+            self.assertFalse(AttendancePunch.objects.exists())
+        self.assertEqual(AttendancePunch.objects.get().company, self.company)
+
+    def test_unknown_pin_then_linked_and_reprocessed(self):
+        from hr.models import Attendance
+        newcomer = Employee.objects.create(employee_number="E9", full_name="سلمى", gender="female",
+                                           date_of_joining=d(1, 1), basic_salary=4000, gosi_subscribed=False)
+        self.push([f"55\t{YEAR}-06-03 07:59:00", f"55\t{YEAR}-06-03 16:00:00"])
+        self.assertFalse(Attendance.objects.filter(employee=newcomer).exists())
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("attendance_devices")), "55")
+        newcomer.device_id = "55"
+        newcomer.save()
+        self.client.post(reverse("attendance_devices"), {"action": "reprocess"})
+        record = Attendance.objects.get(employee=newcomer)
+        self.assertEqual((record.check_in, record.check_out), (datetime.time(7, 59), datetime.time(16, 0)))
+
+    def test_other_tables_acknowledged(self):
+        r = self.client.post("/iclock/cdata?SN=CQZ7232560123&table=OPERLOG", data="OPLOG 4\t0\t2026-06-01",
+                             content_type="text/plain")
+        self.assertEqual(r.content, b"OK")
+
+    def test_device_pages(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("attendance_devices"))
+        self.assertContains(page, "CQZ7232560123")
+        self.client.post(reverse("attendance_devices"), {"name": "الفرع", "serial_number": "NEWSN1", "enabled": "on"})
+        from hr.models import AttendanceDevice
+        self.assertTrue(AttendanceDevice.objects.filter(serial_number="NEWSN1").exists())
+        self.push([f"7\t{YEAR}-06-01 08:00:00"])
+        self.assertContains(self.client.get(reverse("raw_punches")), "خالد")

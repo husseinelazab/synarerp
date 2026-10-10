@@ -9,3 +9,13 @@
 		-Server
 	}
 }
+
+# HTTP: تحويل كل شيء إلى HTTPS، عدا مسارات أجهزة البصمة (كثير منها لا يدعم HTTPS ولا يتبع التحويل)
+http://{$SYNAR_DOMAIN} {
+	handle /iclock/* {
+		reverse_proxy web:8000
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}

@@ -1506,3 +1506,67 @@ class AppraisalScore(models.Model):
         verbose_name = "درجة معيار"
         verbose_name_plural = "درجات المعايير"
         ordering = ["id"]
+
+
+# ───────────────────────────── أجهزة البصمة ─────────────────────────────
+
+class AttendanceDevice(TenantModel):
+    """جهاز بصمة يرسل الحركات مباشرة للنظام (بروتوكول ZKTeco ADMS/Push عبر HTTP)."""
+
+    name = models.CharField("اسم الجهاز", max_length=100, help_text="مثل: بوابة المستودع")
+    serial_number = models.CharField("الرقم التسلسلي (SN)", max_length=50, unique=True,
+                                     help_text="يظهر في قائمة الجهاز: النظام ← معلومات الجهاز")
+    location = models.CharField("الموقع", max_length=150, blank=True)
+    allowed_ips = models.CharField("عناوين IP المسموحة", max_length=255, blank=True,
+                                   help_text="اختياري ومستحسن: العنوان العام لاتصال الفرع (مفصولة بفواصل). "
+                                             "يُترك فارغاً لقبول الجهاز من أي عنوان")
+    enabled = models.BooleanField("مفعّل", default=True)
+    last_seen_at = models.DateTimeField("آخر اتصال", null=True, blank=True, editable=False)
+    last_ip = models.CharField("آخر عنوان", max_length=64, blank=True, editable=False)
+    firmware = models.CharField("إصدار البرنامج", max_length=100, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "جهاز بصمة"
+        verbose_name_plural = "أجهزة البصمة"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.serial_number})"
+
+    def ip_allowed(self, ip):
+        allowed = [part.strip() for part in self.allowed_ips.split(",") if part.strip()]
+        return not allowed or ip in allowed
+
+    @property
+    def is_online(self):
+        from django.utils import timezone
+
+        return bool(self.last_seen_at and (timezone.now() - self.last_seen_at).total_seconds() < 300)
+
+
+class PunchSource(models.TextChoices):
+    DEVICE = "device", "جهاز بصمة"
+    FILE = "file", "ملف مستورد"
+
+
+class AttendancePunch(TenantModel):
+    """بصمة خام كما وصلت؛ يُحسب منها سجل الحضور اليومي (أول بصمة حضور وآخرها انصراف)."""
+
+    pin = models.CharField("رقم البصمة", max_length=30)
+    employee = models.ForeignKey(Employee, models.CASCADE, null=True, blank=True, related_name="punches",
+                                 verbose_name="الموظف")
+    punched_at = models.DateTimeField("وقت البصمة")
+    device = models.ForeignKey(AttendanceDevice, models.SET_NULL, null=True, blank=True, related_name="punches",
+                               verbose_name="الجهاز")
+    source = models.CharField("المصدر", max_length=10, choices=PunchSource.choices, default=PunchSource.DEVICE)
+    error = models.CharField("ملاحظة المعالجة", max_length=255, blank=True)
+    created_at = models.DateTimeField("وقت الاستلام", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "بصمة"
+        verbose_name_plural = "سجل البصمات الخام"
+        ordering = ["-punched_at"]
+        constraints = [tenant_unique("pin", "punched_at", model_label="attendancepunch")]
+
+    def __str__(self):
+        return f"{self.pin} {self.punched_at:%Y-%m-%d %H:%M}"

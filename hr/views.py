@@ -6,6 +6,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core.forms import formfield_callback, style_form
@@ -390,22 +391,6 @@ def parse_punches(filename, content):
     return punches, bad
 
 
-def work_date(employee, moment):
-    """يوم العمل الذي تخصه البصمة: بصمات الصباح الباكر لموظف وردية ليلية تتبع اليوم السابق."""
-    previous = moment.date() - datetime.timedelta(days=1)
-    shift = shift_on(employee, previous)
-    if shift is not None and shift.is_overnight:
-        # تُنسب البصمة لما هي أقرب إليه: نهاية وردية الليلة السابقة أم بداية دوام اليوم نفسه
-        minutes = moment.hour * 60 + moment.minute
-        today = shift_on(employee, moment.date())
-        today_start = today.start_time if today is not None else PayrollSettings.for_company(employee.company).work_start
-        to_previous_end = abs(minutes - (shift.end_time.hour * 60 + shift.end_time.minute))
-        to_today_start = abs(minutes - (today_start.hour * 60 + today_start.minute))
-        if to_previous_end < to_today_start:
-            return previous
-    return moment.date()
-
-
 @login_required
 def attendance_punches(request):
     """استيراد سجل البصمات الخام: أول بصمة في اليوم حضور وآخر بصمة انصراف."""
@@ -417,44 +402,14 @@ def attendance_punches(request):
         except ValidationError as exc:
             messages.error(request, " ".join(exc.messages))
             return redirect("attendance_punches")
-        employees = {}
-        for emp in Employee.objects.all():
-            employees.setdefault(emp.employee_number, emp)
-            if emp.device_id:
-                employees[emp.device_id] = emp
-        grouped, unknown = {}, set()
-        for ident, moment in punches:
-            emp = employees.get(ident)
-            if emp is None:
-                unknown.add(ident)
-                continue
-            moment = moment.replace(second=0, microsecond=0)
-            grouped.setdefault((emp, work_date(emp, moment)), []).append(moment)
-        created = updated = 0
-        skipped = list(bad)
-        for (emp, day), times in sorted(grouped.items(), key=lambda kv: (kv[0][1], kv[0][0].employee_number)):
-            times.sort()
-            check_in = times[0].time()
-            check_out = times[-1].time() if len(times) > 1 and times[-1] > times[0] else None
-            record = Attendance.objects.filter(employee=emp, attendance_date=day).first()
-            try:
-                with transaction.atomic():
-                    if record is None:
-                        record = Attendance(employee=emp, attendance_date=day)
-                        created += 1
-                    else:
-                        updated += 1
-                    record.status = AttendanceStatus.PRESENT if record.status == AttendanceStatus.ABSENT else record.status
-                    record.check_in, record.check_out = check_in, check_out or record.check_out
-                    record.save()
-            except ValidationError as exc:
-                if record.pk is None:
-                    created -= 1
-                else:
-                    updated -= 1
-                skipped.append(f"{emp} {day:%Y-%m-%d}: {' '.join(exc.messages)}")
-        result = {"punches": len(punches), "days": len(grouped), "created": created, "updated": updated,
-                  "unknown": sorted(unknown), "skipped": skipped}
+        from hr.models import PunchSource
+        from hr.punches import record_punches
+
+        outcome = record_punches(punches, source=PunchSource.FILE)
+        created, updated = outcome["created"], outcome["updated"]
+        result = {"punches": len(punches), "days": created + updated, "created": created, "updated": updated,
+                  "unknown": outcome["unknown"], "skipped": list(bad) + outcome["skipped"],
+                  "duplicates": outcome["duplicates"]}
         if created or updated:
             messages.success(request, f"تم استيراد {created + updated} يوم حضور من {len(punches)} بصمة.")
     return render(request, "hr/attendance_punches.html", {"result": result})
@@ -555,3 +510,58 @@ def portal_access(request, pk):
                     Membership.objects.create(user=user, company=request.company, role=Role.EMPLOYEE)
             return redirect(employee.get_absolute_url())
     return render(request, "hr/portal_access.html", {"form": form, "employee": employee, "membership": membership})
+
+
+class DeviceForm(forms.ModelForm):
+    class Meta:
+        from hr.models import AttendanceDevice
+
+        model = AttendanceDevice
+        fields = ["name", "serial_number", "location", "allowed_ips", "enabled"]
+
+
+@login_required
+def attendance_devices(request):
+    """تسجيل أجهزة البصمة وتعليمات ضبطها (للمالك والمدير)."""
+    from django.db.models import Count, Max
+
+    from hr.models import AttendanceDevice, AttendancePunch
+    from hr.punches import reprocess_unknown
+
+    edit = AttendanceDevice.objects.filter(pk=request.GET.get("edit")).first()
+    form = style_form(DeviceForm(request.POST or None, instance=edit))
+    if request.method == "POST":
+        if request.POST.get("action") == "reprocess":
+            days = reprocess_unknown()
+            messages.success(request, f"أُعيدت معالجة البصمات غير المرتبطة: تحدّث {days} يوم حضور.")
+            return redirect("attendance_devices")
+        if form.is_valid():
+            form.save()
+            messages.success(request, "تم حفظ الجهاز. اضبط عنوان الخادم في الجهاز كما في التعليمات.")
+            return redirect("attendance_devices")
+    devices = AttendanceDevice.objects.annotate(punch_count=Count("punches"), last_punch=Max("punches__punched_at"))
+    host = request.get_host().split(":")[0]
+    return render(request, "hr/devices.html", {
+        "form": form, "edit": edit, "devices": devices, "host": host,
+        "unknown": AttendancePunch.objects.filter(employee__isnull=True).values("pin").annotate(
+            n=Count("id"), last=Max("punched_at")).order_by("-last")[:50],
+    })
+
+
+@login_required
+def raw_punches(request):
+    from hr.models import AttendancePunch
+
+    qs = AttendancePunch.objects.select_related("employee", "device")
+    if request.GET.get("errors"):
+        qs = qs.exclude(error="")
+    if request.GET.get("q"):
+        qs = qs.filter(models_q_pin(request.GET["q"]))
+    page = Paginator(qs, 100).get_page(request.GET.get("page"))
+    return render(request, "hr/raw_punches.html", {"page": page})
+
+
+def models_q_pin(text):
+    from django.db.models import Q
+
+    return Q(pin=text) | Q(employee__full_name__icontains=text) | Q(employee__employee_number=text)

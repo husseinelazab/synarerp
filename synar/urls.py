@@ -1,9 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from core import password_reset, two_factor
 from core import views as core_views
+from hr import adms
 
 admin.site.site_header = "سِينار Synar ERP - لوحة الإدارة"
 admin.site.site_title = "سِينار"
@@ -12,6 +13,10 @@ admin.site.index_title = "إدارة النظام"
 urlpatterns = [
     path("healthz/", core_views.healthz, name="healthz"),
     path("api/v1/", include("core.api_urls")),
+    # أجهزة البصمة (ZKTeco ADMS) — عناوين ثابتة يفرضها برنامج الجهاز
+    re_path(r"^iclock/cdata(?:\.aspx)?/?$", adms.cdata),
+    re_path(r"^iclock/getrequest(?:\.aspx)?/?$", adms.getrequest),
+    re_path(r"^iclock/devicecmd(?:\.aspx)?/?$", adms.devicecmd),
     path("admin/", admin.site.urls),
     path("login/", two_factor.LoginView.as_view(), name="login"),
     path("login/verify/", two_factor.verify_login, name="login_verify"),

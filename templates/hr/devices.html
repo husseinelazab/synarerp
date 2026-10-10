@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}أجهزة البصمة{% endblock %}
+{% block heading %}أجهزة البصمة — الربط المباشر{% endblock %}
+{% block content %}
+<div class="card">
+  <p>تعمل مع أجهزة <strong>ZKTeco</strong> والأجهزة المتوافقة مع بروتوكول <strong>ADMS / Push</strong> (معظم الأجهزة الحديثة التي تحتوي
+    خيار «Cloud Server» أو «ADMS»). الجهاز هو من يرسل البصمات لحظياً إلى النظام عبر الإنترنت — لا يحتاج الفرع عنوان IP ثابتاً ولا برنامجاً على الحاسب.</p>
+  <h3>ضبط الجهاز</h3>
+  <ol>
+    <li>سجّل الجهاز أدناه برقمه التسلسلي (SN) من قائمة الجهاز: <em>System Info / معلومات الجهاز</em>.</li>
+    <li>في الجهاز: <em>Comm. ← Cloud Server Setting</em> (أو ADMS):
+      <ul>
+        <li>Server Address / Domain: <code dir="ltr">{{ host }}</code> (فعّل «Enable Domain Name» إن وُجد)</li>
+        <li>Server Port: <code dir="ltr">80</code> (أو <code dir="ltr">443</code> مع تفعيل HTTPS إن دعمه الجهاز)</li>
+        <li>Enable Proxy: لا</li>
+      </ul>
+    </li>
+    <li>اربط كل موظف برقمه في الجهاز من ملف الموظف ← «رقم الموظف في جهاز البصمة» (أو اجعل رقمه في الجهاز = رقمه الوظيفي).</li>
+    <li>خلال دقيقة يظهر الجهاز «متصل» هنا، وتصل كل بصمة لحظياً: أول بصمة في اليوم حضور وآخرها انصراف، حسب وردية الموظف.</li>
+  </ol>
+  <p class="muted small">للأمان: يُقبل فقط جهاز مسجل رقمه هنا ومفعّل. حدد «عناوين IP المسموحة» بالعنوان العام لإنترنت الفرع لمنع انتحال الرقم التسلسلي.
+    الأجهزة التي لا تدعم Push (قديمة) استخدم معها «استيراد سجلات البصمة» من ملف.</p>
+</div>
+
+<div class="card">
+  <table class="table">
+    <thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>الموقع</th><th>الحالة</th><th>آخر اتصال</th><th>البصمات</th><th>آخر بصمة</th><th></th></tr></thead>
+    <tbody>{% for d in devices %}<tr class="{% if not d.enabled %}cancelled{% endif %}">
+      <td>{{ d.name }}</td><td dir="ltr"><code>{{ d.serial_number }}</code></td><td>{{ d.location|default:"—" }}</td>
+      <td>{% if not d.enabled %}موقوف{% elif d.is_online %}<span class="badge status-1">متصل</span>{% elif d.last_seen_at %}<span class="badge status-2">غير متصل</span>{% else %}<span class="muted">لم يتصل بعد</span>{% endif %}</td>
+      <td>{{ d.last_seen_at|date:"Y-m-d H:i"|default:"—" }}{% if d.last_ip %} <span class="muted small" dir="ltr">{{ d.last_ip }}</span>{% endif %}</td>
+      <td>{{ d.punch_count }}</td><td>{{ d.last_punch|date:"Y-m-d H:i"|default:"—" }}</td>
+      <td><a href="?edit={{ d.pk }}">تعديل</a></td></tr>
+    {% empty %}<tr><td colspan="8" class="muted center">لا توجد أجهزة مسجلة</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+
+<form method="post" novalidate class="card">
+  {% csrf_token %}
+  <h3>{% if edit %}تعديل {{ edit.name }}{% else %}تسجيل جهاز{% endif %}</h3>
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+  <div class="form-actions" style="margin-top:12px"><button class="btn btn-primary">حفظ</button>{% if edit %} <a class="btn" href="{% url 'attendance_devices' %}">إلغاء</a>{% endif %}</div>
+</form>
+
+{% if unknown %}
+<div class="card">
+  <div class="card-head"><h3>أرقام بصمة غير مرتبطة بموظفين</h3>
+    <form method="post">{% csrf_token %}<button class="btn" name="action" value="reprocess">إعادة معالجة بعد ربطها</button></form></div>
+  <p class="muted small">أضف الرقم في ملف الموظف ← «رقم الموظف في جهاز البصمة» ثم اضغط إعادة المعالجة لتُحتسب بصماته السابقة.</p>
+  <table class="table"><thead><tr><th>رقم البصمة</th><th>عدد البصمات</th><th>آخر بصمة</th></tr></thead>
+    <tbody>{% for u in unknown %}<tr><td dir="ltr"><code>{{ u.pin }}</code></td><td>{{ u.n }}</td><td>{{ u.last|date:"Y-m-d H:i" }}</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endif %}
+{% endblock %}

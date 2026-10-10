@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}سجل البصمات الخام{% endblock %}
+{% block heading %}سجل البصمات الخام{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form method="get" class="filters">
+    <input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="رقم البصمة أو اسم الموظف">
+    <label class="small"><input type="checkbox" name="errors" value="1" {% if request.GET.errors %}checked{% endif %}> بملاحظات فقط</label>
+    <button class="btn">تصفية</button>
+  </form>
+  <div class="actions"><a class="btn" href="{% url 'attendance_monthly' %}">التقرير الشهري</a></div>
+</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>الوقت</th><th>رقم البصمة</th><th>الموظف</th><th>المصدر</th><th>ملاحظة</th></tr></thead>
+    <tbody>{% for p in page.object_list %}<tr>
+      <td>{{ p.punched_at|date:"Y-m-d H:i" }}</td><td dir="ltr"><code>{{ p.pin }}</code></td>
+      <td>{% if p.employee %}{{ p.employee }}{% else %}<span class="text-danger">غير مرتبط</span>{% endif %}</td>
+      <td>{% if p.device %}{{ p.device.name }}{% else %}{{ p.get_source_display }}{% endif %}</td>
+      <td class="small">{{ p.error|default:"" }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="muted center">لا توجد بصمات</td></tr>{% endfor %}</tbody>
+  </table>
+  {% if page.paginator.num_pages > 1 %}<div class="pagination">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&q={{ request.GET.q }}">السابق</a>{% endif %}<span>صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&q={{ request.GET.q }}">التالي</a>{% endif %}</div>{% endif %}
+</div>
+{% endblock %}

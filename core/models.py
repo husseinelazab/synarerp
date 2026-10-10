@@ -536,3 +536,47 @@ class ApiKey(models.Model):
         if key is None or not hmac.compare_digest(key.key_hash, hashlib.sha256(raw.encode()).hexdigest()):
             return None
         return key
+
+
+class PrintTemplate(models.TextChoices):
+    CLASSIC = "classic", "كلاسيكي — جداول بإطارات واضحة"
+    MODERN = "modern", "عصري — شريط علوي ملوّن"
+    MINIMAL = "minimal", "بسيط — خطوط خفيفة ومساحات واسعة"
+
+
+class PrintSettings(models.Model):
+    """شكل المستندات المطبوعة للشركة: الشعار والقالب واللون والبيانات البنكية والتذييل."""
+
+    company = models.OneToOneField(Company, models.CASCADE, related_name="print_settings")
+    template = models.CharField("قالب الطباعة", max_length=10, choices=PrintTemplate.choices,
+                                default=PrintTemplate.CLASSIC)
+    accent_color = models.CharField("اللون الرئيسي", max_length=7, default="#1f4e79",
+                                    help_text="لون العناوين ورأس الجداول، مثل #1f4e79")
+    logo = models.TextField("الشعار", blank=True, editable=False)  # data URI (PNG/JPEG/WebP) لا يحتاج خادم ملفات
+    name_en = models.CharField("اسم الشركة بالإنجليزية", max_length=150, blank=True)
+    address_en = models.CharField("العنوان بالإنجليزية", max_length=250, blank=True)
+    bilingual = models.BooleanField("عناوين عربية وإنجليزية", default=True,
+                                    help_text="يضيف الترجمة الإنجليزية تحت عناوين المستند والجداول")
+    show_amount_in_words = models.BooleanField("كتابة المبلغ بالحروف (تفقيط)", default=True)
+    show_signatures = models.BooleanField("خانات التوقيع والختم", default=True)
+    show_item_code = models.BooleanField("إظهار رمز الصنف", default=True)
+    show_bank_details = models.BooleanField("إظهار البيانات البنكية في فواتير المبيعات", default=False)
+    bank_name = models.CharField("اسم البنك", max_length=100, blank=True)
+    bank_account_name = models.CharField("اسم صاحب الحساب", max_length=150, blank=True)
+    iban = models.CharField("رقم الآيبان (IBAN)", max_length=34, blank=True)
+    footer_text = models.CharField("نص التذييل", max_length=300, blank=True,
+                                   help_text="يظهر أسفل كل صفحة، مثل: شكراً لتعاملكم معنا — الموقع الإلكتروني")
+    sales_terms = models.TextField("الشروط الافتراضية لفواتير المبيعات", blank=True,
+                                   help_text="تُطبع أسفل فواتير المبيعات التي لا تحمل شروطاً خاصة بها")
+
+    class Meta:
+        verbose_name = "إعدادات الطباعة"
+        verbose_name_plural = "إعدادات الطباعة"
+
+    def __str__(self):
+        return f"إعدادات الطباعة — {self.company}"
+
+    @classmethod
+    def for_company(cls, company):
+        obj = cls.objects.filter(company=company).first()
+        return obj or cls(company=company)

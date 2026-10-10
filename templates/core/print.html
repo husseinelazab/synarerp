@@ -1,74 +1,179 @@
 {% load erp static %}<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <link rel="stylesheet" href="{% static 'css/currency.css' %}">
-  <title>{{ obj.name }}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: "Tajawal", "Segoe UI", Tahoma, sans-serif; color: #111; margin: 32px; background: #fff; }
-    .head { display: flex; justify-content: space-between; border-bottom: 2px solid #1f4e79; padding-bottom: 12px; }
-    h1 { margin: 0; font-size: 22px; color: #1f4e79; }
-    h2 { text-align: center; margin: 20px 0 8px; }
-    .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 24px; margin: 16px 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th, td { border: 1px solid #bbb; padding: 6px 8px; text-align: right; }
-    th { background: #eef3f8; }
-    .totals { width: 45%; margin-inline-start: auto; margin-top: 16px; }
-    .qr svg { width: 38mm; height: 38mm; }
-    .terms { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }
-    .terms h3 { font-size: 15px; margin: 0 0 6px; }
-    .stamp { color: #b00; font-weight: bold; text-align: center; font-size: 20px; }
-    @media print { .no-print { display: none; } body { margin: 0; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ obj.name }} — {{ p.title }}</title>
+<link rel="stylesheet" href="{% static 'css/currency.css' %}">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/print.css' %}">
+<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }</style>
 </head>
-<body>
-  <div class="head">
-    <div>
-      <h1>{{ company.name }}</h1>
-      {% if company.address %}<div>{{ company.address }}</div>{% endif %}
-      {% if company.phone %}<div>هاتف: {{ company.phone }}</div>{% endif %}
+<body class="tpl-{{ template }}">
+<div class="toolbar no-print">
+  <a class="tb-btn" href="{% url 'doc_detail' dt.slug obj.pk %}">→ رجوع للمستند</a>
+  <span class="tb-group">
+    <span class="tb-label">القالب:</span>
+    {% for value, label in templates %}<a class="tb-chip{% if value == template %} active{% endif %}" href="?template={{ value }}">{{ label }}</a>{% endfor %}
+  </span>
+  {% if can_customize %}<a class="tb-btn" href="{% url 'print_settings' %}">⚙ إعدادات الطباعة</a>{% endif %}
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+</div>
+
+<main class="sheet">
+  {% if obj.is_draft %}<div class="watermark">مسودة</div>{% elif obj.is_cancelled %}<div class="watermark">ملغاة</div>{% endif %}
+
+  <header class="doc-header">
+    <div class="brand">
+      {% if ps.logo %}<img class="logo" src="{{ ps.logo }}" alt="{{ company.name }}">{% endif %}
+      <div>
+        <div class="company-name">{{ company.name }}</div>
+        {% if ps.name_en %}<div class="company-name-en" dir="ltr">{{ ps.name_en }}</div>{% endif %}
+      </div>
     </div>
-    <div>
-      {% if company.tax_id %}<div>الرقم الضريبي: <strong>{{ company.tax_id }}</strong></div>{% endif %}
-      {% if company.commercial_register %}<div>السجل التجاري: {{ company.commercial_register }}</div>{% endif %}
+    <div class="seller">
+      {% if company.tax_id %}<div><span class="k">الرقم الضريبي{% en "VAT No." %}</span><b dir="ltr">{{ company.tax_id }}</b></div>{% endif %}
+      {% if company.commercial_register %}<div><span class="k">السجل التجاري{% en "CR No." %}</span><b dir="ltr">{{ company.commercial_register }}</b></div>{% endif %}
+      {% if company.address %}<div class="addr">{{ company.address }}</div>{% endif %}
+      {% if ps.address_en %}<div class="addr" dir="ltr">{{ ps.address_en }}</div>{% endif %}
+      {% if company.phone or company.email %}<div class="contact" dir="ltr">{{ company.phone }}{% if company.phone and company.email %} · {% endif %}{{ company.email }}</div>{% endif %}
     </div>
+  </header>
+
+  <div class="title-band">
+    <h1>{{ p.title }}</h1>
+    {% if ps.bilingual and p.title_en %}<div class="title-en">{{ p.title_en }}</div>{% endif %}
   </div>
-  <h2>{{ obj.document_title|default:dt.label }}</h2>
-  {% if obj.is_draft %}<div class="stamp">مسودة - غير معتمدة</div>{% elif obj.is_cancelled %}<div class="stamp">ملغاة</div>{% endif %}
-  <div class="meta">
-    <div>الرقم: <strong>{{ obj.name }}</strong></div>
-    <div>التاريخ: {{ obj.posting_date|date:"Y-m-d" }}</div>
-    {% if obj.is_debit_note %}<div>إشعار مدين على الفاتورة: <strong>{{ obj.debit_note_against }}</strong> بتاريخ {{ obj.debit_note_against.posting_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.vat_category and obj.vat_category != 'S' %}<div>فئة الضريبة: <strong>{{ obj.get_vat_category_display }}</strong>{% if obj.vat_exemption_reason %} — {{ obj.get_vat_exemption_reason_display }}{% endif %}</div>{% endif %}
-    {% if obj.is_return %}<div>مرتجع من الفاتورة: <strong>{{ obj.return_against }}</strong> بتاريخ {{ obj.return_against.posting_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.customer %}<div>العميل: <strong>{{ obj.customer }}</strong></div>{% if obj.customer.tax_id %}<div>الرقم الضريبي للعميل: {{ obj.customer.tax_id }}</div>{% endif %}{% endif %}
-    {% if obj.supplier %}<div>المورد: <strong>{{ obj.supplier }}</strong></div>{% endif %}
-    {% if obj.bill_no %}<div>رقم فاتورة المورد: {{ obj.bill_no }}</div>{% endif %}
-    {% if obj.due_date %}<div>تاريخ الاستحقاق: {{ obj.due_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.valid_till %}<div>العرض صالح حتى: <strong>{{ obj.valid_till|date:"Y-m-d" }}</strong></div>{% endif %}
-    {% if obj.delivery_date %}<div>تاريخ التسليم المتوقع: {{ obj.delivery_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.schedule_date %}<div>تاريخ التوريد المتوقع: {{ obj.schedule_date|date:"Y-m-d" }}</div>{% endif %}
-    {% if obj.order %}<div>المرجع: {{ obj.order }}</div>{% elif obj.quotation %}<div>المرجع: {{ obj.quotation }}</div>{% endif %}
-    {% if obj.amount %}<div>المبلغ: <strong>{{ obj.amount|cur:doc_currency }}</strong></div>{% endif %}
-  </div>
-  {% if child_rows %}
-  <table>
-    <thead><tr><th>#</th>{% for h in child_headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+
+  <section class="info">
+    {% if p.party %}
+    <div class="box party">
+      <div class="box-title">{{ p.party_label.0 }}{% en p.party_label.1 %}</div>
+      <div class="party-name">{{ p.party.name }}</div>
+      {% if p.party.tax_id %}<div><span class="k">الرقم الضريبي{% en "VAT No." %}</span><b dir="ltr">{{ p.party.tax_id }}</b></div>{% endif %}
+      {% if p.party.address %}<div><span class="k">العنوان{% en "Address" %}</span>{{ p.party.address }}</div>{% endif %}
+      {% if p.party.phone %}<div><span class="k">الجوال{% en "Phone" %}</span><span dir="ltr">{{ p.party.phone }}</span></div>{% endif %}
+    </div>
+    {% endif %}
+    <div class="box meta">
+      <div><span class="k">رقم المستند{% en "No." %}</span><b dir="ltr">{{ obj.name }}</b></div>
+      <div><span class="k">التاريخ{% en "Date" %}</span><b dir="ltr">{{ obj.posting_date|date:"Y-m-d" }}</b></div>
+      {% if hijri_date %}<div><span class="k">الموافق{% en "Hijri" %}</span><span>{{ hijri_date }}</span></div>{% endif %}
+      {% if obj.due_date %}<div><span class="k">تاريخ الاستحقاق{% en "Due Date" %}</span><b dir="ltr">{{ obj.due_date|date:"Y-m-d" }}</b></div>{% endif %}
+      {% if obj.valid_till %}<div><span class="k">صالح حتى{% en "Valid Until" %}</span><b dir="ltr">{{ obj.valid_till|date:"Y-m-d" }}</b></div>{% endif %}
+      {% if obj.delivery_date %}<div><span class="k">تاريخ التسليم{% en "Delivery Date" %}</span><b dir="ltr">{{ obj.delivery_date|date:"Y-m-d" }}</b></div>{% endif %}
+      {% if obj.schedule_date %}<div><span class="k">تاريخ التوريد{% en "Required By" %}</span><b dir="ltr">{{ obj.schedule_date|date:"Y-m-d" }}</b></div>{% endif %}
+      {% if obj.bill_no %}<div><span class="k">رقم فاتورة المورد{% en "Supplier Invoice" %}</span><b dir="ltr">{{ obj.bill_no }}</b></div>{% endif %}
+      {% if obj.supplier_delivery_no %}<div><span class="k">إشعار تسليم المورد{% en "Supplier DN" %}</span><b dir="ltr">{{ obj.supplier_delivery_no }}</b></div>{% endif %}
+      {% if obj.is_return and obj.return_against %}<div><span class="k">مرتجع من{% en "Against" %}</span><b dir="ltr">{{ obj.return_against }}</b> <span class="muted">{{ obj.return_against.posting_date|date:"Y-m-d" }}</span></div>{% endif %}
+      {% if obj.is_debit_note and obj.debit_note_against %}<div><span class="k">على الفاتورة{% en "Against" %}</span><b dir="ltr">{{ obj.debit_note_against }}</b></div>{% endif %}
+      {% if obj.order %}<div><span class="k">المرجع{% en "Reference" %}</span><b dir="ltr">{{ obj.order }}</b></div>{% elif obj.quotation %}<div><span class="k">المرجع{% en "Reference" %}</span><b dir="ltr">{{ obj.quotation }}</b></div>{% endif %}
+      {% if obj.warehouse and p.kind == 'fulfillment' %}<div><span class="k">المستودع{% en "Warehouse" %}</span>{{ obj.warehouse }}</div>{% endif %}
+      {% if p.currency and p.currency.code != company.currency.code %}<div><span class="k">العملة{% en "Currency" %}</span><b dir="ltr">{{ p.currency.code }}</b> <span class="muted" dir="ltr">(1 = {{ obj.exchange_rate|plain_number }} {{ company.currency.code }})</span></div>{% endif %}
+    </div>
+  </section>
+
+  {% if obj.vat_category and obj.vat_category != 'S' %}
+  <div class="vat-note">فئة الضريبة: <b>{{ obj.get_vat_category_display }}</b>{% if obj.vat_exemption_reason %} — {{ obj.get_vat_exemption_reason_display }}{% endif %}</div>
+  {% endif %}
+
+  {% if p.kind == 'trade' %}
+  <table class="items">
+    <thead><tr>
+      <th class="n">#</th>
+      <th class="desc">الصنف / الوصف{% en "Description" %}</th>
+      <th>الكمية{% en "Qty" %}</th>
+      <th>سعر الوحدة{% en "Unit Price" %}</th>
+      {% if p.has_discount %}<th>الخصم{% en "Discount" %}</th>{% endif %}
+      <th>المبلغ الخاضع{% en "Taxable" %}</th>
+      <th>الضريبة{% en "VAT" %}</th>
+      <th>الإجمالي{% en "Total" %}</th>
+    </tr></thead>
     <tbody>
-      {% for row in child_rows %}<tr><td>{{ forloop.counter }}</td>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}
+      {% for ln in p.lines %}<tr>
+        <td class="n">{{ forloop.counter }}</td>
+        <td class="desc"><div class="item-name">{{ ln.name }}</div>{% if ps.show_item_code %}<div class="item-code" dir="ltr">{{ ln.code }}</div>{% endif %}</td>
+        <td class="num">{{ ln.qty|plain_number }} <span class="uom">{{ ln.uom }}</span></td>
+        <td class="num">{{ ln.unit_price|money }}</td>
+        {% if p.has_discount %}<td class="num">{{ ln.discount|money }}</td>{% endif %}
+        <td class="num">{{ ln.taxable|money }}</td>
+        <td class="num">{{ ln.tax|money }}<div class="rate">{{ ln.tax_rate|plain_number }}%</div></td>
+        <td class="num strong">{{ ln.total|money }}</td>
+      </tr>{% endfor %}
     </tbody>
+  </table>
+
+  <section class="summary">
+    <div class="summary-side">
+      {% if p.amount_words %}<div class="words"><span class="k">المبلغ بالحروف{% en "Amount in words" %}</span>{{ p.amount_words }}</div>{% endif %}
+      {% if p.show_bank %}
+      <div class="bank">
+        <div class="box-title">البيانات البنكية{% en "Bank Details" %}</div>
+        {% if ps.bank_name %}<div><span class="k">البنك</span>{{ ps.bank_name }}</div>{% endif %}
+        {% if ps.bank_account_name %}<div><span class="k">اسم الحساب</span>{{ ps.bank_account_name }}</div>{% endif %}
+        <div><span class="k">الآيبان IBAN</span><b dir="ltr">{{ ps.iban }}</b></div>
+      </div>
+      {% endif %}
+      {% if qr %}<div class="qr">{{ qr|safe }}</div>{% endif %}
+    </div>
+    <table class="totals">
+      <tr><th>الإجمالي قبل الضريبة{% en "Subtotal" %}</th><td>{{ p.totals.gross|cur:p.currency }}</td></tr>
+      {% if p.totals.discount %}<tr><th>الخصم{% en "Discount" %}</th><td>- {{ p.totals.discount|cur:p.currency }}</td></tr>
+      <tr><th>المبلغ الخاضع للضريبة{% en "Taxable Amount" %}</th><td>{{ p.totals.taxable|cur:p.currency }}</td></tr>{% endif %}
+      <tr><th>ضريبة القيمة المضافة ({{ obj.tax_rate|plain_number }}%){% en "VAT" %}</th><td>{{ p.totals.tax|cur:p.currency }}</td></tr>
+      <tr class="grand"><th>الإجمالي شامل الضريبة{% en "Total incl. VAT" %}</th><td>{{ p.totals.grand|cur:p.currency }}</td></tr>
+      {% if obj.is_foreign_currency and obj.base_grand_total %}<tr><th>الإجمالي بعملة الشركة{% en "Total in" %} {{ company.currency.code }}</th><td>{{ obj.base_grand_total|abs|cur }}</td></tr>{% endif %}
+    </table>
+  </section>
+
+  {% elif p.kind == 'fulfillment' %}
+  <table class="items">
+    <thead><tr><th class="n">#</th><th class="desc">الصنف / الوصف{% en "Description" %}</th><th>الوحدة{% en "UOM" %}</th><th>الكمية{% en "Qty" %}</th><th>ملاحظات{% en "Notes" %}</th></tr></thead>
+    <tbody>{% for ln in p.lines %}<tr>
+      <td class="n">{{ forloop.counter }}</td>
+      <td class="desc"><div class="item-name">{{ ln.name }}</div>{% if ps.show_item_code %}<div class="item-code" dir="ltr">{{ ln.code }}</div>{% endif %}</td>
+      <td>{{ ln.uom }}</td><td class="num strong">{{ ln.qty|plain_number }}</td><td class="blank"></td>
+    </tr>{% endfor %}</tbody>
+  </table>
+
+  {% else %}
+  <section class="box generic-fields">
+    {% for label, value in generic_fields %}<div><span class="k">{{ label }}</span>{{ value }}</div>{% endfor %}
+  </section>
+  {% if child_rows %}
+  <table class="items">
+    <thead><tr><th class="n">#</th>{% for h in child_headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in child_rows %}<tr><td class="n">{{ forloop.counter }}</td>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
   </table>
   {% endif %}
   {% if totals %}
-  <table class="totals">
-    {% for label, value in totals %}<tr><th>{{ label }}</th><td>{{ value|abs|cur:doc_currency }}</td></tr>{% endfor %}
-    {% if obj.is_foreign_currency and obj.base_grand_total %}<tr><th>سعر الصرف</th><td><bdi dir="ltr">1 {{ obj.currency.code }} = {{ obj.exchange_rate|plain_number }} {{ obj.company.currency.code }}</bdi></td></tr><tr><th>الإجمالي بعملة الشركة</th><td>{{ obj.base_grand_total|abs|cur }}</td></tr>{% endif %}
-  </table>
+  <section class="summary"><div class="summary-side"></div>
+    <table class="totals">{% for label, value in totals %}<tr{% if forloop.last and totals|length == 1 %} class="grand"{% endif %}><th>{{ label }}</th><td>{{ value|abs|cur:doc_currency }}</td></tr>{% endfor %}</table>
+  </section>
   {% endif %}
-  {% if qr %}<div class="qr">{{ qr|safe }}</div>{% endif %}
-  {% if obj.terms %}<div class="terms"><h3>الشروط والأحكام</h3><p>{{ obj.terms|linebreaksbr }}</p></div>{% endif %}
-  {% if obj.remarks %}<p>ملاحظات: {{ obj.remarks }}</p>{% endif %}
-  <p class="no-print"><button onclick="window.print()">طباعة</button></p>
+  {% endif %}
+
+  {% if p.terms %}<section class="terms"><div class="box-title">الشروط والأحكام{% en "Terms & Conditions" %}</div><p>{{ p.terms|linebreaksbr }}</p></section>{% endif %}
+  {% if obj.remarks %}<section class="terms"><div class="box-title">ملاحظات{% en "Notes" %}</div><p>{{ obj.remarks|linebreaksbr }}</p></section>{% endif %}
+
+  {% if ps.show_signatures %}
+  <section class="signatures">
+    {% if p.kind == 'fulfillment' %}
+      <div><span>{% if p.is_sales %}المُسلِّم{% else %}أمين المستودع{% endif %}</span></div>
+      <div><span>{% if p.is_sales %}المستلم (العميل){% else %}مندوب المورد{% endif %}</span></div>
+    {% else %}
+      <div><span>إعداد</span></div><div><span>اعتماد</span></div>
+      {% if p.kind == 'trade' and p.is_sales %}<div><span>توقيع العميل</span></div>{% endif %}
+    {% endif %}
+    <div><span>الختم</span></div>
+  </section>
+  {% endif %}
+
+  <footer class="doc-footer">
+    {% if ps.footer_text %}<div>{{ ps.footer_text }}</div>{% endif %}
+    <div class="muted">{{ company.name }}{% if company.tax_id %} · الرقم الضريبي {{ company.tax_id }}{% endif %} · {{ obj.name }}</div>
+  </footer>
+</main>
+{% if request.GET.print %}<script>window.addEventListener("load", function () { window.print(); });</script>{% endif %}
 </body>
 </html>

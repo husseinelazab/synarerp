@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}إعدادات الطباعة{% endblock %}
+{% block heading %}الطباعة والشعار{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="grid-2">
+    <div class="card">
+      <h3>الهوية</h3>
+      {% if obj.logo %}<div style="margin-bottom:10px"><img src="{{ obj.logo }}" alt="الشعار" style="max-height:70px;max-width:220px;border:1px solid var(--border);border-radius:8px;padding:6px;background:#fff"></div>{% endif %}
+      <div class="form-grid">
+        {% for field in form %}{% if field.name in "logo_file remove_logo name_en address_en template accent_color" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <h3>المحتوى</h3>
+      <div class="form-grid">
+        {% for field in form %}{% if field.name in "bilingual show_amount_in_words show_signatures show_item_code footer_text" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>البيانات البنكية وشروط البيع</h3>
+    <p class="muted small">تظهر البيانات البنكية في فواتير المبيعات وعروض الأسعار وأوامر البيع ليحوّل العميل عليها.</p>
+    <div class="form-grid">
+      {% for field in form %}{% if field.name in "show_bank_details bank_name bank_account_name iban sales_terms" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary btn-lg">حفظ الإعدادات</button>
+    {% if sample %}<a class="btn" target="_blank" href="{% url 'doc_print' 'sales-invoice' sample.pk %}">معاينة على آخر فاتورة مبيعات</a>{% endif %}
+  </div>
+</form>
+{% endblock %}

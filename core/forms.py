@@ -96,3 +96,69 @@ class EmailSettingsForm(forms.ModelForm):
         if commit:
             obj.save()
         return obj
+
+
+class PrintSettingsForm(forms.ModelForm):
+    logo_file = forms.FileField(label="الشعار", required=False,
+                                help_text="صورة PNG أو JPG أو WebP بحجم 500 كيلوبايت كحد أقصى. يُفضّل خلفية شفافة.")
+    remove_logo = forms.BooleanField(label="حذف الشعار الحالي", required=False)
+
+    LOGO_TYPES = {b"\x89PNG\r\n\x1a\n": "image/png", b"\xff\xd8\xff": "image/jpeg", b"RIFF": "image/webp"}
+    MAX_LOGO = 500 * 1024
+
+    class Meta:
+        from core.models import PrintSettings
+
+        model = PrintSettings
+        fields = ["template", "accent_color", "name_en", "address_en", "bilingual", "show_amount_in_words",
+                  "show_signatures", "show_item_code", "show_bank_details", "bank_name", "bank_account_name", "iban",
+                  "footer_text", "sales_terms"]
+        widgets = {"accent_color": forms.TextInput(attrs={"type": "color", "style": "height:44px;width:120px;padding:4px"}),
+                   "sales_terms": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.instance.logo:
+            del self.fields["remove_logo"]
+        style_form(self)
+
+    def clean_accent_color(self):
+        import re
+
+        color = self.cleaned_data["accent_color"].strip()
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            raise forms.ValidationError("أدخل لوناً بصيغة #RRGGBB.")
+        return color.lower()
+
+    def clean_iban(self):
+        iban = self.cleaned_data["iban"].replace(" ", "").upper()
+        if iban and not (iban[:2].isalpha() and iban[2:].isalnum() and 15 <= len(iban) <= 34):
+            raise forms.ValidationError("رقم الآيبان غير صحيح (مثل SA0380000000608010167519).")
+        return iban
+
+    def clean_logo_file(self):
+        import base64
+
+        upload = self.cleaned_data.get("logo_file")
+        if not upload:
+            return None
+        if upload.size > self.MAX_LOGO:
+            raise forms.ValidationError("حجم الشعار أكبر من 500 كيلوبايت.")
+        data = upload.read()
+        # نتحقق من نوع الملف من محتواه لا من امتداده؛ لا نقبل SVG لأنه قد يحمل نصوصاً برمجية
+        mime = next((m for sig, m in self.LOGO_TYPES.items() if data.startswith(sig)), None)
+        if mime == "image/webp" and data[8:12] != b"WEBP":
+            mime = None
+        if mime is None:
+            raise forms.ValidationError("صيغة غير مدعومة. ارفع صورة PNG أو JPG أو WebP.")
+        return f"data:{mime};base64,{base64.b64encode(data).decode()}"
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        if self.cleaned_data.get("remove_logo"):
+            obj.logo = ""
+        if self.cleaned_data.get("logo_file"):
+            obj.logo = self.cleaned_data["logo_file"]
+        if commit:
+            obj.save()
+        return obj

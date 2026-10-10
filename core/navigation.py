@@ -104,6 +104,7 @@ def build_menu(request):
     if membership.can_manage:
         settings_items = [_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
                           _item("البريد الإلكتروني", "company_email_settings"),
+                          _item("الطباعة والشعار", "print_settings"),
                           _item("الواجهة البرمجية (API)", "api_keys"),
                           _item("الاشتراك والفوترة", "billing")] + settings_items
     modules.append({"key": "settings", "label": "الإعدادات", "sections": [{"items": settings_items}]})

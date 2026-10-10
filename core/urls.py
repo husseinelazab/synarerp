@@ -8,6 +8,7 @@ urlpatterns = [
     path("account/notifications/", views.notifications, name="notifications"),
     path("account/profile/", views.profile, name="profile"),
     path("settings/email/", views.company_email_settings, name="company_email_settings"),
+    path("settings/print/", views.print_settings, name="print_settings"),
     path("settings/api/", views.api_keys, name="api_keys"),
     path("settings/api/docs/", views.api_docs, name="api_docs"),
     path("platform/email/", views.platform_email_settings, name="platform_email_settings"),

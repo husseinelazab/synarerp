@@ -1,6 +1,7 @@
 from django import template
 
 from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 
 from core.utils import currency_symbol_html
 from core.utils import money as _money
@@ -77,3 +78,12 @@ def sub_money(value, arg):
         return _money(Decimal(str(value)) - Decimal(str(arg)))
     except Exception:
         return ""
+
+
+@register.simple_tag(takes_context=True)
+def en(context, text):
+    """الترجمة الإنجليزية للعناوين في المطبوعات عند تفعيلها في إعدادات الطباعة."""
+    ps = context.get("ps")
+    if ps is not None and ps.bilingual:
+        return format_html('<span class="en">{}</span>', text)
+    return ""

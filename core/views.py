@@ -238,19 +238,52 @@ def doc_detail(request, slug, pk):
 
 @login_required
 def doc_print(request, slug, pk):
+    from core.hijri import format_hijri
+    from core.models import PrintSettings, PrintTemplate
+    from core.printing import print_context
+
     dt = get_doctype(slug)
     obj = get_object_or_404(_scoped(request, dt), pk=pk)
+    ps = PrintSettings.for_company(request.company)
+    template = request.GET.get("template")
+    if template not in PrintTemplate.values:
+        template = ps.template
     child_headers, child_rows = _child_table(dt, obj)
     qr = ""
     if slug == "sales-invoice" and not obj.is_draft:
         from core.zatca import invoice_qr_svg
 
         qr = invoice_qr_svg(obj)
+    p = print_context(slug, obj, request.company, ps)
+    exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus", "posting_date", "remarks", "company"}
+    membership = getattr(request, "membership", None)
+    posting_date = getattr(obj, "posting_date", None)
     return render(request, "core/print.html", {
-        "qr": qr, "doc_currency": getattr(obj, "currency", None),
+        "qr": qr, "doc_currency": getattr(obj, "currency", None), "p": p, "ps": ps, "template": template,
+        "templates": [(v, label.split(" — ")[0]) for v, label in PrintTemplate.choices],
+        "can_customize": bool(membership and membership.can_manage),
+        "hijri_date": format_hijri(posting_date) if posting_date else "",
+        "generic_fields": detail_fields(obj, exclude=exclude) if p["kind"] == "generic" else [],
         "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals if f != "outstanding_amount"],
     })
+
+
+@login_required
+def print_settings(request):
+    from core.forms import PrintSettingsForm
+    from core.models import PrintSettings
+
+    obj = PrintSettings.for_company(request.company)
+    form = PrintSettingsForm(request.POST or None, request.FILES or None, instance=obj)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "تم حفظ إعدادات الطباعة.")
+        return redirect("print_settings")
+    from selling.models import SalesInvoice
+
+    sample = SalesInvoice.objects.filter(docstatus=1, is_pos=False).order_by("-id").first()
+    return render(request, "settings/print.html", {"form": form, "obj": obj, "sample": sample})
 
 
 def _run_action(request, dt, obj, action):

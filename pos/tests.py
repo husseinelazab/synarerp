@@ -75,7 +75,7 @@ class POSTests(TestCase):
 
     def test_split_payment_cash_and_card(self):
         checkout(self.shift, self.user, [{"item": self.item.id, "qty": 1}, {"item": self.service.id, "qty": 1}],
-                 paid_cash=38, paid_card=100)
+                 paid_cash=38, paid_card=100, card={"auth_code": "A1"})
         self.assertEqual(gl_balance(account=self.profile.card_account), Decimal("100"))
         self.assertEqual(gl_balance(account=self.profile.cash_account), Decimal("38"))
         self.assertEqual(gl_balance(), 0)
@@ -88,7 +88,7 @@ class POSTests(TestCase):
 
     def test_card_overpayment_rejected(self):
         with self.assertRaises(ValidationError):
-            self.sell(1, paid_cash=0, paid_card=200)
+            self.sell(1, paid_cash=0, paid_card=200, card={"auth_code": "A1"})
 
     def test_insufficient_stock_rejected(self):
         with self.assertRaises(ValidationError):
@@ -105,7 +105,7 @@ class POSTests(TestCase):
 
     def test_shift_close_reconciliation(self):
         self.sell(1, paid_cash=200)                     # نقداً 115
-        self.sell(1, paid_cash=0, paid_card=115)        # بطاقة 115
+        self.sell(1, paid_cash=0, paid_card=115, card={"auth_code": "A1"})        # بطاقة 115
         summary = self.shift.summary()
         self.assertEqual(summary["count"], 2)
         self.assertEqual(summary["cash"], Decimal("115"))
@@ -276,3 +276,143 @@ class OfflineSyncTests(POSTests):
         page = self.client.get("/pos/")
         self.assertContains(page, "pending-btn")
         self.assertContains(page, "/pos/api/sync/")
+
+
+class CardTerminalTests(POSTests):
+    """أجهزة مدى: التحقق من بيانات الموافقة وتسجيلها، والبرنامج الوسيط المحلي."""
+
+    def set_mode(self, mode, **extra):
+        POSProfile.objects.filter(pk=self.profile.pk).update(card_terminal_mode=mode, **extra)
+        self.shift.refresh_from_db()
+        self.shift.profile.refresh_from_db()
+
+    def test_manual_mode_requires_approval_code(self):
+        with self.assertRaises(ValidationError):
+            self.sell(1, paid_cash=0, paid_card=115)
+        inv = self.sell(1, paid_cash=0, paid_card=115,
+                        card={"auth_code": "12 34-56", "masked_pan": "5888 4812 3456 7890"})
+        tx = inv.card_transactions.get()
+        self.assertEqual((tx.auth_code, tx.card_last4, tx.amount, tx.kind), ("123456", "7890", Decimal("115"), "sale"))
+        summary = self.shift.summary()
+        self.assertEqual((summary["card_tx_count"], summary["card_unmatched"]), (1, 0))
+
+    def test_manual_reference_optional_when_disabled(self):
+        self.set_mode("manual", require_card_reference=False)
+        inv = self.sell(1, paid_cash=0, paid_card=115)
+        self.assertEqual(inv.card_transactions.get().auth_code, "")
+
+    def test_bridge_mode_needs_approved_matching_result(self):
+        self.set_mode("bridge")
+        ok = {"status": "approved", "auth_code": "654321", "rrn": "123456789012", "mode": "bridge", "amount": "115.00",
+              "masked_pan": "588848******1111", "scheme": "mada", "terminal_id": "T1"}
+        for bad in ({**ok, "status": "declined"}, {**ok, "auth_code": "", "rrn": ""}, {**ok, "mode": "simulator"},
+                    {**ok, "amount": "100.00"}, None):
+            with self.assertRaises(ValidationError):
+                self.sell(1, paid_cash=0, paid_card=115, card=bad)
+        inv = self.sell(1, paid_cash=0, paid_card=115, card=ok)
+        tx = inv.card_transactions.get()
+        self.assertEqual((tx.rrn, tx.card_last4, tx.terminal_id, tx.mode), ("123456789012", "1111", "T1", "bridge"))
+
+    def test_cash_sale_creates_no_card_record(self):
+        inv = self.sell(1, paid_cash=200)
+        self.assertFalse(inv.card_transactions.exists())
+
+    def test_card_refund_recorded_and_lookup_exposes_reference(self):
+        from pos.services import pos_return
+
+        self.set_mode("simulator")
+        sale = self.sell(1, paid_cash=0, paid_card=115,
+                         card={"status": "approved", "auth_code": "A9", "rrn": "R1", "mode": "simulator"})
+        self.client.force_login(self.user)
+        info = self.client.get("/pos/api/invoice/", {"name": sale.name}).json()
+        self.assertEqual(info["card"], {"rrn": "R1", "auth_code": "A9"})
+        with self.assertRaises(ValidationError):
+            pos_return(self.shift, self.user, sale.name, [{"item": self.item.id, "qty": 1}], refund_method="card")
+        ret = pos_return(self.shift, self.user, sale.name, [{"item": self.item.id, "qty": 1}], refund_method="card",
+                         card={"status": "approved", "rrn": "R2", "mode": "simulator"})
+        tx = ret.card_transactions.get()
+        self.assertEqual((tx.kind, tx.amount), ("refund", Decimal("-115.00")))
+        self.assertEqual(self.shift.summary()["card_unmatched"], 0)
+
+    def test_offline_sync_carries_card_data(self):
+        self.client.force_login(self.user)
+        sale = {"client_id": "card-1", "created_at": "2026-05-01T10:00:00+03:00", "paid_cash": 0, "paid_card": 115,
+                "items": [{"item": self.item.id, "qty": 1}], "card": {"auth_code": "777", "mode": "manual"}}
+        res = self.client.post("/pos/api/sync/", json.dumps({"sales": [sale]}), content_type="application/json").json()
+        self.assertTrue(res["results"][0]["ok"], res)
+        from selling.models import SalesInvoice
+        self.assertEqual(SalesInvoice.objects.get(offline_id="card-1").card_transactions.get().auth_code, "777")
+
+    def test_shift_report_lists_card_transactions(self):
+        self.sell(1, paid_cash=0, paid_card=115, card={"auth_code": "AB12"})
+        self.client.force_login(self.user)
+        page = self.client.get(f"/pos/shifts/{self.shift.pk}/")
+        self.assertContains(page, "AB12")
+        self.assertContains(page, "عمليات جهاز الدفع الموثقة")
+
+    def test_terminal_config_exposes_mode(self):
+        self.set_mode("bridge", bridge_url="http://127.0.0.1:8099/")
+        self.client.force_login(self.user)
+        page = self.client.get("/pos/").content.decode()
+        self.assertIn('"terminalMode": "bridge"', page)
+        self.assertIn('"bridgeUrl": "http://127.0.0.1:8099"', page)
+
+
+class PaymentBridgeTests(TestCase):
+    """البرنامج الوسيط المرجعي (tools/payment-bridge) مع المحاكي، على منفذ محلي عشوائي."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        import importlib.util
+        import threading
+        from pathlib import Path
+
+        from django.conf import settings
+
+        spec = importlib.util.spec_from_file_location(
+            "synar_bridge", Path(settings.BASE_DIR) / "tools" / "payment-bridge" / "bridge.py")
+        cls.bridge = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.bridge)
+        cls.server = cls.bridge.build_server(cls.bridge.SimulatorDriver(delay=0), ["https://erp.test"], port=0)
+        cls.url = f"http://127.0.0.1:{cls.server.server_address[1]}"
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        super().tearDownClass()
+
+    def call(self, path, payload=None, origin="https://erp.test", method=None):
+        import urllib.error
+        import urllib.request
+
+        headers = {"Content-Type": "application/json"}
+        if origin:
+            headers["Origin"] = origin
+        data = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(self.url + path, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, dict(r.headers), (json.loads(r.read() or b"{}") if r.status != 204 else {})
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), {}
+
+    def test_sale_refund_void_and_decline(self):
+        code, headers, res = self.call("/sale", {"amount": "115.00", "currency": "SAR", "reference": "x"})
+        self.assertEqual((code, res["status"], res["amount"]), (200, "approved", "115.00"))
+        self.assertEqual(headers["Access-Control-Allow-Origin"], "https://erp.test")
+        self.assertEqual(len(res["masked_pan"].replace("*", "")), 10)  # لا رقم بطاقة كامل
+        self.assertEqual(self.call("/void", {"rrn": res["rrn"]})[2]["status"], "voided")
+        self.assertEqual(self.call("/sale", {"amount": "10.51"})[2]["status"], "declined")
+        self.assertEqual(self.call("/refund", {"amount": "5", "original_rrn": "1"})[2]["status"], "approved")
+        self.assertEqual(self.call("/sale", {"amount": "-3"})[2]["status"], "error")
+        self.assertEqual(self.call("/sale", {"amount": "3", "currency": "USD"})[2]["status"], "error")
+
+    def test_foreign_origin_rejected_and_preflight(self):
+        self.assertEqual(self.call("/sale", {"amount": "1"}, origin="https://evil.test")[0], 403)
+        code, headers, _ = self.call("/sale", origin="https://erp.test", method="OPTIONS")
+        self.assertEqual(code, 204)
+        self.assertEqual(headers["Access-Control-Allow-Private-Network"], "true")
+        self.assertEqual(self.call("/status", origin=None)[2]["driver"], "simulator")

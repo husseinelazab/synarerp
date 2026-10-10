@@ -41,7 +41,7 @@
 .small { font-size: 12px; }
 
 .modal { position: fixed; inset: 0; background: rgba(10, 20, 35, .55); display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal[hidden] { display: none; }
+[hidden] { display: none !important; }
 .modal-box { background: #fff; border-radius: 14px; padding: 24px; width: 440px; max-width: 94vw; display: flex; flex-direction: column; gap: 12px; }
 .modal-box h2 { margin: 0; }
 .pay-due { font-size: 20px; }
@@ -68,3 +68,8 @@
 .net-status.offline { color: #c62828; }
 .btn-warning { background: #fff3cd; border-color: #e0a800; color: #6b4e00; }
 .offline-note { background: #fff3cd; color: #6b4e00; border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+.card-ref { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+.terminal-status { padding: 10px 12px; border-radius: 8px; background: var(--bg, #f3f6f9); font-weight: bold; margin: 8px 0; }
+.terminal-status.waiting { color: #8a5a00; background: #fff6e0; }
+.terminal-status.ok { color: var(--success); }
+.terminal-status.fail { color: var(--danger); background: #fdecec; }

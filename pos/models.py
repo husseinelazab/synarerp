@@ -9,6 +9,12 @@ from core.tenancy import tenant_unique
 from core.utils import flt
 
 
+class TerminalMode(models.TextChoices):
+    MANUAL = "manual", "يدوي: الكاشير يُدخل رقم الموافقة من جهاز مدى"
+    BRIDGE = "bridge", "ربط مباشر عبر برنامج الوسيط على جهاز الكاشير"
+    SIMULATOR = "simulator", "تجريبي للتدريب (لا يقبض مالاً حقيقياً)"
+
+
 class POSProfile(TenantModel):
     """إعدادات نقطة البيع: المستودع، الحسابات، العميل الافتراضي، والصلاحيات."""
 
@@ -32,6 +38,14 @@ class POSProfile(TenantModel):
     max_discount_percent = models.DecimalField("أقصى نسبة خصم %", max_digits=5, decimal_places=2, default=10)
     allow_rate_change = models.BooleanField("السماح بتعديل السعر", default=False)
     receipt_footer = models.CharField("تذييل الإيصال", max_length=255, blank=True, default="شكراً لزيارتكم")
+    card_terminal_mode = models.CharField("ربط جهاز الدفع (مدى)", max_length=10, choices=TerminalMode.choices,
+                                          default=TerminalMode.MANUAL)
+    bridge_url = models.CharField("عنوان برنامج الوسيط", max_length=200, blank=True, default="http://127.0.0.1:8099",
+                                  help_text="للربط المباشر: البرنامج الوسيط على جهاز الكاشير الذي يتصل بجهاز مدى")
+    terminal_id = models.CharField("رقم جهاز الدفع (TID)", max_length=30, blank=True)
+    require_card_reference = models.BooleanField(
+        "إلزام رقم الموافقة في الوضع اليدوي", default=True,
+        help_text="يطلب من الكاشير إدخال رقم الموافقة المطبوع على إيصال جهاز مدى")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -102,6 +116,12 @@ class POSShift(TenantModel):
         data["count"] -= returns["count"]
         data["cancelled"] = self.invoices.filter(docstatus=DocStatus.CANCELLED).count()
         data["expected_cash"] = flt(self.opening_cash + data["cash"])
+        # مطابقة البطاقات: ما سجّلته الفواتير مقابل عمليات الجهاز الموثقة (يُطابق بعدها مع تسوية البنك)
+        tx = self.card_transactions.filter(invoice__docstatus=DocStatus.SUBMITTED).aggregate(
+            count=Count("id"), total=Sum("amount"))
+        data["card_tx_count"] = tx["count"]
+        data["card_tx_total"] = flt(tx["total"])
+        data["card_unmatched"] = flt(data["card"] - data["card_tx_total"])
         return data
 
     def close(self, closing_cash, notes=""):
@@ -116,3 +136,69 @@ class POSShift(TenantModel):
         self.status = ShiftStatus.CLOSED
         self.closed_at = timezone.now()
         self.save()
+
+
+class CardTransaction(TenantModel):
+    """عملية بطاقة (مدى/فيزا/ماستركارد) مرتبطة بفاتورة نقطة البيع — للتدقيق ومطابقة تسويات البنك.
+
+    لا يُخزن رقم البطاقة كاملاً أبداً؛ آخر 4 أرقام فقط.
+    """
+
+    shift = models.ForeignKey(POSShift, models.PROTECT, related_name="card_transactions", verbose_name="الوردية")
+    invoice = models.ForeignKey("selling.SalesInvoice", models.PROTECT, null=True, blank=True,
+                                related_name="card_transactions", verbose_name="الفاتورة")
+    kind = models.CharField("النوع", max_length=10, choices=[("sale", "بيع"), ("refund", "استرداد")], default="sale")
+    amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
+    mode = models.CharField("الوضع", max_length=10, choices=TerminalMode.choices)
+    auth_code = models.CharField("رقم الموافقة", max_length=20, blank=True)
+    rrn = models.CharField("الرقم المرجعي (RRN)", max_length=30, blank=True)
+    scheme = models.CharField("نوع البطاقة", max_length=20, blank=True)
+    card_last4 = models.CharField("آخر 4 أرقام", max_length=4, blank=True)
+    terminal_id = models.CharField("رقم الجهاز (TID)", max_length=30, blank=True)
+    created_at = models.DateTimeField("الوقت", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "عملية بطاقة"
+        verbose_name_plural = "عمليات البطاقات"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} {self.amount} {self.auth_code or ''}"
+
+
+def clean_card_info(info, mode, amount, require_reference=True):
+    """تنقية بيانات البطاقة الواردة من الشاشة أو البرنامج الوسيط، ورفض ما لا يصح."""
+    import re
+    from decimal import Decimal, InvalidOperation
+
+    from django.core.exceptions import ValidationError
+
+    info = info or {}
+    data = {
+        "auth_code": re.sub(r"[^0-9A-Za-z]", "", str(info.get("auth_code") or ""))[:20],
+        "rrn": re.sub(r"[^0-9A-Za-z]", "", str(info.get("rrn") or ""))[:30],
+        "scheme": re.sub(r"[^A-Za-z ]", "", str(info.get("scheme") or ""))[:20].strip().lower(),
+        # من رقم البطاقة المقنّع نأخذ آخر 4 أرقام فقط مهما أُرسل
+        "card_last4": re.sub(r"[^0-9]", "", str(info.get("masked_pan") or info.get("card_last4") or ""))[-4:],
+        "terminal_id": re.sub(r"[^0-9A-Za-z-]", "", str(info.get("terminal_id") or ""))[:30],
+    }
+    status = str(info.get("status") or "approved").lower()
+    if mode in (TerminalMode.BRIDGE, TerminalMode.SIMULATOR):
+        if status != "approved":
+            raise ValidationError("لم يوافق جهاز الدفع على العملية.")
+        if not (data["auth_code"] or data["rrn"]):
+            raise ValidationError("لم تصل موافقة جهاز الدفع (رقم الموافقة أو المرجع).")
+        if str(info.get("mode") or mode) != mode:
+            raise ValidationError("وضع الدفع لا يطابق إعداد نقطة البيع.")
+        approved = info.get("amount")
+        if approved not in (None, ""):
+            try:
+                approved = abs(Decimal(str(approved)))
+            except (InvalidOperation, ValueError):
+                raise ValidationError("مبلغ عملية جهاز الدفع غير صالح.")
+            if abs(approved - abs(Decimal(str(amount)))) > Decimal("0.01"):
+                raise ValidationError(f"المبلغ الذي وافق عليه جهاز الدفع ({approved}) لا يطابق مبلغ البطاقة "
+                                      f"في الفاتورة ({abs(Decimal(str(amount)))}).")
+    elif require_reference and not data["auth_code"]:
+        raise ValidationError("أدخل رقم الموافقة المطبوع على إيصال جهاز مدى.")
+    return data

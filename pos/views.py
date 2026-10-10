@@ -40,6 +40,10 @@ def terminal(request):
         "defaultCustomer": profile.default_customer_id,
         "currencyHtml": currency_symbol_html(profile.company.currency),
         "syncUrl": reverse("pos_sync"),
+        "terminalMode": profile.card_terminal_mode,
+        "bridgeUrl": profile.bridge_url.rstrip("/"),
+        "terminalId": profile.terminal_id,
+        "requireCardRef": profile.require_card_reference,
         "swUrl": reverse("pos_sw"),
         "queueKey": f"synar-pos-queue-{profile.company_id}-{request.user.pk}",
         "companyName": profile.company.name,
@@ -101,6 +105,7 @@ def shift_report(request, pk):
     )
     return render(request, "pos/shift_report.html", {
         "shift": shift, "summary": shift.summary(), "invoices": invoices, "top_items": top_items,
+        "card_transactions": shift.card_transactions.select_related("invoice").order_by("id"),
     })
 
 
@@ -132,7 +137,7 @@ def checkout_api(request):
         invoice = checkout(
             POSShift.current_for(request.user), request.user, data.get("items") or [],
             customer_id=data.get("customer"), discount=data.get("discount") or 0,
-            paid_cash=data.get("paid_cash") or 0, paid_card=data.get("paid_card") or 0,
+            paid_cash=data.get("paid_cash") or 0, paid_card=data.get("paid_card") or 0, card=data.get("card"),
         )
     except (ValidationError, Customer.DoesNotExist) as exc:
         return JsonResponse({"error": _error(exc) if isinstance(exc, ValidationError) else "العميل غير موجود."}, status=400)
@@ -167,9 +172,12 @@ def invoice_api(request):
     items = Item.objects.in_bulk(list(remaining))
     # معامل تحويل مبلغ الأصناف إلى المبلغ المستحق بعد الخصم والضريبة
     factor = float(invoice.grand_total / invoice.total) if invoice.total else 0
+    card_tx = invoice.card_transactions.filter(kind="sale").first()
     return JsonResponse({
         "name": invoice.name, "customer": str(invoice.customer), "date": invoice.posting_date.isoformat(),
         "grand_total": str(invoice.grand_total), "paid_card": str(invoice.paid_card), "factor": factor,
+        # مرجع عملية البطاقة الأصلية لإرسال الاسترداد لنفس العملية عبر جهاز مدى
+        "card": {"rrn": card_tx.rrn, "auth_code": card_tx.auth_code} if card_tx else None,
         "items": [
             {"item": item_id, "name": items[item_id].name, "sold": float(summary[item_id]["qty"]),
              "returnable": float(qty), "rate": float(summary[item_id]["amount"] / summary[item_id]["qty"])}
@@ -188,7 +196,7 @@ def return_api(request):
     try:
         ret = pos_return(
             POSShift.current_for(request.user), request.user, data.get("invoice") or "",
-            data.get("items") or [], refund_method=data.get("refund_method") or "cash",
+            data.get("items") or [], refund_method=data.get("refund_method") or "cash", card=data.get("card"),
         )
     except ValidationError as exc:
         return JsonResponse({"error": _error(exc)}, status=400)
@@ -224,7 +232,7 @@ def sync_api(request):
             invoice = checkout(
                 shift, request.user, sale.get("items") or [], customer_id=sale.get("customer"),
                 discount=sale.get("discount") or 0, paid_cash=sale.get("paid_cash") or 0,
-                paid_card=sale.get("paid_card") or 0, offline_id=client_id, offline_at=created,
+                paid_card=sale.get("paid_card") or 0, offline_id=client_id, offline_at=created, card=sale.get("card"),
             )
         except (ValidationError, Customer.DoesNotExist) as exc:
             results.append({"client_id": client_id, "ok": False,

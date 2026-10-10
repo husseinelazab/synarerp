@@ -177,6 +177,8 @@
     cashEl.value = t.grand.toFixed(2);
     cardEl.value = 0;
     errEl.hidden = true;
+    $("m-auth").value = ""; $("m-last4").value = "";
+    terminalMsg("");
     payModal.hidden = false;
     updateChange();
     cashEl.select();
@@ -189,6 +191,7 @@
     out.innerHTML = fmt(Math.abs(change)) + config.currencyHtml;
     out.classList.toggle("neg", change < 0);
     $("m-confirm").disabled = change < 0;
+    $("m-card-ref").hidden = !(cardMode() === "manual" && num(cardEl.value) > 0);
   }
 
   cashEl.addEventListener("input", updateChange);
@@ -205,13 +208,95 @@
     updateChange();
   });
 
+  // ---------- أجهزة الدفع (مدى) ----------
+  // الاتصال بجهاز مدى محلي بالكامل: من متصفح الكاشير إلى البرنامج الوسيط على نفس الجهاز.
+  // خادم النظام لا يتصل بأي جهة دفع؛ يستلم فقط نتيجة العملية (رقم الموافقة والمرجع وآخر 4 أرقام).
+  function cardMode() { return config.terminalMode || "manual"; }
+
+  function terminalMsg(text, kind) {
+    var el = $("m-terminal");
+    el.hidden = !text;
+    el.textContent = text || "";
+    el.className = "terminal-status" + (kind ? " " + kind : "");
+  }
+
+  function bridgeCall(path, payload, timeoutMs) {
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || 120000) : null;
+    return fetch(config.bridgeUrl + path, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      signal: ctrl ? ctrl.signal : undefined, credentials: "omit", cache: "no-store",
+    })
+      .then(function (r) { return r.json(); })
+      .catch(function (e) {
+        throw new Error(e && e.name === "AbortError" ? "انتهت مهلة انتظار جهاز الدفع." :
+          "تعذر الاتصال ببرنامج جهاز الدفع على هذا الجهاز. تأكد من تشغيله.");
+      })
+      .finally(function () { if (timer) clearTimeout(timer); });
+  }
+
+  function simulate(kind, amount) {
+    // وضع التدريب: يوافق بعد لحظة، ويرفض المبالغ المنتهية بـ .51 لتجربة حالة الرفض
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        if (Math.round(amount * 100) % 100 === 51) { resolve({ status: "declined", message: "رُفضت (محاكاة)" }); return; }
+        var n = String(Date.now());
+        resolve({ status: "approved", amount: amount.toFixed(2), auth_code: "SIM" + n.slice(-3), rrn: n.slice(-12), scheme: "mada",
+                  masked_pan: "588848******" + n.slice(-4), terminal_id: config.terminalId || "SIMULATOR" });
+      }, 1200);
+    });
+  }
+
+  // يطلب من جهاز الدفع تنفيذ العملية ويعيد بيانات الموافقة (أو null إن لم يكن هناك مبلغ بطاقة)
+  function obtainCard(kind, amount, reference, original) {
+    var mode = cardMode();
+    if (amount <= 0) return Promise.resolve(null);
+    if (mode === "manual") {
+      var auth = (kind === "sale" ? $("m-auth") : $("r-auth")).value.trim();
+      if (kind === "sale" && config.requireCardRef && !auth) {
+        return Promise.reject(new Error("أدخل رقم الموافقة المطبوع على إيصال جهاز مدى."));
+      }
+      return Promise.resolve({ mode: mode, auth_code: auth, card_last4: kind === "sale" ? $("m-last4").value.trim() : "" });
+    }
+    var req = mode === "simulator" ? simulate(kind, amount) : bridgeCall("/" + kind, {
+      amount: amount.toFixed(2), currency: "SAR", reference: reference,
+      original_rrn: original && original.rrn || "", original_auth_code: original && original.auth_code || "",
+    });
+    return req.then(function (res) {
+      if (!res || res.status !== "approved") throw new Error(res && res.message ? "رفض جهاز الدفع: " + res.message : "لم يوافق جهاز الدفع على العملية.");
+      res.mode = mode;
+      if (!res.terminal_id) res.terminal_id = config.terminalId;
+      return res;
+    });
+  }
+
+  // إلغاء عملية بطاقة وافق عليها الجهاز ثم رفضها النظام، حتى لا يُخصم من العميل دون فاتورة
+  function voidCard(card) {
+    if (!card || card.mode !== "bridge") return Promise.resolve(true);
+    return bridgeCall("/void", { rrn: card.rrn || "", auth_code: card.auth_code || "" }, 60000)
+      .then(function (r) { return r && r.status === "voided"; }, function () { return false; });
+  }
+
+  function showSaleError(message) { errEl.textContent = message; errEl.hidden = false; }
+
   $("m-confirm").addEventListener("click", function () {
     if (busy) return;
     busy = true;
     errEl.hidden = true;
-    var t = totals();
-    if (!navigator.onLine) { saveOffline(t); busy = false; return; }
-    fetch(config.checkoutUrl, {
+    var t = totals(), cardAmount = num(cardEl.value), clientId = newId();
+    if (cardAmount > 0 && cardMode() !== "manual") terminalMsg("⏳ أدخل البطاقة أو قرّبها من جهاز مدى… المبلغ " + fmt(cardAmount), "waiting");
+    $("m-confirm").disabled = true;
+    obtainCard("sale", cardAmount, clientId)
+      .then(function (card) {
+        if (card && card.mode !== "manual") terminalMsg("✓ تمت الموافقة " + (card.auth_code || card.rrn), "ok");
+        if (!navigator.onLine) { saveOffline(t, card, clientId); return; }
+        return submitSale(t, card, clientId);
+      }, function (err) { terminalMsg(""); showSaleError(err.message); })
+      .finally(function () { busy = false; $("m-confirm").disabled = false; updateChange(); });
+  });
+
+  function submitSale(t, card, clientId) {
+    return fetch(config.checkoutUrl, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
@@ -220,12 +305,23 @@
         discount: t.discount,
         paid_cash: num(cashEl.value),
         paid_card: num(cardEl.value),
+        card: card,
         items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate }; }),
       }),
     })
       .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
       .then(function (res) {
-        if (!res.ok) { errEl.textContent = res.data.error || "تعذر إتمام البيع."; errEl.hidden = false; return; }
+        if (!res.ok) {
+          var msg = res.data.error || "تعذر إتمام البيع.";
+          if (card && card.mode === "bridge") {
+            return voidCard(card).then(function (voided) {
+              showSaleError(msg + (voided ? " — أُلغيت عملية البطاقة على الجهاز."
+                : " — تنبيه: وافق جهاز مدى على العملية ولم يُتمكن من إلغائها آلياً؛ ألغها من الجهاز يدوياً (المرجع " + (card.rrn || card.auth_code) + ")."));
+            });
+          }
+          showSaleError(msg);
+          return;
+        }
         payModal.hidden = true;
         $("d-title").textContent = "✓ تمت عملية البيع";
         $("d-change-label").textContent = "الباقي للعميل: ";
@@ -237,9 +333,8 @@
         $("d-new").focus();
         loadItems();
       })
-      .catch(function () { saveOffline(t); })  // انقطع الاتصال أثناء الإرسال: يُحفظ البيع في الجهاز
-      .finally(function () { busy = false; });
-  });
+      .catch(function () { saveOffline(t, card, clientId); });  // انقطع الاتصال أثناء الإرسال: يُحفظ البيع في الجهاز
+  }
 
   $("d-new").addEventListener("click", function () { $("done-modal").hidden = true; resetSale(); });
 
@@ -253,9 +348,9 @@
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
   }
 
-  function saveOffline(t) {
+  function saveOffline(t, card, clientId) {
     var sale = {
-      client_id: newId(), created_at: new Date().toISOString(), customer: $("customer").value,
+      client_id: clientId || newId(), card: card || null, created_at: new Date().toISOString(), customer: $("customer").value,
       customer_name: $("customer").selectedOptions[0] ? $("customer").selectedOptions[0].text : "",
       discount: t.discount, paid_cash: num(cashEl.value), paid_card: num(cardEl.value),
       items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, name: l.name }; }),
@@ -365,7 +460,7 @@
   }
 
   // ---------- المرتجعات ----------
-  var returnModal = $("return-modal"), rError = $("r-error"), rInvoice = null;
+  var returnModal = $("return-modal"), rError = $("r-error"), rInvoice = null, rRefund = 0;
 
   function openReturn() {
     if (!navigator.onLine) { alert("المرتجعات تحتاج اتصالاً بالخادم للتحقق من الفاتورة الأصلية."); return; }
@@ -390,7 +485,8 @@
       if (l.qty > 0) any = true;
       total += l.qty * l.rate;
     });
-    $("r-total").textContent = fmt(round2(total * (rInvoice ? rInvoice.factor : 0)));
+    rRefund = round2(total * (rInvoice ? rInvoice.factor : 0));
+    $("r-total").textContent = fmt(rRefund);
     $("r-confirm").disabled = !(valid && any);
   }
 
@@ -409,6 +505,8 @@
             '</td><td><input type="number" class="form-control" min="0" step="any" max="' + i.returnable + '" value="0" data-item="' + i.item + '" data-rate="' + i.rate + '"></td></tr>';
         }).join("");
         $("r-method").value = num(rInvoice.paid_card) > 0 ? "card" : "cash";
+        $("r-auth").value = "";
+        toggleReturnRef();
         $("r-body").hidden = false;
         updateReturnTotal();
       });
@@ -419,36 +517,50 @@
   $("r-load").addEventListener("click", loadInvoice);
   $("r-invoice").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); loadInvoice(); } });
   $("r-items").addEventListener("input", updateReturnTotal);
+  function toggleReturnRef() { $("r-card-ref").hidden = !($("r-method").value === "card" && cardMode() === "manual"); }
+  $("r-method").addEventListener("change", toggleReturnRef);
 
   $("r-confirm").addEventListener("click", function () {
     if (busy || !rInvoice) return;
     busy = true;
+    rError.hidden = true;
     var lines = returnLines().filter(function (l) { return l.qty > 0; });
-    fetch(config.returnUrl, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
-      body: JSON.stringify({
-        invoice: rInvoice.name,
-        items: lines.map(function (l) { return { item: l.item, qty: l.qty }; }),
-        refund_method: $("r-method").value,
-      }),
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-      .then(function (res) {
-        if (!res.ok) { rError.textContent = res.data.error || "تعذر تنفيذ المرتجع."; rError.hidden = false; return; }
-        returnModal.hidden = true;
-        $("d-title").textContent = "✓ تم تنفيذ المرتجع";
-        $("d-name").textContent = res.data.name;
-        $("d-change-label").textContent = num(res.data.refund_card) > 0 ? "مبلغ الرد للبطاقة: " : "مبلغ الرد نقداً للعميل: ";
-        $("d-change").innerHTML = fmt(num(res.data.refund)) + config.currencyHtml;
-        $("d-print").href = res.data.receipt_url + "?print=1";
-        $("d-print").onclick = null;
-        $("done-modal").hidden = false;
-        $("d-new").focus();
-        loadItems();
-      })
-      .catch(function () { rError.textContent = "خطأ في الاتصال بالخادم."; rError.hidden = false; })
+    var method = $("r-method").value;
+    // مبلغ الرد للبطاقة يُحسب نهائياً في الخادم؛ هنا التقدير المعروض نفسه لإرساله لجهاز مدى
+    var refund = method === "card" ? rRefund : 0;
+    obtainCard("refund", refund, newId(), rInvoice.card)
+      .then(function (card) {
+        return fetch(config.returnUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+          body: JSON.stringify({
+            invoice: rInvoice.name,
+            items: lines.map(function (l) { return { item: l.item, qty: l.qty }; }),
+            refund_method: method,
+            card: card,
+          }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              rError.textContent = (res.data.error || "تعذر تنفيذ المرتجع.") +
+                (card && card.mode === "bridge" ? " — تنبيه: نُفذ الاسترداد على جهاز مدى (المرجع " + (card.rrn || card.auth_code) + ")؛ راجعه." : "");
+              rError.hidden = false;
+              return;
+            }
+            returnModal.hidden = true;
+            $("d-title").textContent = "✓ تم تنفيذ المرتجع";
+            $("d-name").textContent = res.data.name;
+            $("d-change-label").textContent = num(res.data.refund_card) > 0 ? "مبلغ الرد للبطاقة: " : "مبلغ الرد نقداً للعميل: ";
+            $("d-change").innerHTML = fmt(num(res.data.refund)) + config.currencyHtml;
+            $("d-print").href = res.data.receipt_url + "?print=1";
+            $("d-print").onclick = null;
+            $("done-modal").hidden = false;
+            $("d-new").focus();
+            loadItems();
+          }, function () { rError.textContent = "خطأ في الاتصال بالخادم."; rError.hidden = false; });
+      }, function (err) { rError.textContent = err.message; rError.hidden = false; })
       .finally(function () { busy = false; });
   });
 

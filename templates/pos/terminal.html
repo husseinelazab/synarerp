@@ -75,6 +75,11 @@
       <button class="btn" data-quick="200">200</button>
       <button class="btn" data-quick="500">500</button>
     </div>
+    <div class="card-ref" id="m-card-ref" hidden>
+      <div class="field"><label>رقم الموافقة من إيصال جهاز مدى</label><input id="m-auth" class="form-control" maxlength="20" autocomplete="off" dir="ltr"></div>
+      <div class="field"><label>آخر 4 أرقام من البطاقة (اختياري)</label><input id="m-last4" class="form-control" maxlength="4" inputmode="numeric" autocomplete="off" dir="ltr"></div>
+    </div>
+    <div class="terminal-status" id="m-terminal" hidden></div>
     <div class="pay-change"><span id="m-change-label">الباقي للعميل: </span><strong id="m-change">0.00</strong></div>
     <div class="alert alert-error" id="m-error" hidden></div>
     <div class="cart-actions">
@@ -101,6 +106,7 @@
         <label>طريقة الرد</label>
         <select id="r-method" class="form-select"><option value="cash">نقداً من الدرج</option><option value="card">إلى البطاقة</option></select>
       </div>
+      <div class="field" id="r-card-ref" hidden><label>رقم الموافقة لعملية الاسترداد من جهاز مدى (اختياري)</label><input id="r-auth" class="form-control" maxlength="20" autocomplete="off" dir="ltr"></div>
       <div class="pay-change">مبلغ الرد التقريبي: <strong id="r-total">0.00</strong></div>
     </div>
     <div class="alert alert-error" id="r-error" hidden></div>

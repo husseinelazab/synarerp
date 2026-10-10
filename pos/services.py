@@ -5,11 +5,12 @@ from django.utils import timezone
 
 from core.utils import flt
 from selling.models import Customer, SalesInvoice
+from pos.models import CardTransaction, clean_card_info
 from stock.models import Item
 
 
 def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid_card=0, offline_id="",
-             offline_at=None):
+             offline_at=None, card=None):
     """lines: قائمة من {"item": id, "qty": رقم, "rate": رقم اختياري}.
 
     offline_id: معرّف البيع من الجهاز عند البيع دون اتصال؛ إن سبقت مزامنته تُعاد نفس الفاتورة.
@@ -59,8 +60,15 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
         invoice.paid_cash = flt(paid_cash)
         invoice.paid_card = flt(paid_card)
         invoice.change_amount = max(flt(invoice.paid_cash + invoice.paid_card - invoice.grand_total), flt(0))
+        card_data = None
+        if invoice.paid_card > 0:
+            card_data = clean_card_info(card, profile.card_terminal_mode, invoice.paid_card,
+                                        profile.require_card_reference)
         invoice.save()
         invoice.submit()
+        if card_data is not None:
+            CardTransaction.objects.create(shift=shift, invoice=invoice, amount=invoice.paid_card,
+                                           mode=profile.card_terminal_mode, **card_data)
     return invoice
 
 
@@ -71,7 +79,7 @@ def find_returnable_invoice(name):
         raise ValidationError("الفاتورة غير موجودة، أو ليست فاتورة نقطة بيع معتمدة.")
 
 
-def pos_return(shift, user, invoice_name, lines, refund_method="cash"):
+def pos_return(shift, user, invoice_name, lines, refund_method="cash", card=None):
     """مرتجع نقطة البيع: lines قائمة {"item": id, "qty": كمية موجبة}، ويُرد كامل المبلغ نقداً (cash) أو للبطاقة (card)."""
     if not shift or not shift.is_open:
         raise ValidationError("يجب فتح وردية قبل تنفيذ المرتجع.")
@@ -96,6 +104,14 @@ def pos_return(shift, user, invoice_name, lines, refund_method="cash"):
             raise ValidationError("طريقة الرد غير صحيحة.")
         ret.paid_card = ret.grand_total if refund_method == "card" else flt(0)
         ret.paid_cash = ret.grand_total - ret.paid_card
+        card_data = None
+        if ret.paid_card:
+            profile = shift.profile
+            card_data = clean_card_info(card, profile.card_terminal_mode, ret.paid_card,
+                                        profile.require_card_reference and profile.card_terminal_mode != "manual")
         ret.save()
         ret.submit()
+        if card_data is not None:
+            CardTransaction.objects.create(shift=shift, invoice=ret, kind="refund", amount=ret.paid_card,
+                                           mode=shift.profile.card_terminal_mode, **card_data)
     return ret

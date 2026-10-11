@@ -13,8 +13,9 @@ register(DocType(
 ))
 register(DocType(
     slug="customer", model=Customer, module="selling",
-    list_fields=["name", "customer_type", "phone", "city", "tax_id"],
+    list_fields=["name", "customer_type", "phone", "city", "tax_id", "credit_limit"],
     search_fields=["name", "phone", "tax_id"],
+    detail_template="selling/_customer_credit.html",
 ))
 register(DocType(
     slug="quotation", model=Quotation, module="selling",

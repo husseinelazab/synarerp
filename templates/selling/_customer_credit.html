@@ -1,0 +1,15 @@
+{% load erp %}
+{% with c=obj.credit_status %}
+<div class="card">
+  <h3>الوضع الائتماني</h3>
+  {% if c.hold %}<div class="alert alert-error">البيع الآجل لهذا العميل موقوف — يُسمح بالنقدي فقط.</div>{% endif %}
+  <div class="kpis">
+    <div class="kpi"><span>الرصيد المستحق</span><b>{{ c.balance|cur }}</b></div>
+    <div class="kpi"><span>حد الائتمان</span><b>{% if c.limit %}{{ c.limit|cur }}{% else %}بلا حد{% endif %}</b>{% if c.used_percent is not None %}<span>مستخدم {{ c.used_percent|floatformat:0 }}%</span>{% endif %}</div>
+    <div class="kpi {% if c.available is not None and c.available <= 0 %}kpi-bad{% else %}kpi-good{% endif %}"><span>المتاح للبيع الآجل</span><b>{% if c.available is not None %}{{ c.available|cur }}{% else %}—{% endif %}</b></div>
+    <div class="kpi {% if c.overdue %}kpi-bad{% endif %}"><span>المتأخر عن الاستحقاق</span><b>{{ c.overdue|cur }}</b></div>
+  </div>
+  <table class="table"><thead><tr>{% for label, v in c.buckets %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+    <tbody><tr>{% for label, v in c.buckets %}<td class="{% if not forloop.first and v > 0 %}neg{% endif %}">{{ v|money }}</td>{% endfor %}</tr></tbody></table>
+</div>
+{% endwith %}

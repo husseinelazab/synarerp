@@ -39,6 +39,9 @@ class Company(models.Model):
     email = models.EmailField("البريد الإلكتروني", blank=True)
     address = models.TextField("العنوان", blank=True)
     default_tax_rate = models.DecimalField("نسبة ضريبة القيمة المضافة %", max_digits=5, decimal_places=2, default=15)
+    block_overdue_days = models.PositiveSmallIntegerField(
+        "منع البيع الآجل لمن لديه فواتير متأخرة أكثر من (يوم)", default=0,
+        help_text="صفر = لا منع. مثلاً 30: يُمنع البيع الآجل لعميل لديه فاتورة متأخرة عن استحقاقها أكثر من 30 يوماً")
     update_buying_rate_on_purchase = models.BooleanField(
         "تحديث سعر الشراء في بطاقة الصنف من آخر شراء", default=True,
         help_text="عند اعتماد فاتورة مشتريات أو إذن استلام يصبح سعر الشراء = آخر سعر شراء، مع تنبيه إن تجاوز سعر البيع")

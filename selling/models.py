@@ -31,7 +31,10 @@ class Customer(TenantModel):
     district = models.CharField("الحي", max_length=100, blank=True)
     postal_code = models.CharField("الرمز البريدي", max_length=5, blank=True)
     country_code = models.CharField("رمز الدولة", max_length=2, default="SA")
-    credit_limit = models.DecimalField("حد الائتمان", max_digits=18, decimal_places=2, default=0)
+    credit_limit = models.DecimalField("حد الائتمان", max_digits=18, decimal_places=2, default=0,
+                                       help_text="صفر = بلا حد. يُمنع البيع الآجل الذي يتجاوز الحد")
+    credit_hold = models.BooleanField("إيقاف البيع الآجل", default=False,
+                                      help_text="يُسمح بالبيع النقدي فقط لهذا العميل")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -42,6 +45,12 @@ class Customer(TenantModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def credit_status(self):
+        from accounts.credit import credit_status
+
+        return credit_status(self)
 
 
 class Quotation(CommercialDocument):
@@ -115,6 +124,12 @@ class SalesOrder(OrderDocument):
     class Meta(OrderDocument.Meta):
         verbose_name = "أمر بيع"
         verbose_name_plural = "أوامر البيع"
+
+    def validate_for_submit(self):
+        super().validate_for_submit()
+        from accounts.credit import check_credit
+
+        check_credit(self, self.base_grand_total)
 
     def invoice_model(self):
         return SalesInvoice
@@ -230,6 +245,12 @@ class SalesInvoice(InvoiceDocument):
 
     def validate_for_submit(self):
         super().validate_for_submit()
+        if not self.is_return:
+            from accounts.credit import check_credit
+
+            # الجزء الآجل فقط: ما دُفع في نقطة البيع لا يُحسب على حد الائتمان
+            paid = flt(self.paid_cash + self.paid_card - self.change_amount) if self.is_pos else flt(0)
+            check_credit(self, self.to_base(max(self.grand_total - paid, flt(0))))
         if self.update_stock and not self.is_return:
             rows = list(self.items.select_related("order_item", "delivery_note_item"))
             if any(r.delivery_note_item_id for r in rows):

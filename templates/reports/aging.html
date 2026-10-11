@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>العمر حسب <select name="basis" class="form-select"><option value="due" {% if basis == 'due' %}selected{% endif %}>تاريخ الاستحقاق</option><option value="posting" {% if basis == 'posting' %}selected{% endif %}>تاريخ الفاتورة</option></select></label>
+  <label>عرض <select name="only" class="form-select"><option value="">الكل</option><option value="overdue" {% if only == 'overdue' %}selected{% endif %}>المتأخر فقط</option>{% if party == 'customer' %}<option value="over_limit" {% if only == 'over_limit' %}selected{% endif %}>المتجاوز لحد الائتمان</option>{% endif %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+<div class="kpis">
+  <div class="kpi"><span>إجمالي المستحق من الفواتير</span><b>{{ grand|cur }}</b></div>
+  {% for label, t in bucket_totals %}{% if not forloop.first %}<div class="kpi {% if t > 0 and forloop.counter > 2 %}kpi-bad{% elif t > 0 %}kpi-warn{% endif %}"><span>{{ label }}</span><b>{{ t|money }}</b></div>{% endif %}{% endfor %}
+</div>
+<div class="card"><div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>{% if party == 'customer' %}العميل{% else %}المورد{% endif %}</th>{% for b in buckets %}<th>{{ b }}</th>{% endfor %}<th>إجمالي الفواتير</th><th>رصيد غير مخصص</th><th>الرصيد</th>{% if party == 'customer' %}<th>حد الائتمان</th><th></th>{% endif %}</tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="{% if r.over_limit %}row-loss{% elif r.overdue %}row-low{% endif %}">
+      <td><a href="{% if party == 'customer' %}{% url 'doc_detail' 'customer' r.party.pk %}{% else %}{% url 'doc_detail' 'supplier' r.party.pk %}{% endif %}">{{ r.party }}</a>{% if r.oldest %}<div class="muted small">أقدم تأخير {{ r.oldest }} يوماً</div>{% endif %}</td>
+      {% for v in r.buckets %}<td class="{% if not forloop.first and v > 0 %}neg{% endif %}">{% if v %}{{ v|money }}{% endif %}</td>{% endfor %}
+      <td class="strong">{{ r.outstanding|money }}</td><td>{% if r.unallocated %}{{ r.unallocated|money }}{% endif %}</td><td class="strong">{{ r.balance|money }}</td>
+      {% if party == 'customer' %}<td>{% if r.credit_limit %}{{ r.credit_limit|money }}{% if r.over_limit %} <span class="badge pr-loss">متجاوز</span>{% endif %}{% endif %}{% if r.party.credit_hold %} <span class="badge pr-loss">موقوف</span>{% endif %}</td>
+      <td>{% if r.party.phone and r.overdue %}<span class="msg-actions"><form method="post" action="{% url 'messaging_send' 'customer' r.party.pk %}" target="_blank">{% csrf_token %}<input type="hidden" name="mode" value="link"><button class="btn btn-sm">واتساب</button></form>{% if messaging_active %}<form method="post" action="{% url 'messaging_send' 'customer' r.party.pk %}">{% csrf_token %}<input type="hidden" name="mode" value="provider"><button class="btn btn-sm">تذكير</button></form>{% endif %}</span>{% endif %}</td>{% endif %}
+    </tr>
+  {% empty %}<tr><td colspan="12" class="muted center">لا توجد أرصدة مستحقة</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+<p class="muted small">الأعمار من الفواتير غير المسددة. «رصيد غير مخصص» = دفعات مقدمة أو مرتجعات أو قيود لم تُربط بفاتورة (سالب يعني رصيداً لصالح الطرف).
+{% if party == 'customer' %}يُمنع البيع الآجل لمن يتجاوز حد الائتمان أو لديه متأخرات أكثر من المدة المحددة في إعدادات الشركة.{% endif %}</p>
+</div>
+{% endblock %}

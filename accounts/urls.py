@@ -13,4 +13,5 @@ urlpatterns = [
     path("vat/", reports.vat_report, name="vat_report"),
     path("chart-of-accounts/", reports.chart_of_accounts, name="chart_of_accounts"),
     path("balances/<str:party>/", reports.party_balances, name="party_balances"),
+    path("aging/<str:party>/", reports.aging_report, name="aging_report"),
 ]

@@ -330,3 +330,30 @@ def general_journal(request):
         "total_credit": sum((v["credit"] for v in vouchers), flt(0)),
         "count": len(vouchers),
     })
+
+
+@login_required
+def aging_report(request, party):
+    """أعمار الديون: العملاء (المدينون) أو الموردون (الدائنون) بفئات التأخير."""
+    from accounts.credit import BUCKETS, aging
+
+    if party not in ("customer", "supplier"):
+        party = "customer"
+    basis = "posting" if request.GET.get("basis") == "posting" else "due"
+    rows = aging(party, basis)
+    only = request.GET.get("only", "")
+    if only == "overdue":
+        rows = [r for r in rows if r["overdue"] > 0]
+    elif only == "over_limit":
+        rows = [r for r in rows if r["over_limit"]]
+    rows.sort(key=lambda r: (-r["overdue"], -r["outstanding"]))
+    totals = [sum((r["buckets"][i] for r in rows), flt(0)) for i in range(len(BUCKETS))]
+    from messaging.models import MessagingSettings
+
+    cfg = MessagingSettings.all_objects.filter(company=request.company).first()
+    return render(request, "reports/aging.html", {
+        "title": "أعمار ديون العملاء" if party == "customer" else "أعمار ديون الموردين", "party": party,
+        "rows": rows, "buckets": [b[1] for b in BUCKETS], "bucket_totals": list(zip([b[1] for b in BUCKETS], totals)),
+        "basis": basis, "only": only,
+        "grand": sum(totals, flt(0)), "messaging_active": bool(cfg and cfg.active),
+    })

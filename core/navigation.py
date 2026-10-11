@@ -67,7 +67,8 @@ def build_menu(request):
             {"title": "تقارير", "items": [
                 _item("دفتر اليومية العام", "general_journal"), _item("دفتر الأستاذ العام", "general_ledger"),
                 _item("ميزان المراجعة", "trial_balance"), _item("قائمة الدخل", "profit_and_loss"),
-                _item("الميزانية العمومية", "balance_sheet"), _item("إقرار ضريبة القيمة المضافة", "vat_report"),
+                _item("الميزانية العمومية", "balance_sheet"), _item("التدفقات النقدية", "cash_flow"),
+                _item("إقرار ضريبة القيمة المضافة", "vat_report"),
             ]},
             {"title": "بداية العمل", "items": [
                 _item("معالج الأرصدة الافتتاحية", "opening_wizard"), doc("أرصدة الحسابات", "opening-account"),

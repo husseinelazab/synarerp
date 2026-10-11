@@ -9,6 +9,7 @@ urlpatterns = [
     path("trial-balance/", reports.trial_balance, name="trial_balance"),
     path("general-ledger/", reports.general_ledger, name="general_ledger"),
     path("profit-and-loss/", reports.profit_and_loss, name="profit_and_loss"),
+    path("cash-flow/", reports.cash_flow, name="cash_flow"),
     path("balance-sheet/", reports.balance_sheet, name="balance_sheet"),
     path("vat/", reports.vat_report, name="vat_report"),
     path("budget-variance/", budget.budget_variance, name="budget_variance"),

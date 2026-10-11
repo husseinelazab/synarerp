@@ -389,3 +389,54 @@ def foreign_currency_balances(request):
         "total_difference": sum((r["difference"] for r in rows if r["difference"] is not None), flt(0)),
         "missing_rate": any(r["rate"] is None and r["amount"] for r in rows),
     })
+
+
+CASH_TYPES = (AccountType.CASH, AccountType.BANK)
+
+
+@login_required
+def cash_flow(request):
+    """قائمة التدفقات النقدية بالطريقة غير المباشرة: صافي الربح معدلاً بتغيرات الحسابات غير النقدية.
+
+    التغير في النقدية = صافي الربح − التغير في أرصدة باقي حسابات الميزانية؛ فتطابق القائمة رصيد النقدية دائماً.
+    قيد إقفال السنة مستبعد لأنه ينقل الربح بين حسابين غير نقديين.
+    """
+    from accounts.models import CashFlowCategory
+
+    from_date, to_date = _period(request)
+    active = _active_gl().exclude(voucher_type=CLOSING_VOUCHER)
+    period = _sums(active.filter(posting_date__gte=from_date, posting_date__lte=to_date))
+    opening_cash = _sums(active.filter(posting_date__lt=from_date, account__account_type__in=CASH_TYPES))
+    accounts = Account.objects.in_bulk(list(period) + list(opening_cash))
+
+    profit = flt(0)
+    sections = {key: {"key": key, "label": label, "rows": [], "total": flt(0)} for key, label in CashFlowCategory.choices}
+    adjustments, cash_change = [], flt(0)
+    for account_id, (debit, credit) in period.items():
+        account = accounts[account_id]
+        change = debit - credit
+        if account.root_type in (RootType.INCOME, RootType.EXPENSE):
+            profit -= change
+        elif account.account_type in CASH_TYPES:
+            cash_change += change
+        elif change:
+            # زيادة أصل غير نقدي = استخدام للنقدية، وزيادة خصم أو حق ملكية = مصدر لها
+            section = sections[account.cash_flow_section]
+            row = {"account": account, "amount": -change}
+            if account.account_type == AccountType.ACCUMULATED_DEPRECIATION and section["key"] == CashFlowCategory.OPERATING:
+                adjustments.append(row)
+            else:
+                section["rows"].append(row)
+            section["total"] += -change
+    operating = sections[CashFlowCategory.OPERATING]
+    operating["total"] += profit
+    for section in sections.values():
+        section["rows"].sort(key=lambda r: (r["account"].number, r["account"].name))
+    net_change = sum((s["total"] for s in sections.values()), flt(0))
+    opening = sum((d - c for d, c in opening_cash.values()), flt(0))
+    return render(request, "reports/cash_flow.html", {
+        "title": "قائمة التدفقات النقدية", "from_date": from_date, "to_date": to_date,
+        "profit": profit, "adjustments": adjustments, "sections": list(sections.values()),
+        "operating": operating, "net_change": net_change, "opening": opening, "closing": opening + net_change,
+        "book_closing": opening + cash_change, "balanced": net_change == cash_change,
+    })

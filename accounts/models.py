@@ -32,6 +32,12 @@ class AccountType(models.TextChoices):
     EQUITY = "equity", "حقوق ملكية"
 
 
+class CashFlowCategory(models.TextChoices):
+    OPERATING = "operating", "أنشطة تشغيلية"
+    INVESTING = "investing", "أنشطة استثمارية"
+    FINANCING = "financing", "أنشطة تمويلية"
+
+
 class Account(TenantModel):
     number = models.CharField("رقم الحساب", max_length=20, blank=True)
     name = models.CharField("اسم الحساب", max_length=150)
@@ -44,6 +50,9 @@ class Account(TenantModel):
     account_currency = models.ForeignKey(
         "core.Currency", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="عملة الحساب",
         help_text="لحسابات البنك والصندوق بعملة أجنبية فقط (حساب بالدولار مثلاً). يُترك فارغاً لعملة الشركة")
+    cash_flow_category = models.CharField(
+        "التصنيف في قائمة التدفقات النقدية", max_length=10, choices=CashFlowCategory.choices, blank=True,
+        help_text="فارغ = تلقائي: الأصول الثابتة استثمارية، وحقوق الملكية والقروض تمويلية، والباقي تشغيلية")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -62,6 +71,19 @@ class Account(TenantModel):
     @property
     def is_foreign_currency(self):
         return bool(self.account_currency_id) and self.account_currency_id != self.company.currency_id
+
+    @property
+    def cash_flow_section(self):
+        """تصنيف الحساب في قائمة التدفقات النقدية (المحدد يدوياً، وإلا حسب نوعه)."""
+        if self.cash_flow_category:
+            return self.cash_flow_category
+        if self.account_type == AccountType.FIXED_ASSET:
+            return CashFlowCategory.INVESTING
+        if self.root_type == RootType.EQUITY:
+            return CashFlowCategory.FINANCING
+        if self.root_type == RootType.LIABILITY and any(word in self.name for word in ("قرض", "قروض", "تمويل")):
+            return CashFlowCategory.FINANCING
+        return CashFlowCategory.OPERATING
 
     def clean(self):
         if self.account_currency_id and self.company_id and self.account_currency_id == self.company.currency_id:

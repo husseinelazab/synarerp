@@ -234,6 +234,74 @@ class JournalEntryAccount(models.Model):
             raise ValidationError(f"الحساب {self.account} حساب موردين ويتطلب تحديد المورد.")
 
 
+class PaymentTermsTemplate(TenantModel):
+    """شروط الدفع: دفعة واحدة بعد مدة، أو أقساط (مقدم + دفعات شهرية مثلاً)."""
+
+    name = models.CharField("اسم الشروط", max_length=100, help_text="مثل: آجل 30 يوماً، أو 30% مقدم والباقي على 3 أقساط")
+    disabled = models.BooleanField("موقوفة", default=False)
+
+    class Meta:
+        verbose_name = "شروط دفع"
+        verbose_name_plural = "شروط الدفع والأقساط"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="paymenttermstemplate")]
+
+    def __str__(self):
+        return self.name
+
+    def validate_lines(self):
+        lines = list(self.lines.all())
+        if not lines:
+            raise ValidationError(f"شروط الدفع «{self}» بلا أقساط.")
+        total = sum((flt(line.invoice_portion) for line in lines), flt(0))
+        if total != 100:
+            raise ValidationError(f"مجموع نسب أقساط «{self}» يجب أن يكون 100% (الحالي {total}%).")
+
+    def schedule(self, posting_date, grand_total):
+        """[(تاريخ الاستحقاق، المبلغ، البيان)] — فرق التقريب على القسط الأخير."""
+        import datetime
+
+        self.validate_lines()
+        lines = list(self.lines.all())
+        rows, allocated = [], flt(0)
+        for index, line in enumerate(lines):
+            amount = flt(grand_total) - allocated if index == len(lines) - 1 else \
+                flt(flt(grand_total) * flt(line.invoice_portion) / 100)
+            allocated += amount
+            rows.append((posting_date + datetime.timedelta(days=line.credit_days), amount,
+                         line.description or f"القسط {index + 1}"))
+        return rows
+
+
+class PaymentTermLine(models.Model):
+    parent = models.ForeignKey(PaymentTermsTemplate, models.CASCADE, related_name="lines")
+    description = models.CharField("البيان", max_length=100, blank=True, help_text="مثل: دفعة مقدمة، القسط الأول")
+    invoice_portion = models.DecimalField("النسبة من الفاتورة %", max_digits=6, decimal_places=2)
+    credit_days = models.PositiveIntegerField("يستحق بعد (يوم)", default=0, help_text="من تاريخ الفاتورة. صفر = عند الفاتورة")
+
+    class Meta:
+        verbose_name = "قسط"
+        verbose_name_plural = "الأقساط"
+        ordering = ["credit_days", "id"]
+
+
+class PaymentSchedule(models.Model):
+    """جدول أقساط فاتورة: يُبنى من شروط الدفع، والمسدد يُوزع على الأقساط الأقدم أولاً."""
+
+    sales_invoice = models.ForeignKey("selling.SalesInvoice", models.CASCADE, null=True, blank=True,
+                                      related_name="schedule")
+    purchase_invoice = models.ForeignKey("buying.PurchaseInvoice", models.CASCADE, null=True, blank=True,
+                                         related_name="schedule")
+    due_date = models.DateField("تاريخ الاستحقاق")
+    amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
+    description = models.CharField("البيان", max_length=100, blank=True)
+
+    class Meta:
+        verbose_name = "قسط فاتورة"
+        verbose_name_plural = "جدول الأقساط"
+        ordering = ["due_date", "id"]
+
+
 class PaymentType(models.TextChoices):
     RECEIVE = "receive", "سند قبض"
     PAY = "pay", "سند صرف"

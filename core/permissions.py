@@ -38,7 +38,8 @@ PATH_MODULES = [
 SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
                    "payment-reconciliation": {"selling", "buying", "accounts"},
                    "price-list": {"selling", "buying", "stock"}, "item-price": {"selling", "buying", "stock"},
-                   "pricing-rule": {"selling", "buying", "stock"}}
+                   "pricing-rule": {"selling", "buying", "stock"},
+                   "payment-terms": {"selling", "buying", "accounts"}}
 
 
 def modules_for_path(path):

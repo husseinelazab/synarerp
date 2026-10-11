@@ -5,12 +5,13 @@ from selling.models import (Customer, CustomerGroup, DeliveryNote, DeliveryNoteI
 register(DocType(
     slug="sales-invoice", model=SalesInvoice, module="selling",
     list_fields=["name", "posting_date", "customer", "is_return", "grand_total", "outstanding_amount"],
-    form_fields=["customer", "posting_date", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center",
+    form_fields=["customer", "posting_date", "payment_terms", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center",
                  "price_list", "coupon_code", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
                  "prices_include_tax", "discount_amount", "loyalty_points", "remarks"],
     search_fields=["name", "customer__name"],
     child=ChildTable(SalesInvoiceItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total", "outstanding_amount"],
+    detail_template="accounts/_payment_schedule.html",
 ))
 register(DocType(
     slug="customer", model=Customer, module="selling",

@@ -65,7 +65,12 @@ class CurrencyMixin:
 
 
 class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
-    due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True)
+    due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True,
+                                help_text="مع شروط الدفع بالأقساط يصبح تاريخ أقرب قسط غير مسدد")
+    payment_terms = models.ForeignKey("accounts.PaymentTermsTemplate", models.PROTECT, null=True, blank=True,
+                                      related_name="+", limit_choices_to={"disabled": False},
+                                      verbose_name="شروط الدفع / الأقساط",
+                                      help_text="فارغة = شروط الطرف إن وُجدت ولم يُحدد تاريخ استحقاق")
     update_stock = models.BooleanField("تحديث المخزون", default=True)
     warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="المستودع")
     currency = models.ForeignKey("core.Currency", models.PROTECT, null=True, blank=True, related_name="+",
@@ -238,6 +243,8 @@ class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
         self.base_net_total = self.to_base(self.net_total)
         self.base_tax_amount = self.to_base(self.tax_amount)
         self.base_grand_total = self.base_net_total + self.base_tax_amount
+        if self.is_draft and self.pk:
+            self.build_schedule()
 
     def apply_item_vat_category(self):
         """إن كانت كل الأصناف بفئة واحدة غير أساسية (صفرية/معفاة) تُطبق على الفاتورة مع سببها."""
@@ -264,7 +271,67 @@ class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
 
     def save(self, *args, **kwargs):
         self.ensure_currency()
+        if self.pk and self.payment_terms_id:
+            # الاستحقاق = أقرب قسط لم يُسدد بعد (يتغير مع كل سداد)
+            nxt = self.next_due_date()
+            if nxt is not None and nxt != self.due_date:
+                self.due_date = nxt
+                fields = kwargs.get("update_fields")
+                if fields is not None:
+                    kwargs["update_fields"] = set(fields) | {"due_date"}
         super().save(*args, **kwargs)
+
+    # ---------- الأقساط ----------
+
+    def build_schedule(self):
+        """يعيد بناء جدول الأقساط من شروط الدفع (للمسودات)."""
+        if self.is_return or getattr(self, "is_pos", False) or getattr(self, "is_debit_note", False):
+            return
+        if not self.payment_terms_id and not self.due_date:
+            party = self.party if getattr(self, f"{self.party_field}_id", None) else None
+            terms = getattr(party, "payment_terms", None)
+            if terms is not None and not terms.disabled:
+                self.payment_terms = terms
+        self.schedule.all().delete()
+        if not self.payment_terms_id:
+            return
+        rows = self.payment_terms.schedule(self.posting_date, self.grand_total)
+        self.schedule.model.objects.bulk_create([
+            self.schedule.model(**{self.schedule.field.name: self}, due_date=due, amount=amount, description=text)
+            for due, amount, text in rows])
+        self.due_date = rows[0][0] if rows else self.due_date
+
+    def installments(self):
+        """[(تاريخ الاستحقاق، المتبقي من القسط)] بتوزيع المسدد على الأقساط الأقدم أولاً."""
+        outstanding = flt(self.outstanding_amount)
+        rows = list(self.schedule.all()) if self.pk else []
+        if not rows or outstanding <= 0:
+            return [(self.due_date or self.posting_date, outstanding)]
+        paid = flt(self.grand_total) - outstanding
+        result = []
+        for row in rows:
+            share = min(max(paid, flt(0)), flt(row.amount))
+            paid -= share
+            result.append((row.due_date, flt(row.amount) - share))
+        return [(due, amount) for due, amount in result if amount > 0] or [(rows[-1].due_date, outstanding)]
+
+    def next_due_date(self):
+        if not self.schedule.exists():
+            return None
+        return self.installments()[0][0]
+
+    def schedule_rows(self):
+        """للعرض: كل قسط بمبلغه والمسدد منه والمتبقي."""
+        remaining = dict()
+        for due, amount in self.installments():
+            remaining[due] = remaining.get(due, flt(0)) + amount
+        rows, paid = [], flt(self.grand_total) - flt(self.outstanding_amount)
+        for row in self.schedule.all():
+            share = min(max(paid, flt(0)), flt(row.amount))
+            paid -= share
+            rows.append({"due_date": row.due_date, "description": row.description, "amount": row.amount,
+                         "paid": share, "outstanding": flt(row.amount) - share})
+        return rows
 
     def validate_for_submit(self):
         self.validate_currency()

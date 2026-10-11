@@ -1,5 +1,5 @@
 from accounts.models import (Account, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
-                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentReconciliation,
+                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
 
@@ -65,4 +65,10 @@ register(DocType(
     slug="bank-transaction", model=BankTransaction, module="accounts",
     list_fields=["date", "account", "description", "reference", "deposit", "withdrawal"],
     search_fields=["description", "reference"],
+))
+register(DocType(
+    slug="payment-terms", model=PaymentTermsTemplate, module="accounts",
+    list_fields=["name", "disabled"], form_fields=["name", "disabled"], search_fields=["name"],
+    child=ChildTable(PaymentTermLine, ["description", "invoice_portion", "credit_days"], label="الأقساط",
+                     help="مجموع النسب 100%. مثال: 30% بعد 0 يوم (مقدم)، ثم 35% بعد 30 يوماً، ثم 35% بعد 60 يوماً."),
 ))

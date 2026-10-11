@@ -42,19 +42,21 @@ def aging(party_field="customer", basis="due", today=None, party=None):
     if party is not None:
         qs = qs.filter(**{party_field: party})
     rows = OrderedDict()
-    for inv in qs.order_by(f"{party_field}__name", "posting_date"):
+    for inv in qs.order_by(f"{party_field}__name", "posting_date").prefetch_related("schedule"):
         p = getattr(inv, party_field)
         row = rows.setdefault(p.pk, {"party": p, "buckets": [flt(0)] * len(BUCKETS), "invoices": 0,
                                      "outstanding": flt(0), "oldest": None})
-        ref = inv.due_date if basis == "due" and inv.due_date else inv.posting_date
-        days = (today - ref).days
         amount = flt(inv.outstanding_amount)
         if amount < 0:  # مرتجع غير مسوّى يُخصم من الحالي
             row["buckets"][0] += amount
         else:
-            row["buckets"][_bucket(days)] += amount
-            if days > 0 and (row["oldest"] is None or days > row["oldest"]):
-                row["oldest"] = days
+            # الفاتورة بالأقساط: كل قسط متبقٍ في فئته حسب تاريخ استحقاقه
+            parts = inv.installments() if basis == "due" else [(inv.posting_date, amount)]
+            for due, part in parts:
+                days = (today - (due or inv.posting_date)).days
+                row["buckets"][_bucket(days)] += part
+                if days > 0 and (row["oldest"] is None or days > row["oldest"]):
+                    row["oldest"] = days
         row["invoices"] += 1
         row["outstanding"] += amount
     result = []

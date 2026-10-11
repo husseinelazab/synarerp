@@ -1,0 +1,13 @@
+{% load erp %}{% with rows=obj.schedule_rows %}{% if rows %}
+<div class="card">
+  <h3>جدول الأقساط — {{ obj.payment_terms }}</h3>
+  <table class="table">
+    <thead><tr><th>#</th><th>البيان</th><th>تاريخ الاستحقاق</th><th class="num">المبلغ</th><th class="num">المسدد</th><th class="num">المتبقي</th><th></th></tr></thead>
+    <tbody>{% for r in rows %}<tr>
+      <td>{{ forloop.counter }}</td><td>{{ r.description }}</td><td>{{ r.due_date|date:"Y-m-d" }}</td>
+      <td class="num">{{ r.amount|money }}</td><td class="num">{{ r.paid|money }}</td><td class="num">{{ r.outstanding|money }}</td>
+      <td>{% if not r.outstanding %}<span class="badge status-1">مسدد</span>{% elif obj.is_submitted and r.due_date < today %}<span class="badge status-2">متأخر</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}{% endwith %}

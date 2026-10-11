@@ -222,7 +222,7 @@ def doc_detail(request, slug, pk):
     child_headers, child_rows = _child_table(dt, obj)
     exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus"}
     context = {
-        "dt": dt, "obj": obj, "doc_currency": getattr(obj, "currency", None),
+        "dt": dt, "obj": obj, "doc_currency": getattr(obj, "currency", None), "today": timezone.localdate(),
         "fields": detail_fields(obj, exclude=exclude),
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals],
         "child_headers": child_headers, "child_rows": child_rows,

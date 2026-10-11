@@ -5,12 +5,13 @@ from core.registry import ChildTable, DocType, register
 register(DocType(
     slug="purchase-invoice", model=PurchaseInvoice, module="buying",
     list_fields=["name", "posting_date", "supplier", "bill_no", "is_return", "grand_total", "outstanding_amount"],
-    form_fields=["supplier", "bill_no", "posting_date", "due_date", "currency", "exchange_rate", "update_stock", "warehouse",
+    form_fields=["supplier", "bill_no", "posting_date", "payment_terms", "due_date", "currency", "exchange_rate", "update_stock", "warehouse",
                  "cost_center", "price_list", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
                  "remarks"],
     search_fields=["name", "supplier__name", "bill_no"],
     child=ChildTable(PurchaseInvoiceItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
     totals=["total", "net_total", "tax_amount", "grand_total", "outstanding_amount"],
+    detail_template="accounts/_payment_schedule.html",
 ))
 register(DocType(
     slug="supplier", model=Supplier, module="buying",

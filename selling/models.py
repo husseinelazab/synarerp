@@ -61,6 +61,8 @@ class Customer(TenantModel):
                                    verbose_name="قائمة أسعار خاصة", help_text="فارغة = قائمة فئة العميل أو الافتراضية")
     loyalty_program = models.ForeignKey("pricing.LoyaltyProgram", models.SET_NULL, null=True, blank=True,
                                         related_name="+", verbose_name="برنامج الولاء")
+    payment_terms = models.ForeignKey("accounts.PaymentTermsTemplate", models.SET_NULL, null=True, blank=True,
+                                      related_name="+", verbose_name="شروط الدفع الافتراضية")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:

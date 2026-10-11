@@ -63,7 +63,7 @@ def build_menu(request):
         {"key": "accounts", "label": "المحاسبة", "sections": [
             {"items": [doc("قيود اليومية", "journal-entry"), doc("سندات القبض والصرف", "payment-entry"),
                        _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
-            {"title": "الذمم", "items": [_item("تسوية الدفعات", "payment_reconcile"),
+            {"title": "الذمم", "items": [_item("تسوية الدفعات", "payment_reconcile"), doc("شروط الدفع والأقساط", "payment-terms"),
                                         doc("مستندات تسوية الدفعات", "payment-reconciliation")]},
             {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
                                                  _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},

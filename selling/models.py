@@ -35,6 +35,9 @@ class Customer(TenantModel):
                                        help_text="صفر = بلا حد. يُمنع البيع الآجل الذي يتجاوز الحد")
     credit_hold = models.BooleanField("إيقاف البيع الآجل", default=False,
                                       help_text="يُسمح بالبيع النقدي فقط لهذا العميل")
+    price_list = models.ForeignKey("stock.PriceList", models.SET_NULL, null=True, blank=True, related_name="+",
+                                   limit_choices_to={"disabled": False}, verbose_name="قائمة الأسعار",
+                                   help_text="أسعار هذه القائمة تُقترح في عروض الأسعار والأوامر والفواتير للعميل")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:

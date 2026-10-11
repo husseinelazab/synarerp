@@ -82,7 +82,7 @@ def build_menu(request):
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
             {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),
                                           _item("الموازين", "stock_scales")]},
-            {"title": "التسعير", "items": [_item("تحليل التسعير والربحية", "pricing_analysis"),
+            {"title": "التسعير", "items": [doc("قوائم الأسعار", "price-list"), _item("تحليل التسعير والربحية", "pricing_analysis"),
                                           _item("الربحية (مجمل الربح)", "gross_profit"),
                                           _item("سجل تغيّر الأسعار", "price_history")]},
             {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger"),

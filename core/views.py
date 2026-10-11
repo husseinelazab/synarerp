@@ -375,13 +375,22 @@ def doc_action(request, slug, pk, action):
 def item_api(request, pk):
     from stock.models import Item
 
+    from selling.models import Customer
+
     item = get_object_or_404(Item, pk=pk)
+    # قائمة أسعار العميل المختار في النموذج (إن وُجدت) تتقدم على سعر البيع العادي
+    customer = Customer.objects.filter(pk=request.GET.get("customer") or 0).select_related("price_list").first()
+    price_list = customer.price_list if customer and customer.price_list_id else None
+    listed = price_list.unit_rates(item) if price_list else {}
+    options = item.uom_options()
+    selling = {u["uom"]: listed.get(u["uom"], u["selling_rate"]) for u in options}
     return JsonResponse({
         "code": item.code, "name": item.name, "uom": str(item.uom), "uom_id": item.uom_id,
-        "selling_rate": str(item.selling_rate), "buying_rate": str(item.buying_rate),
+        "selling_rate": str(selling[item.uom_id]), "buying_rate": str(item.buying_rate),
+        "price_list": str(price_list) if listed else "",
         # أسعار كل وحدة تحويل لتعبئة السعر عند اختيار الوحدة في السطر
-        "uoms": {str(u["uom"]): {"name": u["name"], "factor": str(u["factor"]), "selling_rate": str(u["selling_rate"]),
-                                 "buying_rate": str(u["buying_rate"])} for u in item.uom_options()},
+        "uoms": {str(u["uom"]): {"name": u["name"], "factor": str(u["factor"]), "selling_rate": str(selling[u["uom"]]),
+                                 "buying_rate": str(u["buying_rate"])} for u in options},
     })
 
 

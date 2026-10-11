@@ -126,9 +126,16 @@ class Item(TenantModel):
             raise ValidationError(f"الوحدة «{name}» غير معرّفة للصنف «{self.name}». أضفها في وحدات التحويل.")
         return row.factor
 
-    def price_for(self, uom_id=None, kind="selling"):
-        """سعر البيع أو الشراء بوحدة معينة: سعر الوحدة المحدد، وإلا سعر الأساسية × المعامل."""
+    def price_for(self, uom_id=None, kind="selling", price_list=None):
+        """سعر البيع أو الشراء بوحدة معينة: سعر الوحدة المحدد، وإلا سعر الأساسية × المعامل.
+
+        مع قائمة أسعار: سعرها للوحدة، وإلا سعرها للوحدة الأساسية × المعامل، وإلا السعر العادي.
+        """
         factor = self.uom_factor(uom_id)
+        if kind == "selling" and price_list is not None:
+            listed = price_list.rate_for(self, uom_id, factor)
+            if listed is not None:
+                return listed
         if kind == "selling" and uom_id and uom_id != self.uom_id:
             row = ItemUOM.all_objects.filter(item_id=self.pk, uom_id=uom_id).first()
             if row and row.selling_rate is not None:
@@ -228,6 +235,63 @@ class ItemUOM(TenantModel):
     @property
     def effective_selling_rate(self):
         return self.selling_rate if self.selling_rate is not None else flt(self.item.selling_rate * self.factor)
+
+
+class PriceList(TenantModel):
+    """قائمة أسعار بيع (جملة، كبار العملاء، فرع…): تُربط بالعميل أو بنقطة البيع وتتقدم على سعر الصنف العادي."""
+
+    name = models.CharField("اسم قائمة الأسعار", max_length=100)
+    disabled = models.BooleanField("موقوفة", default=False)
+    notes = models.CharField("ملاحظات", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "قائمة أسعار"
+        verbose_name_plural = "قوائم الأسعار"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="pricelist")]
+
+    def __str__(self):
+        return self.name
+
+    def rate_for(self, item, uom_id=None, factor=None):
+        """سعر الصنف في القائمة بالوحدة المطلوبة، أو None إن لم يُسعّر فيها."""
+        if self.disabled:
+            return None
+        rows = {row.uom_id: row.rate for row in self.prices.filter(item=item)}
+        base_uom = None if not uom_id or uom_id == item.uom_id else uom_id
+        if base_uom and base_uom in rows:
+            return rows[base_uom]
+        base = rows.get(None, rows.get(item.uom_id))
+        if base is None:
+            return None
+        return flt(Decimal(base) * (factor if factor is not None else item.uom_factor(uom_id)))
+
+    def unit_rates(self, item):
+        """أسعار القائمة لكل وحدة من وحدات الصنف: {معرّف الوحدة: السعر} لما سُعّر فقط."""
+        return {u["uom"]: rate for u in item.uom_options()
+                if (rate := self.rate_for(item, u["uom"], u["factor"])) is not None}
+
+
+class ItemPrice(models.Model):
+    parent = models.ForeignKey(PriceList, models.CASCADE, related_name="prices")
+    item = models.ForeignKey(Item, models.CASCADE, related_name="+", verbose_name="الصنف",
+                             limit_choices_to={"disabled": False})
+    uom = models.ForeignKey(UOM, models.PROTECT, null=True, blank=True, related_name="+", verbose_name="الوحدة",
+                            help_text="فارغة = الوحدة الأساسية، وتُحسب باقي الوحدات بالمعامل ما لم تُسعّر")
+    rate = models.DecimalField("السعر", max_digits=18, decimal_places=2)
+
+    class Meta:
+        verbose_name = "سعر صنف"
+        verbose_name_plural = "الأسعار"
+        ordering = ["id"]
+
+    def clean(self):
+        if self.rate is not None and self.rate < 0:
+            raise ValidationError({"rate": "السعر لا يكون سالباً."})
+        if self.item_id and self.uom_id and self.uom_id != self.item.uom_id:
+            self.item.uom_factor(self.uom_id)  # يرفض وحدة غير معرّفة للصنف
+        if self.item_id and self.uom_id == self.item.uom_id:
+            self.uom = None
 
 
 class ItemPriceHistory(TenantModel):

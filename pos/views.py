@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from core.utils import currency_symbol_html
+from core.utils import currency_symbol_html, flt
 from core.zatca import invoice_qr_svg
 from pos.models import POSProfile, POSShift
 from pos.services import checkout, find_returnable_invoice, pos_return
@@ -121,15 +121,30 @@ def items_api(request):
     units = {}
     for u in ItemUOM.objects.select_related("uom", "item").order_by("factor"):
         units.setdefault(u.item_id, []).append(u)
+    price_list = shift.profile.price_list
+    listed = {}
+    if price_list is not None and not price_list.disabled:
+        for row in price_list.prices.all():
+            listed[(row.item_id, row.uom_id)] = row.rate
+
+    def rate(item, unit=None):
+        # سعر قائمة النقطة للوحدة، أو لأساسيتها × المعامل، وإلا السعر العادي
+        if unit is not None and (item.id, unit.uom_id) in listed:
+            return float(listed[(item.id, unit.uom_id)])
+        base = listed.get((item.id, None), listed.get((item.id, item.uom_id)))
+        if base is not None:
+            return float(flt(base * (unit.factor if unit else 1)))
+        return float(unit.effective_selling_rate if unit else item.selling_rate)
+
     items = [
         {
             "id": i.id, "code": i.code, "name": i.name, "barcode": i.barcode, "group": i.item_group_id,
-            "uom": i.uom.name, "rate": float(i.selling_rate), "stock": i.is_stock_item,
+            "uom": i.uom.name, "rate": rate(i), "stock": i.is_stock_item,
             "qty": float(stock.get(i.id, 0)), "plu": i.plu if i.is_weighed else None,
             "zero_vat": i.vat_category in ("Z", "E", "O"),
             # وحدات التحويل (كرتون…) بباركودها وسعرها لقراءتها في الكاشير حتى دون اتصال
             "units": [{"uom": u.uom_id, "name": u.uom.name, "factor": float(u.factor), "barcode": u.barcode,
-                       "rate": float(u.effective_selling_rate)} for u in units.get(i.id, [])],
+                       "rate": rate(i, u)} for u in units.get(i.id, [])],
         }
         for i in Item.objects.filter(disabled=False).select_related("uom")
     ]

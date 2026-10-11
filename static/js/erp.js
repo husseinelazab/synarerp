@@ -63,13 +63,17 @@
     }
   }
 
-  // بيانات الصنف ووحداته (تُحفظ لتغيير الوحدة دون طلب جديد)
+  // بيانات الصنف ووحداته (تُحفظ لتغيير الوحدة دون طلب جديد)، بأسعار قائمة العميل المختار إن وُجدت
   var itemCache = {};
+  var customerSelect = document.querySelector('select[name="customer"]');
   function itemData(id) {
-    if (itemCache[id]) return Promise.resolve(itemCache[id]);
-    return fetch("/api/item/" + id + "/", { credentials: "same-origin" })
+    var customer = customerSelect && rateType === "selling" ? customerSelect.value : "";
+    var key = id + ":" + customer;
+    if (itemCache[key]) return Promise.resolve(itemCache[key]);
+    return fetch("/api/item/" + id + "/" + (customer ? "?customer=" + encodeURIComponent(customer) : ""),
+                 { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
-      .then(function (data) { itemCache[id] = data; return data; });
+      .then(function (data) { itemCache[key] = data; return data; });
   }
 
   // سعر السطر حسب الصنف ووحدته (سعر الوحدة إن حُدد، وإلا سعر الأساسية × المعامل)
@@ -82,6 +86,16 @@
       if (uom && uom.value && !unit) uom.value = "";  // الوحدة غير معرفة لهذا الصنف
       if (rate) rate.value = unit ? unit[rateType + "_rate"] : data[rateType + "_rate"];
       recalc();
+    });
+  }
+
+  // تغيير العميل يعيد تسعير الأسطر من قائمة أسعاره
+  if (customerSelect && rateType === "selling") {
+    customerSelect.addEventListener("change", function () {
+      tbody.querySelectorAll("tr.child-row").forEach(function (row) {
+        var s = field(row, "item");
+        if (s && s.value) fetchRate(s);
+      });
     });
   }
 

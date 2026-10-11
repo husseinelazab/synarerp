@@ -17,4 +17,5 @@ urlpatterns = [
     path("payroll/<int:pk>/payslips/", views.payslips, name="payslips"),
     path("payroll/<int:pk>/bank-file/", views.bank_file, name="payroll_bank_file"),
     path("payroll/<int:pk>/wps-file/", wps.wps_file, name="payroll_wps_file"),
+    path("commissions/", views.commissions_report, name="commissions_report"),
 ]

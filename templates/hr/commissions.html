@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="card">
+<table class="table report">
+  <thead><tr><th>المندوب</th><th>المبيعات المفوترة (قبل الضريبة)</th><th>المحصّل (قبل الضريبة)</th><th>أساس العمولة</th><th>النسبة</th><th>العمولة</th></tr></thead>
+  <tbody>{% for r in rows %}<tr>
+    <td><a href="{{ r.employee.get_absolute_url }}">{{ r.employee }}</a></td><td>{{ r.invoiced|money }}</td><td>{{ r.collected|money }}</td>
+    <td>{{ r.employee.get_commission_basis_display }}</td><td>{{ r.employee.commission_rate|plain_number }}%</td><td><strong>{{ r.commission|money }}</strong></td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا يوجد مندوبون بنسبة عمولة. حدد «نسبة عمولة المبيعات» في ملف الموظف.</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><th colspan="5">الإجمالي</th><th>{{ total|cur }}</th></tr></tfoot>
+</table>
+<p class="muted">تُنسب الفاتورة لمندوبها (حقل «المندوب»، ويُملأ تلقائياً بالموظف المرتبط بالمستخدم الذي أنشأها، ومنها نقطة البيع)، والمرتجعات تخصم من عمولته.
+  العمولة الشهرية تُضاف تلقائياً لراتب المندوب في مسير الرواتب.</p>
+</div>
+{% endblock %}

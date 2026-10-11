@@ -45,7 +45,8 @@ def build_menu(request):
                        _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive")]},
             {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
                                           _item("أعمار ديون العملاء", "aging_report", "customer"),
-                                          _item("الربحية (مجمل الربح)", "gross_profit")]},
+                                          _item("الربحية (مجمل الربح)", "gross_profit"),
+                                          _item("عمولات المندوبين", "commissions_report")]},
         ]},
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),

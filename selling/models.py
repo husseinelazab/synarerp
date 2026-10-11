@@ -185,7 +185,7 @@ class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
     return_prefix = "SRET"
     party_field = "customer"
-    return_locked_fields = InvoiceDocument.return_locked_fields + ["prices_include_tax", "customer"]
+    return_locked_fields = InvoiceDocument.return_locked_fields + ["prices_include_tax", "customer", "sales_person"]
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)
@@ -194,6 +194,9 @@ class SalesInvoice(InvoiceDocument):
     quotation = models.ForeignKey(Quotation, models.PROTECT, null=True, blank=True, related_name="invoices",
                                   editable=False, verbose_name="عرض السعر")
     share_token = models.CharField("رمز رابط المشاركة", max_length=40, blank=True, db_index=True, editable=False)
+    sales_person = models.ForeignKey("hr.Employee", models.PROTECT, null=True, blank=True, related_name="+",
+                                     verbose_name="المندوب",
+                                     help_text="يُحدد تلقائياً بالموظف المرتبط بالمستخدم المنشئ؛ تُحسب له العمولة والأهداف")
     recurring = models.ForeignKey("RecurringInvoice", models.SET_NULL, null=True, blank=True, related_name="+",
                                   editable=False, verbose_name="الفاتورة المتكررة")
 
@@ -217,6 +220,15 @@ class SalesInvoice(InvoiceDocument):
     class Meta(InvoiceDocument.Meta):
         verbose_name = "فاتورة مبيعات"
         verbose_name_plural = "فواتير المبيعات"
+
+    def save(self, *args, **kwargs):
+        if not self.pk and not self.sales_person_id and self.created_by_id and not self.is_return:
+            from core.models import Company, Membership
+
+            company = self.company_id or getattr(Company.current(), "pk", None)
+            self.sales_person_id = Membership.objects.filter(
+                user_id=self.created_by_id, company_id=company).values_list("employee_id", flat=True).first()
+        super().save(*args, **kwargs)
 
     def share_path(self):
         """رابط عام للفاتورة يفتحه العميل دون تسجيل دخول (يُنشأ الرمز عند أول مشاركة)."""

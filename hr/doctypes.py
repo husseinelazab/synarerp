@@ -31,7 +31,7 @@ register(DocType(
     search_fields=["name"],
     child=ChildTable(
         PayrollLine, ["employee", "additions", "other_deductions", "notes"], label="رواتب الموظفين", min_rows=0,
-        display_fields=["employee", "worked_days", "basic", "housing", "transport", "other_allowance", "overtime_pay",
+        display_fields=["employee", "worked_days", "basic", "housing", "transport", "other_allowance", "overtime_pay", "commission",
                         "additions", "gross_pay", "unpaid_deduction", "absence_deduction", "late_deduction",
                         "gosi_employee", "loan_deduction", "other_deductions", "net_pay"],
         help="اترك الجدول فارغاً ليُجلب كل الموظفين على رأس العمل تلقائياً عند الحفظ. "

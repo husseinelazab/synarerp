@@ -53,6 +53,7 @@
           <tr><td>بدل النقل</td><td class="num">{{ line.transport|money }}</td></tr>
           {% if line.other_allowance %}<tr><td>بدلات أخرى</td><td class="num">{{ line.other_allowance|money }}</td></tr>{% endif %}
           {% if line.overtime_pay %}<tr><td>عمل إضافي ({{ line.overtime_hours|floatformat:-2 }} ساعة)</td><td class="num">{{ line.overtime_pay|money }}</td></tr>{% endif %}
+          {% if line.commission %}<tr><td>عمولة المبيعات</td><td class="num">{{ line.commission|money }}</td></tr>{% endif %}
           {% if line.additions %}<tr><td>إضافات</td><td class="num">{{ line.additions|money }}</td></tr>{% endif %}
         </tbody>
         <tfoot><tr><th>الإجمالي</th><th class="num">{{ line.gross_pay|money }}</th></tr></tfoot>

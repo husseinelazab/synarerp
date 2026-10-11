@@ -210,6 +210,12 @@ class Employee(TenantModel):
                              related_name="employee_records", verbose_name="حساب بوابة الخدمة الذاتية")
     device_id = models.CharField("رقم الموظف في جهاز البصمة", max_length=30, blank=True,
                                  help_text="يُستخدم لمطابقة سجلات البصمة المستوردة (وإن تُرك فارغاً يُطابق بالرقم الوظيفي)")
+    commission_rate = models.DecimalField(
+        "نسبة عمولة المبيعات %", max_digits=5, decimal_places=2, default=0,
+        help_text="من صافي المبيعات قبل الضريبة للفواتير التي هو مندوبها؛ تُضاف لراتبه تلقائياً في المسير")
+    commission_basis = models.CharField("أساس العمولة", max_length=10, default="invoiced",
+                                        choices=[("invoiced", "المبيعات المفوترة في الشهر"),
+                                                 ("collected", "المحصّل من العملاء في الشهر")])
     eos_opening_provision = models.DecimalField(
         "مخصص نهاية الخدمة المكوّن قبل النظام", max_digits=18, decimal_places=2, default=0,
         help_text="للموظفين القدامى: ما سبق تكوينه لهم في حساب المخصص (ضمن الأرصدة الافتتاحية) قبل استخدام النظام")
@@ -1009,6 +1015,7 @@ class PayrollLine(models.Model):
     late_deduction = models.DecimalField("خصم التأخير", max_digits=18, decimal_places=2, default=0, editable=False)
     overtime_hours = models.DecimalField("ساعات إضافية", max_digits=6, decimal_places=2, default=0, editable=False)
     overtime_pay = models.DecimalField("أجر العمل الإضافي", max_digits=18, decimal_places=2, default=0, editable=False)
+    commission = models.DecimalField("عمولة المبيعات", max_digits=18, decimal_places=2, default=0, editable=False)
     loan_deduction = models.DecimalField("قسط السلفة", max_digits=18, decimal_places=2, default=0, editable=False)
     eos_accrual = models.DecimalField("مخصص نهاية الخدمة للشهر", max_digits=18, decimal_places=2, default=0,
                                       editable=False)
@@ -1050,7 +1057,8 @@ class PayrollLine(models.Model):
         self.late_minutes = summary["late_minutes"]
         self.overtime_hours = summary["overtime_hours"]
         self.overtime_pay = flt(settings.overtime_hour_rate(emp) * self.overtime_hours)
-        self.gross_pay = flt(earned + self.overtime_pay + flt(self.additions))
+        self.commission = sales_commission(emp, start, end)["commission"] if emp.commission_rate else flt(0)
+        self.gross_pay = flt(earned + self.overtime_pay + self.commission + flt(self.additions))
 
         self.unpaid_days = unpaid_leave_days(emp, *window) if window else 0
         self.unpaid_deduction = min(flt(daily * self.unpaid_days), earned)
@@ -1581,14 +1589,44 @@ def employee_sales_users(employee):
     return ids
 
 
+def employee_invoices(employee):
+    """فواتير المبيعات المنسوبة للموظف: هو مندوبها، أو أنشأها مستخدم مرتبط به ولم يُحدد لها مندوب."""
+    from selling.models import SalesInvoice
+
+    return SalesInvoice.objects.filter(models.Q(sales_person=employee) | models.Q(
+        sales_person__isnull=True, created_by_id__in=employee_sales_users(employee)), company=employee.company)
+
+
+def sales_commission(employee, date_from, date_to):
+    """عمولة المندوب للفترة: نسبة من صافي المبيعات قبل الضريبة (المفوترة)، أو من المحصّل منها (بعد استبعاد ضريبته)."""
+    from accounts.models import PaymentEntry
+    from selling.models import SalesInvoice
+
+    invoices = SalesInvoice.objects.filter(company=employee.company, sales_person=employee, docstatus=DocStatus.SUBMITTED)
+    invoiced = Decimal(invoices.filter(posting_date__gte=date_from, posting_date__lte=date_to)
+                       .aggregate(v=models.Sum("base_net_total"))["v"] or 0)
+    # نقطة البيع تُحصّل لحظة البيع؛ والآجل عند سند القبض (بنسبة الصافي من الإجمالي)
+    collected = Decimal(invoices.filter(is_pos=True, posting_date__gte=date_from, posting_date__lte=date_to)
+                        .aggregate(v=models.Sum("base_net_total"))["v"] or 0)
+    payments = PaymentEntry.objects.filter(sales_invoice__in=invoices.filter(is_pos=False), docstatus=DocStatus.SUBMITTED,
+                                           posting_date__gte=date_from, posting_date__lte=date_to
+                                           ).select_related("sales_invoice")
+    for payment in payments:
+        inv = payment.sales_invoice
+        if inv.base_grand_total:
+            collected += Decimal(payment.base_amount) * payment.direction * inv.base_net_total / inv.base_grand_total
+    base = collected if employee.commission_basis == "collected" else invoiced
+    return {"invoiced": flt(invoiced), "collected": flt(collected), "base": flt(base),
+            "commission": flt(base * employee.commission_rate / 100)}
+
+
 def measure_kpi(employee, measure, date_from, date_to):
     """القيمة الفعلية لمؤشر آلي من بيانات النظام خلال الفترة."""
     from selling.models import SalesInvoice
 
     if measure in (KPIMeasure.SALES_AMOUNT, KPIMeasure.SALES_COUNT):
-        invoices = SalesInvoice.objects.filter(company=employee.company, docstatus=DocStatus.SUBMITTED,
-                                               created_by_id__in=employee_sales_users(employee),
-                                               posting_date__gte=date_from, posting_date__lte=date_to)
+        invoices = employee_invoices(employee).filter(docstatus=DocStatus.SUBMITTED,
+                                                      posting_date__gte=date_from, posting_date__lte=date_to)
         if measure == KPIMeasure.SALES_COUNT:
             return Decimal(invoices.filter(is_return=False).count())
         return Decimal(invoices.aggregate(v=models.Sum("base_net_total"))["v"] or 0)

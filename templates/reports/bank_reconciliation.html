@@ -13,13 +13,13 @@
 <div class="grid-2">
   <div class="card">
     <h3>بيان التسوية في {{ to_date|date:"Y-m-d" }}</h3>
-    <div class="total-line"><span>الرصيد في الدفاتر</span><strong>{{ summary.book_balance|cur }}</strong></div>
-    <div class="total-line"><span>− إيداعات بالطريق (لم تظهر في الكشف)</span><strong>{{ summary.in_transit|cur }}</strong></div>
-    <div class="total-line"><span>+ مدفوعات وشيكات لم تُصرف بعد</span><strong>{{ summary.outstanding|cur }}</strong></div>
-    <div class="total-line grand"><span>الرصيد المتوقع في كشف البنك</span><strong>{{ summary.expected|cur }}</strong></div>
+    <div class="total-line"><span>الرصيد في الدفاتر</span><strong>{{ summary.book_balance|cur:account.account_currency }}</strong></div>
+    <div class="total-line"><span>− إيداعات بالطريق (لم تظهر في الكشف)</span><strong>{{ summary.in_transit|cur:account.account_currency }}</strong></div>
+    <div class="total-line"><span>+ مدفوعات وشيكات لم تُصرف بعد</span><strong>{{ summary.outstanding|cur:account.account_currency }}</strong></div>
+    <div class="total-line grand"><span>الرصيد المتوقع في كشف البنك</span><strong>{{ summary.expected|cur:account.account_currency }}</strong></div>
     {% if summary.statement_balance is not None %}
-      <div class="total-line"><span>الرصيد الفعلي في الكشف</span><strong>{{ summary.statement_balance|cur }}</strong></div>
-      <div class="total-line grand"><span>الفرق</span><strong class="{% if summary.difference %}neg{% else %}ok{% endif %}">{% if summary.difference %}{{ summary.difference|cur }}{% else %}✓ مطابق{% endif %}</strong></div>
+      <div class="total-line"><span>الرصيد الفعلي في الكشف</span><strong>{{ summary.statement_balance|cur:account.account_currency }}</strong></div>
+      <div class="total-line grand"><span>الفرق</span><strong class="{% if summary.difference %}neg{% else %}ok{% endif %}">{% if summary.difference %}{{ summary.difference|cur:account.account_currency }}{% else %}✓ مطابق{% endif %}</strong></div>
       {% if summary.difference %}<p class="muted">الفرق غالباً حركات في الكشف لم تُسجل في الدفاتر (عمولات، فوائد، تحويلات) — سجّلها بقيد يومية ثم طابقها.</p>{% endif %}
     {% else %}<p class="muted">أدخل الرصيد الختامي من كشف البنك لمعرفة الفرق.</p>{% endif %}
   </div>
@@ -41,7 +41,8 @@
       <thead><tr><th></th><th>التاريخ</th><th>المستند</th><th class="num">وارد</th><th class="num">صادر</th></tr></thead>
       <tbody>{% for g in book_entries %}<tr><td><input type="radio" name="entry" value="{{ g.pk }}"></td><td>{{ g.posting_date|date:"Y-m-d" }}</td>
         <td><a href="{% url 'doc_detail' g.voucher_type g.voucher_id %}">{{ g.voucher_no }}</a><div class="muted small">{{ g.remarks|truncatechars:40 }}</div></td>
-        <td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>
+        {% if account.account_currency_id %}<td class="num">{% if g.debit_in_account_currency %}{{ g.debit_in_account_currency|money }}{% endif %}</td><td class="num">{% if g.credit_in_account_currency %}{{ g.credit_in_account_currency|money }}{% endif %}</td>
+        {% else %}<td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td>{% endif %}</tr>
       {% empty %}<tr><td colspan="5" class="muted center">لا توجد قيود غير مطابقة</td></tr>{% endfor %}</tbody>
     </table>
   </div>

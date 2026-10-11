@@ -93,18 +93,25 @@ def general_ledger(request):
         filters &= Q(cost_center_id__in=centers)
 
     base = _active_gl().filter(filters)
-    agg = base.filter(posting_date__lt=from_date).aggregate(d=Sum("debit"), c=Sum("credit"))
+    # حساب بعملة أجنبية: يُعرض بجانب عملة الشركة رصيده بعملته
+    foreign = Account.objects.filter(pk=selected["account"] or 0, account_currency__isnull=False).first()
+    agg = base.filter(posting_date__lt=from_date).aggregate(d=Sum("debit"), c=Sum("credit"),
+                                                          fd=Sum("debit_in_account_currency"),
+                                                          fc=Sum("credit_in_account_currency"))
     balance = flt(agg["d"]) - flt(agg["c"])
-    opening = balance
+    foreign_balance = flt(agg["fd"]) - flt(agg["fc"])
+    opening, foreign_opening = balance, foreign_balance
     rows = []
     entries = base.filter(posting_date__gte=from_date, posting_date__lte=to_date).select_related(
         "account", "customer", "supplier", "cost_center")
     for gle in entries:
         balance += gle.debit - gle.credit
-        rows.append({"gle": gle, "balance": balance})
+        foreign_balance += gle.debit_in_account_currency - gle.credit_in_account_currency
+        rows.append({"gle": gle, "balance": balance, "foreign_balance": foreign_balance})
     total_debit = sum((r["gle"].debit for r in rows), flt(0))
     total_credit = sum((r["gle"].credit for r in rows), flt(0))
     return render(request, "reports/general_ledger.html", {
+        "foreign": foreign, "foreign_opening": foreign_opening, "foreign_closing": foreign_balance,
         "title": "دفتر الأستاذ العام", "from_date": from_date, "to_date": to_date,
         "accounts": accounts, "customers": Customer.objects.all(), "suppliers": Supplier.objects.all(),
         "cost_centers": CostCenter.objects.all(),
@@ -356,4 +363,29 @@ def aging_report(request, party):
         "rows": rows, "buckets": [b[1] for b in BUCKETS], "bucket_totals": list(zip([b[1] for b in BUCKETS], totals)),
         "basis": basis, "only": only,
         "grand": sum(totals, flt(0)), "messaging_active": bool(cfg and cfg.active),
+    })
+
+
+@login_required
+def foreign_currency_balances(request):
+    """أرصدة حسابات البنك والصندوق بعملات أجنبية: الرصيد بعملته، وقيمته الدفترية، وقيمته بآخر سعر صرف."""
+    from accounts.models import foreign_currency_balances as balances_until
+    from core.models import Company, ExchangeRate
+
+    _, to_date = _period(request)
+    company = Company.current()
+    balances = balances_until(company, to_date)
+    rows = []
+    for account in Account.objects.filter(account_currency__isnull=False, is_group=False).select_related("account_currency"):
+        amount, book = balances.get(account.pk, (flt(0), flt(0)))
+        rate = ExchangeRate.lookup(company, account.account_currency, to_date)
+        current = flt(amount * rate) if rate else None
+        rows.append({"account": account, "currency": account.account_currency, "amount": amount, "book": book,
+                     "book_rate": (book / amount).quantize(flt("0.000001")) if amount else None,
+                     "rate": rate, "current": current, "difference": flt(current - book) if rate else None})
+    return render(request, "reports/foreign_balances.html", {
+        "title": "أرصدة الحسابات بعملات أجنبية", "to_date": to_date, "rows": rows,
+        "total_book": sum((r["book"] for r in rows), flt(0)),
+        "total_difference": sum((r["difference"] for r in rows if r["difference"] is not None), flt(0)),
+        "missing_rate": any(r["rate"] is None and r["amount"] for r in rows),
     })

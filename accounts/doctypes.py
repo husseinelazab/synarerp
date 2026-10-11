@@ -1,5 +1,6 @@
-from accounts.models import (Account, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
-                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PeriodClosingVoucher)
+from accounts.models import (Account, BankTransaction, CostCenter, ExchangeRevaluation, ExchangeRevaluationLine, JournalEntry,
+                             JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine, OpeningPartyBalance, OpeningPartyLine,
+                             PaymentEntry, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -7,7 +8,8 @@ register(DocType(
     list_fields=["name", "posting_date", "entry_type", "total_debit", "remarks"],
     form_fields=["posting_date", "entry_type", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(JournalEntryAccount, ["account", "customer", "supplier", "debit", "credit", "cost_center", "description"],
+    child=ChildTable(JournalEntryAccount, ["account", "customer", "supplier", "debit", "credit", "cost_center", "description",
+                                           "account_currency_amount"],
                      label="الحسابات"),
     totals=["total_debit", "total_credit"],
 ))
@@ -21,14 +23,15 @@ register(DocType(
 register(DocType(
     slug="account", model=Account, module="accounts",
     list_fields=["number", "name", "parent", "root_type", "account_type", "is_group"],
-    form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "disabled"],
+    form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "account_currency", "disabled"],
     search_fields=["number", "name"],
 ))
 register(DocType(
     slug="opening-account", model=OpeningAccountBalance, module="accounts",
     list_fields=["name", "posting_date", "remarks"], form_fields=["posting_date", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(OpeningAccountLine, ["account", "debit", "credit", "description"], label="الحسابات"),
+    child=ChildTable(OpeningAccountLine, ["account", "debit", "credit", "description", "account_currency_amount"],
+                     label="الحسابات"),
 ))
 register(DocType(
     slug="opening-party", model=OpeningPartyBalance, module="accounts",
@@ -40,6 +43,17 @@ register(DocType(
     slug="period-closing", model=PeriodClosingVoucher, module="accounts",
     list_fields=["name", "fiscal_year", "posting_date", "net_profit"], form_fields=["fiscal_year", "closing_account", "remarks"],
     search_fields=["name"], totals=["net_profit"],
+))
+register(DocType(
+    slug="exchange-revaluation", model=ExchangeRevaluation, module="accounts",
+    list_fields=["name", "posting_date", "total_difference", "remarks"], form_fields=["posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(ExchangeRevaluationLine, ["account", "new_rate"], label="الحسابات بعملة أجنبية", min_rows=0,
+                     display_fields=["account", "balance_in_account_currency", "book_balance", "new_rate",
+                                     "revalued_balance", "difference"],
+                     help="اترك الجدول فارغاً واحفظ لتُجلب حسابات البنك والصندوق الأجنبية بأرصدتها حتى التاريخ "
+                          "وآخر سعر صرف مسجل. يمكنك تعديل السعر قبل الاعتماد، والفرق يُرحّل لحساب فروق أسعار الصرف."),
+    totals=["total_difference"],
 ))
 register(DocType(
     slug="cost-center", model=CostCenter, module="accounts",

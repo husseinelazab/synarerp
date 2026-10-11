@@ -61,7 +61,9 @@ def build_menu(request):
             {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
                                                  _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
             {"title": "البنوك", "items": [_item("التسوية البنكية", "bank_reconciliation"),
-                                         doc("حركات كشف البنك", "bank-transaction")]},
+                                         doc("حركات كشف البنك", "bank-transaction"),
+                                         _item("أرصدة الحسابات الأجنبية", "foreign_currency_balances"),
+                                         doc("إعادة تقييم العملات الأجنبية", "exchange-revaluation")]},
             {"title": "تقارير", "items": [
                 _item("دفتر اليومية العام", "general_journal"), _item("دفتر الأستاذ العام", "general_ledger"),
                 _item("ميزان المراجعة", "trial_balance"), _item("قائمة الدخل", "profit_and_loss"),

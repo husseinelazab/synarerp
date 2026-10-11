@@ -49,6 +49,7 @@ def build_menu(request):
         ]},
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
+                       doc("تكاليف الشحن والجمارك", "landed-cost"),
                        doc("الموردون", "supplier"),
                        _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay")]
                       + ([_item("قراءة فاتورة مورد بالذكاء الاصطناعي", "ai_invoice_upload")] if includes_ai else [])},

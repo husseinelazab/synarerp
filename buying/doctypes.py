@@ -1,5 +1,5 @@
-from buying.models import (PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
-                           PurchaseReceiptItem, Supplier)
+from buying.models import (LandedCost, LandedCostCharge, PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder,
+                           PurchaseOrderItem, PurchaseReceipt, PurchaseReceiptItem, Supplier)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -34,4 +34,16 @@ register(DocType(
     search_fields=["name", "supplier__name", "supplier_delivery_no"],
     child=ChildTable(PurchaseReceiptItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
     totals=["total_amount"],
+))
+
+register(DocType(
+    slug="landed-cost", model=LandedCost, module="buying",
+    list_fields=["name", "posting_date", "purchase_receipt", "purchase_invoice", "total_charges", "to_cogs"],
+    form_fields=["purchase_receipt", "purchase_invoice", "allocation", "posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(LandedCostCharge, ["description", "amount", "supplier", "account"], label="التكاليف",
+                     help="لكل تكلفة: المورد (شركة الشحن أو المخلص الجمركي) لتُسجل ديناً له، أو الصندوق/البنك إن دُفعت مباشرة. "
+                          "المبالغ قبل ضريبة القيمة المضافة (تُسجل ضريبتها في فاتورة الشاحن أو بقيد)."),
+    totals=["total_charges", "to_stock", "to_cogs"],
+    detail_template="buying/_landed_cost_detail.html",
 ))

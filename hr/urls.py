@@ -1,6 +1,6 @@
 from django.urls import path
 
-from hr import views
+from hr import views, wps
 
 urlpatterns = [
     path("settings/", views.payroll_settings, name="payroll_settings"),
@@ -16,4 +16,5 @@ urlpatterns = [
     path("leave-balances/", views.leave_balances, name="leave_balances"),
     path("payroll/<int:pk>/payslips/", views.payslips, name="payslips"),
     path("payroll/<int:pk>/bank-file/", views.bank_file, name="payroll_bank_file"),
+    path("payroll/<int:pk>/wps-file/", wps.wps_file, name="payroll_wps_file"),
 ]

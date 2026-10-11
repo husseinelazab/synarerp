@@ -233,6 +233,11 @@ def doc_detail(request, slug, pk):
         context["gl_totals"] = {"debit": debit, "credit": credit, "balanced": debit == credit}
     if hasattr(obj, "payments"):
         context["payments"] = obj.payments.all()
+    if slug in ("customer", "sales-invoice"):
+        from messaging.models import MessagingSettings
+
+        cfg = MessagingSettings.all_objects.filter(company=request.company).first()
+        context["messaging_active"] = bool(cfg and cfg.active)
     return render(request, "core/detail.html", context)
 
 

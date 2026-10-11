@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "einvoice",
     "assets",
     "manufacturing",
+    "messaging",
 ]
 
 MIDDLEWARE = [

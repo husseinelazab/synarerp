@@ -30,6 +30,7 @@ class Command(BaseCommand):
         if options["once"]:
             self.run("hr_reminders")
             self.run("expiry_alerts")
+            self.run("send_reminders")
             self.run("zatca_submit")
             return
         self.stdout.write("المجدول يعمل.")
@@ -44,4 +45,5 @@ class Command(BaseCommand):
                 last_daily = now.date()
                 self.run("hr_reminders")
                 self.run("expiry_alerts")
+                self.run("send_reminders")
             time.sleep(60)

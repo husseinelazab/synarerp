@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}رسائل SMS وواتساب{% endblock %}
+{% block heading %}رسائل SMS وواتساب للعملاء{% endblock %}
+{% block content %}
+<div class="card">
+  {% if cfg.active %}
+    <div class="alert alert-success" style="margin:0">✓ الإرسال عبر المزوّد مفعّل ({{ cfg.get_provider_display }}).</div>
+  {% else %}
+    <div class="alert alert-info" style="margin:0">الإرسال عبر المزوّد غير مفعّل — لا يتصل النظام بأي جهة.
+      يمكنك الآن إرسال أي رسالة بزر «واتساب» في صفحة الفاتورة أو العميل: تفتح واتساب على جهازك بالنص جاهزاً وترسلها أنت.</div>
+  {% endif %}
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card">
+    <h3>المزوّد</h3>
+    <div class="form-grid">{% for field in form %}{% if field.name in "provider sender account token api_url http_body whatsapp_template whatsapp_language country_code" %}{% include "core/_field.html" %}{% endif %}{% endfor %}</div>
+    <p class="muted small">مزوّدو SMS يشترطون اسم مرسل معتمداً من هيئة الاتصالات. واتساب للأعمال يتطلب حساباً موثقاً في Meta، وقالباً معتمداً لبدء المحادثة مع العميل.</p>
+  </div>
+  <div class="card">
+    <h3>الرسائل الآلية</h3>
+    <div class="form-grid">{% for field in form %}{% if field.name in "auto_invoice auto_payment auto_overdue overdue_every_days" %}{% include "core/_field.html" %}{% endif %}{% endfor %}</div>
+    <p class="muted small">تعمل الرسائل الآلية فقط مع تفعيل المزوّد، ولعملاء لهم رقم جوال. التذكير بالمتأخر يُرسل يومياً صباحاً ولا يتكرر للفاتورة قبل المدة المحددة.</p>
+  </div>
+  <div class="card">
+    <h3>نصوص الرسائل</h3>
+    <p class="muted small">المتغيرات: <code dir="ltr">{{ placeholders }}</code></p>
+    <div class="form-grid">{% for field in form %}{% if field.name|slice:":4" == "tpl_" %}{% include "core/_field.html" %}{% endif %}{% endfor %}</div>
+  </div>
+  <div class="card">
+    <h3>التفعيل</h3>
+    {% include "core/_field.html" with field=form.enabled %}
+  </div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg" name="action" value="save">حفظ</button>
+    <a class="btn" href="{% url 'message_log' %}">سجل الرسائل</a></div>
+</form>
+<form method="post" class="card">
+  {% csrf_token %}
+  <h3>رسالة اختبار</h3>
+  <p class="muted small">تُرسل بالإعدادات المحفوظة حتى قبل التفعيل. هذا الإجراء الوحيد الذي يتصل بالمزوّد قبل التفعيل.</p>
+  <div class="filters"><input name="test_to" class="form-control" placeholder="رقم الجوال مثل 05xxxxxxxx" dir="ltr">
+    <button class="btn" name="action" value="test">إرسال اختبار</button></div>
+  {% if cfg.last_test_at %}<p class="small">آخر اختبار {{ cfg.last_test_at|date:"Y-m-d H:i" }}: <span class="{% if cfg.last_test_ok %}ok{% else %}text-danger{% endif %}">{{ cfg.last_test_message }}</span></p>{% endif %}
+</form>
+{% endblock %}

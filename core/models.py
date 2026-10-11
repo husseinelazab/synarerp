@@ -4,7 +4,12 @@ from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from django.dispatch import Signal
+
 from core.tenancy import TenantManager, get_current_company, tenant_unique
+
+# يُرسل بعد اعتماد أي مستند (داخل نفس المعاملة) — تستخدمه الرسائل الآلية وسجل التعديلات
+document_submitted = Signal()
 
 
 class Currency(models.Model):
@@ -282,6 +287,7 @@ class SubmittableDocument(TenantModel):
             self.docstatus = DocStatus.SUBMITTED
             self.save()
             self.on_submit()
+            document_submitted.send(sender=type(self), doc=self)
 
     def cancel(self):
         if not self.is_submitted:

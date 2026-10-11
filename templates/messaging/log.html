@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}سجل الرسائل{% endblock %}
+{% block heading %}سجل الرسائل{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>الحالة <select name="status" class="form-select"><option value="">الكل</option>{% for k, v in statuses %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="card"><div class="table-wrap">
+<table class="table">
+  <thead><tr><th>الوقت</th><th>العميل</th><th>الرقم</th><th>القناة</th><th>المرجع</th><th>النص</th><th>الحالة</th><th>المستخدم</th></tr></thead>
+  <tbody>{% for e in entries %}<tr>
+    <td>{{ e.created_at|date:"Y-m-d H:i" }}</td><td>{{ e.customer|default:"" }}</td><td dir="ltr">{{ e.phone }}</td>
+    <td>{% if e.channel == "link" %}واتساب (يدوي){% elif e.channel == "whatsapp" %}واتساب{% else %}SMS{% endif %}</td>
+    <td>{{ e.reference }}</td><td class="small" style="max-width:340px">{{ e.body|truncatechars:140 }}</td>
+    <td>{% if e.status == "sent" %}<span class="ok">✓ {{ e.get_status_display }}</span>{% elif e.status == "failed" %}<span class="text-danger" title="{{ e.error }}">✗ {{ e.get_status_display }}</span>{% else %}{{ e.get_status_display }}{% endif %}</td>
+    <td>{{ e.user|default:"آلي" }}</td></tr>
+  {% empty %}<tr><td colspan="8" class="muted center">لا توجد رسائل</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

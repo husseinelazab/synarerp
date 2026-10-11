@@ -23,6 +23,7 @@ PATH_MODULES = [
     ("/reports/stock/batches/", {"stock", "manufacturing"}),
     ("/reports/stock/", "stock"),
     ("/stock/", "stock"),
+    ("/messaging/", "selling"),
     ("/manufacturing/", "manufacturing"),
     ("/pos/", "pos"),
     ("/einvoice/", "einvoice"),

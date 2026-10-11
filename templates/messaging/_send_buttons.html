@@ -1,0 +1,6 @@
+{% if send_kind %}
+<span class="msg-actions">
+  <form method="post" action="{% url 'messaging_send' send_kind obj.pk %}" target="_blank">{% csrf_token %}<input type="hidden" name="mode" value="link"><button class="btn" title="يفتح واتساب على جهازك بنص جاهز">واتساب</button></form>
+  {% if messaging_active %}<form method="post" action="{% url 'messaging_send' send_kind obj.pk %}" onsubmit="return confirm('إرسال الرسالة للعميل عبر المزوّد؟')">{% csrf_token %}<input type="hidden" name="mode" value="provider"><button class="btn">إرسال رسالة</button></form>{% endif %}
+</span>
+{% endif %}

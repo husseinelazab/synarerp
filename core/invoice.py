@@ -10,6 +10,7 @@ from django.db.models import Sum
 from core.models import SubmittableDocument
 from core.utils import flt
 from core.vat import REASON_CHOICES, VATCategory, validate_category
+from pricing.fields import PricedDocument, PricedLine
 from stock.uom import UOMLine, linked_qty
 
 
@@ -22,6 +23,15 @@ def tax_totals(total, discount, rate, inclusive):
     net = flt(total - flt(discount))
     tax = flt(net * flt(rate) / 100)
     return net, tax, flt(net + tax)
+
+
+def validate_coupon(doc, rows):
+    """الكوبون المُدخل يجب أن يكون قد طُبق فعلاً على سطر واحد على الأقل."""
+    code = (getattr(doc, "coupon_code", "") or "").strip().upper()
+    if not code or getattr(doc, "party_field", "customer") != "customer":
+        return
+    if not any(row.pricing_rule_id and row.pricing_rule.coupon_code == code for row in rows):
+        raise ValidationError(f"كود الكوبون «{code}» غير صالح أو منتهٍ أو لا ينطبق على أصناف المستند.")
 
 
 class CurrencyMixin:
@@ -54,7 +64,7 @@ class CurrencyMixin:
         return flt(flt(amount) * (self.exchange_rate or 1))
 
 
-class InvoiceDocument(CurrencyMixin, SubmittableDocument):
+class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
     due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True)
     update_stock = models.BooleanField("تحديث المخزون", default=True)
     warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="المستودع")
@@ -192,6 +202,10 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
             for field in self.return_locked_fields:
                 setattr(self, field, getattr(original, field))
             rates = {i: flt(d["amount"] / d["qty"]) for i, d in original.item_summary().items() if d["qty"]}
+        if not original:
+            from pricing.engine import apply_pricing
+
+            apply_pricing(self)
         total = flt(0)
         for row in self.items.all():
             if self.is_return:
@@ -270,6 +284,7 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
         if self.due_date and self.due_date < self.posting_date:
             raise ValidationError("تاريخ الاستحقاق لا يمكن أن يسبق تاريخ الفاتورة.")
         self.validate_vat(rows)
+        validate_coupon(self, rows)
         if self.is_return:
             self._validate_return(rows)
 
@@ -320,7 +335,7 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
             raise ValidationError("لا يمكن إلغاء الفاتورة لوجود مرتجعات معتمدة عليها. ألغِ المرتجعات أولاً.")
 
 
-class InvoiceItem(UOMLine):
+class InvoiceItem(UOMLine, PricedLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0)

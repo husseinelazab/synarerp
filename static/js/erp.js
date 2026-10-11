@@ -72,6 +72,33 @@
       .then(function (data) { itemCache[id] = data; return data; });
   }
 
+  function headerValue(name) {
+    var el = document.getElementById("id_" + name);
+    if (!el) return "";
+    return el.type === "checkbox" ? (el.checked ? "1" : "") : el.value;
+  }
+
+  // سعر السطر من الخادم بقائمة الأسعار والعروض للطرف والكمية والتاريخ (كما يحسبه عند الحفظ)
+  function pricedRate(id, row) {
+    var uom = field(row, "uom"), qty = field(row, "qty");
+    var params = new URLSearchParams({
+      kind: rateType, customer: headerValue("customer"), supplier: headerValue("supplier"),
+      price_list: headerValue("price_list"), date: headerValue("posting_date"), coupon: headerValue("coupon_code"),
+      ignore_rules: headerValue("ignore_pricing_rules"), uom: uom ? uom.value : "", qty: qty ? qty.value : "1",
+    });
+    return fetch("/api/item/" + id + "/?" + params.toString(), { credentials: "same-origin" })
+      .then(function (r) { return r.json(); });
+  }
+
+  function showRule(row, priced) {
+    var cell = field(row, "rate") && field(row, "rate").parentNode, note = cell && cell.querySelector(".rule-note");
+    if (!cell) return;
+    if (!note) { note = document.createElement("div"); note.className = "rule-note muted small"; cell.appendChild(note); }
+    var text = priced && priced.rule ? "🏷️ " + priced.rule : "";
+    if (priced && priced.free_item && parseFloat(priced.free_qty) > 0) text += (text ? " · " : "") + "🎁 " + priced.free_item + " × " + parseFloat(priced.free_qty);
+    note.textContent = text;
+  }
+
   // سعر السطر حسب الصنف ووحدته (سعر الوحدة إن حُدد، وإلا سعر الأساسية × المعامل)
   function fetchRate(select) {
     if (!rateType || !select.value) return;
@@ -82,15 +109,30 @@
       if (uom && uom.value && !unit) uom.value = "";  // الوحدة غير معرفة لهذا الصنف
       if (rate) rate.value = unit ? unit[rateType + "_rate"] : data[rateType + "_rate"];
       recalc();
-    });
+      return pricedRate(select.value, row).then(function (res) {
+        if (!res.priced || !rate) return;
+        rate.value = res.priced.rate;
+        row.dataset.autoRate = "1";
+        showRule(row, res.priced);
+        recalc();
+      });
+    }).catch(function () {});
   }
 
-  table.addEventListener("input", recalc);
+  table.addEventListener("input", function (e) {
+    if (e.target.name && /-rate$/.test(e.target.name)) delete e.target.closest("tr").dataset.autoRate;
+    recalc();
+  });
   table.addEventListener("change", function (e) {
     if (e.target.name && /-item$/.test(e.target.name)) fetchRate(e.target);
     if (e.target.name && /-uom$/.test(e.target.name)) {
       var itemSelect = field(e.target.closest("tr"), "item");
       if (itemSelect) fetchRate(itemSelect);
+    }
+    // تغيّر الكمية قد يفعّل عرض كمية (أو يلغيه) ما دام السعر لم يُعدّل يدوياً
+    if (e.target.name && /-qty$/.test(e.target.name) && e.target.closest("tr").dataset.autoRate) {
+      var sel = field(e.target.closest("tr"), "item");
+      if (sel) fetchRate(sel);
     }
     recalc();
   });

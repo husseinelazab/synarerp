@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
+from django.utils import timezone
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.commercial import (CommercialDocument, CommercialItem, CommercialStatus, OrderDocument, OrderItem,
@@ -16,6 +17,24 @@ from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 class CustomerType(models.TextChoices):
     COMPANY = "company", "شركة / منشأة"
     INDIVIDUAL = "individual", "فرد"
+
+
+class CustomerGroup(TenantModel):
+    """فئة العملاء (جملة، تجزئة، كبار العملاء...): قائمة أسعار افتراضية ونطاق لقواعد التسعير."""
+
+    name = models.CharField("اسم الفئة", max_length=100)
+    price_list = models.ForeignKey("pricing.PriceList", models.SET_NULL, null=True, blank=True, related_name="+",
+                                   limit_choices_to={"kind": "selling", "disabled": False},
+                                   verbose_name="قائمة الأسعار الافتراضية")
+
+    class Meta:
+        verbose_name = "فئة عملاء"
+        verbose_name_plural = "فئات العملاء"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="customergroup")]
+
+    def __str__(self):
+        return self.name
 
 
 class Customer(TenantModel):
@@ -35,6 +54,13 @@ class Customer(TenantModel):
                                        help_text="صفر = بلا حد. يُمنع البيع الآجل الذي يتجاوز الحد")
     credit_hold = models.BooleanField("إيقاف البيع الآجل", default=False,
                                       help_text="يُسمح بالبيع النقدي فقط لهذا العميل")
+    customer_group = models.ForeignKey(CustomerGroup, models.SET_NULL, null=True, blank=True, related_name="customers",
+                                       verbose_name="فئة العميل")
+    price_list = models.ForeignKey("pricing.PriceList", models.SET_NULL, null=True, blank=True, related_name="+",
+                                   limit_choices_to={"kind": "selling", "disabled": False},
+                                   verbose_name="قائمة أسعار خاصة", help_text="فارغة = قائمة فئة العميل أو الافتراضية")
+    loyalty_program = models.ForeignKey("pricing.LoyaltyProgram", models.SET_NULL, null=True, blank=True,
+                                        related_name="+", verbose_name="برنامج الولاء")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -51,6 +77,12 @@ class Customer(TenantModel):
         from accounts.credit import credit_status
 
         return credit_status(self)
+
+    @property
+    def loyalty_points(self):
+        from pricing.engine import points_balance, program_for
+
+        return points_balance(self) if program_for(self) else None
 
 
 class Quotation(CommercialDocument):
@@ -202,6 +234,11 @@ class SalesInvoice(InvoiceDocument):
     offline_at = models.DateTimeField("وقت البيع دون اتصال", null=True, blank=True, editable=False)
 
     # الإشعار المدين: زيادة على فاتورة سابقة (فرق سعر، رسوم إضافية...) دون حركة مخزون
+    loyalty_points = models.PositiveIntegerField("نقاط ولاء مستبدلة", default=0, blank=True,
+                                                 help_text="تُخصم قيمتها من المستحق على العميل")
+    loyalty_amount = models.DecimalField("قيمة نقاط الولاء", max_digits=18, decimal_places=2, default=0, editable=False)
+    loyalty_points_earned = models.IntegerField("نقاط ولاء مكتسبة", default=0, editable=False)
+
     is_debit_note = models.BooleanField("إشعار مدين", default=False, editable=False)
     debit_note_against = models.ForeignKey("self", models.PROTECT, null=True, blank=True, related_name="debit_notes",
                                            editable=False, verbose_name="إشعار مدين على الفاتورة")
@@ -213,6 +250,23 @@ class SalesInvoice(InvoiceDocument):
     @property
     def cash_received(self):
         return flt(self.paid_cash - self.change_amount)
+
+    @property
+    def amount_due(self):
+        """ما يُدفع فعلياً: الإجمالي ناقص قيمة نقاط الولاء المستبدلة."""
+        return flt(self.grand_total - self.loyalty_amount)
+
+    def calculate_totals(self):
+        super().calculate_totals()
+        self.loyalty_amount = flt(0)
+        if self.loyalty_points and not self.is_return:
+            from pricing.engine import program_for
+
+            program = program_for(self.customer) if self.customer_id else None
+            if program is not None:
+                self.loyalty_amount = flt(self.loyalty_points * program.point_value)
+        if self.is_draft:
+            self.outstanding_amount = self.amount_due
 
     def get_naming_prefix(self):
         return "SDN" if self.is_debit_note else super().get_naming_prefix()
@@ -250,7 +304,8 @@ class SalesInvoice(InvoiceDocument):
 
             # الجزء الآجل فقط: ما دُفع في نقطة البيع لا يُحسب على حد الائتمان
             paid = flt(self.paid_cash + self.paid_card - self.change_amount) if self.is_pos else flt(0)
-            check_credit(self, self.to_base(max(self.grand_total - paid, flt(0))))
+            check_credit(self, self.to_base(max(self.amount_due - paid, flt(0))))
+        self._validate_loyalty()
         if self.update_stock and not self.is_return:
             rows = list(self.items.select_related("order_item", "delivery_note_item"))
             if any(r.delivery_note_item_id for r in rows):
@@ -282,10 +337,58 @@ class SalesInvoice(InvoiceDocument):
                 return
             if self.paid_cash < 0 or self.paid_card < 0:
                 raise ValidationError("مبالغ الدفع لا يمكن أن تكون سالبة.")
-            if self.paid_card > self.grand_total:
+            if self.paid_card > self.amount_due:
                 raise ValidationError("مبلغ البطاقة لا يمكن أن يتجاوز إجمالي الفاتورة.")
-            if flt(self.paid_cash + self.paid_card) < self.grand_total:
+            if flt(self.paid_cash + self.paid_card) < self.amount_due:
                 raise ValidationError("المبلغ المدفوع أقل من إجمالي الفاتورة.")
+
+    def _validate_loyalty(self):
+        if not self.loyalty_points:
+            return
+        from pricing.engine import points_balance, program_for
+
+        program = program_for(self.customer)
+        if self.is_return or self.is_debit_note:
+            raise ValidationError("لا تُستبدل نقاط الولاء في المرتجعات والإشعارات.")
+        if program is None:
+            raise ValidationError(f"العميل «{self.customer}» غير مسجل في برنامج ولاء.")
+        if self.is_foreign_currency:
+            raise ValidationError("استبدال نقاط الولاء متاح للفواتير بعملة الشركة فقط.")
+        if self.loyalty_points < program.min_redeem_points:
+            raise ValidationError(f"أقل عدد نقاط للاستبدال {program.min_redeem_points}.")
+        balance = points_balance(self.customer, self.posting_date)
+        if self.loyalty_points > balance:
+            raise ValidationError(f"رصيد نقاط العميل {balance} فقط.")
+        if self.loyalty_amount > self.grand_total:
+            raise ValidationError("قيمة النقاط المستبدلة أكبر من إجمالي الفاتورة.")
+
+    def _post_loyalty(self):
+        from pricing.engine import program_for
+        from pricing.models import LoyaltyPointEntry
+
+        program = program_for(self.customer) if not self.is_debit_note else None
+        if program is None:
+            return
+        if self.loyalty_points and self.loyalty_amount:
+            make_gl_entries(self, [
+                {"account": program.expense_account or self.company.require_account("default_discount_account"),
+                 "debit": self.loyalty_amount},
+                {"account": self.company.require_account("default_receivable_account"),
+                 "credit": self.loyalty_amount, "customer": self.customer},
+            ], remarks=f"استبدال {self.loyalty_points} نقطة ولاء")
+            LoyaltyPointEntry.objects.create(customer=self.customer, program=program, invoice=self,
+                                             points=-self.loyalty_points, posting_date=self.posting_date)
+        # النقاط على ما دُفع فعلاً (بعملة الشركة)، والمرتجع يخصم نقاطه
+        basis = abs(flt(self.base_grand_total)) - flt(self.loyalty_amount)
+        points = int(basis // flt(program.amount_per_point)) if basis > 0 else 0
+        if points:
+            points = -points if self.is_return else points
+            expiry = (self.posting_date + timezone.timedelta(days=program.expiry_days)
+                      if program.expiry_days and points > 0 else None)
+            LoyaltyPointEntry.objects.create(customer=self.customer, program=program, invoice=self, points=points,
+                                             posting_date=self.posting_date, expiry_date=expiry)
+        self.loyalty_points_earned = points
+        self.save(update_fields=["loyalty_points_earned"])
 
     @property
     def linked_documents(self):
@@ -326,8 +429,15 @@ class SalesInvoice(InvoiceDocument):
                            else f"فاتورة مبيعات للعميل {self.customer}")
         make_gl_entries(self, entries, remarks=self.remarks or default_remarks, exchange_rate=self.exchange_rate)
         self.apply_return_to_original()
+        from pricing.engine import consume_coupons
+
+        consume_coupons(self, +1)
+        self._post_loyalty()
         if self.is_pos:
             self._post_pos_payment()
+        elif self.loyalty_amount:
+            self.outstanding_amount = self.amount_due
+            self.save(update_fields=["outstanding_amount"])
         from einvoice.services import on_invoice_submitted
 
         on_invoice_submitted(self)
@@ -349,7 +459,7 @@ class SalesInvoice(InvoiceDocument):
             {"account": profile.cash_account, "debit": self.cash_received},
             {"account": profile.card_account, "debit": self.paid_card},
             {"account": self.company.require_account("default_receivable_account"),
-             "credit": self.grand_total, "customer": self.customer},
+             "credit": self.amount_due, "customer": self.customer},
         ], remarks=f"{'رد مرتجع' if self.is_return else 'تحصيل'} نقطة البيع - {self.pos_shift}")
         self.outstanding_amount = 0
         self.save(update_fields=["outstanding_amount"])
@@ -365,8 +475,12 @@ class SalesInvoice(InvoiceDocument):
             raise ValidationError("لا يمكن إلغاء فاتورة نقطة بيع من وردية مغلقة.")
 
     def on_cancel(self):
+        from pricing.engine import consume_coupons
+
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
+        consume_coupons(self, -1)
+        self.loyalty_entries.all().delete()
         self.unapply_return_from_original()
         update_order_billing(self, -1)
         update_fulfillment_billing(self, "delivery_note_item", -1)

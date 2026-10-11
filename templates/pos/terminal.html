@@ -65,6 +65,11 @@
   <div class="modal-box">
     <h2>الدفع</h2>
     <div class="pay-due">المطلوب: <strong id="m-grand">0.00</strong></div>
+    <div class="promo-box" id="m-promos" hidden></div>
+    <div class="pay-extras">
+      <div class="field"><label>كود الكوبون</label><input id="m-coupon" class="form-control" maxlength="40" autocomplete="off" dir="ltr"></div>
+      <div class="field"><label>استبدال نقاط الولاء</label><input id="m-points" type="number" min="0" step="1" class="form-control" placeholder="0"><span class="muted small" id="m-points-info"></span></div>
+    </div>
     <div class="field"><label>نقداً</label><input id="m-cash" type="number" min="0" step="0.01" class="form-control big-input"></div>
     <div class="field"><label>بطاقة (مدى / فيزا)</label><input id="m-card" type="number" min="0" step="0.01" class="form-control big-input" value="0"></div>
     <div class="quick-pay">

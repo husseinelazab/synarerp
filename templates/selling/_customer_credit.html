@@ -8,6 +8,7 @@
     <div class="kpi"><span>حد الائتمان</span><b>{% if c.limit %}{{ c.limit|cur }}{% else %}بلا حد{% endif %}</b>{% if c.used_percent is not None %}<span>مستخدم {{ c.used_percent|floatformat:0 }}%</span>{% endif %}</div>
     <div class="kpi {% if c.available is not None and c.available <= 0 %}kpi-bad{% else %}kpi-good{% endif %}"><span>المتاح للبيع الآجل</span><b>{% if c.available is not None %}{{ c.available|cur }}{% else %}—{% endif %}</b></div>
     <div class="kpi {% if c.overdue %}kpi-bad{% endif %}"><span>المتأخر عن الاستحقاق</span><b>{{ c.overdue|cur }}</b></div>
+    {% with points=obj.loyalty_points %}{% if points is not None %}<div class="kpi kpi-good"><span>نقاط الولاء</span><b>{{ points }}</b><span><a href="{% url 'doc_list' 'loyalty-point-entry' %}?q={{ obj.name|urlencode }}">الحركات</a></span></div>{% endif %}{% endwith %}
   </div>
   <table class="table"><thead><tr>{% for label, v in c.buckets %}<th>{{ label }}</th>{% endfor %}</tr></thead>
     <tbody><tr>{% for label, v in c.buckets %}<td class="{% if not forloop.first and v > 0 %}neg{% endif %}">{{ v|money }}</td>{% endfor %}</tr></tbody></table>

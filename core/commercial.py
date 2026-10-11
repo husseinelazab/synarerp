@@ -6,7 +6,8 @@
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
-from core.invoice import CurrencyMixin, tax_totals
+from core.invoice import CurrencyMixin, tax_totals, validate_coupon
+from pricing.fields import PricedDocument, PricedLine
 from core.models import SubmittableDocument
 from core.utils import flt
 from stock.uom import UOMLine, linked_qty
@@ -23,7 +24,7 @@ class CommercialStatus(models.TextChoices):
     CANCELLED = "cancelled", "ملغى"
 
 
-class CommercialDocument(CurrencyMixin, SubmittableDocument):
+class CommercialDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
     posts_to_ledger = False
     party_field = "customer"
     submitted_status = CommercialStatus.OPEN
@@ -61,6 +62,9 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
         super().save(*args, **kwargs)
 
     def calculate_totals(self):
+        from pricing.engine import apply_pricing
+
+        apply_pricing(self)
         total = flt(0)
         for row in self.items.all():
             row.amount = flt(flt(row.qty, 3) * flt(row.rate))
@@ -84,6 +88,7 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
                 raise ValidationError(f"السعر للصنف {row.item} لا يمكن أن يكون سالباً.")
         if self.discount_amount < 0 or self.discount_amount > self.total:
             raise ValidationError("قيمة الخصم غير صحيحة.")
+        validate_coupon(self, rows)
 
     def on_submit(self):
         self.status = self.submitted_status
@@ -99,7 +104,8 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
         shared = {f.name for f in target_model._meta.concrete_fields}
         values = {self.party_field: self.party, "currency": self.currency, "exchange_rate": self.exchange_rate,
                   "tax_rate": self.tax_rate, "remarks": self.remarks}
-        for name in ("prices_include_tax", "warehouse", "cost_center", "terms"):
+        for name in ("prices_include_tax", "warehouse", "cost_center", "terms", "price_list", "coupon_code",
+                     "ignore_pricing_rules"):
             if name in shared and hasattr(self, name):
                 values[name] = getattr(self, name)
         values = {k: v for k, v in values.items() if k in shared}
@@ -115,10 +121,13 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
             for row, qty in quantities.items():
                 if qty <= 0:
                     continue
-                line = {"item": row.item, "qty": qty, "rate": row.rate, "uom_id": row.uom_id}
+                line = {"item": row.item, "qty": qty, "rate": row.rate, "uom_id": row.uom_id,
+                        "price_list_rate": row.price_list_rate, "discount_percentage": row.discount_percentage,
+                        "pricing_rule_id": row.pricing_rule_id, "is_free_item": row.is_free_item}
                 if link_field:
                     line[link_field] = row
-                target.items.create(**line)
+                item_fields = {f.attname for f in target.items.model._meta.concrete_fields} | {"item", link_field}
+                target.items.create(**{k: v for k, v in line.items() if k in item_fields})
             if not target.items.exists():
                 raise ValidationError("لا توجد كميات متبقية لتحويلها.")
             target.calculate_totals()
@@ -130,7 +139,7 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
         return target
 
 
-class CommercialItem(UOMLine):
+class CommercialItem(UOMLine, PricedLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0)

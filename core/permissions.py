@@ -36,7 +36,9 @@ PATH_MODULES = [
 ]
 # مستندات مشتركة بين أكثر من وحدة
 SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
-                   "payment-reconciliation": {"selling", "buying", "accounts"}}
+                   "payment-reconciliation": {"selling", "buying", "accounts"},
+                   "price-list": {"selling", "buying", "stock"}, "item-price": {"selling", "buying", "stock"},
+                   "pricing-rule": {"selling", "buying", "stock"}}
 
 
 def modules_for_path(path):

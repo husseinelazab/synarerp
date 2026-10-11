@@ -20,6 +20,9 @@ class Supplier(TenantModel):
     email = models.EmailField("البريد الإلكتروني", blank=True)
     city = models.CharField("المدينة", max_length=100, blank=True)
     address = models.TextField("العنوان", blank=True)
+    price_list = models.ForeignKey("pricing.PriceList", models.SET_NULL, null=True, blank=True, related_name="+",
+                                   limit_choices_to={"kind": "buying", "disabled": False},
+                                   verbose_name="قائمة أسعار المورد")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:

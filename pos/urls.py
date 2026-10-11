@@ -10,6 +10,7 @@ urlpatterns = [
     path("shifts/<int:pk>/", views.shift_report, name="pos_shift_report"),
     path("api/items/", views.items_api, name="pos_items"),
     path("api/checkout/", views.checkout_api, name="pos_checkout"),
+    path("api/quote/", views.quote_api, name="pos_quote"),
     path("api/sync/", views.sync_api, name="pos_sync"),
     path("sw.js", views.service_worker, name="pos_sw"),
     path("api/invoice/", views.invoice_api, name="pos_invoice"),

@@ -9,11 +9,39 @@ from pos.models import CardTransaction, clean_card_info
 from stock.models import Item
 
 
+def pos_price_list(profile, customer):
+    from pricing.engine import resolve_price_list
+
+    return resolve_price_list("selling", customer, profile.price_list)
+
+
+def build_lines(invoice, profile, lines):
+    """أسطر الفاتورة من سلة الكاشير بسعر قائمة نقطة البيع (أو السعر المعدّل إن سُمح بتعديله)."""
+    from pricing.engine import list_rate
+
+    price_list = pos_price_list(profile, invoice.customer)
+    for line in lines:
+        try:
+            item = Item.objects.get(pk=line.get("item"), disabled=False)
+        except (Item.DoesNotExist, ValueError, TypeError):
+            raise ValidationError("صنف غير موجود أو موقوف.")
+        qty = flt(line.get("qty"), 3)
+        if qty <= 0:
+            raise ValidationError(f"الكمية للصنف {item.name} يجب أن تكون أكبر من صفر.")
+        uom_id = int(line["uom"]) if str(line.get("uom") or "").isdigit() else None
+        # سعر الكرتون مثلاً، أو الأساسي × المعامل — من قائمة الأسعار إن وُجدت
+        rate = list_rate(item, uom_id, "selling", price_list, invoice.posting_date)
+        if profile.allow_rate_change and line.get("rate") not in (None, ""):
+            rate = flt(line["rate"])
+        invoice.items.create(item=item, qty=qty, rate=rate, uom_id=uom_id)
+
+
 def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid_card=0, offline_id="",
-             offline_at=None, card=None):
+             offline_at=None, card=None, coupon_code="", loyalty_points=0, apply_rules=True):
     """lines: قائمة من {"item": id, "qty": رقم, "rate": رقم اختياري}.
 
     offline_id: معرّف البيع من الجهاز عند البيع دون اتصال؛ إن سبقت مزامنته تُعاد نفس الفاتورة.
+    apply_rules: العروض تُطبق في البيع المتصل؛ المبيعات دون اتصال تُفوتر بالأسعار التي رآها الكاشير.
     """
     if offline_id:
         existing = SalesInvoice.objects.filter(offline_id=offline_id, is_pos=True).exclude(docstatus=2).first()
@@ -34,22 +62,12 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
             company=profile.company, customer=customer, is_pos=True, pos_shift=shift, created_by=user,
             update_stock=True, warehouse=profile.warehouse, tax_rate=profile.tax_rate, cost_center=profile.cost_center,
             prices_include_tax=profile.prices_include_tax, discount_amount=discount,
-            offline_id=offline_id or "", offline_at=offline_at,
+            offline_id=offline_id or "", offline_at=offline_at, price_list=pos_price_list(profile, customer),
+            coupon_code=(coupon_code or "").strip()[:40], loyalty_points=max(int(loyalty_points or 0), 0),
+            ignore_pricing_rules=not (apply_rules and profile.apply_pricing_rules),
             **({"posting_date": timezone.localtime(offline_at).date()} if offline_at else {}),
         )
-        for line in lines:
-            try:
-                item = Item.objects.get(pk=line.get("item"), disabled=False)
-            except (Item.DoesNotExist, ValueError, TypeError):
-                raise ValidationError("صنف غير موجود أو موقوف.")
-            qty = flt(line.get("qty"), 3)
-            if qty <= 0:
-                raise ValidationError(f"الكمية للصنف {item.name} يجب أن تكون أكبر من صفر.")
-            uom_id = int(line["uom"]) if str(line.get("uom") or "").isdigit() else None
-            rate = item.price_for(uom_id, "selling")  # سعر الكرتون مثلاً، أو الأساسي × المعامل
-            if profile.allow_rate_change and line.get("rate") not in (None, ""):
-                rate = flt(line["rate"])
-            invoice.items.create(item=item, qty=qty, rate=rate, uom_id=uom_id)
+        build_lines(invoice, profile, lines)
         invoice.calculate_totals()
 
         if discount:
@@ -60,7 +78,7 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
 
         invoice.paid_cash = flt(paid_cash)
         invoice.paid_card = flt(paid_card)
-        invoice.change_amount = max(flt(invoice.paid_cash + invoice.paid_card - invoice.grand_total), flt(0))
+        invoice.change_amount = max(flt(invoice.paid_cash + invoice.paid_card - invoice.amount_due), flt(0))
         card_data = None
         if invoice.paid_card > 0:
             card_data = clean_card_info(card, profile.card_terminal_mode, invoice.paid_card,
@@ -116,3 +134,41 @@ def pos_return(shift, user, invoice_name, lines, refund_method="cash", card=None
             CardTransaction.objects.create(shift=shift, invoice=ret, kind="refund", amount=ret.paid_card,
                                            mode=shift.profile.card_terminal_mode, **card_data)
     return ret
+
+
+def quote(shift, lines, customer_id=None, discount=0, coupon_code="", loyalty_points=0):
+    """تسعير السلة دون حفظ: الأسعار بعد العروض والهدايا والإجماليات والنقاط، لعرضها للكاشير قبل الدفع."""
+    from pricing.engine import points_balance, program_for
+
+    if not shift or not shift.is_open:
+        raise ValidationError("يجب فتح وردية قبل البيع.")
+    profile = shift.profile
+    customer = Customer.objects.get(pk=customer_id) if customer_id else profile.default_customer
+    with transaction.atomic():
+        # فاتورة مؤقتة تُحسب ثم تُلغى المعاملة كاملة فلا يُحفظ شيء ولا يُستهلك رقم
+        invoice = SalesInvoice.objects.create(
+            company=profile.company, customer=customer, is_pos=True, pos_shift=shift, update_stock=False,
+            tax_rate=profile.tax_rate, cost_center=profile.cost_center, prices_include_tax=profile.prices_include_tax,
+            discount_amount=flt(discount), price_list=pos_price_list(profile, customer),
+            coupon_code=(coupon_code or "").strip()[:40], loyalty_points=max(int(loyalty_points or 0), 0),
+            ignore_pricing_rules=not profile.apply_pricing_rules)
+        build_lines(invoice, profile, lines)
+        invoice.calculate_totals()
+        program = program_for(customer)
+        result = {
+            "lines": [{"item": r.item_id, "name": r.item.name, "qty": float(r.qty), "uom": r.uom_id,
+                       "rate": float(r.rate), "price_list_rate": float(r.price_list_rate),
+                       "discount_percentage": float(r.discount_percentage), "free": r.is_free_item,
+                       "rule": r.pricing_rule.name if r.pricing_rule_id else ""}
+                      for r in invoice.items.select_related("item", "pricing_rule").order_by("id")],
+            "total": float(invoice.total), "discount": float(invoice.discount_amount), "net": float(invoice.net_total),
+            "tax": float(invoice.tax_amount), "grand": float(invoice.grand_total),
+            "loyalty_amount": float(invoice.loyalty_amount), "due": float(invoice.amount_due),
+            "coupon_ok": not invoice.coupon_code or any(
+                r.pricing_rule_id and r.pricing_rule.coupon_code == invoice.coupon_code.upper()
+                for r in invoice.items.select_related("pricing_rule")),
+            "points": points_balance(customer) if program else None,
+            "point_value": float(program.point_value) if program else 0,
+        }
+        transaction.set_rollback(True)
+    return result

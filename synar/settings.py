@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "assets",
     "manufacturing",
     "messaging",
+    "pricing",
 ]
 
 MIDDLEWARE = [

@@ -73,3 +73,7 @@
 .terminal-status.waiting { color: #8a5a00; background: #fff6e0; }
 .terminal-status.ok { color: var(--success); }
 .terminal-status.fail { color: var(--danger); background: #fdecec; }
+
+.promo-box{background:#f0f7ee;border:1px solid #cfe6c8;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:14px;line-height:1.8}
+.pay-extras{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pay-extras .field{margin:0}

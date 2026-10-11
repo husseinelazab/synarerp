@@ -37,6 +37,10 @@ class POSProfile(TenantModel):
     allow_discount = models.BooleanField("السماح بالخصم", default=True)
     max_discount_percent = models.DecimalField("أقصى نسبة خصم %", max_digits=5, decimal_places=2, default=10)
     allow_rate_change = models.BooleanField("السماح بتعديل السعر", default=False)
+    price_list = models.ForeignKey("pricing.PriceList", models.SET_NULL, null=True, blank=True, related_name="+",
+                                   limit_choices_to={"kind": "selling", "disabled": False},
+                                   verbose_name="قائمة الأسعار", help_text="فارغة = أسعار بطاقات الأصناف (أو قائمة العميل)")
+    apply_pricing_rules = models.BooleanField("تطبيق العروض وقواعد التسعير", default=True)
     receipt_footer = models.CharField("تذييل الإيصال", max_length=255, blank=True, default="شكراً لزيارتكم")
     card_terminal_mode = models.CharField("ربط جهاز الدفع (مدى)", max_length=10, choices=TerminalMode.choices,
                                           default=TerminalMode.MANUAL)

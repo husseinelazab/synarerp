@@ -3,7 +3,7 @@
 
   var config = JSON.parse(document.getElementById("pos-config").textContent);
   var csrf = document.querySelector("[name=csrfmiddlewaretoken]").value;
-  var items = [], byId = {}, cart = [], group = "", busy = false;
+  var items = [], byId = {}, cart = [], group = "", busy = false, quoteData = null, quoteSeq = 0;
 
   var $ = function (id) { return document.getElementById(id); };
   var search = $("search"), grid = $("grid"), cartEl = $("cart"), discountEl = $("discount");
@@ -193,6 +193,9 @@
 
   function resetSale() {
     cart = [];
+    quoteData = null;
+    $("m-coupon").value = "";
+    $("m-points").value = "";
     if (discountEl) discountEl.value = 0;
     $("customer").value = config.defaultCustomer;
     renderCart();
@@ -202,6 +205,54 @@
   // نافذة الدفع
   var payModal = $("pay-modal"), cashEl = $("m-cash"), cardEl = $("m-card"), errEl = $("m-error");
 
+  // المطلوب فعلاً: من تسعير الخادم (العروض والكوبون والنقاط) إن توفر، وإلا من حساب السلة
+  function due() { return quoteData ? quoteData.due : totals().grand; }
+
+  function cartPayload() {
+    return cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, uom: l.uom || null }; });
+  }
+
+  function renderQuote() {
+    var box = $("m-promos"), pts = $("m-points-info");
+    $("m-grand").innerHTML = fmt(due()) + config.currencyHtml;
+    if (!quoteData) { box.hidden = true; pts.textContent = ""; return; }
+    var lines = quoteData.lines.filter(function (l) { return l.rule; }).map(function (l) {
+      return "<div>" + (l.free ? "🎁 " : "🏷️ ") + esc(l.name) + " — " + esc(l.rule) +
+        (l.free ? " (هدية × " + l.qty + ")" : " (" + fmt(l.price_list_rate) + " ← " + fmt(l.rate) + ")") + "</div>";
+    });
+    var saved = round2(quoteData.lines.reduce(function (s, l) { return s + (l.price_list_rate - l.rate) * l.qty; }, 0));
+    if (saved > 0) lines.push('<div class="ok">وفّر العميل ' + fmt(saved) + config.currencyHtml + "</div>");
+    if (quoteData.loyalty_amount) lines.push("<div>نقاط الولاء: −" + fmt(quoteData.loyalty_amount) + config.currencyHtml + "</div>");
+    if ($("m-coupon").value.trim() && !quoteData.coupon_ok) lines.push('<div class="text-danger">الكوبون غير صالح لهذه السلة.</div>');
+    box.innerHTML = lines.join("");
+    box.hidden = !lines.length;
+    pts.textContent = quoteData.points === null ? "العميل غير مسجل في برنامج ولاء" :
+      "رصيد النقاط: " + quoteData.points + " (النقطة = " + quoteData.point_value + ")";
+    $("m-points").disabled = quoteData.points === null;
+  }
+
+  function requestQuote() {
+    if (!config.quoteUrl || !navigator.onLine) { quoteData = null; renderQuote(); return Promise.resolve(); }
+    var seq = ++quoteSeq;
+    return fetch(config.quoteUrl, {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ customer: $("customer").value, discount: totals().discount, items: cartPayload(),
+                             coupon: $("m-coupon").value.trim(), loyalty_points: num($("m-points").value) }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (seq !== quoteSeq) return;
+        if (!res.ok) { quoteData = null; renderQuote(); $("m-promos").hidden = false; $("m-promos").innerHTML = '<div class="text-danger">' + esc(res.data.error) + "</div>"; return; }
+        quoteData = res.data;
+        renderQuote();
+        cashEl.value = due().toFixed(2);
+        cardEl.value = 0;
+        updateChange();
+      })
+      .catch(function () { if (seq === quoteSeq) { quoteData = null; renderQuote(); } });
+  }
+
   function openPay() {
     if (!cart.length) return;
     var t = totals();
@@ -209,7 +260,9 @@
       alert("الخصم يتجاوز الحد المسموح (" + config.maxDiscountPercent + "%).");
       return;
     }
-    $("m-grand").innerHTML = fmt(t.grand) + config.currencyHtml;
+    quoteData = null;
+    renderQuote();
+    requestQuote();
     cashEl.value = t.grand.toFixed(2);
     cardEl.value = 0;
     errEl.hidden = true;
@@ -221,7 +274,7 @@
   }
 
   function updateChange() {
-    var change = round2(num(cashEl.value) + num(cardEl.value) - totals().grand);
+    var change = round2(num(cashEl.value) + num(cardEl.value) - due());
     var label = $("m-change-label"), out = $("m-change");
     label.textContent = change < 0 ? "المتبقي على العميل: " : "الباقي للعميل: ";
     out.innerHTML = fmt(Math.abs(change)) + config.currencyHtml;
@@ -233,11 +286,15 @@
   cashEl.addEventListener("input", updateChange);
   cardEl.addEventListener("input", updateChange);
   $("pay").addEventListener("click", openPay);
-  $("m-cancel").addEventListener("click", function () { payModal.hidden = true; });
+  $("m-cancel").addEventListener("click", function () { payModal.hidden = true; quoteData = null; });
+  var quoteTimer = null;
+  ["m-coupon", "m-points"].forEach(function (id) {
+    $(id).addEventListener("input", function () { clearTimeout(quoteTimer); quoteTimer = setTimeout(requestQuote, 400); });
+  });
   document.querySelector(".quick-pay").addEventListener("click", function (e) {
     var q = e.target.dataset.quick;
     if (!q) return;
-    var grand = totals().grand;
+    var grand = due();
     if (q === "exact") { cashEl.value = grand.toFixed(2); cardEl.value = 0; }
     else if (q === "card") { cardEl.value = grand.toFixed(2); cashEl.value = 0; }
     else { cashEl.value = num(q).toFixed(2); }
@@ -342,7 +399,9 @@
         paid_cash: num(cashEl.value),
         paid_card: num(cardEl.value),
         card: card,
-        items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, uom: l.uom || null }; }),
+        coupon: $("m-coupon").value.trim(),
+        loyalty_points: num($("m-points").value),
+        items: cartPayload(),
       }),
     })
       .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })

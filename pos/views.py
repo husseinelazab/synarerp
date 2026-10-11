@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 from core.utils import currency_symbol_html
 from core.zatca import invoice_qr_svg
 from pos.models import POSProfile, POSShift
-from pos.services import checkout, find_returnable_invoice, pos_return
+from pos.services import checkout, find_returnable_invoice, pos_return, pos_price_list, quote
 from selling.models import Customer, SalesInvoice
 from stock.models import Bin, Item, ItemGroup, ScaleSettings
 
@@ -30,6 +30,7 @@ def terminal(request):
     config = {
         "itemsUrl": reverse("pos_items"),
         "checkoutUrl": reverse("pos_checkout"),
+        "quoteUrl": reverse("pos_quote"),
         "invoiceUrl": reverse("pos_invoice"),
         "returnUrl": reverse("pos_return"),
         "taxRate": float(profile.tax_rate),
@@ -116,6 +117,28 @@ def items_api(request):
     if shift is None:
         return JsonResponse({"error": "لا توجد وردية مفتوحة."}, status=400)
     stock = dict(Bin.objects.filter(warehouse=shift.profile.warehouse).values_list("item_id", "actual_qty"))
+    import datetime
+
+    from django.db.models import Q
+
+    price_list = pos_price_list(shift.profile, shift.profile.default_customer)
+    prices = {}  # (الصنف، الوحدة) ← سعر القائمة
+    if price_list is not None:
+        from pricing.models import ItemPrice
+
+        today = datetime.date.today()
+        for p in (ItemPrice.objects.filter(price_list=price_list)
+                  .filter(Q(valid_from__isnull=True) | Q(valid_from__lte=today),
+                          Q(valid_upto__isnull=True) | Q(valid_upto__gte=today)).select_related("item")
+                  .order_by("valid_from")):
+            prices[(p.item_id, None if p.uom_id in (None, p.item.uom_id) else p.uom_id)] = float(p.rate)
+
+    def unit_rate(item, unit):
+        if (item.id, unit.uom_id) in prices:
+            return prices[(item.id, unit.uom_id)]
+        if (item.id, None) in prices:
+            return round(prices[(item.id, None)] * float(unit.factor), 2)
+        return float(unit.effective_selling_rate)
     from stock.models import ItemUOM
 
     units = {}
@@ -124,12 +147,13 @@ def items_api(request):
     items = [
         {
             "id": i.id, "code": i.code, "name": i.name, "barcode": i.barcode, "group": i.item_group_id,
-            "uom": i.uom.name, "rate": float(i.selling_rate), "stock": i.is_stock_item,
+            "uom": i.uom.name, "stock": i.is_stock_item,
+            "rate": prices.get((i.id, None), float(i.selling_rate)),
             "qty": float(stock.get(i.id, 0)), "plu": i.plu if i.is_weighed else None,
             "zero_vat": i.vat_category in ("Z", "E", "O"),
             # وحدات التحويل (كرتون…) بباركودها وسعرها لقراءتها في الكاشير حتى دون اتصال
             "units": [{"uom": u.uom_id, "name": u.uom.name, "factor": float(u.factor), "barcode": u.barcode,
-                       "rate": float(u.effective_selling_rate)} for u in units.get(i.id, [])],
+                       "rate": unit_rate(i, u)} for u in units.get(i.id, [])],
         }
         for i in Item.objects.filter(disabled=False).select_related("uom")
     ]
@@ -148,6 +172,7 @@ def checkout_api(request):
             POSShift.current_for(request.user), request.user, data.get("items") or [],
             customer_id=data.get("customer"), discount=data.get("discount") or 0,
             paid_cash=data.get("paid_cash") or 0, paid_card=data.get("paid_card") or 0, card=data.get("card"),
+            coupon_code=data.get("coupon") or "", loyalty_points=_int(data.get("loyalty_points")),
         )
     except (ValidationError, Customer.DoesNotExist) as exc:
         return JsonResponse({"error": _error(exc) if isinstance(exc, ValidationError) else "العميل غير موجود."}, status=400)
@@ -157,6 +182,30 @@ def checkout_api(request):
         "change": str(invoice.change_amount),
         "receipt_url": reverse("pos_receipt", args=[invoice.pk]),
     })
+
+
+def _int(value):
+    try:
+        return max(int(value or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@login_required
+@require_POST
+def quote_api(request):
+    """تسعير السلة بالعروض والكوبون ونقاط الولاء قبل الدفع، دون إنشاء فاتورة."""
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "بيانات غير صالحة."}, status=400)
+    try:
+        result = quote(POSShift.current_for(request.user), data.get("items") or [], customer_id=data.get("customer"),
+                       discount=data.get("discount") or 0, coupon_code=data.get("coupon") or "",
+                       loyalty_points=_int(data.get("loyalty_points")))
+    except (ValidationError, Customer.DoesNotExist) as exc:
+        return JsonResponse({"error": _error(exc) if isinstance(exc, ValidationError) else "العميل غير موجود."}, status=400)
+    return JsonResponse(result)
 
 
 @login_required
@@ -243,6 +292,7 @@ def sync_api(request):
                 shift, request.user, sale.get("items") or [], customer_id=sale.get("customer"),
                 discount=sale.get("discount") or 0, paid_cash=sale.get("paid_cash") or 0,
                 paid_card=sale.get("paid_card") or 0, offline_id=client_id, offline_at=created, card=sale.get("card"),
+                apply_rules=False,
             )
         except (ValidationError, Customer.DoesNotExist) as exc:
             results.append({"client_id": client_id, "ok": False,

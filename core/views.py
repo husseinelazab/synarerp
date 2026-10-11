@@ -14,7 +14,7 @@ from core.display import detail_fields, display_value, field_label
 from core.forms import build_form_class, build_formset_class, style_form
 from core.models import DocStatus
 from core.registry import get_doctype
-from core.utils import client_ip
+from core.utils import client_ip, flt
 
 
 def _error_text(exc):
@@ -376,13 +376,48 @@ def item_api(request, pk):
     from stock.models import Item
 
     item = get_object_or_404(Item, pk=pk)
-    return JsonResponse({
+    data = {
         "code": item.code, "name": item.name, "uom": str(item.uom), "uom_id": item.uom_id,
         "selling_rate": str(item.selling_rate), "buying_rate": str(item.buying_rate),
         # أسعار كل وحدة تحويل لتعبئة السعر عند اختيار الوحدة في السطر
         "uoms": {str(u["uom"]): {"name": u["name"], "factor": str(u["factor"]), "selling_rate": str(u["selling_rate"]),
                                  "buying_rate": str(u["buying_rate"])} for u in item.uom_options()},
-    })
+    }
+    kind = request.GET.get("kind")
+    if kind in ("selling", "buying"):
+        data["priced"] = _priced(request, item, kind)
+    return JsonResponse(data)
+
+
+def _priced(request, item, kind):
+    """سعر السطر بقائمة الأسعار وقواعد التسعير للطرف والكمية والتاريخ (كما سيحسبه الخادم عند الحفظ)."""
+    from django.utils.dateparse import parse_date
+
+    from buying.models import Supplier
+    from pricing.engine import price_line, resolve_price_list
+    from pricing.models import PriceList
+    from selling.models import Customer
+
+    def pick(model, key):
+        value = request.GET.get(key, "")
+        return model.objects.filter(pk=value).first() if value.isdigit() else None
+
+    party = pick(Customer, "customer") if kind == "selling" else pick(Supplier, "supplier")
+    price_list = resolve_price_list(kind, party, pick(PriceList, "price_list"))
+    uom = request.GET.get("uom", "")
+    try:
+        qty = flt(request.GET.get("qty") or 1, 3)
+        result = price_line(item, qty, int(uom) if uom.isdigit() else None, kind, party, price_list,
+                            parse_date(request.GET.get("date") or "") or timezone.localdate(),
+                            request.GET.get("coupon", ""), "backoffice",
+                            ignore_rules=request.GET.get("ignore_rules") in ("1", "true", "on"))
+    except (ValidationError, ArithmeticError, ValueError):
+        return None
+    return {"rate": str(result["rate"]), "price_list_rate": str(result["price_list_rate"]),
+            "discount_percentage": str(result["discount_percentage"]),
+            "rule": result["rule"].name if result["rule"] else "",
+            "free_item": result["gift_rule"].free_item.name if result["gift_rule"] else "",
+            "free_qty": str(result["free_qty"])}
 
 
 

@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from core.models import Company, Membership, Role
-from core.tenancy import _current_user, reset_current_company, set_current_company, set_current_user
+from core.tenancy import _current_ip, _current_user, reset_current_company, set_current_company, set_current_user
 
 SESSION_KEY = "company_id"
 
@@ -43,12 +43,14 @@ class TenantMiddleware:
         request.membership, request.company = membership, membership.company
         token = set_current_company(membership.company)
         user_token = set_current_user(request.user)
+        ip_token = _current_ip.set(request.META.get("REMOTE_ADDR", "")[:45])
         try:
             blocked = self._check_access(request, path)
             return blocked or self.get_response(request)
         finally:
             reset_current_company(token)
             _current_user.reset(user_token)
+            _current_ip.reset(ip_token)
 
     def _resolve_membership(self, request):
         user = request.user

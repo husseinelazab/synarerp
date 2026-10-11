@@ -233,6 +233,17 @@ def doc_detail(request, slug, pk):
         context["gl_totals"] = {"debit": debit, "credit": credit, "balanced": debit == credit}
     if hasattr(obj, "payments"):
         context["payments"] = obj.payments.all()
+    membership = getattr(request, "membership", None)
+    if membership is not None and membership.can_manage:
+        from django.db.models import Q
+
+        from core.models import AuditLog
+
+        label = obj._meta.label_lower
+        context["audit_entries"] = (AuditLog.objects.filter(company=request.company)
+                                    .filter(Q(model_label=label, object_id=str(obj.pk)) |
+                                            Q(parent_label=label, parent_id=str(obj.pk)))
+                                    .select_related("user")[:100])
     if slug in ("customer", "sales-invoice"):
         from messaging.models import MessagingSettings
 
@@ -510,3 +521,38 @@ def api_docs(request):
     schemas = sorted((doctype_schema(dt) for dt in REGISTRY.values()), key=lambda s: (s["module"], s["slug"]))
     return render(request, "settings/api_docs.html", {"schemas": schemas,
                                                       "base_url": request.build_absolute_uri("/api/v1/")})
+
+
+@login_required
+def audit_log(request):
+    """سجل التعديلات للشركة (للمدير): من غيّر ماذا ومتى."""
+    from django.contrib.auth.models import User
+    from django.core.paginator import Paginator
+
+    from core.models import AuditAction, AuditLog
+
+    entries = AuditLog.objects.filter(company=request.company).select_related("user")
+    selected = {k: request.GET.get(k, "") for k in ("user", "action", "model", "q", "from_date", "to_date")}
+    if selected["user"]:
+        entries = entries.filter(user_id=selected["user"])
+    if selected["action"]:
+        entries = entries.filter(action=selected["action"])
+    if selected["model"]:
+        entries = entries.filter(model_label=selected["model"])
+    if selected["q"]:
+        entries = entries.filter(object_repr__icontains=selected["q"])
+    if selected["from_date"]:
+        entries = entries.filter(created_at__date__gte=selected["from_date"])
+    if selected["to_date"]:
+        entries = entries.filter(created_at__date__lte=selected["to_date"])
+    models_used = (AuditLog.objects.filter(company=request.company).values_list("model_label", "model_name")
+                   .distinct().order_by("model_name"))
+    users = User.objects.filter(memberships__company=request.company).distinct().order_by("username")
+    page = Paginator(entries, 50).get_page(request.GET.get("page"))
+    query = request.GET.copy()
+    query.pop("page", None)
+    return render(request, "core/audit_log.html", {
+        "page": page, "selected": selected, "actions": AuditAction.choices, "models_used": sorted(set(models_used),
+                                                                                                key=lambda m: m[1]),
+        "users": users, "query": query.urlencode(),
+    })

@@ -13,6 +13,13 @@ _current_company = contextvars.ContextVar("current_company", default=None)
 _current_user = contextvars.ContextVar("current_user", default=None)
 
 
+_current_ip = contextvars.ContextVar("current_ip", default="")
+
+
+def get_current_ip():
+    return _current_ip.get()
+
+
 def get_current_user():
     """المستخدم صاحب الطلب الحالي (لسجلات التدقيق مثل سجل تغيّر الأسعار)."""
     return _current_user.get()

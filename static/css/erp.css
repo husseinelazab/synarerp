@@ -317,3 +317,9 @@ tr.row-low td { background: #fff8e8; }
 .margin-bar { display: inline-block; width: 50px; height: 6px; background: #e3e8ee; border-radius: 3px; margin-inline-end: 6px; vertical-align: middle; overflow: hidden; }
 .margin-bar i { display: block; height: 100%; max-width: 100%; background: var(--success); }
 .msg-actions { display: inline-flex; gap: 6px; } .msg-actions form { display: inline; }
+.audit-card summary { cursor: pointer; }
+.badge.audit-create { background: #d8f0df; color: var(--success); }
+.badge.audit-update { background: var(--primary-light); color: var(--primary); }
+.badge.audit-delete, .badge.audit-cancel { background: #fdecec; color: var(--danger); }
+.badge.audit-submit { background: var(--success); color: #fff; }
+.nowrap { white-space: nowrap; }

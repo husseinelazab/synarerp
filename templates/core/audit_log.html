@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}سجل التعديلات{% endblock %}
+{% block heading %}سجل التعديلات{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>المستخدم <select name="user" class="form-select"><option value="">الكل</option>{% for u in users %}<option value="{{ u.pk }}" {% if selected.user == u.pk|stringformat:"s" %}selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
+  <label>الإجراء <select name="action" class="form-select"><option value="">الكل</option>{% for k, v in actions %}<option value="{{ k }}" {% if selected.action == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <label>النوع <select name="model" class="form-select"><option value="">الكل</option>{% for k, v in models_used %}<option value="{{ k }}" {% if selected.model == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <label>بحث <input name="q" value="{{ selected.q }}" class="form-control" placeholder="رقم المستند أو الاسم"></label>
+  <label>من <input type="date" name="from_date" value="{{ selected.from_date }}" class="form-control"></label>
+  <label>إلى <input type="date" name="to_date" value="{{ selected.to_date }}" class="form-control"></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="card"><div class="table-wrap">
+<table class="table">
+  <thead><tr><th>الوقت</th><th>المستخدم</th><th>الإجراء</th><th>السجل</th><th>التغييرات</th><th>IP</th></tr></thead>
+  <tbody>{% include "core/_audit_rows.html" with entries=page.object_list show_object=True %}</tbody>
+</table></div>
+{% if page.has_other_pages %}<div class="pagination">{% if page.has_previous %}<a class="btn btn-sm" href="?{{ query }}&page={{ page.previous_page_number }}">السابق</a>{% endif %}
+  <span class="muted">صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-sm" href="?{{ query }}&page={{ page.next_page_number }}">التالي</a>{% endif %}</div>{% endif %}
+<p class="muted small">يُسجَّل تلقائياً كل إنشاء وتعديل (بالقيم قبل وبعد) وحذف واعتماد وإلغاء. الحقول المحسوبة كالإجماليات والقيود الآلية لا تُسجَّل لأنها ناتجة عن المستندات المسجلة، وكلمات المرور والرموز مخفية.</p>
+</div>
+{% endblock %}

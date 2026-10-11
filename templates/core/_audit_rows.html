@@ -1,0 +1,17 @@
+{% for e in entries %}
+<tr>
+  <td class="nowrap">{{ e.created_at|date:"Y-m-d H:i" }}</td>
+  <td>{{ e.user|default:"النظام" }}</td>
+  <td><span class="badge audit-{{ e.action }}">{{ e.get_action_display }}</span></td>
+  {% if show_object %}<td>{{ e.model_name }}<div class="small">{{ e.object_repr }}</div></td>{% elif e.parent_id %}<td class="small">{{ e.model_name }}: {{ e.object_repr }}</td>{% else %}<td></td>{% endif %}
+  <td class="small">
+    {% if e.action == "update" or e.action == "delete" %}
+      {% for field, change in e.changes.items %}
+        <div><b>{{ field }}</b>: {% if e.action == "update" %}<span class="neg"><s>{{ change.0|default:"—" }}</s></span> ← <span class="pos">{{ change.1|default:"—" }}</span>{% else %}{{ change }}{% endif %}</div>
+      {% endfor %}
+    {% endif %}
+  </td>
+  <td class="small muted" dir="ltr">{{ e.ip }}</td>
+</tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا توجد تعديلات مسجلة</td></tr>
+{% endfor %}

@@ -592,3 +592,38 @@ class PrintSettings(models.Model):
     def for_company(cls, company):
         obj = cls.objects.filter(company=company).first()
         return obj or cls(company=company)
+
+
+class AuditAction(models.TextChoices):
+    CREATE = "create", "إنشاء"
+    UPDATE = "update", "تعديل"
+    DELETE = "delete", "حذف"
+    SUBMIT = "submit", "اعتماد"
+    CANCEL = "cancel", "إلغاء"
+
+
+class AuditLog(models.Model):
+    """سجل التعديلات: من فعل ماذا ومتى على أي سجل، مع القيم قبل التعديل وبعده."""
+
+    company = models.ForeignKey(Company, models.CASCADE, null=True, related_name="+", verbose_name="الشركة")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True, related_name="+",
+                             verbose_name="المستخدم")
+    action = models.CharField("الإجراء", max_length=10, choices=AuditAction.choices)
+    model_label = models.CharField("النوع", max_length=80, db_index=True)
+    model_name = models.CharField("نوع السجل", max_length=100)
+    object_id = models.CharField("المعرّف", max_length=40, db_index=True)
+    object_repr = models.CharField("السجل", max_length=200)
+    parent_label = models.CharField(max_length=80, blank=True, db_index=True)
+    parent_id = models.CharField(max_length=40, blank=True, db_index=True)
+    changes = models.JSONField("التغييرات", default=dict, blank=True)
+    ip = models.CharField("عنوان IP", max_length=45, blank=True)
+    created_at = models.DateTimeField("الوقت", auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "سجل تعديل"
+        verbose_name_plural = "سجل التعديلات"
+        ordering = ["-id"]
+        indexes = [models.Index(fields=["company", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.get_action_display()} {self.model_name} {self.object_repr}"

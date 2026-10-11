@@ -11,3 +11,4 @@ class CoreConfig(AppConfig):
 
         for app in ("core", "accounts", "stock", "selling", "buying", "hr", "pos", "assets", "manufacturing"):
             import_module(f"{app}.doctypes")
+        from core import audit  # noqa: F401 — تفعيل سجل التعديلات

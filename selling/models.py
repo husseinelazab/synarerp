@@ -194,6 +194,8 @@ class SalesInvoice(InvoiceDocument):
     quotation = models.ForeignKey(Quotation, models.PROTECT, null=True, blank=True, related_name="invoices",
                                   editable=False, verbose_name="عرض السعر")
     share_token = models.CharField("رمز رابط المشاركة", max_length=40, blank=True, db_index=True, editable=False)
+    recurring = models.ForeignKey("RecurringInvoice", models.SET_NULL, null=True, blank=True, related_name="+",
+                                  editable=False, verbose_name="الفاتورة المتكررة")
 
     # حقول نقاط البيع
     is_pos = models.BooleanField("فاتورة نقطة بيع", default=False, editable=False)
@@ -462,3 +464,130 @@ class DeliveryNoteItem(FulfillmentItem):
         verbose_name = "بند إذن تسليم"
         verbose_name_plural = "الأصناف"
         ordering = ["id"]
+
+
+class RecurrenceFrequency(models.TextChoices):
+    WEEKLY = "weekly", "أسبوعياً"
+    MONTHLY = "monthly", "شهرياً"
+    QUARTERLY = "quarterly", "كل 3 أشهر"
+    SEMIANNUAL = "semiannual", "كل 6 أشهر"
+    YEARLY = "yearly", "سنوياً"
+
+
+FREQUENCY_MONTHS = {RecurrenceFrequency.MONTHLY: 1, RecurrenceFrequency.QUARTERLY: 3,
+                    RecurrenceFrequency.SEMIANNUAL: 6, RecurrenceFrequency.YEARLY: 12}
+
+
+def add_period(date, frequency, count=1):
+    """تاريخ الدورة التالية؛ اليوم 31 يصبح آخر يوم في الأشهر الأقصر."""
+    import calendar
+    import datetime
+
+    if frequency == RecurrenceFrequency.WEEKLY:
+        return date + datetime.timedelta(weeks=count)
+    months = date.month - 1 + FREQUENCY_MONTHS[frequency] * count
+    year, month = date.year + months // 12, months % 12 + 1
+    return datetime.date(year, month, min(date.day, calendar.monthrange(year, month)[1]))
+
+
+class RecurringInvoice(TenantModel):
+    """فاتورة متكررة (إيجار، عقد صيانة، اشتراك): تُنسخ من فاتورة نموذجية في كل دورة تلقائياً."""
+
+    name = models.CharField("اسم العقد / الاشتراك", max_length=150)
+    template_invoice = models.ForeignKey(SalesInvoice, models.PROTECT, related_name="+", verbose_name="الفاتورة النموذجية",
+                                         limit_choices_to={"is_return": False, "is_debit_note": False},
+                                         help_text="يُنسخ منها العميل والأصناف والأسعار والضريبة والخصم في كل دورة")
+    frequency = models.CharField("التكرار", max_length=12, choices=RecurrenceFrequency.choices,
+                                 default=RecurrenceFrequency.MONTHLY)
+    start_date = models.DateField("تاريخ أول فاتورة")
+    end_date = models.DateField("تاريخ الانتهاء", null=True, blank=True, help_text="فارغ = مستمر حتى الإيقاف")
+    next_date = models.DateField("تاريخ الفاتورة القادمة", null=True, blank=True, editable=False)
+    due_days = models.PositiveSmallIntegerField("أيام السداد", default=0,
+                                                help_text="تاريخ الاستحقاق = تاريخ الفاتورة + هذه الأيام (0 = بلا تاريخ استحقاق)")
+    auto_submit = models.BooleanField("اعتماد الفاتورة تلقائياً", default=True,
+                                      help_text="وإلا تُنشأ مسودة للمراجعة ويصل تنبيه")
+    enabled = models.BooleanField("مفعّل", default=True)
+    generated_count = models.PositiveIntegerField("عدد الفواتير المنشأة", default=0, editable=False)
+    last_invoice = models.ForeignKey(SalesInvoice, models.SET_NULL, null=True, blank=True, related_name="+",
+                                     editable=False, verbose_name="آخر فاتورة")
+    last_error = models.CharField("آخر خطأ", max_length=255, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "فاتورة متكررة"
+        verbose_name_plural = "الفواتير المتكررة"
+        ordering = ["next_date", "name"]
+        constraints = [tenant_unique("name", model_label="recurringinvoice")]
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("doc_detail", args=["recurring-invoice", self.pk])
+
+    def clean(self):
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError({"end_date": "تاريخ الانتهاء قبل تاريخ البداية."})
+        if self.template_invoice_id and self.template_invoice.is_draft and self.template_invoice.items.count() == 0:
+            raise ValidationError({"template_invoice": "الفاتورة النموذجية بلا أصناف."})
+
+    def save(self, *args, **kwargs):
+        if self.next_date is None or (self.generated_count == 0 and self.start_date):
+            self.next_date = self.start_date
+        super().save(*args, **kwargs)
+
+    @property
+    def is_finished(self):
+        return bool(self.end_date and self.next_date and self.next_date > self.end_date)
+
+    def invoices(self):
+        return SalesInvoice.objects.filter(recurring=self).order_by("-posting_date", "-id")
+
+    def make_invoice(self, date, user=None):
+        """نسخ الفاتورة النموذجية بتاريخ الدورة واعتمادها إن طُلب."""
+        import datetime
+
+        from core.registry import get_doctype
+
+        dt = get_doctype("sales-invoice")
+        template = self.template_invoice
+        skip = {"posting_date", "due_date", "exchange_rate", "remarks"}
+        values = {f: getattr(template, f) for f in dt.form_fields if f not in skip}
+        invoice = SalesInvoice(company=self.company, posting_date=date, recurring=self, created_by=user,
+                               due_date=date + datetime.timedelta(days=self.due_days) if self.due_days else None,
+                               remarks=f"{self.name} — {date:%Y-%m-%d}", **values)
+        invoice.save()
+        for row in template.items.all():
+            invoice.items.create(**{f: getattr(row, f) for f in dt.child.fields})
+        invoice.calculate_totals()
+        invoice.save()
+        if self.auto_submit:
+            invoice.submit()
+        return invoice
+
+    def generate_due(self, today, user=None):
+        """ينشئ كل الفواتير المستحقة حتى اليوم (مع اللحاق بالدورات الفائتة). يعيد الفواتير المنشأة."""
+        from django.db import transaction
+
+        created = []
+        while self.enabled and self.next_date and self.next_date <= today and not self.is_finished:
+            date = self.next_date
+            try:
+                with transaction.atomic():
+                    invoice = self.make_invoice(date, user)
+            except ValidationError as exc:
+                # الاعتماد فشل (حد ائتماني، سنة مالية…): تبقى مسودة للمراجعة دون إيقاف الدورات
+                self.last_error = " ".join(exc.messages)[:255]
+                with transaction.atomic():
+                    auto, self.auto_submit = self.auto_submit, False
+                    invoice = self.make_invoice(date, user)
+                    self.auto_submit = auto
+            else:
+                self.last_error = ""
+            created.append(invoice)
+            self.last_invoice = invoice
+            self.generated_count += 1
+            self.next_date = add_period(self.start_date, self.frequency, self.generated_count)
+            self.save(update_fields=["last_invoice", "generated_count", "next_date", "last_error"])
+        return created

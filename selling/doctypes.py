@@ -1,5 +1,5 @@
 from core.registry import ChildTable, DocType, register
-from selling.models import (Customer, DeliveryNote, DeliveryNoteItem, Quotation, QuotationItem, SalesInvoice,
+from selling.models import (Customer, DeliveryNote, DeliveryNoteItem, Quotation, QuotationItem, RecurringInvoice, SalesInvoice,
                             SalesInvoiceItem, SalesOrder, SalesOrderItem)
 
 register(DocType(
@@ -42,4 +42,11 @@ register(DocType(
     search_fields=["name", "customer__name"],
     child=ChildTable(DeliveryNoteItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
     totals=["total_amount"],
+))
+register(DocType(
+    slug="recurring-invoice", model=RecurringInvoice, module="selling",
+    list_fields=["name", "template_invoice", "frequency", "next_date", "generated_count", "enabled"],
+    form_fields=["name", "template_invoice", "frequency", "start_date", "end_date", "due_days", "auto_submit", "enabled"],
+    search_fields=["name", "template_invoice__customer__name"],
+    detail_template="selling/_recurring_detail.html",
 ))

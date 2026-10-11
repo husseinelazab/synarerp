@@ -40,7 +40,8 @@ def build_menu(request):
     modules = [
         {"key": "selling", "label": "المبيعات", "sections": [
             {"items": [doc("عروض الأسعار", "quotation"), doc("أوامر البيع", "sales-order"), doc("أذون التسليم", "delivery-note"),
-                       doc("فواتير المبيعات", "sales-invoice"), doc("العملاء", "customer"),
+                       doc("فواتير المبيعات", "sales-invoice"), doc("الفواتير المتكررة", "recurring-invoice"),
+                       doc("العملاء", "customer"),
                        _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive")]},
             {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
                                           _item("أعمار ديون العملاء", "aging_report", "customer"),

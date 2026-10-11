@@ -64,6 +64,8 @@ def portal_home(request, employee):
         "loans": EmployeeLoan.objects.filter(employee=employee)[:10],
         "payslips": payslips, "today": today,
         "appraisals": employee.appraisals.filter(docstatus=DocStatus.SUBMITTED).select_related("template")[:5],
+        # الأهداف الجارية (مسودة تُتابع خلال الفترة) والمعتمدة
+        "kpi_sheets": employee.kpi_sheets.exclude(docstatus=DocStatus.CANCELLED).prefetch_related("lines")[:4],
     })
 
 

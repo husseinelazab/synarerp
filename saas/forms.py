@@ -106,14 +106,19 @@ class MemberRoleForm(forms.Form):
         label="الفروع / مراكز التكلفة المسموحة", required=False, queryset=None,
         widget=forms.CheckboxSelectMultiple,
         help_text="يرى المستخدم مستندات هذه الفروع فقط ويُنشئ عليها. لا تحدد شيئاً للسماح بكل الفروع.")
+    employee = forms.ModelChoiceField(
+        label="الموظف المرتبط", required=False, queryset=None, empty_label="— لا يوجد —",
+        help_text="فواتير المبيعات التي يُنشئها المستخدم (ومنها نقطة البيع) تُحسب في أهداف أداء هذا الموظف.")
 
     def __init__(self, *args, **kwargs):
         from accounts.models import CostCenter
         from core.permissions import PERMISSION_MODULES
+        from hr.models import Employee
 
         super().__init__(*args, **kwargs)
         self.fields["modules"].choices = PERMISSION_MODULES
         self.fields["cost_centers"].queryset = CostCenter.objects.filter(is_group=False, disabled=False)
+        self.fields["employee"].queryset = Employee.objects.all()
         style_form(self)
         for name in ("modules", "cost_centers"):
             self.fields[name].widget.attrs.pop("class", None)

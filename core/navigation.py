@@ -120,7 +120,8 @@ def build_menu(request):
                                                 + ([_item("أجهزة البصمة", "attendance_devices")] if membership.can_manage else [])},
         {"title": "الإجازات", "items": [doc("طلبات الإجازات", "leave-application"), _item("أرصدة الإجازات", "leave_balances"),
                                         doc("أنواع الإجازات", "leave-type")]},
-        {"title": "الأداء", "items": [doc("تقييمات الأداء", "appraisal"), doc("نماذج التقييم", "appraisal-template")]},
+        {"title": "الأداء", "items": [doc("أهداف الأداء (KPIs)", "kpi-sheet"), doc("تقييمات الأداء", "appraisal"),
+                                       doc("نماذج التقييم", "appraisal-template")]},
         {"title": "تقارير", "items": [_item("مخصص نهاية الخدمة", "eos_provision")]},
         {"title": "الإعداد", "items": ([_item("إعدادات الرواتب والتأمينات", "payroll_settings")] if membership.can_manage else [])
          + [doc("ورديات العمل", "work-shift"), doc("جدول الورديات", "shift-assignment"), doc("العطل الرسمية", "holiday"),

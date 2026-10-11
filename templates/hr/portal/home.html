@@ -43,6 +43,19 @@
     </tbody>
   </table>
 </div>
+{% if kpi_sheets %}
+<div class="card">
+  <h3>أهدافي (مؤشرات الأداء)</h3>
+  {% for sheet in kpi_sheets %}
+  <p><strong>{{ sheet.period_from|date:"Y-m-d" }} ← {{ sheet.period_to|date:"Y-m-d" }}</strong> —
+    {% if sheet.is_submitted %}النتيجة المعتمدة {{ sheet.achievement_percent|unlocalize }}% ({{ sheet.rating }}){% else %}قيد المتابعة: التحقيق حتى الآن {{ sheet.achievement_percent|unlocalize }}%{% endif %}</p>
+  <table class="table">
+    <thead><tr><th>المؤشر</th><th class="num">المستهدف</th><th class="num">الفعلي</th><th class="num">الوزن</th><th class="num">التحقيق</th></tr></thead>
+    <tbody>{% for k in sheet.lines.all %}<tr><td>{{ k.kpi }} <span class="muted small">({{ k.get_direction_display }})</span></td><td class="num">{{ k.target|money }}</td><td class="num">{{ k.actual|money|default:"—" }}</td><td class="num">{{ k.weight }}%</td><td class="num"><strong>{{ k.achievement|unlocalize }}%</strong></td></tr>{% endfor %}</tbody>
+  </table>
+  {% endfor %}
+</div>
+{% endif %}
 {% if appraisals %}
 <div class="card">
   <h3>تقييمات أدائي</h3>

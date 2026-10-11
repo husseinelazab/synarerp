@@ -136,7 +136,7 @@ def user_edit(request, pk):
         return redirect("users_list")
     form = MemberRoleForm(request.POST or None, initial={
         "role": member.role, "modules": member.modules, "can_submit": member.can_submit,
-        "cost_centers": list(member.cost_centers.all())})
+        "cost_centers": list(member.cost_centers.all()), "employee": member.employee_id})
     if request.method == "POST":
         action = request.POST.get("action")
         if action in ("deactivate", "activate"):
@@ -153,7 +153,8 @@ def user_edit(request, pk):
         if form.is_valid():
             data = form.cleaned_data
             member.role, member.modules, member.can_submit = data["role"], data["modules"], data["can_submit"]
-            member.save(update_fields=["role", "modules", "can_submit"])
+            member.employee = data["employee"]
+            member.save(update_fields=["role", "modules", "can_submit", "employee"])
             member.cost_centers.set(data["cost_centers"])
             messages.success(request, "تم تحديث دور المستخدم وصلاحياته.")
             return redirect("users_list")

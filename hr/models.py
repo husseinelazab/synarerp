@@ -1449,6 +1449,12 @@ class Appraisal(SubmittableDocument):
     period_to = models.DateField("الفترة إلى")
     strengths = models.TextField("نقاط القوة", blank=True)
     improvements = models.TextField("فرص التحسين والأهداف القادمة", blank=True)
+    kpi_weight = models.PositiveSmallIntegerField(
+        "وزن تحقيق الأهداف (KPIs) %", default=0,
+        help_text="نسبة النتيجة المأخوذة من أهداف الأداء المعتمدة للموظف في الفترة (0 = المعايير فقط)")
+    kpi_sheet = models.ForeignKey("KPISheet", models.PROTECT, null=True, blank=True, related_name="appraisals",
+                                  verbose_name="أهداف الأداء", help_text="يُترك فارغاً لاختيار آخر أهداف معتمدة في الفترة")
+    criteria_percent = models.DecimalField("نتيجة المعايير %", max_digits=5, decimal_places=1, default=0, editable=False)
     score_percent = models.DecimalField("النتيجة %", max_digits=5, decimal_places=1, default=0, editable=False)
     rating = models.CharField("التقدير", max_length=20, blank=True, editable=False)
 
@@ -1459,20 +1465,37 @@ class Appraisal(SubmittableDocument):
     def clean(self):
         if self.period_from and self.period_to and self.period_to < self.period_from:
             raise ValidationError({"period_to": "نهاية الفترة يجب أن تكون بعد بدايتها."})
+        if self.kpi_weight > 100:
+            raise ValidationError({"kpi_weight": "الوزن من 0 إلى 100."})
+        if self.kpi_sheet_id and self.employee_id and self.kpi_sheet.employee_id != self.employee_id:
+            raise ValidationError({"kpi_sheet": "أهداف الأداء المختارة لموظف آخر."})
+
+    def find_kpi_sheet(self):
+        return KPISheet.objects.filter(employee=self.employee, docstatus=DocStatus.SUBMITTED,
+                                       period_to__gte=self.period_from, period_from__lte=self.period_to,
+                                       ).order_by("-period_to", "-id").first()
 
     def calculate_totals(self):
         if not self.pk:
             return
+        if self.is_draft and self.kpi_weight and not self.kpi_sheet_id:
+            self.kpi_sheet = self.find_kpi_sheet()
         if self.is_draft and not self.scores.exists() and self.template_id:
             AppraisalScore.objects.bulk_create([
                 AppraisalScore(parent=self, criterion=c.name, weight=c.weight) for c in self.template.criteria.all()])
         scores = [s for s in self.scores.all() if s.score]
         weights = sum(s.weight for s in scores)
         if weights:
-            self.score_percent = (Decimal(sum(s.weight * s.score for s in scores)) / weights / 5 * 100).quantize(
+            self.criteria_percent = (Decimal(sum(s.weight * s.score for s in scores)) / weights / 5 * 100).quantize(
                 Decimal("0.1"))
         else:
-            self.score_percent = Decimal(0)
+            self.criteria_percent = Decimal(0)
+        self.score_percent = self.criteria_percent
+        if self.kpi_weight and self.kpi_sheet_id:
+            # تحقيق الأهداف يُحتسب حتى 100% في التقييم
+            kpi = min(self.kpi_sheet.achievement_percent, Decimal(100))
+            self.score_percent = ((self.criteria_percent * (100 - self.kpi_weight) + kpi * self.kpi_weight) / 100
+                                  ).quantize(Decimal("0.1"))
         self.rating = next(label for limit, label in RATINGS if self.score_percent >= limit) if weights else ""
 
     def validate_for_submit(self):
@@ -1485,6 +1508,11 @@ class Appraisal(SubmittableDocument):
             raise ValidationError("أدخل درجة لكل معيار: " + "، ".join(missing))
         if sum(s.weight for s in scores) != 100:
             raise ValidationError(f"مجموع أوزان المعايير يجب أن يساوي 100 (الحالي {sum(s.weight for s in scores)}).")
+        if self.kpi_weight:
+            if not self.kpi_sheet_id:
+                raise ValidationError("لا توجد أهداف أداء معتمدة للموظف في هذه الفترة؛ اعتمدها أو اجعل وزنها صفراً.")
+            if not self.kpi_sheet.is_submitted:
+                raise ValidationError("أهداف الأداء المختارة غير معتمدة.")
 
     def on_submit(self):
         from core.notify import notify
@@ -1505,6 +1533,159 @@ class AppraisalScore(models.Model):
     class Meta:
         verbose_name = "درجة معيار"
         verbose_name_plural = "درجات المعايير"
+        ordering = ["id"]
+
+
+# ───────────────────────────── أهداف الأداء (KPIs) ─────────────────────────────
+
+class KPIMeasure(models.TextChoices):
+    MANUAL = "manual", "يدوي (يُدخل الفعلي)"
+    SALES_AMOUNT = "sales_amount", "صافي المبيعات قبل الضريبة"
+    SALES_COUNT = "sales_count", "عدد فواتير المبيعات"
+    ATTENDANCE_RATE = "attendance_rate", "نسبة الحضور %"
+    LATE_MINUTES = "late_minutes", "دقائق التأخير"
+    ABSENT_DAYS = "absent_days", "أيام الغياب"
+
+
+class KPIDirection(models.TextChoices):
+    HIGHER = "higher", "الأعلى أفضل"
+    LOWER = "lower", "الأقل أفضل"
+
+
+LOWER_IS_BETTER = {KPIMeasure.LATE_MINUTES, KPIMeasure.ABSENT_DAYS}
+KPI_CAP = Decimal(120)  # أقصى تحقيق يُحتسب للمؤشر الواحد حتى لا يغطي تفوقٌ في مؤشر تقصيراً في غيره
+
+
+def kpi_achievement(target, actual, direction):
+    """نسبة تحقيق المؤشر: الفعلي ÷ المستهدف للأعلى أفضل، والمستهدف ÷ الفعلي للأقل أفضل، بحد أقصى KPI_CAP."""
+    target, actual = Decimal(target or 0), Decimal(actual or 0)
+    if direction == KPIDirection.LOWER:
+        if actual <= 0:
+            value = KPI_CAP if target > 0 else Decimal(100)
+        else:
+            value = target / actual * 100
+    else:
+        value = actual / target * 100 if target > 0 else Decimal(0)
+    return min(max(value, Decimal(0)), KPI_CAP).quantize(Decimal("0.1"))
+
+
+def employee_sales_users(employee):
+    """مستخدمو النظام المرتبطون بالموظف، فتُحسب له فواتير المبيعات التي أنشؤوها (ومنها فواتير نقطة البيع)."""
+    from core.models import Membership
+
+    ids = set(Membership.objects.filter(company=employee.company, employee=employee).values_list("user_id", flat=True))
+    if employee.user_id:
+        ids.add(employee.user_id)
+    return ids
+
+
+def measure_kpi(employee, measure, date_from, date_to):
+    """القيمة الفعلية لمؤشر آلي من بيانات النظام خلال الفترة."""
+    from selling.models import SalesInvoice
+
+    if measure in (KPIMeasure.SALES_AMOUNT, KPIMeasure.SALES_COUNT):
+        invoices = SalesInvoice.objects.filter(company=employee.company, docstatus=DocStatus.SUBMITTED,
+                                               created_by_id__in=employee_sales_users(employee),
+                                               posting_date__gte=date_from, posting_date__lte=date_to)
+        if measure == KPIMeasure.SALES_COUNT:
+            return Decimal(invoices.filter(is_return=False).count())
+        return Decimal(invoices.aggregate(v=models.Sum("base_net_total"))["v"] or 0)
+    records = Attendance.objects.filter(employee=employee, attendance_date__gte=date_from, attendance_date__lte=date_to)
+    if measure == KPIMeasure.LATE_MINUTES:
+        return Decimal(records.aggregate(v=models.Sum("late_minutes"))["v"] or 0)
+    if measure == KPIMeasure.ABSENT_DAYS:
+        return Decimal(records.filter(status=AttendanceStatus.ABSENT).count())
+    if measure == KPIMeasure.ATTENDANCE_RATE:
+        total = records.count()
+        if not total:
+            return Decimal(0)
+        present = records.filter(status=AttendanceStatus.PRESENT).count() \
+            + Decimal("0.5") * records.filter(status=AttendanceStatus.HALF_DAY).count()
+        return (Decimal(present) / total * 100).quantize(Decimal("0.1"))
+    return None
+
+
+class KPISheet(SubmittableDocument):
+    """أهداف أداء قابلة للقياس لموظف عن فترة: لكل مؤشر مستهدف ووزن، والفعلي يُحسب آلياً من النظام أو يُدخل يدوياً."""
+
+    naming_prefix = "KPI"
+    posts_to_ledger = False
+    posting_note = ("المسودة تُتابَع خلال الفترة ويُحدَّث الفعلي مع كل حفظ؛ الاعتماد في نهاية الفترة يثبّت النتيجة "
+                    "ويُظهرها للموظف في بوابته، ويمكن إدراجها في تقييم الأداء.")
+
+    employee = models.ForeignKey(Employee, models.PROTECT, related_name="kpi_sheets", verbose_name="الموظف")
+    period_from = models.DateField("الفترة من")
+    period_to = models.DateField("الفترة إلى")
+    achievement_percent = models.DecimalField("نسبة تحقيق الأهداف %", max_digits=6, decimal_places=1, default=0,
+                                              editable=False)
+    rating = models.CharField("التقدير", max_length=20, blank=True, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "أهداف أداء (KPIs)"
+        verbose_name_plural = "أهداف الأداء (KPIs)"
+
+    def __str__(self):
+        return f"{self.name} - {self.employee}"
+
+    def clean(self):
+        if self.period_from and self.period_to and self.period_to < self.period_from:
+            raise ValidationError({"period_to": "نهاية الفترة يجب أن تكون بعد بدايتها."})
+
+    def calculate_totals(self):
+        if not self.pk:
+            return
+        lines = list(self.lines.all())
+        total = Decimal(0)
+        for line in lines:
+            if self.is_draft:
+                if line.measure in LOWER_IS_BETTER:
+                    line.direction = KPIDirection.LOWER
+                if line.measure != KPIMeasure.MANUAL:
+                    line.actual = measure_kpi(self.employee, line.measure, self.period_from, self.period_to)
+                line.achievement = kpi_achievement(line.target, line.actual, line.direction) \
+                    if line.actual is not None else Decimal(0)
+                line.save(update_fields=["direction", "actual", "achievement"])
+            total += Decimal(line.weight) * line.achievement / 100
+        self.achievement_percent = total.quantize(Decimal("0.1"))
+        self.rating = next(label for limit, label in RATINGS if self.achievement_percent >= limit) if lines else ""
+
+    def validate_for_submit(self):
+        self.clean()
+        lines = list(self.lines.all())
+        if not lines:
+            raise ValidationError("أضف مؤشراً واحداً على الأقل.")
+        if sum(line.weight for line in lines) != 100:
+            raise ValidationError(f"مجموع أوزان المؤشرات يجب أن يساوي 100 (الحالي {sum(line.weight for line in lines)}).")
+        for line in lines:
+            if line.target is None or line.target < 0 or (line.target == 0 and line.direction == KPIDirection.HIGHER):
+                raise ValidationError(f"المؤشر «{line.kpi}»: أدخل قيمة مستهدفة صحيحة.")
+            if line.actual is None:
+                raise ValidationError(f"المؤشر «{line.kpi}»: أدخل القيمة الفعلية.")
+
+    def on_submit(self):
+        from core.notify import notify
+
+        if self.employee.user_id:
+            notify(self.company, [self.employee.user],
+                   f"اعتُمدت نتيجة أهدافك ({self.achievement_percent:f}% — {self.rating})", reverse("portal_home"))
+
+
+class KPILine(models.Model):
+    parent = models.ForeignKey(KPISheet, models.CASCADE, related_name="lines")
+    kpi = models.CharField("المؤشر", max_length=150)
+    measure = models.CharField("طريقة القياس", max_length=20, choices=KPIMeasure.choices, default=KPIMeasure.MANUAL)
+    direction = models.CharField("الاتجاه", max_length=10, choices=KPIDirection.choices, default=KPIDirection.HIGHER,
+                                 help_text="التأخير والغياب «الأقل أفضل» دائماً")
+    target = models.DecimalField("المستهدف", max_digits=18, decimal_places=2)
+    weight = models.PositiveSmallIntegerField("الوزن %", default=25)
+    actual = models.DecimalField("الفعلي", max_digits=18, decimal_places=2, null=True, blank=True,
+                                 help_text="للمؤشرات اليدوية فقط؛ الآلية تُحسب من النظام")
+    achievement = models.DecimalField("نسبة التحقيق %", max_digits=6, decimal_places=1, default=0, editable=False)
+    notes = models.CharField("ملاحظة", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "مؤشر أداء"
+        verbose_name_plural = "المؤشرات"
         ordering = ["id"]
 
 

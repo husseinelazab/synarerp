@@ -38,6 +38,12 @@ class CashFlowCategory(models.TextChoices):
     FINANCING = "financing", "أنشطة تمويلية"
 
 
+class ZakatTreatment(models.TextChoices):
+    ADD = "add", "يُضاف للوعاء"
+    DEDUCT = "deduct", "يُحسم من الوعاء"
+    IGNORE = "ignore", "لا يدخل في الوعاء"
+
+
 class Account(TenantModel):
     number = models.CharField("رقم الحساب", max_length=20, blank=True)
     name = models.CharField("اسم الحساب", max_length=150)
@@ -53,6 +59,9 @@ class Account(TenantModel):
     cash_flow_category = models.CharField(
         "التصنيف في قائمة التدفقات النقدية", max_length=10, choices=CashFlowCategory.choices, blank=True,
         help_text="فارغ = تلقائي: الأصول الثابتة استثمارية، وحقوق الملكية والقروض تمويلية، والباقي تشغيلية")
+    zakat_treatment = models.CharField(
+        "المعالجة في الوعاء الزكوي", max_length=10, choices=ZakatTreatment.choices, blank=True,
+        help_text="فارغ = تلقائي: حقوق الملكية والخصوم غير المتداولة تُضاف، والأصول غير المتداولة تُحسم، والمتداولة لا تدخل")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:

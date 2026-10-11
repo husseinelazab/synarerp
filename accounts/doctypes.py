@@ -26,7 +26,7 @@ register(DocType(
     slug="account", model=Account, module="accounts",
     list_fields=["number", "name", "parent", "root_type", "account_type", "is_group"],
     form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "account_currency", "cash_flow_category",
-                 "disabled"],
+                 "zakat_treatment", "disabled"],
     search_fields=["number", "name"],
 ))
 register(DocType(

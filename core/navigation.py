@@ -52,6 +52,7 @@ def build_menu(request):
         ]},
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
+                       doc("تحميل تكاليف الشحن والجمارك", "landed-cost"),
                        doc("الموردون", "supplier"),
                        _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
                        _item("تسوية دفعات الموردين", "payment_reconcile", query="?party_type=supplier")]

@@ -90,6 +90,30 @@ def _post(doc, item, warehouse, qty, incoming_rate, batch):
     return difference
 
 
+def make_value_adjustment(doc, item, warehouse, value):
+    """زيادة (أو نقص) قيمة رصيد صنف في مستودع دون تغيير كميته — مثل تحميل تكاليف الشحن والجمارك.
+
+    تعيد القيمة المضافة فعلاً (صفر إن لم يكن للصنف رصيد في المستودع).
+    """
+    from stock.models import StockLedgerEntry
+
+    value = flt(value)
+    b = _locked_bin(item, warehouse)
+    if not value or flt(b.actual_qty, 3) <= 0:
+        return flt(0)
+    b.stock_value = flt(b.stock_value + value)
+    if b.stock_value < 0:
+        raise ValidationError(f"لا يمكن أن تصبح قيمة رصيد «{item.name}» في «{warehouse}» سالبة.")
+    b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
+    b.save()
+    StockLedgerEntry.objects.create(
+        company=doc.company, posting_date=doc.posting_date, item=item, warehouse=warehouse, actual_qty=0,
+        incoming_rate=0, valuation_rate=b.valuation_rate, qty_after_transaction=b.actual_qty,
+        stock_value_difference=value, voucher_type=doc.doctype_slug, voucher_no=doc.name, voucher_id=doc.pk,
+    )
+    return value
+
+
 def cancel_stock_ledger_entries(doc):
     """عكس أثر حركات المستند على الأرصدة ووسمها كملغاة."""
     from stock.models import StockLedgerEntry

@@ -1,4 +1,4 @@
-from buying.models import (PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
+from buying.models import (LandedCostCharge, LandedCostVoucher, PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
                            PurchaseReceiptItem, Supplier)
 from core.registry import ChildTable, DocType, register
 
@@ -35,4 +35,14 @@ register(DocType(
     search_fields=["name", "supplier__name", "supplier_delivery_no"],
     child=ChildTable(PurchaseReceiptItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
     totals=["total_amount"],
+))
+register(DocType(
+    slug="landed-cost", model=LandedCostVoucher, module="buying",
+    list_fields=["name", "posting_date", "purchase_receipt", "purchase_invoice", "total_charges", "capitalized"],
+    form_fields=["purchase_receipt", "purchase_invoice", "posting_date", "basis", "remarks"],
+    search_fields=["name", "purchase_receipt__name", "purchase_invoice__name", "remarks"],
+    child=ChildTable(LandedCostCharge, ["description", "account", "amount"], label="التكاليف الإضافية",
+                     help="كل تكلفة تُقيد دائنة على حسابها ومدينة على المخزون. سجّل فاتورة شركة الشحن أو المخلص الجمركي "
+                          "على حساب مصروف مؤقت ثم اختر نفس الحساب هنا لنقلها إلى تكلفة البضاعة."),
+    totals=["total_charges", "capitalized", "expensed"],
 ))

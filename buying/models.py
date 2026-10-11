@@ -5,10 +5,10 @@ from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.commercial import CommercialStatus, OrderDocument, OrderItem, update_order_billing
 from core.fulfillment import FulfillmentDocument, FulfillmentItem, srbnb_account, update_fulfillment_billing
 from core.invoice import InvoiceDocument, InvoiceItem
-from core.models import TenantModel
+from core.models import SubmittableDocument, TenantModel
 from core.utils import flt
 from core.tenancy import tenant_unique
-from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
+from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry, make_value_adjustment
 from stock.pricing import update_buying_rates
 from stock.uom import linked_qty
 
@@ -171,6 +171,11 @@ class PurchaseInvoice(InvoiceDocument):
         self.apply_return_to_original()
         update_buying_rates(self)
 
+    def before_cancel(self):
+        super().before_cancel()
+        if self.landed_costs.filter(docstatus=1).exists():
+            raise ValidationError("حُمّلت على هذه الفاتورة تكاليف استيراد معتمدة. ألغِ مستند التحميل أولاً.")
+
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
@@ -233,6 +238,11 @@ class PurchaseReceipt(FulfillmentDocument):
         self.update_order_delivery(+1)
         update_buying_rates(self)
 
+    def before_cancel(self):
+        super().before_cancel()
+        if self.landed_costs.filter(docstatus=1).exists():
+            raise ValidationError("حُمّلت على هذا الإذن تكاليف استيراد معتمدة. ألغِ مستند التحميل أولاً.")
+
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
@@ -255,6 +265,142 @@ class PurchaseReceiptItem(FulfillmentItem):
     @property
     def base_rate(self):
         return self.rate * (self.parent.exchange_rate or 1)
+
+
+class AllocationBasis(models.TextChoices):
+    AMOUNT = "amount", "حسب قيمة الأصناف"
+    QTY = "qty", "حسب الكمية"
+
+
+class LandedCostVoucher(SubmittableDocument):
+    """تحميل التكاليف الإضافية (شحن، جمارك، تخليص، تأمين) على تكلفة بضاعة مستلمة.
+
+    تُوزع التكاليف على أصناف المستند بالقيمة أو بالكمية؛ ما بقي منها في المخزون تُرفع به قيمة الرصيد
+    (فيرتفع متوسط التكلفة)، وما بيع قبل التحميل يذهب لتكلفة البضاعة المباعة.
+    """
+
+    naming_prefix = "LCV"
+
+    purchase_receipt = models.ForeignKey(PurchaseReceipt, models.PROTECT, null=True, blank=True,
+                                         related_name="landed_costs", verbose_name="إذن الاستلام",
+                                         limit_choices_to={"docstatus": 1})
+    purchase_invoice = models.ForeignKey(PurchaseInvoice, models.PROTECT, null=True, blank=True,
+                                         related_name="landed_costs", verbose_name="فاتورة المشتريات (محدّثة للمخزون)",
+                                         limit_choices_to={"docstatus": 1, "update_stock": True, "is_return": False})
+    basis = models.CharField("أساس التوزيع", max_length=10, choices=AllocationBasis.choices,
+                             default=AllocationBasis.AMOUNT)
+    total_charges = models.DecimalField("إجمالي التكاليف", max_digits=18, decimal_places=2, default=0, editable=False)
+    capitalized = models.DecimalField("المحمّل على المخزون", max_digits=18, decimal_places=2, default=0, editable=False)
+    expensed = models.DecimalField("المحمّل على تكلفة المبيعات", max_digits=18, decimal_places=2, default=0,
+                                   editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "تحميل تكاليف الاستيراد"
+        verbose_name_plural = "تحميل تكاليف الشحن والجمارك"
+
+    @property
+    def source(self):
+        return self.purchase_receipt or self.purchase_invoice
+
+    @property
+    def linked_documents(self):
+        return [self.source] if self.source else []
+
+    def calculate_totals(self):
+        self.total_charges = sum((flt(c.amount) for c in self.charges.all()), flt(0))
+
+    def stock_rows(self):
+        """{(الصنف، المستودع): [الكمية بالوحدة الأساسية، القيمة بعملة الشركة]} للأصناف المخزنية في المستند."""
+        source = self.source
+        rows = {}
+        for row in source.items.select_related("item"):
+            if not row.item.is_stock_item:
+                continue
+            entry = rows.setdefault((row.item, source.warehouse), [flt(0, 3), flt(0)])
+            entry[0] += row.stock_qty
+            entry[1] += flt(row.amount * (source.exchange_rate or 1))
+        return rows
+
+    def validate_for_submit(self):
+        if bool(self.purchase_receipt_id) == bool(self.purchase_invoice_id):
+            raise ValidationError("اختر إذن استلام أو فاتورة مشتريات واحدة.")
+        source = self.source
+        if not source.is_submitted:
+            raise ValidationError(f"المستند {source} غير معتمد.")
+        if self.purchase_invoice_id and (not source.update_stock or source.is_return):
+            raise ValidationError("فاتورة المشتريات يجب أن تكون محدّثة للمخزون وليست مرتجعاً.")
+        if not self.stock_rows():
+            raise ValidationError("لا توجد أصناف مخزنية في المستند لتحميل التكاليف عليها.")
+        charges = list(self.charges.select_related("account"))
+        if not charges or self.total_charges <= 0:
+            raise ValidationError("أضف التكاليف (الشحن، الجمارك...) بمبالغ موجبة.")
+        for charge in charges:
+            if flt(charge.amount) <= 0:
+                raise ValidationError(f"مبلغ «{charge.description or charge.account}» يجب أن يكون أكبر من صفر.")
+            if charge.account.is_group:
+                raise ValidationError(f"لا يُرحّل على الحساب الرئيسي {charge.account}.")
+
+    def allocations(self):
+        """توزيع إجمالي التكاليف على الأصناف: {(الصنف، المستودع): المبلغ}."""
+        from core.utils import allocate
+
+        rows = self.stock_rows()
+        weights = {key: (qty if self.basis == AllocationBasis.QTY else value) for key, (qty, value) in rows.items()}
+        if not any(weights.values()):
+            weights = {key: qty for key, (qty, _value) in rows.items()}
+        return allocate(self.total_charges, weights), rows
+
+    def on_submit(self):
+        company = self.company
+        shares, rows = self.allocations()
+        to_stock = to_cogs = flt(0)
+        for (item, warehouse), share in shares.items():
+            received = rows[(item, warehouse)][0]
+            from stock.models import Bin
+
+            on_hand = flt(Bin.objects.filter(item=item, warehouse=warehouse).values_list("actual_qty", flat=True)
+                          .first() or 0, 3)
+            # ما زال في المخزون يُرفع به متوسط التكلفة، وما خرج قبل التحميل يُحمّل على تكلفة المبيعات
+            in_stock = flt(share * min(max(on_hand, 0), received) / received) if received else flt(0)
+            added = make_value_adjustment(self, item, warehouse, in_stock)
+            to_stock += added
+            to_cogs += share - added
+        entries = [{"account": c.account, "credit": c.amount, "remarks": c.description or "تكاليف استيراد"}
+                   for c in self.charges.select_related("account")]
+        if to_stock:
+            entries.append({"account": company.require_account("default_stock_account"), "debit": to_stock})
+        if to_cogs:
+            entries.append({"account": company.require_account("default_cogs_account"), "debit": to_cogs})
+        make_gl_entries(self, entries, remarks=self.remarks or f"تحميل تكاليف على {self.source}")
+        self.capitalized, self.expensed = to_stock, to_cogs
+        self.save(update_fields=["capitalized", "expensed"])
+
+    def before_cancel(self):
+        from stock.models import Bin, StockLedgerEntry
+
+        for sle in StockLedgerEntry.objects.filter(voucher_type=self.doctype_slug, voucher_id=self.pk,
+                                                   is_cancelled=False).select_related("item", "warehouse"):
+            qty = Bin.objects.filter(item=sle.item, warehouse=sle.warehouse).values_list("actual_qty", flat=True).first()
+            if flt(qty or 0, 3) < flt(sle.qty_after_transaction, 3):
+                raise ValidationError(f"صُرف جزء من «{sle.item.name}» بعد التحميل؛ لا يمكن الإلغاء. "
+                                      "سجّل قيد تسوية بدلاً من ذلك.")
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+
+
+class LandedCostCharge(models.Model):
+    parent = models.ForeignKey(LandedCostVoucher, models.CASCADE, related_name="charges")
+    description = models.CharField("البيان", max_length=150, blank=True, help_text="مثل: شحن بحري، رسوم جمركية، تخليص")
+    account = models.ForeignKey("accounts.Account", models.PROTECT, related_name="+", verbose_name="الحساب الدائن",
+                                limit_choices_to={"is_group": False, "disabled": False},
+                                help_text="الحساب الذي سُجلت عليه التكلفة (مصروف مؤقت، مورد الشحن، الصندوق…)")
+    amount = models.DecimalField("المبلغ (بعملة الشركة)", max_digits=18, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "تكلفة إضافية"
+        verbose_name_plural = "التكاليف"
 
 
 class AIModel(models.TextChoices):

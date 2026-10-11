@@ -410,7 +410,10 @@ def cash_flow(request):
     accounts = Account.objects.in_bulk(list(period) + list(opening_cash))
 
     profit = flt(0)
-    sections = {key: {"key": key, "label": label, "rows": [], "total": flt(0)} for key, label in CashFlowCategory.choices}
+    headings = {CashFlowCategory.OPERATING: "الأنشطة التشغيلية", CashFlowCategory.INVESTING: "الأنشطة الاستثمارية",
+                CashFlowCategory.FINANCING: "الأنشطة التمويلية"}
+    sections = {key: {"key": key, "label": label, "heading": headings[key], "rows": [], "total": flt(0)}
+                for key, label in CashFlowCategory.choices}
     adjustments, cash_change = [], flt(0)
     for account_id, (debit, credit) in period.items():
         account = accounts[account_id]

@@ -4,7 +4,7 @@
 {% include "reports/_period.html" %}
 {% for section in sections %}
 <div class="card">
-  <h3>التدفقات النقدية من ال{{ section.label }}</h3>
+  <h3>التدفقات النقدية من {{ section.heading }}</h3>
   <table class="table report">
     <tbody>
       {% if section.key == "operating" %}
@@ -17,7 +17,7 @@
       {% for r in section.rows %}<tr class="leaf"><td style="padding-inline-start:1.2em"><a href="{% url 'general_ledger' %}?account={{ r.account.pk }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{% if r.amount < 0 %}(زيادة) {% else %}نقص / {% endif %}{{ r.account }}</a></td><td class="num">{{ r.amount|money }}</td></tr>
       {% empty %}{% if section.key != "operating" %}<tr><td colspan="2" class="muted">لا توجد حركات</td></tr>{% endif %}{% endfor %}
     </tbody>
-    <tfoot><tr><th>صافي النقد من ال{{ section.label }}</th><th class="num">{{ section.total|cur }}</th></tr></tfoot>
+    <tfoot><tr><th>صافي النقد من {{ section.heading }}</th><th class="num">{{ section.total|cur }}</th></tr></tfoot>
   </table>
 </div>
 {% endfor %}

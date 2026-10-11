@@ -27,10 +27,12 @@ PATH_MODULES = [
     ("/reports/stock/", "stock"),
     ("/stock/", "stock"),
     ("/messaging/", "selling"),
+    ("/ecommerce/", "selling"),
     ("/buying/", "buying"),
     ("/manufacturing/", "manufacturing"),
     ("/pos/", "pos"),
     ("/einvoice/", "einvoice"),
+    ("/hr/commissions/", {"selling", "hr"}),
     ("/hr/", "hr"),
 ]
 # مستندات مشتركة بين أكثر من وحدة

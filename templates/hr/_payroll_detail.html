@@ -3,7 +3,8 @@
   <div class="card-head"><h3>مسير رواتب {{ obj.period_label }}</h3>
     <div class="actions">
       <a class="btn" href="{% url 'payslips' obj.pk %}" target="_blank">طباعة قسائم الرواتب</a>
-      {% if obj.is_submitted %}<a class="btn" href="{% url 'payroll_bank_file' obj.pk %}">ملف تحويل البنك (Excel)</a>{% endif %}
+      {% if obj.is_submitted %}<a class="btn" href="{% url 'payroll_bank_file' obj.pk %}">ملف تحويل البنك (Excel)</a>
+      <a class="btn" href="{% url 'payroll_wps_file' obj.pk %}" title="لرفعه في منصة مُدد أو بنك المنشأة">ملف حماية الأجور WPS (مُدد)</a>{% endif %}
     </div>
   </div>
   <dl class="detail-grid">

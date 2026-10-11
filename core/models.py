@@ -94,6 +94,12 @@ class Company(models.Model):
     default_discount_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب الخصم المسموح به"
     )
+    default_cheques_receivable_account = models.ForeignKey(
+        "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب الشيكات تحت التحصيل"
+    )
+    default_cheques_payable_account = models.ForeignKey(
+        "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب الشيكات المستحقة الدفع"
+    )
 
     class Meta:
         verbose_name = "شركة"
@@ -330,6 +336,9 @@ class Membership(models.Model):
     cost_centers = models.ManyToManyField("accounts.CostCenter", blank=True, related_name="+",
                                           verbose_name="الفروع / مراكز التكلفة المسموحة",
                                           help_text="فارغة = كل الفروع")
+    employee = models.ForeignKey("hr.Employee", models.SET_NULL, null=True, blank=True, related_name="+",
+                                 verbose_name="الموظف المرتبط",
+                                 help_text="تُحسب مبيعات هذا المستخدم في أهداف أداء الموظف (KPIs)")
 
     class Meta:
         verbose_name = "عضوية"

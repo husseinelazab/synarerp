@@ -1,0 +1,18 @@
+{% load erp %}
+{% with cheque=c %}
+{% if cheque.status == "pending" %}
+<form method="post" action="{% url 'cheque_action' cheque.pk %}" class="inline-form">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}">
+  <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" class="form-control" style="width:auto;display:inline-block">
+  <button class="btn btn-primary btn-sm" name="action" value="clear">{% if cheque.is_received %}تم التحصيل{% else %}تم الصرف{% endif %}</button>
+  <input type="text" name="reason" placeholder="سبب الارتداد" class="form-control" style="width:auto;display:inline-block">
+  <button class="btn btn-danger-outline btn-sm" name="action" value="bounce" onclick="return confirm('تسجيل ارتداد الشيك وإعادة المبلغ على الطرف؟')">ارتد</button>
+</form>
+{% elif cheque.status == "cleared" or cheque.status == "bounced" %}
+<form method="post" action="{% url 'cheque_action' cheque.pk %}" class="inline-form">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}">
+  {% with entry=cheque.clearance_entry|default:cheque.bounce_entry %}{% if entry %}<a href="{{ entry.get_absolute_url }}">{{ entry.name }}</a>{% endif %}{% endwith %}
+  <button class="btn btn-sm" name="action" value="undo" onclick="return confirm('إلغاء القيد وإعادة الشيك معلقاً؟')">تراجع</button>
+</form>
+{% endif %}
+{% endwith %}

@@ -1,0 +1,14 @@
+{% load erp %}
+<div class="card">
+  <div class="card-head"><h3>الفواتير المنشأة ({{ obj.generated_count }})</h3>
+    {% if obj.enabled and not obj.is_finished %}<form method="post" action="{% url 'recurring_generate' obj.pk %}">{% csrf_token %}<button class="btn btn-primary">إنشاء المستحق الآن</button></form>{% endif %}
+  </div>
+  <p class="muted">{% if not obj.enabled %}موقوف.{% elif obj.is_finished %}انتهت مدة العقد.{% else %}الفاتورة القادمة بتاريخ <strong>{{ obj.next_date|date:"Y-m-d" }}</strong> — تُنشأ تلقائياً صباح ذلك اليوم{% if obj.auto_submit %} وتُعتمد{% else %} كمسودة للمراجعة{% endif %}.{% endif %}</p>
+  {% if obj.last_error %}<div class="alert alert-error">آخر فاتورة لم تُعتمد تلقائياً: {{ obj.last_error }}</div>{% endif %}
+  <table class="table">
+    <thead><tr><th>الفاتورة</th><th>التاريخ</th><th>الاستحقاق</th><th>الإجمالي</th><th>المتبقي</th><th>الحالة</th></tr></thead>
+    <tbody>{% for inv in obj.invoices %}<tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.posting_date|date:"Y-m-d" }}</td><td>{{ inv.due_date|date:"Y-m-d"|default:"—" }}</td>
+      <td>{{ inv.grand_total|money }}</td><td>{{ inv.outstanding_amount|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="6" class="muted center">لم تُنشأ فواتير بعد</td></tr>{% endfor %}</tbody>
+  </table>
+</div>

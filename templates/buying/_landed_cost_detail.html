@@ -1,0 +1,12 @@
+{% load erp %}
+{% if obj.items.exists %}
+<div class="card">
+  <h3>التوزيع على أصناف الشحنة ({{ obj.get_allocation_display }})</h3>
+  <table class="table report">
+    <thead><tr><th>الصنف</th><th>الكمية</th><th>قيمة الشراء</th><th>التكاليف الموزعة</th><th>على المخزون</th><th>على تكلفة المبيعات</th><th>تكلفة الوحدة الإضافية</th></tr></thead>
+    <tbody>{% for r in obj.items.all %}<tr><td>{{ r.item }}</td><td>{{ r.qty|plain_number }}</td><td>{{ r.amount|money }}</td><td>{{ r.allocated|money }}</td><td>{{ r.to_stock|money }}</td><td>{{ r.to_cogs|money }}</td>
+      <td>{{ r.per_unit|plain_number }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <p class="muted">ما بقي من الشحنة في المستودع رفع تكلفته (المتوسط المرجح)، وما بيع منها حُمّلت حصته على تكلفة البضاعة المباعة.</p>
+</div>
+{% endif %}

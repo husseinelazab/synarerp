@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% load erp l10n %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>السنة المالية <select name="year" class="form-select">{% for y in years %}<option value="{{ y.pk }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
+  <label>حصة الملاك السعوديين والخليجيين % <input type="text" inputmode="decimal" name="share" value="{{ share|unlocalize }}" class="form-control"></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+{% if year %}
+<div class="grid-2">
+  <div class="card">
+    <h3>يُضاف إلى الوعاء</h3>
+    <table class="table report"><tbody>
+      {% for r in additions %}<tr><td><a href="{% url 'general_ledger' %}?account={{ r.account.pk }}&to_date={{ year.end_date|date:'Y-m-d' }}">{{ r.account }}</a></td><td class="num">{{ r.amount|money }}</td></tr>{% endfor %}
+      <tr><td>صافي الربح المعدّل للسنة{% if zakat_expense %} <span class="muted small">(بعد إضافة مصروف الزكاة {{ zakat_expense|money }})</span>{% endif %}</td><td class="num">{{ adjusted_profit|money }}</td></tr>
+    </tbody><tfoot><tr><th>إجمالي الإضافات</th><th class="num">{{ total_additions|cur }}</th></tr></tfoot></table>
+  </div>
+  <div class="card">
+    <h3>يُحسم من الوعاء</h3>
+    <table class="table report"><tbody>
+      {% for r in deductions %}<tr><td><a href="{% url 'general_ledger' %}?account={{ r.account.pk }}&to_date={{ year.end_date|date:'Y-m-d' }}">{{ r.account }}</a></td><td class="num">{{ r.amount|money }}</td></tr>
+      {% empty %}<tr><td colspan="2" class="muted">لا توجد أصول غير متداولة</td></tr>{% endfor %}
+    </tbody><tfoot><tr><th>إجمالي الحسميات</th><th class="num">{{ total_deductions|cur }}</th></tr></tfoot></table>
+  </div>
+</div>
+<div class="card totals-card">
+  <div class="total-line"><span>صافي الأصول الخاضعة (الإضافات − الحسميات)</span><strong>{{ net_assets|cur }}</strong></div>
+  <div class="total-line grand"><span>الوعاء الزكوي{% if base_is_profit %} (لا يقل عن صافي الربح المعدّل){% endif %}</span><strong>{{ base|cur }}</strong></div>
+  {% if share != 100 %}<div class="total-line"><span>الخاضع للزكاة بحصة الملاك السعوديين والخليجيين {{ share|unlocalize }}%</span><strong>{{ zakatable|cur }}</strong></div>{% endif %}
+  <div class="total-line"><span>نسبة الزكاة (2.5% × {{ days }} يوماً ÷ 354)</span><strong dir="ltr">{{ rate|unlocalize }}%</strong></div>
+  <div class="total-line grand"><span>الزكاة المستحقة التقديرية</span><strong>{{ zakat|cur }}</strong></div>
+  {% if zakat_expense %}<div class="total-line"><span>المرحّل كمخصص زكاة في السنة</span><strong>{{ zakat_expense|cur }}</strong></div>{% endif %}
+  <form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="year" value="{{ year.pk }}"><input type="hidden" name="share" value="{{ share|unlocalize }}">
+    <button class="btn btn-primary" {% if zakat <= zakat_expense %}disabled{% endif %}>إنشاء قيد مخصص الزكاة (مسودة)</button></form>
+  <p class="muted">تقدير بطريقة صافي الأصول للمساعدة في إعداد الإقرار: حقوق الملكية والخصوم غير المتداولة (القروض والمخصصات) وصافي الربح تُضاف،
+    والأصول غير المتداولة (الأصول الثابتة بعد الإهلاك) تُحسم. عدّل معالجة أي حساب من حقل «المعالجة في الوعاء الزكوي» في بطاقته.
+    الإقرار النهائي يُعد وفق لائحة جباية الزكاة الصادرة عن هيئة الزكاة والضريبة والجمارك وما تقبله من حسميات.</p>
+</div>
+{% endif %}
+{% endblock %}

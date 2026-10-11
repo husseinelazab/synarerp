@@ -121,11 +121,17 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
 .login-card label { display: block; margin: 14px 0 4px; font-size: 13px; color: var(--muted); }
 
 @media (max-width: 900px) {
-  .sidebar { position: fixed; right: -260px; height: 100vh; z-index: 20; transition: right .2s; }
-  .sidebar.open { right: 0; }
+  .sidebar { position: fixed; right: -260px; height: 100vh; z-index: 20; transition: right .2s, visibility .2s; visibility: hidden; }
+  .sidebar.open { right: 0; visibility: visible; }
   .menu-toggle { display: block; }
   .grid-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
+  /* الجداول العريضة تُمرَّر أفقياً داخل بطاقتها بدل أن تُخرج الصفحة عن عرض الشاشة */
+  .content table.table, .content table.report { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .topbar { padding: 10px 12px; gap: 6px 10px; flex-wrap: wrap; }
+  .topbar-title { font-size: 16px; min-width: 0; flex: 1 1 0; overflow-wrap: anywhere; }
+  .user-box { gap: 10px; font-size: 13px; flex-wrap: wrap; flex-basis: 100%; }
+  .user-box .hide-sm { display: none; }
 }
 @media print {
   .sidebar, .topbar, .filters, .toolbar, .quick-actions { display: none !important; }
@@ -324,3 +330,4 @@ tr.row-low td { background: #fff8e8; }
 .badge.audit-submit { background: var(--success); color: #fff; }
 .badge.audit-access, .badge.audit-export { background: #fff3cd; color: #8a5a00; }
 .nowrap { white-space: nowrap; }
+.share-link { display: flex; gap: 8px; } .share-link input { flex: 1; min-width: 0; }

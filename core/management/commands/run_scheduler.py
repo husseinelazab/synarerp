@@ -1,7 +1,9 @@
 """مُجدول المهام الدورية (يعمل في حاوية مستقلة في الإنتاج).
 
-- يومياً في الساعة SYNAR_REMINDERS_HOUR (افتراضي 7 صباحاً): تنبيهات الموارد البشرية (hr_reminders) وصلاحية التشغيلات (expiry_alerts).
-- كل ساعة: إعادة إرسال الفواتير الإلكترونية المعلقة — للشركات التي فعّلت الربط مع منصة فاتورة بنفسها فقط.
+- يومياً في الساعة SYNAR_REMINDERS_HOUR (افتراضي 7 صباحاً): الفواتير المتكررة (generate_recurring)، وتنبيهات الموارد
+  البشرية (hr_reminders) وصلاحية التشغيلات (expiry_alerts).
+- كل ساعة: إعادة إرسال الفواتير الإلكترونية المعلقة — للشركات التي فعّلت الربط مع منصة فاتورة بنفسها فقط —
+  ومزامنة كميات المخزون مع متاجر سلة وزد (sync_store_stock).
 """
 import os
 import time
@@ -28,11 +30,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         reminders_hour = int(os.environ.get("SYNAR_REMINDERS_HOUR", "7"))
         if options["once"]:
+            self.run("generate_recurring")
             self.run("hr_reminders")
             self.run("expiry_alerts")
             self.run("send_reminders")
             self.run("reorder_alerts")
             self.run("zatca_submit")
+            self.run("sync_store_stock")
             return
         self.stdout.write("المجدول يعمل.")
         last_daily = last_hourly = None
@@ -42,8 +46,10 @@ class Command(BaseCommand):
             if hour_key != last_hourly:
                 last_hourly = hour_key
                 self.run("zatca_submit")
+                self.run("sync_store_stock")
             if now.hour >= reminders_hour and now.date() != last_daily:
                 last_daily = now.date()
+                self.run("generate_recurring")  # قبل التذكيرات حتى تشمل رسائلها فواتير اليوم
                 self.run("hr_reminders")
                 self.run("expiry_alerts")
                 self.run("send_reminders")

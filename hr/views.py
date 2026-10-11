@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from core.forms import formfield_callback, style_form
 from core.utils import sheet_append
@@ -566,3 +567,22 @@ def models_q_pin(text):
     from django.db.models import Q
 
     return Q(pin=text) | Q(employee__full_name__icontains=text) | Q(employee__employee_number=text)
+
+
+@login_required
+def commissions_report(request):
+    """عمولات المندوبين للفترة: المبيعات المفوترة والمحصّلة والعمولة حسب أساس كل مندوب."""
+    from django.utils.dateparse import parse_date
+
+    from hr.models import sales_commission
+
+    today = timezone.localdate()
+    date_from = parse_date(request.GET.get("from_date") or "") or today.replace(day=1)
+    date_to = parse_date(request.GET.get("to_date") or "") or today
+    rows = []
+    for emp in Employee.objects.filter(commission_rate__gt=0).order_by("employee_number"):
+        rows.append({"employee": emp, **sales_commission(emp, date_from, date_to)})
+    return render(request, "hr/commissions.html", {
+        "title": "عمولات المندوبين", "from_date": date_from, "to_date": date_to, "rows": rows,
+        "total": sum((r["commission"] for r in rows), Decimal(0)),
+    })

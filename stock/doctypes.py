@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import (UOM, Batch, Item, ItemUOM, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
-                          StockEntry, StockEntryItem, Warehouse)
+from stock.models import (UOM, Batch, Item, ItemGroup, ItemPrice, ItemUOM, OpeningStock, OpeningStockItem, PriceList, Scale, StockCount,
+                          StockCountItem, StockEntry, StockEntryItem, Warehouse)
 
 register(DocType(
     slug="item", model=Item, module="stock",
@@ -12,6 +12,13 @@ register(DocType(
     slug="item-uom", model=ItemUOM, module="stock",
     list_fields=["item", "uom", "factor", "barcode", "selling_rate"],
     search_fields=["item__name", "item__code", "barcode"],
+))
+register(DocType(
+    slug="price-list", model=PriceList, module="stock",
+    list_fields=["name", "disabled", "notes"], search_fields=["name"],
+    child=ChildTable(ItemPrice, ["item", "uom", "rate"], label="الأسعار", min_rows=0,
+                     help="سعر الصنف في هذه القائمة بالوحدة الأساسية (الوحدة فارغة)، وتُحسب الكرتونة وغيرها بالمعامل ما لم "
+                          "تُسعّر بسطر خاص. الصنف غير المدرج يُباع بسعره العادي. يمكن استيراد الأسعار من Excel."),
 ))
 register(DocType(
     slug="stock-entry", model=StockEntry, module="stock",

@@ -11,13 +11,14 @@
 </head>
 <body class="tpl-{{ template }}">
 <div class="toolbar no-print">
-  <a class="tb-btn" href="{% url 'doc_detail' dt.slug obj.pk %}">→ رجوع للمستند</a>
+  {% if not public %}<a class="tb-btn" href="{% url 'doc_detail' dt.slug obj.pk %}">→ رجوع للمستند</a>{% endif %}
   <span class="tb-group">
     <span class="tb-label">القالب:</span>
     {% for value, label in templates %}<a class="tb-chip{% if value == template %} active{% endif %}" href="?template={{ value }}">{{ label }}</a>{% endfor %}
   </span>
   {% if can_customize %}<a class="tb-btn" href="{% url 'print_settings' %}">⚙ إعدادات الطباعة</a>{% endif %}
   <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+  {% if public %}<span class="tb-label">{{ company.name }}</span>{% endif %}
 </div>
 
 <main class="sheet">

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from core import import_views, views
+from selling import views as selling_views
 from stock import tools as stock_tools
 
 urlpatterns = [
@@ -27,5 +28,8 @@ urlpatterns = [
     path("app/<slug:slug>/<int:pk>/", views.doc_detail, name="doc_detail"),
     path("app/<slug:slug>/<int:pk>/edit/", views.doc_form, name="doc_edit"),
     path("app/<slug:slug>/<int:pk>/print/", views.doc_print, name="doc_print"),
+    path("app/sales-invoice/<int:pk>/share/", views.share_invoice, name="share_invoice"),
+    path("app/recurring-invoice/<int:pk>/generate/", selling_views.recurring_generate, name="recurring_generate"),
+    path("i/<str:token>/", views.public_invoice, name="public_invoice"),
     path("app/<slug:slug>/<int:pk>/<str:action>/", views.doc_action, name="doc_action"),
 ]

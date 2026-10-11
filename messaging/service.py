@@ -59,13 +59,17 @@ def compose(company, event, **ctx):
     return MessageTemplate.text_for(company, event).format_map(_Safe(ctx)).strip()
 
 
-def invoice_context(invoice):
+def invoice_context(invoice, link=None):
     due = invoice.due_date
+    if link is None:
+        # الرابط العام يحتاج عنوان الموقع (SYNAR_SITE_URL) ليكون كاملاً في الرسائل الآلية
+        link = invoice.share_url() if django_settings.SYNAR_SITE_URL and not invoice.is_draft else ""
     return {"customer": invoice.customer.name, "invoice": invoice.name, "amount": invoice.outstanding_amount
             if invoice.outstanding_amount and invoice.is_submitted else invoice.grand_total,
             "due_date": due.strftime("%Y-%m-%d") if due else "",
             "due_text": f" وتستحق في {due:%Y-%m-%d}" if due else "",
-            "days": (timezone.localdate() - due).days if due else 0}
+            "days": (timezone.localdate() - due).days if due else 0,
+            "link": link, "link_text": f" لعرض الفاتورة: {link}" if link else ""}
 
 
 def statement_context(customer):

@@ -118,3 +118,22 @@ def cancel_stock_ledger_entries(doc):
             b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
         b.save()
     entries.update(is_cancelled=True)
+
+
+def adjust_stock_value(doc, item, warehouse, amount):
+    """إضافة قيمة لرصيد صنف دون تغيير كميته (تكاليف الشحن والجمارك المحمّلة). تعيد ما أُضيف فعلاً للمخزون."""
+    from stock.models import StockLedgerEntry
+
+    amount = flt(amount)
+    b = _locked_bin(item, warehouse)
+    if not amount or b.actual_qty <= 0:
+        return flt(0)
+    b.stock_value = flt(b.stock_value + amount)
+    b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
+    b.save()
+    StockLedgerEntry.objects.create(
+        company=doc.company, posting_date=doc.posting_date, item=item, warehouse=warehouse, actual_qty=0,
+        incoming_rate=0, valuation_rate=b.valuation_rate, qty_after_transaction=b.actual_qty,
+        stock_value_difference=amount, voucher_type=doc.doctype_slug, voucher_no=doc.name, voucher_id=doc.pk,
+    )
+    return amount

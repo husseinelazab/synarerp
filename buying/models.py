@@ -5,7 +5,7 @@ from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.commercial import CommercialStatus, OrderDocument, OrderItem, update_order_billing
 from core.fulfillment import FulfillmentDocument, FulfillmentItem, srbnb_account, update_fulfillment_billing
 from core.invoice import InvoiceDocument, InvoiceItem
-from core.models import TenantModel
+from core.models import SubmittableDocument, TenantModel
 from core.utils import flt
 from core.tenancy import tenant_unique
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
@@ -86,6 +86,7 @@ class PurchaseOrderItem(OrderItem):
     class Meta:
         verbose_name = "بند أمر شراء"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class PurchaseInvoice(InvoiceDocument):
@@ -188,6 +189,7 @@ class PurchaseInvoiceItem(InvoiceItem):
     class Meta:
         verbose_name = "بند فاتورة مشتريات"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class PurchaseReceipt(FulfillmentDocument):
@@ -246,6 +248,7 @@ class PurchaseReceiptItem(FulfillmentItem):
     class Meta:
         verbose_name = "بند إذن استلام"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
     @property
     def base_rate(self):
@@ -298,3 +301,147 @@ class AIInvoiceSettings(TenantModel):
     @property
     def active(self):
         return self.enabled and self.consent and self.has_key
+
+
+class AllocationMethod(models.TextChoices):
+    VALUE = "value", "حسب قيمة الأصناف"
+    QTY = "qty", "حسب الكمية"
+
+
+class LandedCost(SubmittableDocument):
+    """تكاليف استيراد محمّلة على المخزون (شحن، جمارك، تخليص، تأمين) توزَّع على أصناف شحنة مستلمة.
+
+    ما زال في المخزون من الشحنة يرفع تكلفته (المتوسط المرجح)، وما بيع منها يُحمّل على تكلفة البضاعة المباعة.
+    """
+
+    naming_prefix = "LCV"
+
+    purchase_receipt = models.ForeignKey(PurchaseReceipt, models.PROTECT, null=True, blank=True, related_name="+",
+                                         limit_choices_to={"docstatus": 1}, verbose_name="إذن الاستلام")
+    purchase_invoice = models.ForeignKey(PurchaseInvoice, models.PROTECT, null=True, blank=True, related_name="+",
+                                         limit_choices_to={"docstatus": 1, "update_stock": True, "is_return": False},
+                                         verbose_name="فاتورة المشتريات (المحدِّثة للمخزون)")
+    allocation = models.CharField("طريقة التوزيع", max_length=10, choices=AllocationMethod.choices,
+                                  default=AllocationMethod.VALUE)
+    total_charges = models.DecimalField("إجمالي التكاليف", max_digits=18, decimal_places=2, default=0, editable=False)
+    to_stock = models.DecimalField("المحمّل على المخزون", max_digits=18, decimal_places=2, default=0, editable=False)
+    to_cogs = models.DecimalField("المحمّل على تكلفة المبيعات", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "تكاليف استيراد محمّلة"
+        verbose_name_plural = "تكاليف الشحن والجمارك المحمّلة"
+
+    @property
+    def source(self):
+        return self.purchase_receipt or self.purchase_invoice
+
+    def source_rows(self):
+        """أصناف الشحنة المخزنية: (السطر، الكمية بالأساسية، القيمة بعملة الشركة)."""
+        source = self.source
+        rate = source.exchange_rate or 1
+        return [(row, row.stock_qty, flt(row.amount * rate)) for row in source.items.select_related("item")
+                if row.item.is_stock_item and row.stock_qty > 0]
+
+    def calculate_totals(self):
+        if self.pk:
+            self.total_charges = flt(sum((flt(c.amount) for c in self.charges.all()), flt(0)))
+
+    def validate_for_submit(self):
+        if bool(self.purchase_receipt_id) == bool(self.purchase_invoice_id):
+            raise ValidationError("اختر إذن استلام أو فاتورة مشتريات واحدة.")
+        if not self.source.is_submitted:
+            raise ValidationError("مستند الشحنة غير معتمد.")
+        if self.purchase_invoice_id and (not self.purchase_invoice.update_stock or self.purchase_invoice.is_return):
+            raise ValidationError("الفاتورة لم تُدخل البضاعة للمخزون؛ اختر إذن الاستلام.")
+        if self.posting_date < self.source.posting_date:
+            raise ValidationError("تاريخ التكاليف قبل تاريخ استلام الشحنة.")
+        charges = list(self.charges.select_related("account", "supplier"))
+        if not charges:
+            raise ValidationError("أضف تكلفة واحدة على الأقل.")
+        for charge in charges:
+            if flt(charge.amount) <= 0:
+                raise ValidationError(f"«{charge.description}»: أدخل المبلغ.")
+            if not charge.supplier_id and not charge.account_id:
+                raise ValidationError(f"«{charge.description}»: حدد المورد (شركة الشحن/المخلص) أو الحساب المدفوع منه.")
+        rows = self.source_rows()
+        if not rows:
+            raise ValidationError("لا توجد أصناف مخزنية في الشحنة.")
+        if self.allocation == AllocationMethod.VALUE and not sum(value for _, _, value in rows):
+            raise ValidationError("قيمة الشحنة صفر؛ وزّع حسب الكمية.")
+
+    def on_submit(self):
+        from core.utils import allocate
+        from stock.ledger import adjust_stock_value
+        from stock.models import Bin
+
+        rows = self.source_rows()
+        weights = {i: (value if self.allocation == AllocationMethod.VALUE else qty) for i, (_, qty, value) in enumerate(rows)}
+        shares = allocate(self.total_charges, weights)
+        warehouse = self.source.warehouse
+        company = self.company
+        to_stock, to_cogs = flt(0), flt(0)
+        for i, (row, qty, value) in enumerate(rows):
+            share = flt(shares[i])
+            # ما بقي من كمية الشحنة في المستودع يحمل التكلفة، والباقي بيع فتذهب حصته لتكلفة المبيعات
+            on_hand = Bin.objects.filter(item=row.item, warehouse=warehouse).values_list("actual_qty", flat=True).first() or 0
+            stock_part = flt(share * min(flt(on_hand, 3), qty) / qty) if qty else flt(0)
+            stock_part = adjust_stock_value(self, row.item, warehouse, stock_part)
+            LandedCostItem.objects.create(parent=self, item=row.item, qty=qty, amount=value, allocated=share,
+                                          to_stock=stock_part, to_cogs=share - stock_part)
+            to_stock += stock_part
+            to_cogs += share - stock_part
+        self.to_stock, self.to_cogs = flt(to_stock), flt(to_cogs)
+        self.save(update_fields=["to_stock", "to_cogs"])
+        entries = []
+        if to_stock:
+            entries.append({"account": company.require_account("default_stock_account"), "debit": to_stock})
+        if to_cogs:
+            entries.append({"account": company.require_account("default_cogs_account"), "debit": to_cogs})
+        for charge in self.charges.select_related("account", "supplier"):
+            if charge.supplier_id:
+                entries.append({"account": company.require_account("default_payable_account"), "credit": charge.amount,
+                                "supplier": charge.supplier, "remarks": charge.description})
+            else:
+                entries.append({"account": charge.account, "credit": charge.amount, "remarks": charge.description})
+        make_gl_entries(self, entries, remarks=self.remarks or f"تكاليف استيراد على {self.source}")
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+        self.items.all().delete()
+
+
+class LandedCostCharge(models.Model):
+    parent = models.ForeignKey(LandedCost, models.CASCADE, related_name="charges")
+    description = models.CharField("البيان", max_length=150, help_text="شحن بحري، رسوم جمركية، تخليص، تأمين…")
+    amount = models.DecimalField("المبلغ (قبل الضريبة)", max_digits=18, decimal_places=2)
+    supplier = models.ForeignKey(Supplier, models.PROTECT, null=True, blank=True, verbose_name="المورد (الشاحن / المخلص)",
+                                 help_text="يُقيَّد المبلغ ديناً له")
+    account = models.ForeignKey("accounts.Account", models.PROTECT, null=True, blank=True, related_name="+",
+                                verbose_name="أو الحساب المدفوع منه",
+                                limit_choices_to={"is_group": False, "account_type__in": ["cash", "bank", ""]},
+                                help_text="الصندوق أو البنك إن دُفع مباشرة")
+
+    class Meta:
+        verbose_name = "تكلفة"
+        verbose_name_plural = "التكاليف"
+        ordering = ["id"]
+
+
+class LandedCostItem(models.Model):
+    parent = models.ForeignKey(LandedCost, models.CASCADE, related_name="items")
+    item = models.ForeignKey("stock.Item", models.PROTECT, related_name="+", verbose_name="الصنف")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3)
+    amount = models.DecimalField("قيمة الشراء", max_digits=18, decimal_places=2)
+    allocated = models.DecimalField("التكاليف الموزعة", max_digits=18, decimal_places=2)
+    to_stock = models.DecimalField("على المخزون", max_digits=18, decimal_places=2)
+    to_cogs = models.DecimalField("على تكلفة المبيعات", max_digits=18, decimal_places=2)
+
+    class Meta:
+        verbose_name = "توزيع على صنف"
+        verbose_name_plural = "التوزيع على الأصناف"
+        ordering = ["id"]
+
+    @property
+    def per_unit(self):
+        return flt(self.allocated / self.qty, 4) if self.qty else flt(0)

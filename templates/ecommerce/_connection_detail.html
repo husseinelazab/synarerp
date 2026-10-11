@@ -1,0 +1,64 @@
+{% load erp %}
+<div class="card">
+  <h3>رابط استقبال الطلبات (Webhook)</h3>
+  <div class="share-link">
+    <input type="text" readonly class="form-control" dir="ltr" id="wh-url" value="{{ request.scheme }}://{{ request.get_host }}{{ obj.webhook_path }}" onclick="this.select()">
+    <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('wh-url').value);this.textContent='✓ نُسخ'">نسخ</button>
+  </div>
+  {% if obj.platform == "salla" %}
+  <ol class="muted small" style="margin-top:10px">
+    <li>من <b dir="ltr">Salla Partners</b> أنشئ تطبيقاً لمتجرك (أو استخدم تطبيق المنصة إن توفر) وثبّته في متجرك.</li>
+    <li>في إعدادات الـ Webhooks للتطبيق ضع الرابط أعلاه، واختر الأحداث: <code dir="ltr">order.created</code> و<code dir="ltr">order.updated</code> و<code dir="ltr">order.status.updated</code>.</li>
+    <li>انسخ «Webhook Secret» من التطبيق إلى حقل «سر الـ Webhook» هنا (تعديل) ليُتحقق من توقيع كل طلب.</li>
+  </ol>
+  {% else %}
+  <ol class="muted small" style="margin-top:10px">
+    <li>من <b dir="ltr">Zid Partners</b> أنشئ تطبيقاً لمتجرك وثبّته.</li>
+    <li>اشترك في أحداث الطلبات (إنشاء الطلب وتحديث حالته) بالرابط أعلاه، ويُفضّل إضافة اسم الحدث: <code dir="ltr">?event=order.create</code>.</li>
+    <li>الرابط نفسه سري وخاص بمتجرك؛ ويمكن إضافة سر يُرسل في ترويسة Authorization للتحقق الإضافي.</li>
+  </ol>
+  {% endif %}
+  <p class="muted small">كل طلب يصبح فاتورة مبيعات تخصم من «{{ obj.warehouse }}»، ويُسجل سند قبض للطلب المدفوع إلكترونياً{% if not obj.payment_account %} (حدد «حساب تحصيلات المتجر» لتفعيله){% endif %}. الأصناف تُطابق بـ SKU مع كود الصنف أو باركوده، وما لا يُطابق يذهب لقائمة المراجعة.
+    {% if obj.last_event_at %}آخر طلب وصل {{ obj.last_event_at|date:"Y-m-d H:i" }}.{% else %}لم يصل أي طلب بعد.{% endif %}</p>
+  <p><a class="btn" href="{% url 'ecommerce_orders' %}">طلبات المتاجر</a></p>
+</div>
+<div class="card">
+  <h3>المنتجات ومزامنة المخزون</h3>
+  {% if obj.has_api_access %}
+    <p>الوصول لواجهة {{ obj.get_platform_display }}: <strong class="ok">مُعد</strong>{% if obj.token_expires_at %} — ينتهي الرمز {{ obj.token_expires_at|date:"Y-m-d" }}{% if obj.client_id %} (يُجدد تلقائياً){% endif %}{% endif %}.
+      {% if obj.sync_stock %}المزامنة كل ساعة <strong>مفعّلة</strong>{% else %}المزامنة التلقائية <strong>معطّلة</strong> (فعّلها من «تعديل»){% endif %}.
+      {% if obj.last_stock_sync_at %}آخر مزامنة {{ obj.last_stock_sync_at|date:"Y-m-d H:i" }}.{% endif %} {{ obj.last_sync_message }}</p>
+    <div class="actions">
+      <form method="post" action="{% url 'ecommerce_store_action' obj.pk %}">{% csrf_token %}<button class="btn" name="action" value="test">اختبار الاتصال</button></form>
+      <form method="post" action="{% url 'ecommerce_store_action' obj.pk %}">{% csrf_token %}<input type="hidden" name="action" value="import">
+        <label class="small"><input type="checkbox" name="create_missing"> إنشاء الأصناف الناقصة (كودها = SKU)</label>
+        <button class="btn btn-primary">استيراد منتجات المتجر وربطها</button></form>
+      <form method="post" action="{% url 'ecommerce_store_action' obj.pk %}">{% csrf_token %}<button class="btn" name="action" value="sync">مزامنة الكميات الآن</button></form>
+      <a class="btn" href="{% url 'ecommerce_products' obj.pk %}">منتجات المتجر ({{ obj.products.count }})</a>
+    </div>
+  {% else %}
+    <p class="muted">لإرسال كميات المخزون للمتجر واستيراد منتجاته أدخل بيانات الوصول لواجهة المنصة.
+      {% if obj.platform == "salla" %}في تطبيقات سلة بالوضع السهل تصل الرموز تلقائياً عند تثبيت التطبيق على رابط الـ Webhook أعلاه (حدث <code dir="ltr">app.store.authorize</code>) فلا حاجة لإدخالها.{% else %}من لوحة شركاء زد: رمز الشريك (Authorization) ورمز المتجر (Access-Token)، مع «رقم المتجر» في الإعدادات.{% endif %}</p>
+  {% endif %}
+  <details style="margin-top:10px"><summary class="muted">إدخال بيانات الوصول يدوياً</summary>
+    <form method="post" action="{% url 'ecommerce_store_action' obj.pk %}" class="form-grid" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="action" value="credentials">
+      <label>رمز الوصول (Access Token) <input type="password" name="access_token" class="form-control" autocomplete="off" placeholder="{% if obj.has_api_access %}محفوظ — اتركه فارغاً لعدم التغيير{% endif %}"></label>
+      {% if obj.platform == "salla" %}
+      <label>رمز التجديد (Refresh Token) <input type="password" name="refresh_token" class="form-control" autocomplete="off"></label>
+      <label>Client Secret للتطبيق (للتجديد التلقائي مع Client ID) <input type="password" name="client_secret" class="form-control" autocomplete="off"></label>
+      {% else %}
+      <label>رمز الشريك (Authorization) <input type="password" name="partner_token" class="form-control" autocomplete="off"></label>
+      {% endif %}
+      <div><button class="btn btn-primary">حفظ</button></div>
+    </form>
+    {% if obj.has_api_access %}<form method="post" action="{% url 'ecommerce_store_action' obj.pk %}">{% csrf_token %}<button class="btn btn-danger-outline" name="action" value="clear" onclick="return confirm('حذف بيانات الوصول وإيقاف المزامنة؟')">حذف بيانات الوصول</button></form>{% endif %}
+  </details>
+</div>
+<div class="card">
+  <h3>تجربة الربط بطلب حقيقي</h3>
+  <p class="muted small">الصق حمولة طلب كما تظهر في سجل الـ Webhooks في لوحة {{ obj.get_platform_display }} (JSON) لترى كيف تُقرأ وتُنشأ فاتورتها قبل التشغيل الفعلي.</p>
+  <form method="post" action="{% url 'ecommerce_test' obj.pk %}">{% csrf_token %}
+    <textarea name="payload" rows="6" class="form-control" dir="ltr" placeholder='{"event": "order.created", "merchant": 123, "data": {...}}'></textarea>
+    <button class="btn btn-primary" style="margin-top:8px">معالجة الطلب</button>
+  </form>
+</div>

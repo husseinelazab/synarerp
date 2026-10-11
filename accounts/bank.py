@@ -17,7 +17,8 @@ MATCH_WINDOW_DAYS = 5
 
 
 def _book_amount(gle):
-    return flt(gle.debit) - flt(gle.credit)
+    # الحساب بعملة أجنبية يُطابق بعملته، كما في كشف البنك
+    return gle.account_amount
 
 
 def match(gle, line):
@@ -62,11 +63,13 @@ def auto_match(account, to_date):
 
 def reconciliation_summary(account, to_date, statement_balance=None):
     active = GLEntry.objects.filter(account=account, is_cancelled=False, posting_date__lte=to_date)
-    agg = active.aggregate(d=Sum("debit"), c=Sum("credit"))
+    debit, credit = ("debit_in_account_currency", "credit_in_account_currency") if account.account_currency_id \
+        else ("debit", "credit")
+    agg = active.aggregate(d=Sum(debit), c=Sum(credit))
     book_balance = flt(agg["d"]) - flt(agg["c"])
     uncleared = active.filter(Q(clearance_date__isnull=True) | Q(clearance_date__gt=to_date))
-    in_transit = flt(uncleared.aggregate(v=Sum("debit"))["v"])       # إيداعات لم تظهر في الكشف بعد
-    outstanding = flt(uncleared.aggregate(v=Sum("credit"))["v"])    # مدفوعات/شيكات لم تُصرف بعد
+    in_transit = flt(uncleared.aggregate(v=Sum(debit))["v"])       # إيداعات لم تظهر في الكشف بعد
+    outstanding = flt(uncleared.aggregate(v=Sum(credit))["v"])    # مدفوعات/شيكات لم تُصرف بعد
     expected = book_balance - in_transit + outstanding
     summary = {"book_balance": book_balance, "in_transit": in_transit, "outstanding": outstanding,
                "expected": expected, "statement_balance": statement_balance}
@@ -111,10 +114,14 @@ def bank_reconciliation(request):
 
     context = {"accounts": accounts, "account": account, "to_date": to_date, "statement_balance": raw_balance}
     if account:
+        book_entries = GLEntry.objects.filter(account=account, is_cancelled=False, clearance_date__isnull=True,
+                                              posting_date__lte=to_date).order_by("posting_date", "id")
+        if account.account_currency_id:
+            # قيود إعادة التقييم تغيّر القيمة بعملة الشركة فقط ولا تظهر في كشف البنك
+            book_entries = book_entries.exclude(debit_in_account_currency=0, credit_in_account_currency=0)
         context.update({
             "summary": reconciliation_summary(account, to_date, statement_balance),
-            "book_entries": GLEntry.objects.filter(account=account, is_cancelled=False, clearance_date__isnull=True,
-                                                   posting_date__lte=to_date).order_by("posting_date", "id"),
+            "book_entries": book_entries,
             "statement_lines": BankTransaction.objects.filter(account=account, matched_entry__isnull=True,
                                                               date__lte=to_date),
             "matched": BankTransaction.objects.filter(account=account, matched_entry__isnull=False,

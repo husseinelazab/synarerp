@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="filters card">
+  <a class="btn" href="{{ connection.get_absolute_url }}">→ إعدادات المتجر</a>
+  {% if unlinked %}<a class="btn btn-primary" href="?unlinked=1">غير المربوطة ({{ unlinked }})</a>{% endif %}
+  {% if request.GET.unlinked %}<a class="btn" href="?">الكل</a>{% endif %}
+  <span class="muted small">الكمية التي تُرسل = رصيد «{{ connection.warehouse }}» − {{ connection.stock_buffer|plain_number }} احتياطي.</span>
+</div>
+<div class="card">
+<table class="table">
+  <thead><tr><th>SKU</th><th>الاسم في المتجر</th><th>السعر</th><th>كمية المتجر</th><th>الصنف في النظام</th><th>المتاح للإرسال</th><th>آخر إرسال</th></tr></thead>
+  <tbody>{% for r in rows %}<tr>
+    <td dir="ltr">{{ r.p.sku|default:"—" }}</td><td>{{ r.p.name }}</td><td>{% if r.p.price is not None %}{{ r.p.price|money }}{% endif %}</td>
+    <td>{% if r.p.store_quantity is not None %}{{ r.p.store_quantity|plain_number }}{% else %}غير محدودة{% endif %}</td>
+    <td><form method="post" class="inline-form">{% csrf_token %}<input type="hidden" name="product" value="{{ r.p.pk }}">
+      <select name="item" class="form-select" onchange="this.form.submit()"><option value="">— غير مربوط —</option>{% for i in items %}<option value="{{ i.pk }}" {% if i.pk == r.p.item_id %}selected{% endif %}>{{ i.code }} - {{ i.name }}</option>{% endfor %}</select></form></td>
+    <td>{% if r.available is not None %}{{ r.available|plain_number }}{% else %}—{% endif %}</td><td>{{ r.p.last_pushed_qty|plain_number|default:"—" }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لم تُستورد منتجات بعد. من إعدادات المتجر: «استيراد منتجات المتجر وربطها».</td></tr>{% endfor %}</tbody>
+</table>
+{% if page.has_other_pages %}<div class="pagination">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}{% if request.GET.unlinked %}&unlinked=1{% endif %}">السابق</a>{% endif %}<span>{{ page.number }} / {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}{% if request.GET.unlinked %}&unlinked=1{% endif %}">التالي</a>{% endif %}</div>{% endif %}
+</div>
+{% endblock %}

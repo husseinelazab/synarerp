@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+{% for section in sections %}
+<div class="card">
+  <h3>التدفقات النقدية من {{ section.heading }}</h3>
+  <table class="table report">
+    <tbody>
+      {% if section.key == "operating" %}
+        <tr class="group"><td>صافي الربح / (الخسارة) للفترة</td><td class="num">{{ profit|money }}</td></tr>
+        {% if adjustments %}<tr class="subtle"><td colspan="2">تعديلات بنود غير نقدية</td></tr>
+          {% for r in adjustments %}<tr class="leaf"><td style="padding-inline-start:1.2em"><a href="{% url 'general_ledger' %}?account={{ r.account.pk }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{{ r.account }}</a></td><td class="num">{{ r.amount|money }}</td></tr>{% endfor %}
+        {% endif %}
+        {% if section.rows %}<tr class="subtle"><td colspan="2">التغيرات في رأس المال العامل</td></tr>{% endif %}
+      {% endif %}
+      {% for r in section.rows %}<tr class="leaf"><td style="padding-inline-start:1.2em"><a href="{% url 'general_ledger' %}?account={{ r.account.pk }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{% if r.amount < 0 %}(زيادة) {% else %}نقص / {% endif %}{{ r.account }}</a></td><td class="num">{{ r.amount|money }}</td></tr>
+      {% empty %}{% if section.key != "operating" %}<tr><td colspan="2" class="muted">لا توجد حركات</td></tr>{% endif %}{% endfor %}
+    </tbody>
+    <tfoot><tr><th>صافي النقد من {{ section.heading }}</th><th class="num">{{ section.total|cur }}</th></tr></tfoot>
+  </table>
+</div>
+{% endfor %}
+<div class="card totals-card">
+  <div class="total-line grand"><span>صافي الزيادة / (النقص) في النقدية</span><strong>{{ net_change|cur }}</strong></div>
+  <div class="total-line"><span>النقدية وما في حكمها أول الفترة</span><strong>{{ opening|cur }}</strong></div>
+  <div class="total-line grand"><span>النقدية وما في حكمها آخر الفترة</span><strong>{{ closing|cur }}</strong></div>
+  <div class="total-line">{% if balanced %}<span class="ok">مطابق لرصيد حسابات الصندوق والبنوك ✓</span>{% else %}<span class="field-error">غير مطابق لرصيد الصندوق والبنوك ({{ book_closing|money }})</span>{% endif %}</div>
+  <p class="muted">الطريقة غير المباشرة: صافي الربح معدلاً بالتغير في أرصدة الحسابات غير النقدية. المبلغ الموجب مصدر للنقدية والسالب استخدام لها.
+    النقدية = حسابات الصندوق والبنوك. تصنيف أي حساب (تشغيلي/استثماري/تمويلي) يُعدّل من بطاقته في دليل الحسابات.</p>
+</div>
+{% endblock %}

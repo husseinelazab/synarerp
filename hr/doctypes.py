@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
 from hr.models import (Appraisal, AppraisalCriterion, AppraisalScore, AppraisalTemplate, Attendance, Department, Designation, Employee, EmployeeLoan, EndOfServiceSettlement, Holiday,
-                       LeaveApplication, LeaveType, PayrollLine, PayrollRun, ShiftAssignment, WorkShift)
+                       KPILine, KPISheet, LeaveApplication, LeaveType, PayrollLine, PayrollRun, ShiftAssignment, WorkShift)
 
 register(DocType(
     slug="employee", model=Employee, module="hr",
@@ -31,7 +31,7 @@ register(DocType(
     search_fields=["name"],
     child=ChildTable(
         PayrollLine, ["employee", "additions", "other_deductions", "notes"], label="رواتب الموظفين", min_rows=0,
-        display_fields=["employee", "worked_days", "basic", "housing", "transport", "other_allowance", "overtime_pay",
+        display_fields=["employee", "worked_days", "basic", "housing", "transport", "other_allowance", "overtime_pay", "commission",
                         "additions", "gross_pay", "unpaid_deduction", "absence_deduction", "late_deduction",
                         "gosi_employee", "loan_deduction", "other_deductions", "net_pay"],
         help="اترك الجدول فارغاً ليُجلب كل الموظفين على رأس العمل تلقائياً عند الحفظ. "
@@ -86,9 +86,20 @@ register(DocType(
 register(DocType(
     slug="appraisal", model=Appraisal, module="hr",
     list_fields=["name", "employee", "period_from", "period_to", "score_percent", "rating"],
-    form_fields=["employee", "template", "period_from", "period_to", "strengths", "improvements", "posting_date",
-                 "remarks"],
+    form_fields=["employee", "template", "period_from", "period_to", "kpi_weight", "kpi_sheet", "strengths",
+                 "improvements", "posting_date", "remarks"],
     search_fields=["name", "employee__full_name", "employee__employee_number"],
     child=ChildTable(AppraisalScore, ["criterion", "weight", "score", "comment"], label="المعايير والدرجات", min_rows=0,
                      help="اترك الجدول فارغاً لتُجلب معايير النموذج عند الحفظ، ثم أدخل درجة من 1 (ضعيف) إلى 5 (ممتاز) لكل معيار."),
+))
+register(DocType(
+    slug="kpi-sheet", model=KPISheet, module="hr",
+    list_fields=["name", "employee", "period_from", "period_to", "achievement_percent", "rating"],
+    form_fields=["employee", "period_from", "period_to", "posting_date", "remarks"],
+    search_fields=["name", "employee__full_name", "employee__employee_number"],
+    child=ChildTable(KPILine, ["kpi", "measure", "direction", "target", "weight", "actual", "notes"], label="المؤشرات",
+                     display_fields=["kpi", "measure", "direction", "target", "weight", "actual", "achievement", "notes"],
+                     help="لكل مؤشر قيمة مستهدفة ووزن (مجموع الأوزان 100). المؤشرات الآلية (المبيعات، الحضور، التأخير، الغياب) "
+                          "يُحسب فعليها من النظام مع كل حفظ؛ المبيعات تُحسب من فواتير المستخدمين المرتبطين بالموظف "
+                          "(الإعدادات ← المستخدمون). نسبة التحقيق = الفعلي ÷ المستهدف (أو العكس إن كان الأقل أفضل) بحد أقصى 120%."),
 ))

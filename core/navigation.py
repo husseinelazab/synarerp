@@ -56,7 +56,9 @@ def build_menu(request):
                                           _item("حد إعادة الطلب", "reorder_report")]},
         ]},
         {"key": "accounts", "label": "المحاسبة", "sections": [
-            {"items": [doc("قيود اليومية", "journal-entry"), doc("سندات القبض والصرف", "payment-entry"),
+            {"items": [doc("قيود اليومية", "journal-entry"),
+                       _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
+                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
                        _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
             {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
                                                  _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},

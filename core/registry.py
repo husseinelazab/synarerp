@@ -44,7 +44,11 @@ class DocType:
     show_in_menu: bool = True
     detail_template: str = ""  # قالب إضافي يُعرض في صفحة المستند
     detail_exclude: list = field(default_factory=list)
-    list_actions: list = field(default_factory=list)  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
+    list_actions: list = field(default_factory=list)
+    # حقل اختيار يفصل المستند إلى نوعين بعناوين مستقلة (مثل سند قبض / سند صرف): {القيمة: (المفرد، الجمع)}.
+    # إن حُدد النوع من الرابط يُخفى الحقل في النموذج وتصبح عناوين القائمة والنموذج باسم النوع.
+    type_field: str = ""
+    type_titles: dict = field(default_factory=dict)  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
 
     @property
     def label(self):

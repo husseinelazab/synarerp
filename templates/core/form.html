@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{% if instance %}تعديل {{ instance }}{% else %}{{ dt.label }} جديد{% endif %}{% endblock %}
-{% block heading %}{% if instance %}تعديل {{ dt.label }}: {{ instance }}{% else %}{{ dt.label }} جديد{% endif %}{% endblock %}
+{% block title %}{% if instance %}تعديل {{ instance }}{% else %}{% firstof type_title.0 dt.label %} جديد{% endif %}{% endblock %}
+{% block heading %}{% if instance %}تعديل {% firstof type_title.0 dt.label %}: {{ instance }}{% else %}{% firstof type_title.0 dt.label %} جديد{% endif %}{% endblock %}
 {% block content %}
 <form method="post" class="doc-form" novalidate>
   {% csrf_token %}

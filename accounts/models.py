@@ -240,7 +240,7 @@ class PaymentType(models.TextChoices):
 
 
 class PaymentEntry(CurrencyMixin, SubmittableDocument):
-    naming_prefix = "PAY"
+    naming_prefix = "PAY"  # السندات القديمة؛ الجديدة بترقيم مستقل لكل نوع
 
     payment_type = models.CharField("نوع السند", max_length=10, choices=PaymentType.choices, default=PaymentType.RECEIVE)
     customer = models.ForeignKey("selling.Customer", models.PROTECT, null=True, blank=True, verbose_name="العميل")
@@ -268,6 +268,13 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
     class Meta(SubmittableDocument.Meta):
         verbose_name = "سند قبض / صرف"
         verbose_name_plural = "سندات القبض والصرف"
+
+    def get_naming_prefix(self):
+        return "RV" if self.payment_type == PaymentType.RECEIVE else "PV"
+
+    @property
+    def document_title(self):
+        return self.get_payment_type_display()
 
     @property
     def party(self):

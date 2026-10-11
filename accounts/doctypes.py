@@ -17,6 +17,8 @@ register(DocType(
     form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount", "currency", "exchange_rate",
                  "sales_invoice", "purchase_invoice", "reference_no", "remarks"],
     search_fields=["name", "customer__name", "supplier__name", "reference_no"],
+    type_field="payment_type",
+    type_titles={"receive": ("سند قبض", "سندات القبض"), "pay": ("سند صرف", "سندات الصرف")},
 ))
 register(DocType(
     slug="account", model=Account, module="accounts",

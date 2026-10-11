@@ -17,10 +17,13 @@ PATH_MODULES = [
     # أرصدة العملاء والموردين تظهر في قائمتي المبيعات والمشتريات
     ("/reports/accounts/balances/customer/", {"selling", "accounts"}),
     ("/reports/accounts/balances/supplier/", {"buying", "accounts"}),
+    ("/reports/accounts/aging/customer/", {"selling", "accounts"}),
+    ("/reports/accounts/aging/supplier/", {"buying", "accounts"}),
     ("/reports/accounts/", "accounts"),
     ("/assets/", "accounts"),
     ("/reports/stock/gross-profit/", {"selling", "accounts", "stock", "manufacturing"}),
     ("/reports/stock/batches/", {"stock", "manufacturing"}),
+    ("/reports/stock/reorder/", {"stock", "buying"}),
     ("/reports/stock/", "stock"),
     ("/stock/", "stock"),
     ("/messaging/", "selling"),

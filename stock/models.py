@@ -70,6 +70,10 @@ class Item(TenantModel):
                                   help_text="اختياري: اسم مختصر يُطبع على ملصق الميزان (بعض الموازين لا تدعم العربية)")
     shelf_life_days = models.PositiveSmallIntegerField("مدة الصلاحية بالأيام", null=True, blank=True,
                                                        help_text="يُحسب منها تاريخ الانتهاء للتشغيلات الجديدة وملصق الميزان")
+    reorder_level = models.DecimalField("حد إعادة الطلب", max_digits=18, decimal_places=3, default=0,
+                                        help_text="عند نزول (الرصيد + المطلوب من الموردين) إلى هذا الحد يُقترح الشراء. صفر = بلا حد")
+    reorder_qty = models.DecimalField("كمية إعادة الطلب", max_digits=18, decimal_places=3, default=0,
+                                      help_text="الكمية المقترح شراؤها (بالوحدة الأساسية). صفر = ما يكفي للوصول للحد")
     has_batch_no = models.BooleanField("تتبع التشغيلات والصلاحية", default=False,
                                        help_text="يُتابَع رصيد كل تشغيلة بتاريخ انتهائها، ويُصرف الأقرب انتهاءً أولاً، ويُمنع بيع المنتهي")
     disabled = models.BooleanField("موقوف", default=False)

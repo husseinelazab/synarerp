@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>المستودع <select name="warehouse" class="form-select"><option value="">كل المستودعات</option>{% for w in warehouses %}<option value="{{ w.pk }}" {% if selected == w.pk|stringformat:"s" %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></label>
+  <label>عرض <select name="all" class="form-select"><option value="">الأصناف تحت الحد فقط</option><option value="1" {% if show_all %}selected{% endif %}>كل الأصناف المخزنية (لضبط الحدود)</option></select></label>
+  <label>مدة التوريد (يوم) <input type="number" name="lead" value="{{ lead }}" min="1" class="form-control" style="width:80px"></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="kpis">
+  <div class="kpi kpi-bad"><span>أصناف تحت حد الطلب</span><b>{{ count }}</b></div>
+  <div class="kpi"><span>قيمة الشراء المقترح تقريباً</span><b>{{ amount|cur }}</b></div>
+</div>
+<form method="post" class="card">
+  {% csrf_token %}
+  <input type="hidden" name="warehouse" value="{{ selected }}">{% if show_all %}<input type="hidden" name="all" value="1">{% endif %}
+  <div class="table-wrap">
+  <table class="table report">
+    <thead><tr><th></th><th>الصنف</th><th>المتاح</th><th>تحت الطلب</th><th>المتوقع</th><th>حد الطلب</th><th>البيع اليومي</th><th>يكفي (يوم)</th><th>حد مقترح</th><th>الكمية</th><th>المورد</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{% if r.below %}row-loss{% endif %}">
+        <td>{% if r.below %}<input type="checkbox" name="pick" value="{{ r.item.pk }}" checked>{% endif %}</td>
+        <td><a href="{% url 'doc_detail' 'item' r.item.pk %}">{{ r.item }}</a></td>
+        <td>{{ r.available|floatformat:-3 }} {{ r.item.uom }}</td><td>{{ r.on_order|floatformat:-3 }}</td><td class="strong">{{ r.projected|floatformat:-3 }}</td>
+        <td>{% if r.level %}{{ r.level|floatformat:-3 }}{% else %}—{% endif %}</td>
+        <td>{% if r.per_day %}{{ r.per_day|floatformat:-2 }}{% else %}—{% endif %}</td>
+        <td class="{% if r.cover_days is not None and r.cover_days < lead %}neg{% endif %}">{% if r.cover_days is not None %}{{ r.cover_days }}{% else %}—{% endif %}</td>
+        <td class="muted">{% if r.suggested_level %}{{ r.suggested_level|floatformat:0 }}{% endif %}</td>
+        <td>{% if r.below %}<input type="number" step="any" min="0" name="qty_{{ r.item.pk }}" value="{{ r.suggested|plain_number }}" class="form-control" style="width:100px">{% endif %}</td>
+        <td>{% if r.below %}<select name="supplier_{{ r.item.pk }}" class="form-select"><option value="">— اختر —</option>{% for s in suppliers %}<option value="{{ s.pk }}" {% if r.supplier and r.supplier.pk == s.pk %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>{% endif %}</td>
+      </tr>
+    {% empty %}<tr><td colspan="11" class="muted center">لا توجد أصناف تحت حد الطلب. اضبط «حد إعادة الطلب» في بطاقات الأصناف (أو استوردها من ملف).</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if count %}<div class="form-actions"><button class="btn btn-primary">إنشاء أوامر شراء للمحدد (مسودات)</button></div>{% endif %}
+  <p class="muted small">المتوقع = المتاح الصالح + المطلوب من الموردين ولم يصل. البيع اليومي متوسط آخر 30 يوماً، و«حد مقترح» = البيع اليومي × مدة التوريد.
+  أوامر الشراء تُجمع لكل مورد (المقترح آخر مورد) وتُنشأ مسودات للمراجعة.</p>
+</form>
+{% endblock %}

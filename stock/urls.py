@@ -9,4 +9,5 @@ urlpatterns = [
     path("pricing/", reports.pricing_analysis, name="pricing_analysis"),
     path("price-history/", reports.price_history, name="price_history"),
     path("batches/", reports.batch_report, name="batch_report"),
+    path("reorder/", reports.reorder_report, name="reorder_report"),
 ]

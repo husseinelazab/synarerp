@@ -232,3 +232,57 @@ def batch_report(request):
         "items": Item.objects.filter(has_batch_no=True).order_by("code"), "today": today,
         "horizon": today + datetime.timedelta(days=warn_days),
     })
+
+
+@login_required
+def reorder_report(request):
+    from decimal import InvalidOperation
+
+    from django.contrib import messages
+    from django.core.exceptions import ValidationError
+    from django.db import transaction
+    from django.shortcuts import redirect
+
+    from buying.models import Supplier
+    from manufacturing.planning import create_purchase_orders
+    from stock.reorder import reorder_rows
+
+    all_wh = list(Warehouse.objects.filter(disabled=False))
+    selected = request.POST.get("warehouse") or request.GET.get("warehouse") or ""
+    warehouses = [w for w in all_wh if str(w.pk) == selected] or all_wh
+    show_all = (request.POST.get("all") or request.GET.get("all")) == "1"
+    try:
+        lead = max(1, min(int(request.GET.get("lead") or 7), 365))
+    except ValueError:
+        lead = 7
+    rows = reorder_rows(warehouses, only_below=not show_all, lead_days=lead)
+    if request.method == "POST":
+        picked = set(request.POST.getlist("pick"))
+        suppliers = Supplier.objects.in_bulk()
+        try:
+            lines = []
+            for r in rows:
+                key = str(r["item"].pk)
+                if key not in picked:
+                    continue
+                supplier = suppliers.get(int(request.POST.get(f"supplier_{key}") or 0))
+                if supplier is None:
+                    raise ValidationError(f"اختر المورد للصنف «{r['item'].name}».")
+                qty = Decimal(request.POST.get(f"qty_{key}") or r["suggested"])
+                if qty > 0:
+                    lines.append((r["item"], supplier, qty, r["rate"]))
+            if not lines:
+                raise ValidationError("حدد صنفاً واحداً على الأقل.")
+            with transaction.atomic():
+                created = create_purchase_orders(lines, warehouses[0] if len(warehouses) == 1 else all_wh[0],
+                                                 request.user)
+            messages.success(request, "أُنشئت أوامر شراء (مسودات): " + "، ".join(p.name for p in created))
+            return redirect("doc_list", slug="purchase-order")
+        except (ValidationError, InvalidOperation) as exc:
+            messages.error(request, "؛ ".join(exc.messages) if isinstance(exc, ValidationError) else "كمية غير صالحة.")
+    below = [r for r in rows if r["below"]]
+    return render(request, "reports/reorder.html", {
+        "title": "حد إعادة الطلب", "rows": rows, "warehouses": all_wh, "selected": selected, "show_all": show_all,
+        "lead": lead, "count": len(below), "amount": sum((r["amount"] for r in below), Decimal(0)),
+        "suppliers": Supplier.objects.filter(disabled=False).order_by("name"),
+    })

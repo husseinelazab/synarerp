@@ -42,13 +42,16 @@ def build_menu(request):
                        doc("فواتير المبيعات", "sales-invoice"), doc("العملاء", "customer"),
                        _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive")]},
             {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
+                                          _item("أعمار ديون العملاء", "aging_report", "customer"),
                                           _item("الربحية (مجمل الربح)", "gross_profit")]},
         ]},
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
                        doc("الموردون", "supplier"),
                        _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay")]},
-            {"title": "تقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier")]},
+            {"title": "تقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier"),
+                                          _item("أعمار ديون الموردين", "aging_report", "supplier"),
+                                          _item("حد إعادة الطلب", "reorder_report")]},
         ]},
         {"key": "accounts", "label": "المحاسبة", "sections": [
             {"items": [doc("قيود اليومية", "journal-entry"), doc("سندات القبض والصرف", "payment-entry"),
@@ -79,7 +82,8 @@ def build_menu(request):
                                           _item("الربحية (مجمل الربح)", "gross_profit"),
                                           _item("سجل تغيّر الأسعار", "price_history")]},
             {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger"),
-                                          _item("التشغيلات والصلاحية", "batch_report")]},
+                                          _item("التشغيلات والصلاحية", "batch_report"),
+                                          _item("حد إعادة الطلب", "reorder_report")]},
         ]},
         {"key": "manufacturing", "label": "التصنيع", "sections": [
             {"items": [doc("أوامر الإنتاج", "production"), doc("قوائم المواد", "bom"),

@@ -31,6 +31,7 @@ class Command(BaseCommand):
             self.run("hr_reminders")
             self.run("expiry_alerts")
             self.run("send_reminders")
+            self.run("reorder_alerts")
             self.run("zatca_submit")
             return
         self.stdout.write("المجدول يعمل.")
@@ -46,4 +47,5 @@ class Command(BaseCommand):
                 self.run("hr_reminders")
                 self.run("expiry_alerts")
                 self.run("send_reminders")
+                self.run("reorder_alerts")
             time.sleep(60)

@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="card">
+  <h3>حسب المنتج</h3>
+  <div class="table-wrap">
+  <table class="table report">
+    <thead><tr><th>المنتج</th><th>الأوامر</th><th>المنتج</th><th>التالف</th><th>نسبة التالف</th><th>المواد</th><th>التشغيل</th><th>المخلفات</th><th>الإجمالي</th><th>تكلفة الوحدة السليمة</th></tr></thead>
+    <tbody>{% for r in summary %}<tr><td>{{ r.item }}</td><td>{{ r.orders }}</td><td>{{ r.qty|floatformat:-3 }}</td><td>{{ r.rejected|floatformat:-3 }}</td>
+      <td class="{% if r.waste > 5 %}neg{% endif %}">{{ r.waste|floatformat:1 }}%</td><td>{{ r.material|money }}</td><td>{{ r.operating|money }}</td><td>{{ r.scrap|money }}</td><td>{{ r.total|money }}</td><td><b>{{ r.unit|money }}</b></td></tr>
+    {% empty %}<tr><td colspan="10" class="muted center">لا يوجد إنتاج معتمد في الفترة</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</div>
+<div class="card">
+  <h3>أوامر الإنتاج وانحراف المواد</h3>
+  <div class="table-wrap">
+  <table class="table report">
+    <thead><tr><th>الأمر</th><th>التاريخ</th><th>المنتج</th><th>الكمية</th><th>التالف</th><th>المواد الفعلية</th><th>المواد حسب القائمة</th><th>الانحراف</th><th>تكلفة الوحدة</th></tr></thead>
+    <tbody>{% for d in details %}<tr><td><a href="{% url 'doc_detail' 'production' d.p.pk %}">{{ d.p.name }}</a></td><td>{{ d.p.posting_date|date:"Y-m-d" }}</td><td>{{ d.p.item.name }}</td><td>{{ d.p.qty|floatformat:-3 }}</td><td>{{ d.p.rejected_qty|floatformat:-3 }}</td>
+      <td>{{ d.p.material_cost|money }}</td><td>{{ d.standard|money }}</td><td class="{% if d.variance > 0 %}neg{% elif d.variance < 0 %}pos{% endif %}">{{ d.variance|money }}</td><td>{{ d.p.unit_cost|money }}</td></tr>
+    {% empty %}<tr><td colspan="9" class="muted center">—</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  <p class="muted small">الانحراف الموجب = استهلاك مواد أكثر من القياسي في قائمة المواد (هدر)، والسالب = أقل.</p>
+</div>
+{% if stations %}
+<div class="card">
+  <h3>تحميل محطات العمل</h3>
+  <table class="table report"><thead><tr><th>المحطة</th><th>الساعات</th><th>التكلفة</th></tr></thead>
+  <tbody>{% for s in stations %}<tr><td>{{ s.ws }}</td><td>{{ s.hours|floatformat:-2 }}</td><td>{{ s.cost|money }}</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endif %}
+{% endblock %}

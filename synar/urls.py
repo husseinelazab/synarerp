@@ -34,6 +34,7 @@ urlpatterns = [
     path("reports/accounts/", include("accounts.urls")),
     path("reports/stock/", include("stock.urls")),
     path("stock/", include("stock.tool_urls")),
+    path("manufacturing/", include("manufacturing.urls")),
     path("pos/", include("pos.urls")),
     path("einvoice/", include("einvoice.urls")),
     path("hr/", include("hr.urls")),

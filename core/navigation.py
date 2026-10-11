@@ -82,8 +82,11 @@ def build_menu(request):
                                           _item("التشغيلات والصلاحية", "batch_report")]},
         ]},
         {"key": "manufacturing", "label": "التصنيع", "sections": [
-            {"items": [doc("أوامر الإنتاج", "production"), doc("قوائم المواد", "bom")]},
-            {"title": "تقارير", "items": [_item("الربحية (مجمل الربح)", "gross_profit"),
+            {"items": [doc("أوامر الإنتاج", "production"), doc("قوائم المواد", "bom"),
+                       _item("تخطيط احتياجات المواد", "mrp")]},
+            {"title": "الإعداد", "items": [doc("محطات العمل", "workstation"), doc("مسارات التشغيل", "routing")]},
+            {"title": "تقارير", "items": [_item("الإنتاج والهالك", "production_report"),
+                                          _item("الربحية (مجمل الربح)", "gross_profit"),
                                           _item("التشغيلات والصلاحية", "batch_report")]},
         ]},
     ]

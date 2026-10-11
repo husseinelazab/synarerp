@@ -10,6 +10,7 @@ from django.db import models, transaction
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.models import SubmittableDocument, TenantModel
+from core.tenancy import tenant_unique
 from core.utils import flt
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 
@@ -32,7 +33,7 @@ def overhead_account(company):
                                       is_group=False, root_type="expense", account_type="")
 
 
-def unit_cost_estimate(item, warehouse=None):
+def unit_cost_estimate(item, warehouse=None, _depth=0):
     """تكلفة الوحدة التقديرية: متوسط التكلفة في المستودع، أو متوسطها في كل المستودعات، أو آخر سعر شراء."""
     from django.db.models import Sum
 
@@ -45,7 +46,68 @@ def unit_cost_estimate(item, warehouse=None):
     agg = Bin.objects.filter(item=item, actual_qty__gt=0).aggregate(v=Sum("stock_value"), q=Sum("actual_qty"))
     if agg["q"]:
         return flt(agg["v"] / agg["q"])
+    # مكوّن نصف مصنّع بلا رصيد: تكلفته من قائمة مواده (متعدد المستويات)
+    if _depth < 8:
+        bom = default_bom(item)
+        if bom is not None:
+            return bom.cost_breakdown(warehouse, _depth=_depth + 1)["unit"]
     return flt(item.buying_rate)
+
+
+def default_bom(item):
+    return BOM.objects.filter(item=item, is_active=True).order_by("-is_default", "-id").first()
+
+
+class Workstation(TenantModel):
+    """محطة عمل (آلة، خط إنتاج، قسم) وتكلفة ساعتها: عمالة + كهرباء + إهلاك."""
+
+    name = models.CharField("اسم المحطة", max_length=100)
+    hourly_rate = models.DecimalField("تكلفة الساعة", max_digits=18, decimal_places=2, default=0)
+    description = models.TextField("الوصف", blank=True)
+
+    class Meta:
+        verbose_name = "محطة عمل"
+        verbose_name_plural = "محطات العمل"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="workstation")]
+
+    def __str__(self):
+        return self.name
+
+
+class Routing(TenantModel):
+    """مسار التشغيل: العمليات ومحطاتها والوقت اللازم لكل وحدة من المنتج."""
+
+    name = models.CharField("اسم المسار", max_length=100)
+
+    class Meta:
+        verbose_name = "مسار تشغيل"
+        verbose_name_plural = "مسارات التشغيل"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="routing")]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def cost_per_unit(self):
+        return sum((flt(op.minutes * op.workstation.hourly_rate / 60) for op in
+                    self.operations.select_related("workstation")), flt(0))
+
+    @property
+    def minutes_per_unit(self):
+        return sum((op.minutes for op in self.operations.all()), Decimal(0))
+
+
+class RoutingOperation(models.Model):
+    parent = models.ForeignKey(Routing, models.CASCADE, related_name="operations")
+    operation = models.CharField("العملية", max_length=100)
+    workstation = models.ForeignKey(Workstation, models.PROTECT, verbose_name="محطة العمل")
+    minutes = models.DecimalField("الدقائق لكل وحدة", max_digits=10, decimal_places=3, default=1)
+
+    class Meta:
+        verbose_name = "عملية"
+        verbose_name_plural = "العمليات"
 
 
 class BOM(TenantModel):
@@ -57,6 +119,15 @@ class BOM(TenantModel):
                                    help_text="المواد أدناه تكفي لإنتاج هذه الكمية (مثلاً 1 قطعة أو 100 كجم)")
     operating_cost = models.DecimalField("تكاليف التشغيل لهذه الكمية", max_digits=18, decimal_places=2, default=0,
                                          help_text="عمالة وكهرباء وتعبئة ومصاريف غير مباشرة؛ تُضاف لتكلفة المنتج")
+    routing = models.ForeignKey(Routing, models.PROTECT, null=True, blank=True, related_name="boms",
+                                verbose_name="مسار التشغيل",
+                                help_text="اختياري: تُضاف تكلفة وقت العمليات على محطات العمل لتكاليف التشغيل")
+    scrap_item = models.ForeignKey("stock.Item", models.PROTECT, null=True, blank=True, related_name="+",
+                                   verbose_name="صنف المخلفات القابلة للبيع",
+                                   limit_choices_to={"disabled": False, "is_stock_item": True},
+                                   help_text="مثل النخالة أو بقايا القص؛ تدخل المخزون وتُخصم قيمتها من تكلفة المنتج")
+    scrap_qty = models.DecimalField("كمية المخلفات لهذه الكمية", max_digits=18, decimal_places=3, default=0)
+    scrap_rate = models.DecimalField("قيمة وحدة المخلفات", max_digits=18, decimal_places=2, default=0)
     is_active = models.BooleanField("فعّالة", default=True)
     is_default = models.BooleanField("الافتراضية للمنتج", default=True)
     remarks = models.TextField("ملاحظات", blank=True)
@@ -79,26 +150,63 @@ class BOM(TenantModel):
             if self.is_default:
                 BOM.objects.filter(item=self.item_id, is_default=True).exclude(pk=self.pk).update(is_default=False)
 
-    def scaled(self, qty):
-        """المواد اللازمة لإنتاج كمية qty: [(صنف، كمية)]."""
-        factor = Decimal(qty) / self.quantity if self.quantity else Decimal(0)
-        return [(row.item, flt(row.qty * factor, 3)) for row in self.items.select_related("item", "item__uom")]
+    def factor(self, qty):
+        return Decimal(qty) / self.quantity if self.quantity else Decimal(0)
 
-    def cost_breakdown(self, warehouse=None):
+    def scaled(self, qty):
+        """المواد اللازمة لإنتاج كمية qty شاملة نسبة الهالك: [(صنف، كمية)]."""
+        f = self.factor(qty)
+        return [(row.item, row.gross_qty(f)) for row in self.items.select_related("item", "item__uom")]
+
+    def operating_for(self, qty):
+        """تكاليف التشغيل لكمية: المبلغ الثابت في القائمة + وقت العمليات على محطات العمل."""
+        cost = flt(self.operating_cost * self.factor(qty))
+        if self.routing_id:
+            cost += flt(self.routing.cost_per_unit * Decimal(qty))
+        return cost
+
+    def scrap_for(self, qty):
+        return flt(self.scrap_qty * self.factor(qty), 3) if self.scrap_item_id else flt(0, 3)
+
+    def cost_breakdown(self, warehouse=None, _depth=0):
         rows, material = [], flt(0)
         for row in self.items.select_related("item", "item__uom"):
-            rate = unit_cost_estimate(row.item, warehouse)
-            amount = flt(rate * row.qty)
+            qty = row.gross_qty(1)
+            rate = unit_cost_estimate(row.item, warehouse, _depth)
+            amount = flt(rate * qty)
             material += amount
-            rows.append({"item": row.item, "qty": row.qty, "rate": rate, "amount": amount})
+            rows.append({"item": row.item, "qty": qty, "rate": rate, "amount": amount,
+                         "scrap_percent": row.scrap_percent, "sub_bom": default_bom(row.item)})
         from stock.pricing import selling_net
 
-        total = material + flt(self.operating_cost)
+        operating = self.operating_for(self.quantity)
+        scrap_value = flt(self.scrap_qty * self.scrap_rate) if self.scrap_item_id else flt(0)
+        total = material + operating - scrap_value
         unit = flt(total / self.quantity) if self.quantity else flt(0)
         net = selling_net(self.item, self.company)
-        return {"rows": rows, "material": material, "operating": flt(self.operating_cost), "total": total,
+        return {"rows": rows, "material": material, "operating": operating, "fixed_operating": flt(self.operating_cost),
+                "routing": operating - flt(self.operating_cost), "scrap_value": scrap_value, "total": total,
                 "unit": unit, "selling_net": net, "unit_profit": net - unit,
                 "margin": flt((net - unit) * 100 / net) if net else None}
+
+    def exploded(self, qty=None, level=0, seen=None):
+        """شجرة المواد متعددة المستويات: [{item, qty, level, bom}]."""
+        seen = (seen or set()) | {self.item_id}
+        rows = []
+        for item, q in self.scaled(self.quantity if qty is None else qty):
+            sub = default_bom(item) if item.pk not in seen and level < 8 else None
+            rows.append({"item": item, "qty": q, "level": level, "bom": sub})
+            if sub is not None:
+                rows += sub.exploded(q, level + 1, seen)
+        return rows
+
+    @property
+    def tree(self):
+        return self.exploded()
+
+    @property
+    def is_multilevel(self):
+        return any(r["level"] for r in self.tree)
 
     def producible(self, warehouse):
         """أقصى كمية يمكن إنتاجها من رصيد المواد في مستودع، والمادة المقيِّدة."""
@@ -143,6 +251,11 @@ class BOMItem(models.Model):
     item = models.ForeignKey("stock.Item", models.PROTECT, verbose_name="المادة",
                              limit_choices_to={"disabled": False, "is_stock_item": True})
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    scrap_percent = models.DecimalField("نسبة الهالك %", max_digits=5, decimal_places=2, default=0,
+                                        help_text="فاقد التصنيع؛ تزيد به الكمية المصروفة")
+
+    def gross_qty(self, factor):
+        return flt(self.qty * Decimal(factor) * (100 + flt(self.scrap_percent)) / 100, 3)
 
     class Meta:
         verbose_name = "مادة"
@@ -171,6 +284,11 @@ class Production(SubmittableDocument):
         help_text="بدونه تُحسب كميات المواد من قائمة المواد حسب الكمية المنتجة")
     additional_cost = models.DecimalField("تكاليف إضافية", max_digits=18, decimal_places=2, default=0,
                                           help_text="تكاليف خاصة بهذا الأمر فوق تكاليف التشغيل في القائمة")
+    rejected_qty = models.DecimalField("الكمية التالفة من المنتج", max_digits=18, decimal_places=3, default=0,
+                                       help_text="وحدات خرجت تالفة؛ تُحمّل تكلفتها على الوحدات السليمة")
+    scrap_qty = models.DecimalField("كمية المخلفات القابلة للبيع", max_digits=18, decimal_places=3, default=0,
+                                    help_text="تُحسب من قائمة المواد؛ عدّلها بالفعلي مع «تعديل الكميات يدوياً»")
+    scrap_value = models.DecimalField("قيمة المخلفات", max_digits=18, decimal_places=2, default=0, editable=False)
     operating_cost = models.DecimalField("تكاليف التشغيل", max_digits=18, decimal_places=2, default=0,
                                          editable=False)
     material_cost = models.DecimalField("تكلفة المواد", max_digits=18, decimal_places=2, default=0, editable=False)
@@ -205,8 +323,10 @@ class Production(SubmittableDocument):
                 self.items.exclude(item_id__in=required).delete()
             else:
                 self.items.exclude(item_id__in=required).update(required_qty=0)
-            self.operating_cost = flt(self.bom.operating_cost * (self.qty or 0) / self.bom.quantity) \
-                if self.bom.quantity else flt(0)
+            self.operating_cost = self.bom.operating_for(self.qty or 0)
+            if not self.manual_consumption:
+                self.scrap_qty = self.bom.scrap_for(self.qty or 0)
+            self.scrap_value = flt(flt(self.scrap_qty) * self.bom.scrap_rate) if self.bom.scrap_item_id else flt(0)
             material = flt(0)
             for row in self.items.select_related("item"):
                 row.rate = unit_cost_estimate(row.item, self.source_warehouse if self.source_warehouse_id else None)
@@ -214,8 +334,21 @@ class Production(SubmittableDocument):
                 row.save(update_fields=["rate", "amount"])
                 material += row.amount
             self.material_cost = material
-        self.total_cost = flt(self.material_cost + self.operating_cost + flt(self.additional_cost))
-        self.unit_cost = flt(self.total_cost / self.qty, 4) if self.qty else flt(0)
+        self.total_cost = flt(self.material_cost + self.operating_cost + flt(self.additional_cost) - self.scrap_value)
+        good = self.good_qty
+        self.unit_cost = flt(self.total_cost / good, 4) if good > 0 else flt(0)
+
+    @property
+    def good_qty(self):
+        return flt(flt(self.qty or 0, 3) - flt(self.rejected_qty or 0, 3), 3)
+
+    @property
+    def planned_minutes(self):
+        return flt(self.bom.routing.minutes_per_unit * self.qty, 1) if self.bom.routing_id else None
+
+    @property
+    def waste_percent(self):
+        return flt(flt(self.rejected_qty) * 100 / self.qty) if self.qty else flt(0)
 
     def validate_for_submit(self):
         if not self.bom.is_active:
@@ -224,6 +357,12 @@ class Production(SubmittableDocument):
             raise ValidationError("الكمية المطلوب إنتاجها يجب أن تكون أكبر من صفر.")
         if self.additional_cost < 0:
             raise ValidationError("التكاليف الإضافية لا تكون سالبة.")
+        if self.rejected_qty < 0 or self.rejected_qty >= self.qty:
+            raise ValidationError("الكمية التالفة يجب أن تكون أقل من الكمية المنتجة.")
+        if self.scrap_qty < 0:
+            raise ValidationError("كمية المخلفات لا تكون سالبة.")
+        if self.scrap_value >= flt(self.material_cost + self.operating_cost + flt(self.additional_cost)) and self.scrap_value:
+            raise ValidationError("قيمة المخلفات لا تتجاوز تكلفة الإنتاج.")
         rows = list(self.items.select_related("item"))
         if not rows or not any(r.qty > 0 for r in rows):
             raise ValidationError("لا توجد مواد لصرفها؛ راجع قائمة المواد.")
@@ -247,16 +386,23 @@ class Production(SubmittableDocument):
             material += cost
         self.material_cost = material
         overhead = flt(self.operating_cost + flt(self.additional_cost))
-        self.total_cost = flt(material + overhead)
-        self.unit_cost = flt(self.total_cost / self.qty, 4)
-        self.save(update_fields=["material_cost", "total_cost", "unit_cost"])
-        value = make_stock_ledger_entry(self, self.item, self.target_warehouse, self.qty, self.total_cost / self.qty,
+        scrap_in = flt(0)
+        if self.bom.scrap_item_id and self.scrap_qty > 0:
+            # المخلفات القابلة للبيع تدخل المخزون بقيمتها وتُخصم من تكلفة المنتج
+            scrap_in = make_stock_ledger_entry(self, self.bom.scrap_item, self.target_warehouse, self.scrap_qty,
+                                               self.bom.scrap_rate)
+        self.scrap_value = scrap_in
+        self.total_cost = flt(material + overhead - scrap_in)
+        good = self.good_qty
+        self.unit_cost = flt(self.total_cost / good, 4)
+        self.save(update_fields=["material_cost", "total_cost", "unit_cost", "scrap_value"])
+        value = make_stock_ledger_entry(self, self.item, self.target_warehouse, good, self.total_cost / good,
                                         batch_no=self.batch_no, expiry_date=self.expiry_date,
                                         manufacturing_date=self.posting_date)
         stock = self.company.require_account("default_stock_account")
-        # المواد خرجت من المخزون والمنتج دخل بقيمة المواد + تكاليف التشغيل المحملة
-        entries = [{"account": stock, "debit": value}, {"account": stock, "credit": material}]
-        rounding = flt(value - material - overhead)
+        # المواد خرجت من المخزون، والمنتج السليم والمخلفات دخلا بقيمة المواد + تكاليف التشغيل المحملة
+        entries = [{"account": stock, "debit": value + scrap_in}, {"account": stock, "credit": material}]
+        rounding = flt(value + scrap_in - material - overhead)
         if overhead:
             entries.append({"account": overhead_account(self.company), "credit": overhead})
         if rounding:
@@ -268,6 +414,30 @@ class Production(SubmittableDocument):
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
+
+    @property
+    def draft_actions(self):
+        if self.is_draft and any(a["short"] > 0 and default_bom(a["row"].item) for a in self.availability):
+            return [("make_sub_productions", "إنشاء أوامر إنتاج للمكونات الناقصة")]
+        return []
+
+    def make_sub_productions(self, user=None):
+        """أوامر إنتاج (مسودات) للمكونات نصف المصنعة الناقصة بكمية العجز."""
+        created = []
+        for a in self.availability:
+            bom = default_bom(a["row"].item)
+            if a["short"] <= 0 or bom is None:
+                continue
+            sub = Production.objects.create(company=self.company, bom=bom, qty=a["short"],
+                                            source_warehouse=self.source_warehouse,
+                                            target_warehouse=self.source_warehouse, created_by=user,
+                                            remarks=f"مكوّن لأمر الإنتاج {self.name}")
+            sub.calculate_totals()
+            sub.save()
+            created.append(sub)
+        if not created:
+            raise ValidationError("لا توجد مكونات نصف مصنعة ناقصة.")
+        return created[0]
 
     @property
     def availability(self):

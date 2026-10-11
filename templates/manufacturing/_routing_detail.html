@@ -1,0 +1,6 @@
+{% load erp %}
+<div class="card">
+  <div class="total-line"><span>الوقت لكل وحدة من المنتج</span><strong>{{ obj.minutes_per_unit|floatformat:-2 }} دقيقة</strong></div>
+  <div class="total-line grand"><span>تكلفة التشغيل لكل وحدة</span><strong>{{ obj.cost_per_unit|cur }}</strong></div>
+  <p class="muted small">تُضاف لتكاليف التشغيل في كل قائمة مواد تستخدم هذا المسار، وتُحمّل على المنتج في أوامر الإنتاج.</p>
+</div>

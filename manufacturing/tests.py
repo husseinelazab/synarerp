@@ -135,6 +135,7 @@ class ManufacturingTests(TestCase):
         response = self.client.post("/app/production/new/", {
             "bom": self.bom.pk, "qty": "10", "posting_date": TODAY.isoformat(), "source_warehouse": self.wh.pk,
             "target_warehouse": self.wh.pk, "batch_no": "", "expiry_date": "", "additional_cost": "0", "remarks": "",
+            "rejected_qty": "0", "scrap_qty": "0",
             "items-TOTAL_FORMS": "0", "items-INITIAL_FORMS": "0", "items-MIN_NUM_FORMS": "0", "items-MAX_NUM_FORMS": "1000",
         })
         self.assertEqual(response.status_code, 302, response.content.decode()[:2000])
@@ -149,3 +150,117 @@ class ManufacturingTests(TestCase):
         self.assertEqual(self.client.get("/app/production/").status_code, 200)
         self.assertEqual(self.client.get("/reports/stock/batches/").status_code, 200)
         self.assertNotEqual(self.client.get("/app/sales-invoice/").status_code, 200)
+
+
+class ManufacturingAdvancedTests(ManufacturingTests):
+    """المسارات ومحطات العمل، والهالك والمخلفات، والتعدد في المستويات، وتخطيط الاحتياجات."""
+
+    def make_routing(self):
+        from manufacturing.models import Routing, Workstation
+
+        oven = Workstation.objects.create(company=self.company, name="الفرن", hourly_rate=60)
+        packing = Workstation.objects.create(company=self.company, name="التعبئة", hourly_rate=30)
+        routing = Routing.objects.create(company=self.company, name="خبز الكيك")
+        routing.operations.create(operation="خبز", workstation=oven, minutes=2)      # 2 ريال للوحدة
+        routing.operations.create(operation="تعبئة", workstation=packing, minutes=1)  # 0.5 ريال للوحدة
+        return routing
+
+    def test_routing_cost_added(self):
+        routing = self.make_routing()
+        self.assertEqual(routing.cost_per_unit, Decimal("2.50"))
+        self.bom.routing = routing
+        self.bom.save()
+        self.assertEqual(self.bom.cost_breakdown()["operating"], Decimal("40"))  # 15 + 2.5×10
+        p = self.production(20)
+        self.assertEqual(p.operating_cost, Decimal("80"))
+        p.submit()
+        page = self.client.get("/manufacturing/report/")
+        self.assertContains(page, "تحميل محطات العمل")
+        stations = {s["ws"].name: s for s in page.context["stations"]}
+        self.assertEqual((stations["الفرن"]["hours"], stations["الفرن"]["cost"]), (Decimal("0.67"), Decimal("40.00")))
+
+    def test_scrap_percent_rejected_and_scrap_item(self):
+        bran = Item.objects.create(company=self.company, code="BRAN", name="نخالة", item_group=self.sugar.item_group,
+                                   uom=self.sugar.uom)
+        self.bom.items.filter(item=self.flour).update(scrap_percent=10)
+        self.bom.scrap_item, self.bom.scrap_qty, self.bom.scrap_rate = bran, 1, 2
+        self.bom.save()
+        p = self.production(20, rejected_qty=2)
+        self.assertEqual(p.items.get(item=self.flour).qty, Decimal("4.4"))
+        self.assertEqual((p.scrap_qty, p.scrap_value), (Decimal("2"), Decimal("4")))
+        p.submit()
+        p.refresh_from_db()
+        # المواد 4.4×6 + 2×4 = 34.4، التشغيل 30، يُخصم 4 مخلفات = 60.4 على 18 وحدة سليمة
+        self.assertEqual((p.material_cost, p.total_cost), (Decimal("34.40"), Decimal("60.40")))
+        self.assertEqual(p.unit_cost, Decimal("3.3556"))
+        self.assertEqual(Bin.objects.get(item=self.cake, warehouse=self.wh).actual_qty, 18)
+        self.assertEqual(Bin.objects.get(item=bran, warehouse=self.wh).stock_value, Decimal("4.00"))
+        summary = self.client.get("/manufacturing/report/").context["summary"][0]
+        self.assertEqual((summary["good"], summary["waste"]), (Decimal("18"), Decimal("10")))
+        with self.assertRaises(ValidationError):
+            self.production(5, rejected_qty=5).submit()
+
+    def test_multilevel_bom_cost_and_sub_productions(self):
+        # تغليف الكيك: كيك + علبة. الكيك نصف مصنّع له قائمة مواد
+        box = Item.objects.create(company=self.company, code="BOX", name="علبة", item_group=self.sugar.item_group,
+                                  uom=self.sugar.uom, buying_rate=1)
+        gift = Item.objects.create(company=self.company, code="GIFT", name="علبة هدايا كيك",
+                                   item_group=self.sugar.item_group, uom=self.sugar.uom, selling_rate=50)
+        self.buy(box, 10, 1)
+        top = BOM.objects.create(company=self.company, item=gift, quantity=1, operating_cost=0)
+        top.items.create(item=self.cake, qty=4)
+        top.items.create(item=box, qty=1)
+        self.assertTrue(top.is_multilevel)
+        self.assertEqual([r["level"] for r in top.tree], [0, 1, 1, 0])
+        # لا رصيد كيك: تكلفته من قائمته (3.10)
+        self.assertEqual(top.cost_breakdown()["unit"], Decimal("13.40"))
+        p = Production.objects.create(company=self.company, bom=top, qty=5, source_warehouse=self.wh,
+                                      target_warehouse=self.wh)
+        p.calculate_totals()
+        p.save()
+        self.assertEqual(p.draft_actions, [("make_sub_productions", "إنشاء أوامر إنتاج للمكونات الناقصة")])
+        response = self.client.post(f"/app/production/{p.pk}/make_sub_productions/")
+        sub = Production.objects.exclude(pk=p.pk).get(item=self.cake)
+        self.assertRedirects(response, f"/app/production/{sub.pk}/edit/", fetch_redirect_response=False)
+        self.assertEqual(sub.qty, 20)
+        sub.submit()
+        p.calculate_totals()
+        p.save()
+        self.assertFalse(p.has_shortage)
+        p.submit()
+        self.assertEqual(Bin.objects.get(item=gift, warehouse=self.wh).actual_qty, 5)
+
+    def test_mrp_from_sales_orders_and_drafts(self):
+        from buying.models import PurchaseOrder
+        from selling.models import Customer, SalesOrder
+
+        self.bom.items.create(item=Item.objects.get(code="LAP-001"), qty=0)  # مادة بلا كمية لا تؤثر
+        so = SalesOrder.objects.create(company=self.company, customer=Customer.objects.first(), warehouse=self.wh)
+        so.items.create(item=self.cake, qty=150, rate=20)
+        so.calculate_totals()
+        so.save()
+        so.submit()
+        rows = {r["item"].code: r for r in self.client.get("/manufacturing/mrp/").context["rows"]}
+        self.assertEqual((rows["CAKE"]["action"], rows["CAKE"]["shortage"]), ("produce", Decimal("150")))
+        # 150 كيكة: دقيق 30 (المتاح 20) وسكر 15 (المتاح 10)
+        self.assertEqual((rows["FLOUR"]["shortage"], rows["SUGAR"]["shortage"]), (Decimal("10"), Decimal("5")))
+        self.assertEqual(rows["FLOUR"]["supplier"], self.supplier)
+        response = self.client.post("/manufacturing/mrp/", {
+            "action": "purchase", "productions": "1", "sales_orders": "1",
+            "pick": [str(self.flour.pk), str(self.sugar.pk)],
+            f"supplier_{self.flour.pk}": self.supplier.pk, f"supplier_{self.sugar.pk}": self.supplier.pk,
+            f"qty_{self.flour.pk}": "10", f"qty_{self.sugar.pk}": "5"})
+        self.assertEqual(response.status_code, 302)
+        po = PurchaseOrder.objects.get()
+        self.assertEqual(sorted((r.item.code, r.qty) for r in po.items.all()),
+                         [("FLOUR", Decimal("10")), ("SUGAR", Decimal("5"))])
+        po.submit()
+        rows = {r["item"].code: r for r in self.client.get("/manufacturing/mrp/").context["rows"]}
+        self.assertEqual((rows["FLOUR"]["on_order"], rows["FLOUR"]["action"]), (Decimal("10"), "ok"))
+        self.client.post("/manufacturing/mrp/", {"action": "production", "productions": "1", "sales_orders": "1",
+                                                 "pick": [str(self.cake.pk)], f"qty_{self.cake.pk}": "150"})
+        draft = Production.objects.get(item=self.cake, docstatus=0)
+        self.assertEqual(draft.qty, 150)
+        # المسودة الآن تغطي أمر البيع فلا يُطلب إنتاجه مرة أخرى
+        rows = {r["item"].code: r for r in self.client.get("/manufacturing/mrp/").context["rows"]}
+        self.assertNotEqual(rows.get("CAKE", {}).get("action"), "produce")

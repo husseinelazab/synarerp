@@ -5,10 +5,11 @@
     <h3>التكلفة التقديرية (بمتوسط التكلفة الحالي)</h3>
     <table class="table">
       <thead><tr><th>المادة</th><th>الكمية</th><th>تكلفة الوحدة</th><th>التكلفة</th></tr></thead>
-      <tbody>{% for r in c.rows %}<tr><td>{{ r.item }}</td><td>{{ r.qty|floatformat:-3 }} {{ r.item.uom }}</td><td>{{ r.rate|money }}</td><td>{{ r.amount|money }}</td></tr>{% endfor %}</tbody>
+      <tbody>{% for r in c.rows %}<tr><td>{{ r.item }}{% if r.sub_bom %} <a class="badge" href="{% url 'doc_detail' 'bom' r.sub_bom.pk %}" title="مكوّن نصف مصنّع له قائمة مواد">نصف مصنّع</a>{% endif %}{% if r.scrap_percent %} <span class="muted small">(+{{ r.scrap_percent|floatformat:-2 }}% هالك)</span>{% endif %}</td><td>{{ r.qty|floatformat:-3 }} {{ r.item.uom }}</td><td>{{ r.rate|money }}</td><td>{{ r.amount|money }}</td></tr>{% endfor %}</tbody>
       <tfoot>
         <tr><th colspan="3">المواد</th><th>{{ c.material|money }}</th></tr>
-        <tr><th colspan="3">تكاليف التشغيل</th><th>{{ c.operating|money }}</th></tr>
+        <tr><th colspan="3">تكاليف التشغيل{% if obj.routing %} (منها {{ c.routing|money }} لعمليات «{{ obj.routing }}»){% endif %}</th><th>{{ c.operating|money }}</th></tr>
+        {% if c.scrap_value %}<tr><th colspan="3">يُخصم: قيمة المخلفات ({{ obj.scrap_item.name }})</th><th>- {{ c.scrap_value|money }}</th></tr>{% endif %}
         <tr><th colspan="3">الإجمالي لـ {{ obj.quantity|floatformat:-3 }} {{ obj.item.uom }}</th><th>{{ c.total|cur }}</th></tr>
         <tr><th colspan="3">تكلفة الوحدة</th><th>{{ c.unit|cur }}</th></tr>
       </tfoot>
@@ -27,3 +28,14 @@
   </div>
 </div>
 {% endwith %}
+
+{% if obj.is_multilevel %}
+<div class="card">
+  <h3>شجرة المواد متعددة المستويات (لـ {{ obj.quantity|floatformat:-3 }} {{ obj.item.uom }})</h3>
+  <table class="table">
+    <thead><tr><th>المادة</th><th>الكمية</th><th>النوع</th></tr></thead>
+    <tbody>{% for r in obj.tree %}<tr><td style="padding-inline-start: {{ r.level|add:1 }}em">{% if r.level %}└ {% endif %}{{ r.item }}</td><td>{{ r.qty|floatformat:-3 }} {{ r.item.uom }}</td>
+      <td>{% if r.bom %}<a href="{% url 'doc_detail' 'bom' r.bom.pk %}">نصف مصنّع</a>{% else %}مادة خام{% endif %}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}

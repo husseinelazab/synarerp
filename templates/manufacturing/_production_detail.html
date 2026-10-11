@@ -16,6 +16,10 @@
     <h3>المنتج</h3>
     <div class="total-line"><span>المنتج</span><strong>{{ obj.item }}</strong></div>
     <div class="total-line"><span>الكمية</span><strong>{{ obj.qty|floatformat:-3 }} {{ obj.item.uom }}</strong></div>
+    {% if obj.rejected_qty %}<div class="total-line"><span>التالف</span><strong class="neg">{{ obj.rejected_qty|floatformat:-3 }} ({{ obj.waste_percent|floatformat:1 }}%)</strong></div>
+    <div class="total-line"><span>السليم الداخل للمخزون</span><strong>{{ obj.good_qty|floatformat:-3 }}</strong></div>{% endif %}
+    {% if obj.scrap_qty and obj.bom.scrap_item %}<div class="total-line"><span>المخلفات ({{ obj.bom.scrap_item.name }})</span><strong>{{ obj.scrap_qty|floatformat:-3 }} بقيمة {{ obj.scrap_value|money }}</strong></div>{% endif %}
+    {% if obj.bom.routing %}<div class="total-line"><span>وقت العمليات ({{ obj.bom.routing }})</span><strong>{{ obj.planned_minutes|floatformat:-1 }} دقيقة</strong></div>{% endif %}
     <div class="total-line"><span>مستودع المنتج</span><strong>{{ obj.target_warehouse }}</strong></div>
     {% with b=obj.output_batch %}{% if b %}<div class="total-line"><span>التشغيلة</span><strong><a href="{% url 'doc_detail' 'batch' b.pk %}">{{ b }}</a></strong></div>{% endif %}{% endwith %}
     <div class="total-line grand"><span>تكلفة الوحدة{% if obj.is_draft %} (تقديرية){% endif %}</span><strong>{{ obj.unit_cost|cur }}</strong></div>

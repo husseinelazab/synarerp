@@ -5,7 +5,7 @@ register(DocType(
     slug="store-connection", model=StoreConnection, module="selling",
     list_fields=["name", "platform", "warehouse", "enabled", "last_event_at"],
     search_fields=["name", "store_id"],
-    detail_template="ecommerce/_connection_detail.html", detail_exclude=["webhook_secret"],
+    detail_template="ecommerce/_connection_detail.html", detail_exclude=["webhook_secret", "webhook_key"],
 ))
 register(DocType(
     slug="sku-mapping", model=SkuMapping, module="selling",

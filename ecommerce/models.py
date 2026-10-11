@@ -58,6 +58,21 @@ class StoreConnection(TenantModel):
                                       help_text="وإلا تُنشأ مسودات للمراجعة")
     last_event_at = models.DateTimeField("آخر طلب وارد", null=True, blank=True, editable=False)
 
+    # الوصول لواجهة المنصة (المرحلة الثانية: مزامنة المخزون واستيراد المنتجات) — الرموز تُحفظ مشفرة
+    access_token_enc = models.TextField(blank=True, editable=False)
+    refresh_token_enc = models.TextField(blank=True, editable=False)
+    partner_token_enc = models.TextField(blank=True, editable=False)
+    client_secret_enc = models.TextField(blank=True, editable=False)
+    token_expires_at = models.DateTimeField("انتهاء رمز الوصول", null=True, blank=True, editable=False)
+    client_id = models.CharField("Client ID للتطبيق", max_length=100, blank=True,
+                                 help_text="سلة: لتجديد رمز الوصول تلقائياً قبل انتهائه")
+    sync_stock = models.BooleanField("مزامنة كميات المخزون مع المتجر", default=False,
+                                     help_text="كل ساعة تُرسل كميات الأصناف المربوطة من مستودع المتجر")
+    stock_buffer = models.DecimalField("كمية احتياطية لا تُعرض في المتجر", max_digits=12, decimal_places=3, default=0,
+                                       help_text="تُطرح من الرصيد قبل إرساله، لتفادي بيع ما بيع للتو في الفرع")
+    last_stock_sync_at = models.DateTimeField("آخر مزامنة للمخزون", null=True, blank=True, editable=False)
+    last_sync_message = models.CharField("نتيجة آخر مزامنة", max_length=255, blank=True, editable=False)
+
     class Meta:
         verbose_name = "متجر إلكتروني"
         verbose_name_plural = "المتاجر الإلكترونية (سلة وزد)"
@@ -72,6 +87,40 @@ class StoreConnection(TenantModel):
 
     def webhook_path(self):
         return reverse("ecommerce_webhook", args=[self.platform, self.webhook_key])
+
+    def _secret(self, field, value=None):
+        from core.mail import decrypt_password, encrypt_password
+
+        if value is None:
+            return decrypt_password(getattr(self, field))
+        setattr(self, field, encrypt_password(value))
+
+    @property
+    def access_token(self):
+        return self._secret("access_token_enc")
+
+    @property
+    def has_api_access(self):
+        return bool(self.access_token_enc)
+
+    def set_tokens(self, access="", refresh=None, expires_in=None, partner=None, client_secret=None):
+        import datetime
+
+        from django.utils import timezone
+
+        if access is not None:
+            self._secret("access_token_enc", access)
+        if refresh is not None:
+            self._secret("refresh_token_enc", refresh)
+        if partner is not None:
+            self._secret("partner_token_enc", partner)
+        if client_secret is not None:
+            self._secret("client_secret_enc", client_secret)
+        if expires_in:
+            expires_in = int(expires_in)
+            # سلة ترسل وقت الانتهاء (طابع زمني) في حدث التفويض، و«المدة بالثواني» عند التجديد
+            self.token_expires_at = (datetime.datetime.fromtimestamp(expires_in, tz=datetime.timezone.utc)
+                                     if expires_in > 10 ** 9 else timezone.now() + datetime.timedelta(seconds=expires_in))
 
     def clean(self):
         if self.customer_mode == CustomerMode.SINGLE and not self.default_customer_id:
@@ -132,3 +181,26 @@ class ExternalOrder(TenantModel):
 
     def get_absolute_url(self):
         return reverse("ecommerce_order", args=[self.pk])
+
+
+class StoreProduct(TenantModel):
+    """منتج في المتجر (من استيراد المنتجات) وربطه بصنف النظام؛ عليه تُبنى مزامنة الكميات."""
+
+    connection = models.ForeignKey(StoreConnection, models.CASCADE, related_name="products", verbose_name="المتجر")
+    external_id = models.CharField("معرّف المنتج في المنصة", max_length=64)
+    sku = models.CharField("SKU", max_length=100, blank=True)
+    name = models.CharField("الاسم في المتجر", max_length=255, blank=True)
+    price = models.DecimalField("السعر في المتجر", max_digits=18, decimal_places=2, null=True, blank=True)
+    store_quantity = models.DecimalField("الكمية في المتجر", max_digits=18, decimal_places=3, null=True, blank=True)
+    item = models.ForeignKey("stock.Item", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="الصنف")
+    last_pushed_qty = models.DecimalField("آخر كمية أُرسلت", max_digits=18, decimal_places=3, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "منتج متجر"
+        verbose_name_plural = "منتجات المتجر"
+        ordering = ["sku", "name"]
+        constraints = [models.UniqueConstraint(fields=["connection", "external_id"], name="ecommerce_product_once")]
+
+    def __str__(self):
+        return f"{self.sku or self.external_id} — {self.name}"

@@ -105,7 +105,11 @@ class EcommerceTests(TestCase):
         self.assertEqual(self.post(self.salla, other).status_code, 403)
         self.assertEqual(self.client.post("/integrations/salla/wrong-key/", raw, content_type="application/json").status_code, 404)
         app_event = {"event": "app.store.authorize", "merchant": 1234509, "data": {"access_token": "x"}}
-        self.assertEqual(self.post(self.salla, app_event).json()["status"], "ignored")
+        self.assertEqual(self.post(self.salla, app_event).json()["status"], "authorized")
+        stranger = {"event": "app.store.authorize", "merchant": 1, "data": {"access_token": "evil"}}
+        self.assertEqual(self.post(self.salla, stranger).json()["status"], "ignored")   # متجر آخر
+        self.salla.refresh_from_db()
+        self.assertEqual(self.salla.access_token, "x")
 
     def test_unknown_sku_review_then_map(self):
         body = copy.deepcopy(SALLA_ORDER)

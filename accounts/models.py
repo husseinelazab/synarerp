@@ -288,6 +288,7 @@ class JournalEntryAccount(models.Model):
     class Meta:
         verbose_name = "سطر قيد"
         verbose_name_plural = "سطور القيد"
+        ordering = ["id"]
 
     def validate_line(self):
         if self.debit and self.credit:
@@ -518,6 +519,7 @@ class OpeningAccountLine(models.Model):
     class Meta:
         verbose_name = "سطر رصيد افتتاحي"
         verbose_name_plural = "الحسابات"
+        ordering = ["id"]
 
 
 class OpeningPartyBalance(SubmittableDocument):
@@ -576,6 +578,7 @@ class OpeningPartyLine(models.Model):
     class Meta:
         verbose_name = "سطر رصيد طرف"
         verbose_name_plural = "الأطراف"
+        ordering = ["id"]
 
 
 class PeriodClosingVoucher(SubmittableDocument):
@@ -797,6 +800,7 @@ class ExchangeRevaluationLine(models.Model):
     class Meta:
         verbose_name = "سطر إعادة تقييم"
         verbose_name_plural = "الحسابات"
+        ordering = ["id"]
 
 
 class BudgetAction(models.TextChoices):

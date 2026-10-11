@@ -675,6 +675,7 @@ class OpeningStockItem(models.Model):
     class Meta:
         verbose_name = "صنف افتتاحي"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class StockEntryItem(models.Model):
@@ -691,6 +692,7 @@ class StockEntryItem(models.Model):
     class Meta:
         verbose_name = "بند حركة مخزنية"
         verbose_name_plural = "بنود الحركة"
+        ordering = ["id"]
 
 
 class StockCount(SubmittableDocument):
@@ -869,3 +871,4 @@ class StockCountItem(models.Model):
     class Meta:
         verbose_name = "صنف جرد"
         verbose_name_plural = "أصناف الجرد"
+        ordering = ["id"]

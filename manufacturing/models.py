@@ -108,6 +108,7 @@ class RoutingOperation(models.Model):
     class Meta:
         verbose_name = "عملية"
         verbose_name_plural = "العمليات"
+        ordering = ["id"]
 
 
 class BOM(TenantModel):
@@ -260,6 +261,7 @@ class BOMItem(models.Model):
     class Meta:
         verbose_name = "مادة"
         verbose_name_plural = "المواد الخام"
+        ordering = ["id"]
 
 
 class Production(SubmittableDocument):
@@ -484,6 +486,7 @@ class ProductionItem(models.Model):
     class Meta:
         verbose_name = "مادة مستهلكة"
         verbose_name_plural = "المواد المستهلكة"
+        ordering = ["id"]
 
 
 # ---------------- إعادة التعبئة والتفكيك ----------------
@@ -556,6 +559,7 @@ class RepackTemplateItem(RepackLine):
     class Meta:
         verbose_name = "منتج أو تغليف"
         verbose_name_plural = "المنتجات والتغليف"
+        ordering = ["id"]
 
 
 class Repack(SubmittableDocument):
@@ -733,3 +737,4 @@ class RepackItem(RepackLine):
     class Meta:
         verbose_name = "صنف إعادة تعبئة"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]

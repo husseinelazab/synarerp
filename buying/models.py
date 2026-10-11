@@ -86,6 +86,7 @@ class PurchaseOrderItem(OrderItem):
     class Meta:
         verbose_name = "بند أمر شراء"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class PurchaseInvoice(InvoiceDocument):
@@ -188,6 +189,7 @@ class PurchaseInvoiceItem(InvoiceItem):
     class Meta:
         verbose_name = "بند فاتورة مشتريات"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class PurchaseReceipt(FulfillmentDocument):
@@ -246,6 +248,7 @@ class PurchaseReceiptItem(FulfillmentItem):
     class Meta:
         verbose_name = "بند إذن استلام"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
     @property
     def base_rate(self):

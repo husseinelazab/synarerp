@@ -109,6 +109,7 @@ class QuotationItem(CommercialItem):
     class Meta:
         verbose_name = "بند عرض سعر"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class SalesOrder(OrderDocument):
@@ -177,6 +178,7 @@ class SalesOrderItem(OrderItem):
     class Meta:
         verbose_name = "بند أمر بيع"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class SalesInvoice(InvoiceDocument):
@@ -390,6 +392,7 @@ class SalesInvoiceItem(InvoiceItem):
     class Meta:
         verbose_name = "بند فاتورة مبيعات"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]
 
 
 class DeliveryNote(FulfillmentDocument):
@@ -441,3 +444,4 @@ class DeliveryNoteItem(FulfillmentItem):
     class Meta:
         verbose_name = "بند إذن تسليم"
         verbose_name_plural = "الأصناف"
+        ordering = ["id"]

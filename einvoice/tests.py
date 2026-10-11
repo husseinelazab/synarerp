@@ -87,6 +87,17 @@ class EInvoiceTests(TestCase):
         self.assertNotIn("BEGIN", settings.private_key)  # المفتاح مخزن مشفراً
         self.assertEqual((settings.last_icv, settings.last_hash), (0, FIRST_INVOICE_PIH))
 
+    def test_resubmit_redirects_only_inside_the_site(self):
+        self.onboard()
+        einvoice = EInvoice.objects.get(sales_invoice=self.sale())
+        url = f"/einvoice/{einvoice.pk}/resubmit/"
+        self.assertRedirects(self.client.post(url, {"next": "https://evil.example/"}), "/einvoice/",
+                             fetch_redirect_response=False)
+        self.assertRedirects(self.client.post(url, {"next": "//evil.example/"}), "/einvoice/",
+                             fetch_redirect_response=False)
+        self.assertRedirects(self.client.post(url, {"next": "/app/sales-invoice/"}), "/app/sales-invoice/",
+                             fetch_redirect_response=False)
+
     def test_simplified_invoice_reported_with_chain_and_qr(self):
         self.onboard()
         first = self.sale().einvoice

@@ -1,7 +1,7 @@
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import CostCenter
@@ -221,3 +221,47 @@ class TwoFactorTests(TestCase):
             self.client.post(reverse("two_factor_setup"), {"action": "disable", "password": "Owner#Pass123",
                                                            "code": code})
         self.assertFalse(UserTwoFactor.objects.exists())
+
+
+class HardeningTests(TestCase):
+    def test_client_ip_ignores_spoofed_forwarded_for(self):
+        from core.utils import client_ip
+
+        request = RequestFactory().get("/", HTTP_X_FORWARDED_FOR="6.6.6.6", REMOTE_ADDR="10.0.0.5")
+        with override_settings(SYNAR_TRUST_PROXY=False):
+            self.assertEqual(client_ip(request), "10.0.0.5")
+        # خلف الوكيل: آخر عنوان هو ما أضافه الوكيل، وما قبله من العميل
+        request = RequestFactory().get("/", HTTP_X_FORWARDED_FOR="6.6.6.6, 203.0.113.9", REMOTE_ADDR="172.18.0.2")
+        with override_settings(SYNAR_TRUST_PROXY=True):
+            self.assertEqual(client_ip(request), "203.0.113.9")
+
+    def test_ip_lockout_not_bypassed_by_forwarded_for(self):
+        cache.clear()
+        make_company("شركة القفل", "lockowner")
+        for i in range(20):
+            self.client.post(reverse("login"), {"username": f"guess{i}", "password": "bad"})
+        response = self.client.post(reverse("login"), {"username": "lockowner", "password": "pass12345"},
+                                    HTTP_X_FORWARDED_FOR="1.2.3.4")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["locked"])
+        cache.clear()
+
+    def test_export_does_not_produce_formulas(self):
+        import io
+
+        import openpyxl
+
+        from core.importer import build_csv, columns_for
+        from core.registry import REGISTRY
+
+        company, owner = make_company("شركة التصدير", "exportowner")
+        with tenant_context(company):
+            Customer.objects.create(name='=HYPERLINK("http://evil.example","x")')
+        self.client.force_login(owner)
+        response = self.client.get(reverse("doc_export", args=["customer"]))
+        sheet = openpyxl.load_workbook(io.BytesIO(response.content)).active
+        cells = [c for row in sheet.iter_rows() for c in row if str(c.value or "").startswith("=")]
+        self.assertTrue(cells)
+        self.assertTrue(all(c.data_type == "s" for c in cells))
+        csv_text = build_csv(columns_for(REGISTRY["customer"]), [["=1+1", "-2", "عادي"]]).decode("utf-8-sig")
+        self.assertIn("'=1+1,'-2,عادي", csv_text)

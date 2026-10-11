@@ -10,6 +10,7 @@ from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core.forms import formfield_callback, style_form
+from core.utils import sheet_append
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
@@ -100,7 +101,7 @@ def bank_file(request, pk):
     for i, line in enumerate(run.lines.select_related("employee").filter(net_pay__gt=0), start=1):
         emp = line.employee
         missing += not emp.iban
-        sheet.append([i, emp.employee_number, emp.full_name, emp.national_id, emp.bank_name, emp.iban,
+        sheet_append(sheet, [i, emp.employee_number, emp.full_name, emp.national_id, emp.bank_name, emp.iban,
                       float(line.net_pay), f"راتب {run.period_label}"])
     sheet.append([])
     sheet.append(["", "", "الإجمالي", "", "", "", float(run.total_net)])

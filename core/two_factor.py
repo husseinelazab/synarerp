@@ -14,6 +14,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 from core import totp
 from core.models import UserTwoFactor
+from core.utils import client_ip
 
 MAX_FAILURES = 5          # محاولات كلمة مرور خاطئة قبل الإيقاف المؤقت
 LOCK_SECONDS = 15 * 60
@@ -31,13 +32,8 @@ def _qr_svg(data):
     return buffer.getvalue().decode()
 
 
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return forwarded.split(",")[0].strip() if forwarded else request.META.get("REMOTE_ADDR", "")
-
-
 def _lock_keys(request, username):
-    return [f"login-fail:user:{(username or '').strip().lower()}", f"login-fail:ip:{_client_ip(request)}"]
+    return [f"login-fail:user:{(username or '').strip().lower()}", f"login-fail:ip:{client_ip(request)}"]
 
 
 def is_locked(request, username):

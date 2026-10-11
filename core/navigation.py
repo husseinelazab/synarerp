@@ -89,6 +89,7 @@ def build_menu(request):
         ]},
         {"key": "manufacturing", "label": "التصنيع", "sections": [
             {"items": [doc("أوامر الإنتاج", "production"), doc("قوائم المواد", "bom"),
+                       doc("إعادة التعبئة والتفكيك", "repack"), doc("قوالب إعادة التعبئة", "repack-template"),
                        _item("تخطيط احتياجات المواد", "mrp")]},
             {"title": "الإعداد", "items": [doc("محطات العمل", "workstation"), doc("مسارات التشغيل", "routing")]},
             {"title": "تقارير", "items": [_item("الإنتاج والهالك", "production_report"),

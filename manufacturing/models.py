@@ -484,3 +484,252 @@ class ProductionItem(models.Model):
     class Meta:
         verbose_name = "مادة مستهلكة"
         verbose_name_plural = "المواد المستهلكة"
+
+
+# ---------------- إعادة التعبئة والتفكيك ----------------
+# صنف واحد بالجملة (مثل فلينة طماطم كبيرة) يُفكك إلى عدة منتجات (فلين وسط، فلين صغير، صحون)، ولكل منتج تغليفه.
+# تكلفة المادة المفككة (والتكاليف الإضافية) تُوزع على المنتجات، وتكلفة تغليف كل منتج تُحمّل عليه وحده.
+
+class RepackRowType(models.TextChoices):
+    INPUT = "input", "مادة تُفكك"
+    OUTPUT = "output", "منتج ناتج"
+    PACKAGING = "packaging", "تغليف لمنتج"
+
+
+class CostBasis(models.TextChoices):
+    SELLING = "selling", "بنسبة قيمة البيع (موصى به)"
+    MANUAL = "manual", "بنسب يدوية لكل منتج"
+    QTY = "qty", "بالتساوي على عدد الوحدات"
+
+
+class RepackTemplate(TenantModel):
+    """طريقة تفكيك ثابتة تُعاد كل مرة: ماذا ينتج عن الصنف وما يلزم كل منتج من تغليف."""
+
+    name = models.CharField("اسم القالب", max_length=100)
+    source_item = models.ForeignKey("stock.Item", models.PROTECT, related_name="+", verbose_name="الصنف الذي يُفكك",
+                                    limit_choices_to={"disabled": False, "is_stock_item": True})
+    source_qty = models.DecimalField("لكل كمية", max_digits=18, decimal_places=3, default=1,
+                                     help_text="الكميات أدناه ناتجة عن هذه الكمية من الصنف (مثلاً 1 فلينة كبيرة)")
+    cost_basis = models.CharField("توزيع التكلفة", max_length=10, choices=CostBasis.choices, default=CostBasis.SELLING)
+    is_active = models.BooleanField("فعّال", default=True)
+    remarks = models.TextField("ملاحظات", blank=True)
+
+    class Meta:
+        verbose_name = "قالب إعادة تعبئة"
+        verbose_name_plural = "قوالب إعادة التعبئة"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="repacktemplate")]
+
+    def __str__(self):
+        return self.name
+
+
+class RepackLine(models.Model):
+    """حقول مشتركة لأسطر القالب والمستند."""
+
+    item = models.ForeignKey("stock.Item", models.PROTECT, related_name="+", verbose_name="الصنف",
+                             limit_choices_to={"disabled": False, "is_stock_item": True})
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    for_item = models.ForeignKey("stock.Item", models.PROTECT, null=True, blank=True, related_name="+",
+                                 verbose_name="لأي منتج", limit_choices_to={"disabled": False},
+                                 help_text="لأسطر التغليف: المنتج الذي يُغلّف به")
+    cost_percent = models.DecimalField("نسبة التكلفة %", max_digits=6, decimal_places=2, default=0,
+                                       help_text="للمنتجات عند التوزيع بنسب يدوية فقط")
+
+    class Meta:
+        abstract = True
+
+    def clean(self):
+        super().clean()
+        if self.row_type == RepackRowType.PACKAGING and not self.for_item_id:
+            raise ValidationError({"for_item": "حدد المنتج الذي يُغلّف بهذا الصنف."})
+        if self.row_type != RepackRowType.PACKAGING:
+            self.for_item = None
+
+
+class RepackTemplateItem(RepackLine):
+    parent = models.ForeignKey(RepackTemplate, models.CASCADE, related_name="items")
+    row_type = models.CharField("النوع", max_length=10, default=RepackRowType.OUTPUT,
+                                choices=[(RepackRowType.OUTPUT, RepackRowType.OUTPUT.label),
+                                         (RepackRowType.PACKAGING, RepackRowType.PACKAGING.label)])
+
+    class Meta:
+        verbose_name = "منتج أو تغليف"
+        verbose_name_plural = "المنتجات والتغليف"
+
+
+class Repack(SubmittableDocument):
+    """إعادة تعبئة / تفكيك: يصرف الصنف وتغليفه، ويُدخل المنتجات بتكلفة موزعة."""
+
+    naming_prefix = "RPK"
+
+    template = models.ForeignKey(RepackTemplate, models.PROTECT, null=True, blank=True, related_name="repacks",
+                                 verbose_name="القالب", limit_choices_to={"is_active": True},
+                                 help_text="اختره واترك جدول الأصناف فارغاً واحفظ لتعبئته تلقائياً")
+    source_qty = models.DecimalField("الكمية المفككة", max_digits=18, decimal_places=3, default=1,
+                                     help_text="عدد الوحدات التي تُفكك (لتعبئة الجدول من القالب)")
+    source_warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, related_name="+",
+                                         verbose_name="مستودع الصنف والتغليف")
+    target_warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, related_name="+",
+                                         verbose_name="مستودع المنتجات")
+    cost_basis = models.CharField("توزيع التكلفة", max_length=10, choices=CostBasis.choices, default=CostBasis.SELLING)
+    additional_cost = models.DecimalField("تكاليف إضافية", max_digits=18, decimal_places=2, default=0,
+                                          help_text="عمالة الفرز والتعبئة ونحوها؛ تُوزع مع تكلفة الصنف على المنتجات")
+    input_cost = models.DecimalField("تكلفة الصنف المفكك", max_digits=18, decimal_places=2, default=0, editable=False)
+    packaging_cost = models.DecimalField("تكلفة التغليف", max_digits=18, decimal_places=2, default=0, editable=False)
+    total_cost = models.DecimalField("إجمالي تكلفة المنتجات", max_digits=18, decimal_places=2, default=0,
+                                     editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "إعادة تعبئة / تفكيك"
+        verbose_name_plural = "إعادة التعبئة والتفكيك"
+
+    def rows(self, row_type):
+        return [r for r in self.items.select_related("item", "for_item").order_by("id") if r.row_type == row_type]
+
+    def fill_from_template(self):
+        """أسطر الصنف ومنتجاته وتغليفها من القالب بحسب الكمية المفككة."""
+        template = self.template
+        factor = Decimal(self.source_qty or 0) / Decimal(template.source_qty or 1)
+        self.cost_basis = template.cost_basis  # يمكن تغييره بعد التعبئة
+        self.items.create(row_type=RepackRowType.INPUT, item=template.source_item, qty=flt(self.source_qty, 3))
+        for row in template.items.order_by("id"):
+            self.items.create(row_type=row.row_type, item_id=row.item_id, qty=flt(row.qty * factor, 3),
+                              for_item_id=row.for_item_id, cost_percent=row.cost_percent)
+
+    def calculate_totals(self):
+        if not self.pk:
+            return
+        if self.is_draft:
+            if self.template_id and not self.items.exists():
+                self.fill_from_template()
+            # تقدير قبل الاعتماد؛ عند الاعتماد تُحسب بالتكلفة الفعلية لما صُرف
+            costs = {}
+            for row in self.items.select_related("item"):
+                if row.row_type == RepackRowType.OUTPUT:
+                    continue
+                row.rate = unit_cost_estimate(row.item, self.source_warehouse if self.source_warehouse_id else None)
+                row.amount = flt(row.rate * row.qty)
+                row.save(update_fields=["rate", "amount"])
+                costs[row.pk] = row.amount
+            self._allocate(*self._consumed(costs), save_rows=True)
+
+    def _consumed(self, costs):
+        """(تكلفة الصنف المفكك، تكلفة التغليف لكل منتج) من تكلفة كل سطر."""
+        input_cost, packaging = flt(0), {}
+        for row in self.items.all():
+            if row.row_type == RepackRowType.INPUT:
+                input_cost += costs.get(row.pk, flt(0))
+            elif row.row_type == RepackRowType.PACKAGING:
+                packaging[row.for_item_id] = packaging.get(row.for_item_id, flt(0)) + costs.get(row.pk, flt(0))
+        return input_cost, packaging
+
+    def _allocate(self, input_cost, packaging, save_rows):
+        """توزيع تكلفة الصنف والتكاليف الإضافية على المنتجات + تغليف كل منتج عليه. يعيد {سطر: تكلفته}."""
+        from core.utils import allocate
+
+        outputs = self.rows(RepackRowType.OUTPUT)
+        if self.cost_basis == CostBasis.MANUAL:
+            weights = {r.pk: flt(r.cost_percent) for r in outputs}
+        elif self.cost_basis == CostBasis.SELLING:
+            weights = {r.pk: flt(r.qty * r.item.selling_rate) for r in outputs}
+        else:
+            weights = {}
+        if not any(weights.values()):
+            weights = {r.pk: flt(r.qty, 3) for r in outputs}  # بلا أسعار بيع: بالتساوي على الوحدات
+        shared = flt(input_cost + flt(self.additional_cost))
+        shares = allocate(shared, weights) if outputs else {}
+        result = {}
+        for row in outputs:
+            row.amount = flt(shares.get(row.pk, 0) + packaging.get(row.item_id, flt(0)))
+            row.rate = flt(row.amount / row.qty, 4) if row.qty else flt(0, 4)
+            result[row.pk] = row
+            if save_rows:
+                row.save(update_fields=["rate", "amount"])
+        self.input_cost = input_cost
+        self.packaging_cost = sum(packaging.values(), flt(0))
+        self.total_cost = flt(self.input_cost + self.packaging_cost + flt(self.additional_cost))
+        return result
+
+    def validate_for_submit(self):
+        rows = list(self.items.select_related("item"))
+        inputs = [r for r in rows if r.row_type == RepackRowType.INPUT]
+        outputs = [r for r in rows if r.row_type == RepackRowType.OUTPUT]
+        if not inputs:
+            raise ValidationError("أضف الصنف الذي يُفكك (سطر من نوع «مادة تُفكك»).")
+        if not outputs:
+            raise ValidationError("أضف منتجاً ناتجاً واحداً على الأقل.")
+        if self.additional_cost < 0:
+            raise ValidationError("التكاليف الإضافية لا تكون سالبة.")
+        for row in rows:
+            if row.qty <= 0:
+                raise ValidationError(f"الكمية لـ «{row.item.name}» يجب أن تكون أكبر من صفر.")
+            if not row.item.is_stock_item:
+                raise ValidationError(f"«{row.item.name}» ليس صنفاً مخزنياً.")
+        output_items = [r.item_id for r in outputs]
+        if len(set(output_items)) != len(output_items):
+            raise ValidationError("المنتج الواحد يُكتب في سطر واحد؛ اجمع كمياته.")
+        if set(output_items) & {r.item_id for r in inputs}:
+            raise ValidationError("المنتج لا يكون هو نفسه الصنف المفكك.")
+        for row in rows:
+            if row.row_type == RepackRowType.PACKAGING and row.for_item_id not in output_items:
+                raise ValidationError(f"تغليف «{row.item.name}» مرتبط بمنتج غير موجود في المنتجات الناتجة.")
+        if self.cost_basis == CostBasis.MANUAL and sum(flt(r.cost_percent) for r in outputs) != 100:
+            raise ValidationError("مجموع نسب التكلفة للمنتجات يجب أن يساوي 100%.")
+
+    def on_submit(self):
+        costs = {}
+        for row in self.items.select_related("item").order_by("id"):
+            if row.row_type == RepackRowType.OUTPUT:
+                continue
+            cost = -make_stock_ledger_entry(self, row.item, self.source_warehouse, -row.qty, batch_no=row.batch_no)
+            row.rate = flt(cost / row.qty, 4)
+            row.amount = cost
+            row.save(update_fields=["rate", "amount"])
+            costs[row.pk] = cost
+        input_cost, packaging = self._consumed(costs)
+        consumed = flt(input_cost + sum(packaging.values(), flt(0)))
+        value = flt(0)
+        for row in self._allocate(input_cost, packaging, save_rows=True).values():
+            value += make_stock_ledger_entry(self, row.item, self.target_warehouse, row.qty, row.amount / row.qty,
+                                             batch_no=row.batch_no, manufacturing_date=self.posting_date)
+        self.save(update_fields=["input_cost", "packaging_cost", "total_cost"])
+        overhead = flt(self.additional_cost)
+        stock = self.company.require_account("default_stock_account")
+        # المخزون الخارج (الصنف والتغليف) دخل في قيمة المنتجات مع التكاليف الإضافية
+        entries = [{"account": stock, "debit": value}, {"account": stock, "credit": consumed}]
+        rounding = flt(value - consumed - overhead)
+        if overhead:
+            entries.append({"account": overhead_account(self.company), "credit": overhead})
+        if rounding:
+            entries.append({"account": self.company.require_account("default_stock_adjustment_account"),
+                            "credit": rounding})
+        if overhead or rounding:
+            make_gl_entries(self, entries, remarks=self.remarks or "إعادة تعبئة / تفكيك")
+
+    def on_cancel(self):
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+
+    @property
+    def output_summary(self):
+        """لكل منتج: الكمية والتكلفة وتكلفة الوحدة وسعر البيع وهامش الربح."""
+        summary = []
+        for row in self.rows(RepackRowType.OUTPUT):
+            price = flt(row.item.selling_rate)
+            margin = flt((price - row.rate) * 100 / price) if price else None
+            summary.append({"row": row, "price": price, "margin": margin})
+        return summary
+
+
+class RepackItem(RepackLine):
+    parent = models.ForeignKey(Repack, models.CASCADE, related_name="items")
+    row_type = models.CharField("النوع", max_length=10, choices=RepackRowType.choices, default=RepackRowType.OUTPUT)
+    batch_no = models.CharField("التشغيلة", max_length=40, blank=True,
+                                help_text="للأصناف المتتبعة؛ فارغ = تلقائي")
+    rate = models.DecimalField("تكلفة الوحدة", max_digits=18, decimal_places=4, default=0, editable=False)
+    amount = models.DecimalField("التكلفة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name = "صنف إعادة تعبئة"
+        verbose_name_plural = "الأصناف"

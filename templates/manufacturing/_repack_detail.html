@@ -1,0 +1,13 @@
+{% load erp %}
+<div class="card">
+  <h3>تكلفة المنتجات{% if obj.is_draft %} (تقديرية حتى الاعتماد){% endif %}</h3>
+  <p class="small muted">توزيع تكلفة الصنف المفكك{% if obj.additional_cost %} والتكاليف الإضافية{% endif %}: {{ obj.get_cost_basis_display }}. تكلفة التغليف تُحمّل على المنتج الذي يُغلّف بها فقط.</p>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>المنتج</th><th class="num">الكمية</th><th class="num">إجمالي التكلفة</th><th class="num">تكلفة الوحدة</th><th class="num">سعر البيع</th><th class="num">هامش الربح</th></tr></thead>
+    <tbody>{% for s in obj.output_summary %}<tr>
+      <td>{{ s.row.item }}</td><td class="num">{{ s.row.qty|floatformat:-3 }}</td><td class="num">{{ s.row.amount|money }}</td>
+      <td class="num">{{ s.row.rate|money }}</td><td class="num">{% if s.price %}{{ s.price|money }}{% else %}—{% endif %}</td>
+      <td class="num">{% if s.margin is not None %}<span class="{% if s.margin < 0 %}neg{% else %}pos{% endif %}">{{ s.margin|floatformat:1 }}%</span>{% else %}—{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</div>

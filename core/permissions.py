@@ -19,6 +19,7 @@ PATH_MODULES = [
     ("/reports/accounts/balances/supplier/", {"buying", "accounts"}),
     ("/reports/accounts/aging/customer/", {"selling", "accounts"}),
     ("/reports/accounts/aging/supplier/", {"buying", "accounts"}),
+    ("/reports/accounts/reconcile/", {"selling", "buying", "accounts"}),
     ("/reports/accounts/", "accounts"),
     ("/assets/", "accounts"),
     ("/reports/stock/gross-profit/", {"selling", "accounts", "stock", "manufacturing"}),
@@ -34,7 +35,8 @@ PATH_MODULES = [
     ("/hr/", "hr"),
 ]
 # مستندات مشتركة بين أكثر من وحدة
-SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"}}
+SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
+                   "payment-reconciliation": {"selling", "buying", "accounts"}}
 
 
 def modules_for_path(path):

@@ -232,8 +232,8 @@ def doc_detail(request, slug, pk):
         debit = sum(g.debit for g in context["gl_entries"])
         credit = sum(g.credit for g in context["gl_entries"])
         context["gl_totals"] = {"debit": debit, "credit": credit, "balanced": debit == credit}
-    if hasattr(obj, "payments"):
-        context["payments"] = obj.payments.all()
+    if hasattr(obj, "payment_rows"):
+        context["payments"] = obj.payment_rows()
     membership = getattr(request, "membership", None)
     if membership is not None and membership.can_manage:
         from django.db.models import Q

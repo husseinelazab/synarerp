@@ -118,6 +118,17 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
     def paid_amount(self):
         return flt(self.grand_total - self.outstanding_amount)
 
+    def payment_rows(self):
+        """السندات والتسويات التي سددت هذه الفاتورة مع المبلغ الذي خُصص لها من كل منها."""
+        rows = [{"doc": p, "amount": p.amount} for p in self.payments.all()]
+        rows += [{"doc": r.parent, "amount": r.allocated_amount}
+                 for r in self.payment_references.select_related("parent")]
+        rows += [{"doc": line.parent, "amount": line.amount}
+                 for line in self.reconciliation_lines.select_related("parent")]
+        rows += [{"doc": line.parent, "amount": line.amount}
+                 for line in self.reconciliation_sources.select_related("parent")]
+        return sorted(rows, key=lambda r: (r["doc"].posting_date, r["doc"].pk))
+
     # ---------- بيانات المرتجعات ----------
 
     def item_summary(self):
@@ -300,8 +311,11 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
             original.save(update_fields=["outstanding_amount"])
 
     def before_cancel(self):
-        if self.payments.filter(docstatus=1).exists():
+        if self.payments.filter(docstatus=1).exists() or self.payment_references.filter(parent__docstatus=1).exists():
             raise ValidationError("لا يمكن إلغاء الفاتورة لوجود سندات مرتبطة بها. ألغِ السندات أولاً.")
+        if self.reconciliation_lines.filter(parent__docstatus=1).exists() or \
+                self.reconciliation_sources.filter(parent__docstatus=1).exists():
+            raise ValidationError("لا يمكن إلغاء الفاتورة لوجود تسوية دفعات معتمدة عليها. ألغِ التسوية أولاً.")
         if self.returns.filter(docstatus=1).exists():
             raise ValidationError("لا يمكن إلغاء الفاتورة لوجود مرتجعات معتمدة عليها. ألغِ المرتجعات أولاً.")
 

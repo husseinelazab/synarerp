@@ -41,7 +41,8 @@ def build_menu(request):
         {"key": "selling", "label": "المبيعات", "sections": [
             {"items": [doc("عروض الأسعار", "quotation"), doc("أوامر البيع", "sales-order"), doc("أذون التسليم", "delivery-note"),
                        doc("فواتير المبيعات", "sales-invoice"), doc("العملاء", "customer"),
-                       _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive")]},
+                       _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
+                       _item("تسوية دفعات العملاء", "payment_reconcile", query="?party_type=customer")]},
             {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
                                           _item("أعمار ديون العملاء", "aging_report", "customer"),
                                           _item("الربحية (مجمل الربح)", "gross_profit")]},
@@ -49,7 +50,8 @@ def build_menu(request):
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
                        doc("الموردون", "supplier"),
-                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay")]
+                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
+                       _item("تسوية دفعات الموردين", "payment_reconcile", query="?party_type=supplier")]
                       + ([_item("قراءة فاتورة مورد بالذكاء الاصطناعي", "ai_invoice_upload")] if includes_ai else [])},
             {"title": "تقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier"),
                                           _item("أعمار ديون الموردين", "aging_report", "supplier"),
@@ -58,6 +60,8 @@ def build_menu(request):
         {"key": "accounts", "label": "المحاسبة", "sections": [
             {"items": [doc("قيود اليومية", "journal-entry"), doc("سندات القبض والصرف", "payment-entry"),
                        _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
+            {"title": "الذمم", "items": [_item("تسوية الدفعات", "payment_reconcile"),
+                                        doc("مستندات تسوية الدفعات", "payment-reconciliation")]},
             {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
                                                  _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
             {"title": "البنوك", "items": [_item("التسوية البنكية", "bank_reconciliation"),

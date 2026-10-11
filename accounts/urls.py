@@ -1,9 +1,10 @@
 from django.urls import path
 
-from accounts import bank, opening_views, reports
+from accounts import bank, opening_views, reconcile, reports
 
 urlpatterns = [
     path("bank-reconciliation/", bank.bank_reconciliation, name="bank_reconciliation"),
+    path("reconcile/", reconcile.reconcile_tool, name="payment_reconcile"),
     path("opening/", opening_views.opening_wizard, name="opening_wizard"),
     path("general-journal/", reports.general_journal, name="general_journal"),
     path("trial-balance/", reports.trial_balance, name="trial_balance"),

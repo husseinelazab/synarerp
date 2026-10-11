@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>نوع الطرف <select name="party_type" class="form-select" onchange="this.form.party.value='';this.form.submit()">
+    <option value="customer" {% if party_type == 'customer' %}selected{% endif %}>عميل</option>
+    <option value="supplier" {% if party_type == 'supplier' %}selected{% endif %}>مورد</option></select></label>
+  <label>{% if party_type == 'customer' %}العميل{% else %}المورد{% endif %} <select name="party" class="form-select"><option value="">— اختر —</option>{% for p in parties %}<option value="{{ p.pk }}" {% if p == party %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+
+{% if not party %}
+<div class="card"><p class="muted">اختر طرفاً لعرض دفعاته المقدمة وإشعاراته الدائنة غير المخصصة وفواتيره المفتوحة.
+  التسوية تربطها ببعضها فتنخفض المتبقيات على الفواتير وتصح أعمار الديون، دون أي أثر على رصيد الطرف.</p></div>
+{% else %}
+<div class="grid-2">
+  <div class="card">
+    <h3>دفعات وإشعارات غير مخصصة <span class="muted small">({{ total_sources|money }})</span></h3>
+    <table class="table">
+      <thead><tr><th>المستند</th><th>التاريخ</th><th class="num">المتاح</th></tr></thead>
+      <tbody>{% for s in sources %}<tr><td><a href="{{ s.doc.get_absolute_url }}">{{ s.doc.name }}</a> <span class="muted small">{{ s.doc|verbose_name }}</span></td><td>{{ s.doc.posting_date|date:"Y-m-d" }}</td><td class="num">{{ s.available|cur:s.currency }}</td></tr>
+      {% empty %}<tr><td colspan="3" class="muted center">لا توجد دفعات مقدمة أو إشعارات دائنة غير مخصصة</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>الفواتير المفتوحة <span class="muted small">({{ total_invoices|money }})</span></h3>
+    <table class="table">
+      <thead><tr><th>الفاتورة</th><th>الاستحقاق</th><th class="num">المتبقي</th></tr></thead>
+      <tbody>{% for i in invoices %}<tr><td><a href="{{ i.get_absolute_url }}">{{ i.name }}</a></td><td>{{ i.due_date|default:i.posting_date|date:"Y-m-d" }}</td><td class="num">{{ i.outstanding_amount|cur:i.currency }}</td></tr>
+      {% empty %}<tr><td colspan="3" class="muted center">لا توجد فواتير مفتوحة</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+
+{% if sources and invoices %}
+<form method="post" class="card">{% csrf_token %}
+  <h3>التسوية المقترحة</h3>
+  <p class="muted small">مقترحة آلياً: أقدم دفعة على أقدم فاتورة مستحقة. عدّل المبالغ أو اجعلها صفراً لاستبعاد سطر، أو أضف سطراً.</p>
+  <table class="table" id="rec-lines">
+    <thead><tr><th>الدفعة / الإشعار الدائن</th><th>الفاتورة</th><th class="num">المبلغ</th></tr></thead>
+    <tbody>
+    {% for line in lines %}<tr>
+      <td><select name="source" class="form-select">{% for s in sources %}<option value="{{ s.key }}" {% if s.key == line.source %}selected{% endif %}>{{ s.doc.name }} ({{ s.available|money }})</option>{% endfor %}</select></td>
+      <td><select name="invoice" class="form-select">{% for i in invoices %}<option value="{{ i.pk }}" {% if i.pk == line.invoice %}selected{% endif %}>{{ i.name }} ({{ i.outstanding_amount|money }})</option>{% endfor %}</select></td>
+      <td><input name="amount" class="form-control num" inputmode="decimal" value="{{ line.amount|plain_number }}"></td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  <template id="rec-row"><tr>
+      <td><select name="source" class="form-select">{% for s in sources %}<option value="{{ s.key }}">{{ s.doc.name }} ({{ s.available|money }})</option>{% endfor %}</select></td>
+      <td><select name="invoice" class="form-select">{% for i in invoices %}<option value="{{ i.pk }}">{{ i.name }} ({{ i.outstanding_amount|money }})</option>{% endfor %}</select></td>
+      <td><input name="amount" class="form-control num" inputmode="decimal" value="0"></td></tr></template>
+  <button type="button" class="btn" onclick="document.querySelector('#rec-lines tbody').append(document.getElementById('rec-row').content.cloneNode(true))">+ إضافة سطر</button>
+  <label style="display:block;margin-top:12px">ملاحظات <input name="remarks" class="form-control"></label>
+  <div class="form-actions"><button class="btn btn-success btn-lg" onclick="return confirm('اعتماد التسوية؟')">اعتماد التسوية</button></div>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

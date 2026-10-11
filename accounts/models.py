@@ -258,12 +258,17 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
     exchange_difference = models.DecimalField("فرق سعر الصرف (ربح + / خسارة −)", max_digits=18, decimal_places=2,
                                               default=0, editable=False)
     sales_invoice = models.ForeignKey(
-        "selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="فاتورة المبيعات"
+        "selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="فاتورة المبيعات",
+        help_text="لسداد فاتورة واحدة. لتوزيع السند على عدة فواتير استخدم جدول «التخصيص على الفواتير»",
     )
     purchase_invoice = models.ForeignKey(
         "buying.PurchaseInvoice", models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="فاتورة المشتريات"
     )
     reference_no = models.CharField("رقم المرجع (شيك / حوالة)", max_length=50, blank=True)
+    allocated_amount = models.DecimalField("المخصص على الفواتير", max_digits=18, decimal_places=2, default=0,
+                                           editable=False)
+    unallocated_amount = models.DecimalField("غير مخصص (دفعة مقدمة)", max_digits=18, decimal_places=2, default=0,
+                                             editable=False)
 
     class Meta(SubmittableDocument.Meta):
         verbose_name = "سند قبض / صرف"
@@ -272,6 +277,10 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
     @property
     def party(self):
         return self.customer or self.supplier
+
+    @property
+    def party_field(self):
+        return "customer" if self.customer_id else "supplier"
 
     @property
     def invoice(self):
@@ -283,6 +292,18 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
         normal = (self.payment_type == PaymentType.RECEIVE) == bool(self.customer_id)
         return 1 if normal else -1
 
+    @property
+    def party_account(self):
+        field = "default_receivable_account" if self.customer_id else "default_payable_account"
+        return self.company.require_account(field)
+
+    def allocations(self):
+        """[(الفاتورة، المبلغ المخصص)] من جدول التخصيص، أو من حقل الفاتورة الواحدة في رأس السند."""
+        rows = [(ref.invoice, flt(ref.allocated_amount)) for ref in self.references.all() if ref.invoice is not None]
+        if not rows and self.invoice is not None:
+            rows = [(self.invoice, flt(self.amount))]
+        return rows
+
     def save(self, *args, **kwargs):
         self.ensure_currency()
         super().save(*args, **kwargs)
@@ -290,39 +311,62 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
     def calculate_totals(self):
         self.ensure_currency()
         self.base_amount = self.to_base(self.amount)
+        if self.pk:
+            self.allocated_amount = sum((amount for _inv, amount in self.allocations()), flt(0))
+            self.unallocated_amount = flt(flt(self.amount) - self.allocated_amount)
 
     def validate_for_submit(self):
         self.validate_currency()
         if flt(self.amount) <= 0:
             raise ValidationError("المبلغ يجب أن يكون أكبر من صفر.")
-        if self.invoice and self.invoice.currency_id != self.currency_id:
-            raise ValidationError(f"عملة السند يجب أن تطابق عملة الفاتورة ({self.invoice.currency}).")
         if bool(self.customer_id) == bool(self.supplier_id):
             raise ValidationError("حدد عميلاً أو مورداً واحداً فقط.")
         if self.customer_id and self.purchase_invoice_id or self.supplier_id and self.sales_invoice_id:
             raise ValidationError("الفاتورة المرجعية لا تتوافق مع نوع الطرف.")
-        invoice, party_field = self.invoice, "customer_id" if self.customer_id else "supplier_id"
-        if invoice:
-            if not invoice.is_submitted:
-                raise ValidationError("الفاتورة المرجعية غير معتمدة.")
-            if getattr(invoice, party_field) != getattr(self, party_field):
-                raise ValidationError("الفاتورة المرجعية لا تخص الطرف المحدد.")
-            available = flt(invoice.outstanding_amount) * self.direction
-            if available <= 0:
-                raise ValidationError("لا يوجد رصيد مستحق على الفاتورة المرجعية في هذا الاتجاه.")
-            if flt(self.amount) > available:
-                raise ValidationError(f"المبلغ أكبر من المتبقي على الفاتورة ({available}).")
+        refs = list(self.references.all())
+        if refs and self.invoice is not None:
+            raise ValidationError("حدد الفاتورة في رأس السند أو في جدول التخصيص، لا في كليهما.")
+        seen = set()
+        for ref in refs:
+            if ref.invoice is None:
+                raise ValidationError("حدد الفاتورة في كل سطر من جدول التخصيص.")
+            if self.customer_id and ref.purchase_invoice_id or self.supplier_id and ref.sales_invoice_id:
+                raise ValidationError(f"الفاتورة {ref.invoice} لا تتوافق مع نوع الطرف.")
+            if ref.invoice.pk in seen:
+                raise ValidationError(f"الفاتورة {ref.invoice} مكررة في جدول التخصيص.")
+            seen.add(ref.invoice.pk)
+            if flt(ref.allocated_amount) <= 0:
+                raise ValidationError(f"المبلغ المخصص للفاتورة {ref.invoice} يجب أن يكون أكبر من صفر.")
+        total = flt(0)
+        for invoice, amount in self.allocations():
+            self.validate_invoice(invoice, amount)
+            total += amount
+        if total > flt(self.amount):
+            raise ValidationError(f"مجموع المخصص على الفواتير ({total}) أكبر من مبلغ السند ({self.amount}).")
+
+    def validate_invoice(self, invoice, amount):
+        if not invoice.is_submitted:
+            raise ValidationError(f"الفاتورة {invoice} غير معتمدة.")
+        if getattr(invoice, f"{self.party_field}_id") != getattr(self, f"{self.party_field}_id"):
+            raise ValidationError(f"الفاتورة {invoice} لا تخص الطرف المحدد.")
+        if invoice.currency_id != self.currency_id:
+            raise ValidationError(f"عملة السند يجب أن تطابق عملة الفاتورة {invoice} ({invoice.currency}).")
+        available = flt(invoice.outstanding_amount) * self.direction
+        if available <= 0:
+            raise ValidationError(f"لا يوجد رصيد مستحق على الفاتورة {invoice} في هذا الاتجاه.")
+        if amount > available:
+            raise ValidationError(f"المبلغ المخصص للفاتورة {invoice} أكبر من المتبقي عليها ({available}).")
 
     def on_submit(self):
         amount = flt(self.amount)
-        if self.customer_id:
-            party_account = self.company.require_account("default_receivable_account")
-        else:
-            party_account = self.company.require_account("default_payable_account")
+        party_account = self.party_account
         party = {"customer": self.customer, "supplier": self.supplier}
-        # النقدية بسعر صرف السند، والذمة بسعر صرف الفاتورة التي نشأت بها؛ الفرق ربح أو خسارة صرف
+        allocations = self.allocations()
+        # النقدية بسعر صرف السند، والذمة بسعر صرف كل فاتورة نشأت بها (والجزء غير المخصص بسعر السند)؛
+        # الفرق ربح أو خسارة صرف
         cash_base = self.to_base(amount)
-        party_base = flt(amount * (self.invoice.exchange_rate if self.invoice else self.exchange_rate))
+        allocated = sum((a for _inv, a in allocations), flt(0))
+        party_base = sum((flt(a * inv.exchange_rate) for inv, a in allocations), flt(0)) + self.to_base(amount - allocated)
         if self.payment_type == PaymentType.RECEIVE:
             entries = [
                 {"account": self.account, "debit": cash_base, "base": True},
@@ -340,19 +384,237 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
             entries.append({"account": fx_account, "credit": gain if gain > 0 else 0, "debit": -gain if gain < 0 else 0,
                             "base": True, "remarks": "فرق سعر الصرف"})
         self.exchange_difference = gain
-        self.save(update_fields=["exchange_difference"])
+        self.allocated_amount = allocated
+        self.unallocated_amount = flt(amount - allocated)
+        self.save(update_fields=["exchange_difference", "allocated_amount", "unallocated_amount"])
         make_gl_entries(self, entries, remarks=self.remarks or self.get_payment_type_display())
-        self._update_invoice_outstanding(-amount * self.direction)
+        for invoice, value in allocations:
+            _update_outstanding(invoice, -value * self.direction)
+
+    def before_cancel(self):
+        if self.reconciliation_lines.filter(parent__docstatus=1).exists():
+            raise ValidationError("خُصص جزء من هذا السند على فواتير بمستند «تسوية الدفعات». ألغِ التسوية أولاً.")
 
     def on_cancel(self):
         cancel_gl_entries(self)
-        self._update_invoice_outstanding(flt(self.amount) * self.direction)
+        for invoice, value in self.allocations():
+            _update_outstanding(invoice, value * self.direction)
 
-    def _update_invoice_outstanding(self, delta):
-        invoice = self.invoice
-        if invoice:
-            invoice.outstanding_amount = flt(invoice.outstanding_amount + delta)
-            invoice.save(update_fields=["outstanding_amount"])
+    # ---------- التوزيع التلقائي ----------
+
+    @property
+    def draft_actions(self):
+        if self.is_draft and self.party is not None and self.invoice is None:
+            return [("allocate_oldest", "توزيع تلقائي على أقدم الفواتير المستحقة")]
+        return []
+
+    def open_invoices(self):
+        """فواتير الطرف المستحقة في اتجاه السند، الأقدم استحقاقاً أولاً."""
+        from buying.models import PurchaseInvoice
+        from selling.models import SalesInvoice
+
+        model = SalesInvoice if self.customer_id else PurchaseInvoice
+        qs = model.objects.filter(**{self.party_field: self.party}, docstatus=1, currency=self.currency_id)
+        qs = qs.filter(outstanding_amount__gt=0) if self.direction > 0 else qs.filter(outstanding_amount__lt=0)
+        return sorted(qs, key=lambda inv: (inv.due_date or inv.posting_date, inv.posting_date, inv.pk))
+
+    def allocate_oldest(self, user=None):
+        """يملأ جدول التخصيص بأقدم الفواتير حتى ينفد مبلغ السند؛ الباقي يبقى دفعة مقدمة."""
+        self.ensure_currency()
+        self.save()
+        self.references.all().delete()
+        remaining = flt(self.amount)
+        for invoice in self.open_invoices():
+            if remaining <= 0:
+                break
+            share = min(remaining, abs(flt(invoice.outstanding_amount)))
+            self.references.create(**{"sales_invoice" if self.customer_id else "purchase_invoice": invoice},
+                                   allocated_amount=share)
+            remaining -= share
+        if not self.references.exists():
+            raise ValidationError("لا توجد فواتير مستحقة لهذا الطرف بنفس عملة السند.")
+        self.calculate_totals()
+        self.save()
+
+
+def _update_outstanding(invoice, delta):
+    invoice = type(invoice).objects.select_for_update().get(pk=invoice.pk)
+    invoice.outstanding_amount = flt(invoice.outstanding_amount + delta)
+    invoice.save(update_fields=["outstanding_amount"])
+
+
+class PaymentReference(models.Model):
+    """سطر تخصيص: جزء من مبلغ السند يُسدد فاتورة بعينها."""
+
+    parent = models.ForeignKey(PaymentEntry, on_delete=models.CASCADE, related_name="references")
+    sales_invoice = models.ForeignKey(
+        "selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="payment_references",
+        verbose_name="فاتورة المبيعات", limit_choices_to=models.Q(docstatus=1) & ~models.Q(outstanding_amount=0))
+    purchase_invoice = models.ForeignKey(
+        "buying.PurchaseInvoice", models.PROTECT, null=True, blank=True, related_name="payment_references",
+        verbose_name="فاتورة المشتريات", limit_choices_to=models.Q(docstatus=1) & ~models.Q(outstanding_amount=0))
+    allocated_amount = models.DecimalField("المبلغ المخصص", max_digits=18, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "تخصيص على فاتورة"
+        verbose_name_plural = "التخصيص على الفواتير"
+
+    @property
+    def invoice(self):
+        return self.sales_invoice or self.purchase_invoice
+
+
+class PaymentReconciliation(SubmittableDocument):
+    """تسوية الدفعات: ربط الدفعات المقدمة والإشعارات الدائنة غير المخصصة بفواتير الطرف المفتوحة.
+
+    لا تغيّر رصيد الطرف (الدفعة مرحّلة أصلاً)؛ تُنقص المتبقي على الفواتير، وترحّل فرق الصرف فقط
+    عند اختلاف سعر صرف الدفعة عن سعر صرف الفاتورة.
+    """
+
+    naming_prefix = "PREC"
+
+    party_type = models.CharField("نوع الطرف", max_length=10, choices=PartyType.choices, default=PartyType.CUSTOMER)
+    customer = models.ForeignKey("selling.Customer", models.PROTECT, null=True, blank=True, verbose_name="العميل")
+    supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
+    total_allocated = models.DecimalField("إجمالي المسوّى", max_digits=18, decimal_places=2, default=0, editable=False)
+    exchange_difference = models.DecimalField("فرق سعر الصرف (ربح + / خسارة −)", max_digits=18, decimal_places=2,
+                                              default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "تسوية دفعات"
+        verbose_name_plural = "تسويات الدفعات"
+
+    @property
+    def party(self):
+        return self.customer if self.party_type == PartyType.CUSTOMER else self.supplier
+
+    @property
+    def party_field(self):
+        return "customer" if self.party_type == PartyType.CUSTOMER else "supplier"
+
+    def calculate_totals(self):
+        self.total_allocated = sum((flt(line.amount) for line in self.lines.all()), flt(0))
+
+    def validate_for_submit(self):
+        party = self.party
+        if party is None:
+            raise ValidationError(f"حدد {self.get_party_type_display()}.")
+        lines = list(self.lines.select_related("payment", "sales_return", "purchase_return", "sales_invoice",
+                                               "purchase_invoice"))
+        if not lines:
+            raise ValidationError("أضف سطر تسوية واحداً على الأقل.")
+        used_sources, used_targets = {}, {}
+        for index, line in enumerate(lines, start=1):
+            source, target = line.source, line.target
+            if source is None or target is None:
+                raise ValidationError(f"السطر {index}: حدد الدفعة أو الإشعار الدائن، والفاتورة المراد تسويتها.")
+            if (line.payment_id and (line.sales_return_id or line.purchase_return_id)) or \
+                    (line.sales_invoice_id and line.purchase_invoice_id):
+                raise ValidationError(f"السطر {index}: مصدر واحد وفاتورة واحدة فقط لكل سطر.")
+            if flt(line.amount) <= 0:
+                raise ValidationError(f"السطر {index}: المبلغ يجب أن يكون أكبر من صفر.")
+            for doc in (source, target):
+                if not doc.is_submitted:
+                    raise ValidationError(f"السطر {index}: المستند {doc} غير معتمد.")
+                if getattr(doc, f"{self.party_field}_id") != party.pk:
+                    raise ValidationError(f"السطر {index}: المستند {doc} لا يخص {party}.")
+            if source.currency_id != target.currency_id:
+                raise ValidationError(f"السطر {index}: عملة {source} تختلف عن عملة {target}.")
+            if line.payment_id:
+                if line.payment.direction < 0:
+                    raise ValidationError(f"السطر {index}: السند {source} سند رد ولا يُسوّى على فواتير.")
+                available = flt(line.payment.unallocated_amount)
+            else:
+                if not source.is_return:
+                    raise ValidationError(f"السطر {index}: {source} ليس إشعاراً دائناً (مرتجعاً).")
+                available = -flt(source.outstanding_amount)
+            key = (type(source).__name__, source.pk)
+            used_sources[key] = used_sources.get(key, flt(0)) + flt(line.amount)
+            if used_sources[key] > available:
+                raise ValidationError(f"السطر {index}: المتاح للتسوية من {source} هو {available}.")
+            if target.is_return:
+                raise ValidationError(f"السطر {index}: لا يُسوّى على مرتجع؛ اختر فاتورة.")
+            tkey = (type(target).__name__, target.pk)
+            used_targets[tkey] = used_targets.get(tkey, flt(0)) + flt(line.amount)
+            if used_targets[tkey] > flt(target.outstanding_amount):
+                raise ValidationError(f"السطر {index}: المتبقي على الفاتورة {target} هو {target.outstanding_amount}.")
+
+    def _apply(self, sign):
+        entries, gain = [], flt(0)
+        party_account = self.company.require_account(
+            "default_receivable_account" if self.party_type == PartyType.CUSTOMER else "default_payable_account")
+        fx = None
+        for line in self.lines.select_related("payment", "sales_return", "purchase_return", "sales_invoice",
+                                              "purchase_invoice"):
+            amount = flt(line.amount) * sign
+            source, target = line.source, line.target
+            if line.payment_id:
+                payment = PaymentEntry.objects.select_for_update().get(pk=line.payment_id)
+                payment.allocated_amount = flt(payment.allocated_amount + amount)
+                payment.unallocated_amount = flt(payment.unallocated_amount - amount)
+                payment.save(update_fields=["allocated_amount", "unallocated_amount"])
+            else:
+                _update_outstanding(source, amount)
+            _update_outstanding(target, -amount)
+            # الذمة سُجلت بسعر صرف الفاتورة وخُصمت بسعر صرف المصدر: الفرق يُقفل في حساب فروق الصرف
+            diff = flt(flt(line.amount) * (flt(target.exchange_rate or 1, 6) - flt(source.exchange_rate or 1, 6)))
+            if diff:
+                fx = fx or self.company.require_account("default_exchange_account")
+                party = {self.party_field: self.party}
+                if self.party_type == PartyType.CUSTOMER:
+                    entries += [{"account": party_account, "credit": diff, **party},
+                                {"account": fx, "debit": diff, "remarks": "فرق سعر الصرف"}]
+                    gain -= diff
+                else:
+                    entries += [{"account": party_account, "debit": diff, **party},
+                                {"account": fx, "credit": diff, "remarks": "فرق سعر الصرف"}]
+                    gain += diff
+        return entries, gain
+
+    def on_submit(self):
+        entries, gain = self._apply(+1)
+        if entries:
+            make_gl_entries(self, entries, remarks=self.remarks or f"تسوية دفعات {self.party}")
+        self.exchange_difference = gain
+        self.save(update_fields=["exchange_difference"])
+
+    def on_cancel(self):
+        self._apply(-1)
+        cancel_gl_entries(self)
+
+
+class PaymentReconciliationLine(models.Model):
+    parent = models.ForeignKey(PaymentReconciliation, on_delete=models.CASCADE, related_name="lines")
+    payment = models.ForeignKey(PaymentEntry, models.PROTECT, null=True, blank=True, related_name="reconciliation_lines",
+                                verbose_name="سند (دفعة مقدمة)",
+                                limit_choices_to={"docstatus": 1, "unallocated_amount__gt": 0})
+    sales_return = models.ForeignKey(
+        "selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="reconciliation_sources",
+        verbose_name="إشعار دائن (مرتجع مبيعات)",
+        limit_choices_to={"docstatus": 1, "is_return": True, "outstanding_amount__lt": 0})
+    purchase_return = models.ForeignKey(
+        "buying.PurchaseInvoice", models.PROTECT, null=True, blank=True, related_name="reconciliation_sources",
+        verbose_name="إشعار مدين (مرتجع مشتريات)",
+        limit_choices_to={"docstatus": 1, "is_return": True, "outstanding_amount__lt": 0})
+    sales_invoice = models.ForeignKey(
+        "selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="reconciliation_lines",
+        verbose_name="فاتورة المبيعات", limit_choices_to={"docstatus": 1, "outstanding_amount__gt": 0})
+    purchase_invoice = models.ForeignKey(
+        "buying.PurchaseInvoice", models.PROTECT, null=True, blank=True, related_name="reconciliation_lines",
+        verbose_name="فاتورة المشتريات", limit_choices_to={"docstatus": 1, "outstanding_amount__gt": 0})
+    amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "سطر تسوية"
+        verbose_name_plural = "سطور التسوية"
+
+    @property
+    def source(self):
+        return self.payment or self.sales_return or self.purchase_return
+
+    @property
+    def target(self):
+        return self.sales_invoice or self.purchase_invoice
 
 
 class OpeningAccountBalance(SubmittableDocument):

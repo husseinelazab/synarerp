@@ -1,5 +1,6 @@
 from accounts.models import (Account, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
-                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PeriodClosingVoucher)
+                             OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentReconciliation,
+                             PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -17,6 +18,21 @@ register(DocType(
     form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount", "currency", "exchange_rate",
                  "sales_invoice", "purchase_invoice", "reference_no", "remarks"],
     search_fields=["name", "customer__name", "supplier__name", "reference_no"],
+    child=ChildTable(PaymentReference, ["sales_invoice", "purchase_invoice", "allocated_amount"],
+                     label="التخصيص على الفواتير", min_rows=0,
+                     help="لتوزيع السند على عدة فواتير أضف سطراً لكل فاتورة بالمبلغ المخصص لها، أو احفظ السند ثم "
+                          "اضغط «توزيع تلقائي على أقدم الفواتير». ما يتبقى من المبلغ دون تخصيص يُسجل دفعة مقدمة "
+                          "تُسوّى لاحقاً من «تسوية الدفعات»."),
+    totals=["amount", "allocated_amount", "unallocated_amount"],
+))
+register(DocType(
+    slug="payment-reconciliation", model=PaymentReconciliation, module="accounts",
+    list_fields=["name", "posting_date", "party_type", "customer", "supplier", "total_allocated"],
+    form_fields=["party_type", "posting_date", "customer", "supplier", "remarks"],
+    search_fields=["name", "customer__name", "supplier__name"],
+    child=ChildTable(PaymentReconciliationLine, ["payment", "sales_return", "purchase_return", "sales_invoice",
+                                                 "purchase_invoice", "amount"], label="سطور التسوية"),
+    totals=["total_allocated", "exchange_difference"],
 ))
 register(DocType(
     slug="account", model=Account, module="accounts",

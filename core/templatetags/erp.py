@@ -87,3 +87,10 @@ def en(context, text):
     if ps is not None and ps.bilingual:
         return format_html('<span class="en">{}</span>', text)
     return ""
+
+
+@register.filter
+def verbose_name(obj):
+    """اسم نوع السجل (عنوان المستند إن وُجد) لعرضه بجوار رقمه."""
+    title = getattr(obj, "document_title", None)
+    return title or obj._meta.verbose_name

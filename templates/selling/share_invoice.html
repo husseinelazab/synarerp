@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}مشاركة {{ obj.name }}{% endblock %}{% block heading %}مشاركة الفاتورة {{ obj.name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:760px">
+  <p>رابط عام يفتحه <strong>{{ obj.customer }}</strong> من الجوال دون تسجيل دخول: الفاتورة الضريبية برمز QR، مع الطباعة والحفظ PDF.</p>
+  <div class="share-link">
+    <input type="text" readonly value="{{ url }}" class="form-control" id="share-url" dir="ltr" onclick="this.select()">
+    <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('share-url').value);this.textContent='✓ نُسخ'">نسخ الرابط</button>
+  </div>
+  <div class="actions" style="margin-top:14px">
+    {% if whatsapp %}<a class="btn btn-primary" href="{{ whatsapp }}" target="_blank" rel="noopener">إرسال واتساب للعميل</a>{% endif %}
+    <a class="btn" href="{{ whatsapp_any }}" target="_blank" rel="noopener">واتساب (اختيار جهة)</a>
+    <a class="btn" href="{{ url }}" target="_blank" rel="noopener">معاينة</a>
+    <a class="btn" href="{{ obj.get_absolute_url }}">رجوع للفاتورة</a>
+  </div>
+  <details style="margin-top:14px"><summary class="muted">نص الرسالة</summary><p style="white-space:pre-wrap">{{ body }}</p></details>
+  <form method="post" style="margin-top:14px">{% csrf_token %}
+    <button class="btn btn-danger-outline" name="action" value="revoke" onclick="return confirm('إلغاء الرابط الحالي وإنشاء رابط جديد؟ الرابط المرسل سابقاً لن يفتح.')">إلغاء الرابط وإنشاء رابط جديد</button>
+  </form>
+  <p class="muted small">لا يظهر في الرابط إلا هذه الفاتورة. لا تُشارك المسودات. الرسائل الآلية للفواتير تتضمن الرابط تلقائياً متى ضُبط عنوان الموقع (SYNAR_SITE_URL).</p>
+</div>
+{% endblock %}

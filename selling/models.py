@@ -193,6 +193,7 @@ class SalesInvoice(InvoiceDocument):
                               editable=False, verbose_name="أمر البيع")
     quotation = models.ForeignKey(Quotation, models.PROTECT, null=True, blank=True, related_name="invoices",
                                   editable=False, verbose_name="عرض السعر")
+    share_token = models.CharField("رمز رابط المشاركة", max_length=40, blank=True, db_index=True, editable=False)
 
     # حقول نقاط البيع
     is_pos = models.BooleanField("فاتورة نقطة بيع", default=False, editable=False)
@@ -214,6 +215,22 @@ class SalesInvoice(InvoiceDocument):
     class Meta(InvoiceDocument.Meta):
         verbose_name = "فاتورة مبيعات"
         verbose_name_plural = "فواتير المبيعات"
+
+    def share_path(self):
+        """رابط عام للفاتورة يفتحه العميل دون تسجيل دخول (يُنشأ الرمز عند أول مشاركة)."""
+        import secrets
+
+        from django.urls import reverse
+
+        if not self.share_token:
+            self.share_token = secrets.token_urlsafe(24)
+            type(self).all_objects.filter(pk=self.pk).update(share_token=self.share_token)
+        return reverse("public_invoice", args=[self.share_token])
+
+    def share_url(self):
+        from django.conf import settings
+
+        return settings.SYNAR_SITE_URL.rstrip("/") + self.share_path()
 
     @property
     def cash_received(self):

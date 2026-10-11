@@ -25,13 +25,14 @@ class Event(models.TextChoices):
 
 
 DEFAULT_TEMPLATES = {
-    Event.INVOICE: "عميلنا العزيز {customer}، صدرت فاتورتكم رقم {invoice} بمبلغ {amount}{due_text}. شكراً لتعاملكم مع {company}.",
+    Event.INVOICE: "عميلنا العزيز {customer}، صدرت فاتورتكم رقم {invoice} بمبلغ {amount}{due_text}.{link_text} "
+                   "شكراً لتعاملكم مع {company}.",
     Event.PAYMENT: "عميلنا العزيز {customer}، استلمنا دفعتكم بمبلغ {amount}. رصيدكم الحالي {balance}. شكراً لكم — {company}.",
     Event.OVERDUE: "عميلنا العزيز {customer}، نذكّركم بأن الفاتورة {invoice} بمبلغ متبقٍ {amount} متأخرة {days} يوماً عن موعد "
-                   "استحقاقها {due_date}. نرجو السداد — {company}.",
+                   "استحقاقها {due_date}. نرجو السداد{link_text} — {company}.",
     Event.STATEMENT: "عميلنا العزيز {customer}، رصيدكم المستحق لدى {company} هو {balance}{overdue_text}. شكراً لكم.",
 }
-PLACEHOLDERS = "{customer} {invoice} {amount} {due_date} {days} {balance} {company}"
+PLACEHOLDERS = "{customer} {invoice} {amount} {due_date} {days} {balance} {company} {link}"
 
 
 class MessagingSettings(TenantModel):

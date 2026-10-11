@@ -17,6 +17,7 @@
     {% endif %}
     {% if dt.slug == 'customer' and obj.phone %}{% include "messaging/_send_buttons.html" with send_kind="customer" %}{% endif %}
     {% if dt.slug == 'sales-invoice' and obj.is_submitted and not obj.is_return and obj.customer.phone %}{% include "messaging/_send_buttons.html" with send_kind="invoice" %}{% endif %}
+    {% if dt.slug == 'sales-invoice' and not obj.is_draft %}<a class="btn" href="{% url 'share_invoice' obj.pk %}" title="رابط يفتحه العميل دون تسجيل دخول">مشاركة رابط الفاتورة</a>{% endif %}
     {% if dt.slug == 'item' %}<a class="btn" href="{% url 'stock_labels' %}?item={{ obj.pk }}">طباعة ملصق باركود</a>{% endif %}
     {% if dt.slug == 'stock-count' and obj.is_draft %}<a class="btn btn-primary" href="{% url 'stock_count_scan' obj.pk %}">الجرد بالماسح الضوئي</a>{% endif %}
     {% if obj.is_submitted and dt.slug == 'purchase-receipt' %}<a class="btn" href="{% url 'stock_labels' %}?doc=pr-{{ obj.pk }}">ملصقات الأصناف المستلمة</a>{% endif %}

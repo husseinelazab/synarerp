@@ -27,5 +27,7 @@ urlpatterns = [
     path("app/<slug:slug>/<int:pk>/", views.doc_detail, name="doc_detail"),
     path("app/<slug:slug>/<int:pk>/edit/", views.doc_form, name="doc_edit"),
     path("app/<slug:slug>/<int:pk>/print/", views.doc_print, name="doc_print"),
+    path("app/sales-invoice/<int:pk>/share/", views.share_invoice, name="share_invoice"),
+    path("i/<str:token>/", views.public_invoice, name="public_invoice"),
     path("app/<slug:slug>/<int:pk>/<str:action>/", views.doc_action, name="doc_action"),
 ]

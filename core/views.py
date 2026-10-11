@@ -255,14 +255,20 @@ def doc_detail(request, slug, pk):
 
 @login_required
 def doc_print(request, slug, pk):
+    dt = get_doctype(slug)
+    obj = get_object_or_404(_scoped(request, dt), pk=pk)
+    membership = getattr(request, "membership", None)
+    return render(request, "core/print.html", print_page_context(
+        dt, obj, request.company, request.GET.get("template"), can_customize=bool(membership and membership.can_manage)))
+
+
+def print_page_context(dt, obj, company, template=None, can_customize=False, public=False):
     from core.hijri import format_hijri
     from core.models import PrintSettings, PrintTemplate
     from core.printing import print_context
 
-    dt = get_doctype(slug)
-    obj = get_object_or_404(_scoped(request, dt), pk=pk)
-    ps = PrintSettings.for_company(request.company)
-    template = request.GET.get("template")
+    slug = dt.slug
+    ps = PrintSettings.for_company(company)
     if template not in PrintTemplate.values:
         template = ps.template
     child_headers, child_rows = _child_table(dt, obj)
@@ -271,18 +277,65 @@ def doc_print(request, slug, pk):
         from core.zatca import invoice_qr_svg
 
         qr = invoice_qr_svg(obj)
-    p = print_context(slug, obj, request.company, ps)
+    p = print_context(slug, obj, company, ps)
     exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus", "posting_date", "remarks", "company"}
-    membership = getattr(request, "membership", None)
     posting_date = getattr(obj, "posting_date", None)
-    return render(request, "core/print.html", {
+    return {
         "qr": qr, "doc_currency": getattr(obj, "currency", None), "p": p, "ps": ps, "template": template,
         "templates": [(v, label.split(" — ")[0]) for v, label in PrintTemplate.choices],
-        "can_customize": bool(membership and membership.can_manage),
+        "can_customize": can_customize, "public": public,
         "hijri_date": format_hijri(posting_date) if posting_date else "",
         "generic_fields": detail_fields(obj, exclude=exclude) if p["kind"] == "generic" else [],
-        "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
+        "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": company,
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals if f != "outstanding_amount"],
+    }
+
+
+def public_invoice(request, token):
+    """الفاتورة كما تُطبع، برابط عام سري يُرسل للعميل (دون تسجيل دخول). المسودات لا تُعرض."""
+    from django.http import Http404
+
+    from core.tenancy import tenant_context
+    from selling.models import SalesInvoice
+
+    if len(token) < 20:
+        raise Http404
+    invoice = SalesInvoice.all_objects.filter(share_token=token).exclude(docstatus=0).select_related("company").first()
+    if invoice is None:
+        raise Http404("الرابط غير صحيح أو أُلغي.")
+    with tenant_context(invoice.company):
+        context = print_page_context(get_doctype("sales-invoice"), invoice, invoice.company,
+                                     request.GET.get("template"), public=True)
+        response = render(request, "core/print.html", context)
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    response["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@login_required
+def share_invoice(request, pk):
+    """إنشاء رابط المشاركة (أو إلغاؤه بإنشاء رمز جديد) وعرضه مع زر واتساب."""
+    import urllib.parse
+
+    from messaging.service import compose, invoice_context, normalize_phone, whatsapp_link
+    from selling.models import SalesInvoice
+
+    invoice = get_object_or_404(_scoped(request, get_doctype("sales-invoice")), pk=pk)
+    if invoice.is_draft:
+        messages.error(request, "اعتمد الفاتورة قبل مشاركتها.")
+        return redirect(invoice.get_absolute_url())
+    if request.method == "POST" and request.POST.get("action") == "revoke":
+        SalesInvoice.all_objects.filter(pk=invoice.pk).update(share_token="")
+        invoice.share_token = ""
+        messages.success(request, "أُلغي الرابط السابق؛ لن يفتح بعد الآن.")
+    url = request.build_absolute_uri(invoice.share_path())
+    body = compose(request.company, "invoice", **invoice_context(invoice, link=url))
+    if "{link}" not in body and url not in body:
+        body = f"{body}\n{url}"
+    phone = normalize_phone(invoice.customer.phone)
+    return render(request, "selling/share_invoice.html", {
+        "obj": invoice, "url": url, "whatsapp": whatsapp_link(phone, body) if phone else "",
+        "whatsapp_any": "https://wa.me/?text=" + urllib.parse.quote(body), "body": body,
     })
 
 

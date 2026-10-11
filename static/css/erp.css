@@ -330,3 +330,4 @@ tr.row-low td { background: #fff8e8; }
 .badge.audit-submit { background: var(--success); color: #fff; }
 .badge.audit-access, .badge.audit-export { background: #fff3cd; color: #8a5a00; }
 .nowrap { white-space: nowrap; }
+.share-link { display: flex; gap: 8px; } .share-link input { flex: 1; min-width: 0; }

@@ -137,6 +137,12 @@ class KPISheetTests(TestCase):
         self.assertRedirects(response, sheet.get_absolute_url())
         self.assertEqual(sheet.achievement_percent, Decimal("100.0"))
         self.assertContains(self.client.get(sheet.get_absolute_url()), "نسبة التحقيق")
+        self.client.post(reverse("doc_new", args=["appraisal"]), {
+            "employee": self.emp.pk, "template": AppraisalTemplate.objects.get().pk, "kpi_weight": "",
+            "period_from": START.isoformat(), "period_to": TODAY.isoformat(), "posting_date": TODAY.isoformat(),
+            "scores-TOTAL_FORMS": 0, "scores-INITIAL_FORMS": 0, "scores-MIN_NUM_FORMS": 0, "scores-MAX_NUM_FORMS": 1000,
+        })
+        self.assertEqual(Appraisal.objects.get().kpi_weight, 0)             # الوزن الفارغ = صفر
         # ربط مستخدم بموظف من صفحة المستخدمين
         member = Membership.objects.create(user=make_company("شركة ثالثة", "seller")[1], company=self.company)
         self.client.post(reverse("user_edit", args=[member.pk]), {"role": "user", "can_submit": "on",

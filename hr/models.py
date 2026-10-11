@@ -1450,7 +1450,7 @@ class Appraisal(SubmittableDocument):
     strengths = models.TextField("نقاط القوة", blank=True)
     improvements = models.TextField("فرص التحسين والأهداف القادمة", blank=True)
     kpi_weight = models.PositiveSmallIntegerField(
-        "وزن تحقيق الأهداف (KPIs) %", default=0,
+        "وزن تحقيق الأهداف (KPIs) %", default=0, blank=True,
         help_text="نسبة النتيجة المأخوذة من أهداف الأداء المعتمدة للموظف في الفترة (0 = المعايير فقط)")
     kpi_sheet = models.ForeignKey("KPISheet", models.PROTECT, null=True, blank=True, related_name="appraisals",
                                   verbose_name="أهداف الأداء", help_text="يُترك فارغاً لاختيار آخر أهداف معتمدة في الفترة")
@@ -1465,6 +1465,8 @@ class Appraisal(SubmittableDocument):
     def clean(self):
         if self.period_from and self.period_to and self.period_to < self.period_from:
             raise ValidationError({"period_to": "نهاية الفترة يجب أن تكون بعد بدايتها."})
+        if self.kpi_weight is None:
+            self.kpi_weight = 0
         if self.kpi_weight > 100:
             raise ValidationError({"kpi_weight": "الوزن من 0 إلى 100."})
         if self.kpi_sheet_id and self.employee_id and self.kpi_sheet.employee_id != self.employee_id:

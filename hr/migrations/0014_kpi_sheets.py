@@ -36,6 +36,7 @@ class Migration(migrations.Migration):
             model_name="appraisal",
             name="kpi_weight",
             field=models.PositiveSmallIntegerField(
+                blank=True,
                 default=0,
                 help_text="نسبة النتيجة المأخوذة من أهداف الأداء المعتمدة للموظف في الفترة (0 = المعايير فقط)",
                 verbose_name="وزن تحقيق الأهداف (KPIs) %",

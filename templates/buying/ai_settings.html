@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}الذكاء الاصطناعي{% endblock %}
+{% block heading %}قراءة فواتير الموردين بالذكاء الاصطناعي{% endblock %}
+{% block content %}
+<div class="card">
+  {% if cfg.active %}
+    <div class="alert alert-success" style="margin:0">✓ مفعّل بنموذج {{ cfg.get_model_display }}. قُرئت {{ cfg.invoices_read }} فاتورة{% if cfg.last_used_at %}، آخرها {{ cfg.last_used_at|date:"Y-m-d H:i" }}{% endif %}.
+      <a href="{% url 'ai_invoice_upload' %}">قراءة فاتورة الآن</a></div>
+  {% else %}
+    <div class="alert alert-info" style="margin:0">غير مفعّل — لا يتصل النظام بأي جهة خارجية.</div>
+  {% endif %}
+</div>
+<div class="card">
+  <h3>كيف يعمل؟</h3>
+  <ol class="small">
+    <li>أنشئ حساباً في <a href="https://console.anthropic.com" target="_blank" rel="noopener" dir="ltr">console.anthropic.com</a> وأضف رصيداً، ثم أنشئ مفتاح API من صفحة «API Keys».</li>
+    <li>الصق المفتاح هنا ووافق على الإرسال وفعّل الخاصية، ثم اضغط «اختبار المفتاح».</li>
+    <li>من «المشتريات ← قراءة فاتورة مورد بالذكاء الاصطناعي» ارفع صورة الفاتورة أو ملف PDF، وراجع ما قُرئ، فتُنشأ فاتورة مشتريات <strong>مسودة</strong> تعتمدها بنفسك.</li>
+  </ol>
+  <p class="muted small">تكلفة القراءة تُخصم من رصيد حسابك لدى Anthropic (عادةً سنتات قليلة للفاتورة، وأقل مع النماذج الأسرع). اشتراك Claude العادي على claude.ai لا يصلح لهذا؛ المطلوب مفتاح API.
+    تُرسل الفاتورة المرفوعة فقط ووقت الرفع، ولا يُحفظ الملف في النظام.</p>
+</div>
+<form method="post" novalidate class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg" name="action" value="save">حفظ</button></div>
+</form>
+<form method="post" class="card">
+  {% csrf_token %}
+  <h3>اختبار المفتاح</h3>
+  <p class="muted small">يتحقق من المفتاح المحفوظ وإتاحة النموذج لحسابك دون استهلاك رصيد.</p>
+  <button class="btn" name="action" value="test">اختبار المفتاح</button>
+</form>
+{% endblock %}

@@ -30,6 +30,7 @@ def build_menu(request):
                                              _item("خادم البريد", "platform_email_settings")]}]}]
         return []
     subscription = getattr(request.company, "subscription", None)
+    includes_ai = bool(subscription and subscription.plan.includes_ai)
     doc = lambda label, slug: _item(label, "doc_list", slug)  # noqa: E731
     if membership.role == "employee":
         return _mark_active(request, [{"key": "hr", "label": "بوابة الموظف", "sections": [{"items": [
@@ -48,7 +49,8 @@ def build_menu(request):
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
                        doc("الموردون", "supplier"),
-                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay")]},
+                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay")]
+                      + ([_item("قراءة فاتورة مورد بالذكاء الاصطناعي", "ai_invoice_upload")] if includes_ai else [])},
             {"title": "تقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier"),
                                           _item("أعمار ديون الموردين", "aging_report", "supplier"),
                                           _item("حد إعادة الطلب", "reorder_report")]},
@@ -123,15 +125,16 @@ def build_menu(request):
     ]})
     settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
     if membership.can_manage:
-        settings_items = [_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
+        settings_items = ([_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
                           _item("سجل التعديلات", "audit_log"),
                           _item("تصدير كامل البيانات", "company_export"),
                           _item("البريد الإلكتروني", "company_email_settings"),
                           _item("رسائل SMS وواتساب", "messaging_settings"),
                           _item("سجل الرسائل", "message_log"),
                           _item("الطباعة والشعار", "print_settings"),
-                          _item("الواجهة البرمجية (API)", "api_keys"),
-                          _item("الاشتراك والفوترة", "billing")] + settings_items
+                          _item("الواجهة البرمجية (API)", "api_keys")]
+                          + ([_item("الذكاء الاصطناعي", "ai_settings")] if includes_ai else [])
+                          + [_item("الاشتراك والفوترة", "billing")] + settings_items)
     modules.append({"key": "settings", "label": "الإعدادات", "sections": [{"items": settings_items}]})
     if request.user.is_superuser:
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [

@@ -62,6 +62,7 @@
             <li>حتى {{ plan.max_users }} مستخدمين</li>
             <li>المحاسبة والمبيعات والمشتريات والمخزون</li>
             <li>{% if plan.includes_pos %}نقاط البيع ✓{% else %}بدون نقاط البيع{% endif %}</li>
+            {% if plan.includes_ai %}<li>قراءة فواتير الموردين بالذكاء الاصطناعي ✓</li>{% endif %}
             <li>تجربة مجانية {{ plan.trial_days }} يوماً</li>
           </ul>
           <a class="btn {% if plan.code == 'pro' %}btn-primary{% endif %} btn-block" href="{% url 'signup' %}?plan={{ plan.code }}">ابدأ التجربة</a>

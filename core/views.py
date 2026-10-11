@@ -360,8 +360,11 @@ def item_api(request, pk):
 
     item = get_object_or_404(Item, pk=pk)
     return JsonResponse({
-        "code": item.code, "name": item.name, "uom": str(item.uom),
+        "code": item.code, "name": item.name, "uom": str(item.uom), "uom_id": item.uom_id,
         "selling_rate": str(item.selling_rate), "buying_rate": str(item.buying_rate),
+        # أسعار كل وحدة تحويل لتعبئة السعر عند اختيار الوحدة في السطر
+        "uoms": {str(u["uom"]): {"name": u["name"], "factor": str(u["factor"]), "selling_rate": str(u["selling_rate"]),
+                                 "buying_rate": str(u["buying_rate"])} for u in item.uom_options()},
     })
 
 

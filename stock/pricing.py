@@ -41,7 +41,7 @@ def record_price_changes(item, old):
 
 def net_unit_rate(doc, row):
     """سعر الوحدة بعملة الشركة قبل الضريبة من سطر مستند شراء."""
-    rate = flt(row.rate)
+    rate = flt(Decimal(row.rate) / Decimal(getattr(row, "conversion_factor", 1) or 1))  # لكل وحدة أساسية
     if getattr(doc, "prices_include_tax", False) and doc.tax_rate:
         rate = flt(rate * 100 / (100 + flt(doc.tax_rate)))
     return flt(rate * flt(doc.exchange_rate or 1))

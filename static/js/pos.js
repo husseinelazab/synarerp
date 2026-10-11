@@ -64,12 +64,15 @@
     }).join("");
   }
 
-  function addToCart(id, qty) {
+  // unit: وحدة تحويل (كرتون…) {uom, name, factor, rate}؛ السطر يُميَّز بالصنف والوحدة
+  function addToCart(id, qty, unit) {
     var item = byId[id];
     if (!item) return;
-    var line = cart.find(function (l) { return l.id === item.id; });
+    var uom = unit ? unit.uom : null;
+    var line = cart.find(function (l) { return l.id === item.id && (l.uom || null) === uom; });
     if (line) line.qty = round3(line.qty + (qty || 1));
-    else cart.push({ id: item.id, name: item.name, rate: item.rate, qty: qty || 1 });
+    else cart.push({ id: item.id, name: unit ? item.name + " (" + unit.name + ")" : item.name,
+                     rate: unit ? unit.rate : item.rate, qty: qty || 1, uom: uom, factor: unit ? unit.factor : 1 });
     renderCart();
   }
 
@@ -106,6 +109,13 @@
     var q = search.value.trim();
     if (!q) return;
     var match = items.find(function (i) { return i.barcode === q || i.code.toLowerCase() === q.toLowerCase(); });
+    if (!match) {
+      // باركود وحدة تحويل (كرتون…)
+      for (var k = 0; k < items.length && !match; k++) {
+        var unit = (items[k].units || []).find(function (u) { return u.barcode && u.barcode === q; });
+        if (unit) { addToCart(items[k].id, 1, unit); search.value = ""; renderGrid(); return; }
+      }
+    }
     if (!match) {
       var weighed = scaleBarcode(q);
       if (weighed) { addToCart(weighed.item.id, weighed.qty); search.value = ""; renderGrid(); return; }
@@ -332,7 +342,7 @@
         paid_cash: num(cashEl.value),
         paid_card: num(cardEl.value),
         card: card,
-        items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate }; }),
+        items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, uom: l.uom || null }; }),
       }),
     })
       .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
@@ -379,14 +389,14 @@
       client_id: clientId || newId(), card: card || null, created_at: new Date().toISOString(), customer: $("customer").value,
       customer_name: $("customer").selectedOptions[0] ? $("customer").selectedOptions[0].text : "",
       discount: t.discount, paid_cash: num(cashEl.value), paid_card: num(cardEl.value),
-      items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, name: l.name }; }),
+      items: cart.map(function (l) { return { item: l.id, qty: l.qty, rate: l.rate, name: l.name, uom: l.uom || null }; }),
       totals: t, status: "pending", error: "",
     };
     var q = readQueue();
     q.push(sale);
     writeQueue(q);
     // خصم الكميات محلياً حتى يظهر الرصيد التقريبي
-    cart.forEach(function (l) { var i = byId[l.id]; if (i && i.stock) i.qty = round2(i.qty - l.qty); });
+    cart.forEach(function (l) { var i = byId[l.id]; if (i && i.stock) i.qty = round3(i.qty - l.qty * (l.factor || 1)); });
     renderGrid();
     payModal.hidden = true;
     var change = round2(sale.paid_cash + sale.paid_card - t.grand);

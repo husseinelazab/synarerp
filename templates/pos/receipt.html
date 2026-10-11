@@ -38,7 +38,7 @@
   <hr>
   <table>
     <thead><tr><th>الصنف</th><th class="n">الكمية × السعر</th><th class="n">المبلغ</th></tr></thead>
-    <tbody>{% for r in rows %}<tr><td>{{ r.item.name }}</td><td class="n">{{ r.qty|abs|floatformat:-3 }} × {{ r.rate|money }}</td><td class="n">{{ r.amount|abs|money }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for r in rows %}<tr><td>{{ r.item.name }}{% if r.uom_id %} ({{ r.uom }}){% endif %}</td><td class="n">{{ r.qty|abs|floatformat:-3 }} × {{ r.rate|money }}</td><td class="n">{{ r.amount|abs|money }}</td></tr>{% endfor %}</tbody>
   </table>
   <hr>
   <table>

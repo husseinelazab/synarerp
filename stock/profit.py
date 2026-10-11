@@ -56,7 +56,7 @@ def sales_lines(from_date, to_date, item_group=None, customer=None, cost_center=
     # توزيع تكلفة الصنف في الفاتورة على أسطره بنسبة الكميات
     qty_per_key = defaultdict(Decimal)
     for r in rows:
-        qty_per_key[(r.parent_id, r.item_id)] += abs(r.qty)
+        qty_per_key[(r.parent_id, r.item_id)] += abs(r.stock_qty)
     avg_cost = {}
     lines = []
     for r in rows:
@@ -69,19 +69,19 @@ def sales_lines(from_date, to_date, item_group=None, customer=None, cost_center=
             cost = flt(0)
         elif (inv.pk, r.item_id) in invoice_costs:
             value, _qty = invoice_costs[(inv.pk, r.item_id)]
-            share = abs(r.qty) / qty_per_key[(inv.pk, r.item_id)] if qty_per_key[(inv.pk, r.item_id)] else 0
+            share = abs(r.stock_qty) / qty_per_key[(inv.pk, r.item_id)] if qty_per_key[(inv.pk, r.item_id)] else 0
             cost = flt(value * share)
         elif r.delivery_note_item_id and (r.delivery_note_item.parent_id, r.item_id) in dn_costs:
             value, qty = dn_costs[(r.delivery_note_item.parent_id, r.item_id)]
-            cost = flt(value / qty * r.qty) if qty else flt(0)
+            cost = flt(value / qty * r.stock_qty) if qty else flt(0)
         else:
             # لا حركة مخزون لهذا السطر (فاتورة بدون تحديث مخزون): تقدير بمتوسط التكلفة الحالي
             if r.item_id not in avg_cost:
                 agg = Bin.objects.filter(item_id=r.item_id).aggregate(v=Sum("stock_value"), q=Sum("actual_qty"))
                 avg_cost[r.item_id] = (flt(agg["v"]) / flt(agg["q"], 3)) if agg["q"] else flt(r.item.buying_rate)
-            cost = flt(avg_cost[r.item_id] * r.qty)
+            cost = flt(avg_cost[r.item_id] * r.stock_qty)
             estimated = True
-        lines.append({"line": r, "invoice": inv, "qty": flt(r.qty, 3), "sales": net, "cost": cost,
+        lines.append({"line": r, "invoice": inv, "qty": flt(r.stock_qty, 3), "sales": net, "cost": cost,
                       "profit": net - cost, "estimated": estimated})
     return lines
 

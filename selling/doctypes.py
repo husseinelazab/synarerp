@@ -8,7 +8,7 @@ register(DocType(
     form_fields=["customer", "posting_date", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center",
                  "tax_rate", "vat_category", "vat_exemption_reason", "prices_include_tax", "discount_amount", "remarks"],
     search_fields=["name", "customer__name"],
-    child=ChildTable(SalesInvoiceItem, ["item", "qty", "rate"], rate_type="selling"),
+    child=ChildTable(SalesInvoiceItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total", "outstanding_amount"],
 ))
 register(DocType(
@@ -22,7 +22,7 @@ register(DocType(
     form_fields=["customer", "posting_date", "valid_till", "currency", "exchange_rate", "tax_rate", "prices_include_tax",
                  "discount_amount", "terms", "remarks"],
     search_fields=["name", "customer__name"],
-    child=ChildTable(QuotationItem, ["item", "qty", "rate"], rate_type="selling"),
+    child=ChildTable(QuotationItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total"],
 ))
 register(DocType(
@@ -31,7 +31,7 @@ register(DocType(
     form_fields=["customer", "posting_date", "delivery_date", "currency", "exchange_rate", "warehouse", "cost_center",
                  "tax_rate", "prices_include_tax", "discount_amount", "terms", "remarks"],
     search_fields=["name", "customer__name"],
-    child=ChildTable(SalesOrderItem, ["item", "qty", "rate"], rate_type="selling"),
+    child=ChildTable(SalesOrderItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total"],
 ))
 register(DocType(
@@ -39,6 +39,6 @@ register(DocType(
     list_fields=["name", "posting_date", "customer", "warehouse", "total_amount", "status"],
     form_fields=["customer", "posting_date", "warehouse", "cost_center", "currency", "exchange_rate", "tax_rate", "remarks"],
     search_fields=["name", "customer__name"],
-    child=ChildTable(DeliveryNoteItem, ["item", "qty", "rate"], rate_type="selling"),
+    child=ChildTable(DeliveryNoteItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
     totals=["total_amount"],
 ))

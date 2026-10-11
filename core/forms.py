@@ -13,6 +13,8 @@ def formfield_callback(db_field, **kwargs):
     field = db_field.formfield(**kwargs)
     if field is not None and isinstance(db_field, models.ForeignKey):
         field.empty_label = "— اختر —"
+        if db_field.name == "uom" and any(f.name == "conversion_factor" for f in db_field.model._meta.fields):
+            field.empty_label = "الأساسية"  # سطر بلا وحدة = الوحدة الأساسية للصنف
     return field
 
 

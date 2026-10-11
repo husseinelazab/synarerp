@@ -30,7 +30,7 @@
           out.innerHTML = '<div class="pc-name">' + esc(d.name) + '</div><div class="pc-price">' +
             parseFloat(d.price).toLocaleString("en-US", { minimumFractionDigits: 2 }) + ' <span style="font-size:.6em">' + currencyHtml + "</span></div>" +
             (d.weighed ? '<div class="pc-name">الوزن ' + esc(d.qty) + " كجم = " + parseFloat(d.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }) + " " + currencyHtml + "</div>" : "") +
-            '<div class="pc-meta">السعر شامل ضريبة القيمة المضافة · ' + esc(d.uom) + ' · <span dir="ltr">' + esc(d.barcode || d.code) + "</span>" +
+            '<div class="pc-meta">السعر شامل ضريبة القيمة المضافة · لكل ' + esc(d.uom_name) + ' · <span dir="ltr">' + esc(d.barcode || d.code) + "</span>" +
             (d.shelf ? " · الرف " + esc(d.shelf) : "") + "</div>" +
             (d.stock && d.stock.length ? '<div class="pc-stock">' + d.stock.map(function (s) { return "<span>" + esc(s.warehouse) + ": <b>" + s.qty + "</b></span>"; }).join("") + "</div>" : '<div class="pc-meta">لا يوجد رصيد</div>');
         }

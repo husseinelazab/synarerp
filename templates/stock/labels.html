@@ -73,7 +73,8 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} }
   function render() {
     rowsEl.innerHTML = rows.map(function (r, i) {
-      return "<tr><td><b>" + esc(r.name) + '</b><div class="muted small" dir="ltr">' + esc(r.barcode || r.code) + "</div></td>" +
+      return "<tr><td><b>" + esc(r.name) + "</b>" + (r.uom ? " <span class=\"badge\">" + esc(r.uom_name) + "</span>" : "") +
+        '<div class="muted small" dir="ltr">' + esc(r.barcode || r.code) + "</div></td>" +
         '<td><input class="form-control" data-i="' + i + '" data-f="price" value="' + esc(r.price) + '" inputmode="decimal"></td>' +
         '<td><input class="form-control copies" type="number" min="0" data-i="' + i + '" data-f="copies" value="' + esc(r.copies) + '"></td>' +
         '<td><input class="form-control" data-i="' + i + '" data-f="batch" value="' + esc(r.batch || "") + '"></td>' +
@@ -87,9 +88,10 @@
   }
   function add(items) {
     items.forEach(function (it) {
-      var existing = rows.find(function (r) { return r.id === it.id && (r.batch || "") === (it.batch || "") && (r.expiry || "") === (it.expiry || ""); });
+      var existing = rows.find(function (r) { return r.id === it.id && (r.uom || null) === (it.uom || null) && (r.batch || "") === (it.batch || "") && (r.expiry || "") === (it.expiry || ""); });
       if (existing) existing.copies = (parseInt(existing.copies, 10) || 0) + (it.copies || 1);
       else rows.push({ id: it.id, name: it.name, code: it.code, barcode: it.barcode, price: it.price, rate: it.rate,
+                       uom: it.uom || null, uom_name: it.uom_name || "",
                        zero: it.zero_vat, edited: false, copies: it.copies || 1,
                        batch: it.batch || "", expiry: it.expiry || "", production: "" });
     });

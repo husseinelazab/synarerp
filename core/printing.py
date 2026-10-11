@@ -41,7 +41,7 @@ def trade_lines(doc):
 
     القيم موزعة بحيث يساوي مجموع الأسطر مجاميع المستند تماماً.
     """
-    rows = list(doc.items.select_related("item", "item__uom").order_by("id"))
+    rows = list(doc.items.select_related("item", "item__uom", "uom").order_by("id"))
     if not rows:
         return [], False
     rate = flt(doc.tax_rate)
@@ -61,7 +61,7 @@ def trade_lines(doc):
         qty = abs(r.qty)
         taxable = gross[r.pk] - discounts[r.pk]
         lines.append({
-            "code": r.item.code, "name": r.item.name, "uom": str(r.item.uom) if r.item.uom_id else "",
+            "code": r.item.code, "name": r.item.name, "uom": r.uom_name,
             "qty": qty, "unit_price": (gross[r.pk] / qty).quantize(Decimal("0.01")) if qty else gross[r.pk],
             "gross": gross[r.pk], "discount": discounts[r.pk], "taxable": taxable, "tax_rate": rate,
             "tax": taxes[r.pk], "total": taxable + taxes[r.pk],
@@ -70,8 +70,8 @@ def trade_lines(doc):
 
 
 def fulfillment_lines(doc):
-    rows = doc.items.select_related("item", "item__uom").order_by("id")
-    return [{"code": r.item.code, "name": r.item.name, "uom": str(r.item.uom) if r.item.uom_id else "",
+    rows = doc.items.select_related("item", "item__uom", "uom").order_by("id")
+    return [{"code": r.item.code, "name": r.item.name, "uom": r.uom_name,
              "qty": abs(r.qty)} for r in rows]
 
 

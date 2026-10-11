@@ -10,6 +10,7 @@ from django.db.models import Sum
 from core.models import SubmittableDocument
 from core.utils import flt
 from core.vat import REASON_CHOICES, VATCategory, validate_category
+from stock.uom import UOMLine, linked_qty
 
 
 def tax_totals(total, discount, rate, inclusive):
@@ -120,18 +121,18 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
     # ---------- بيانات المرتجعات ----------
 
     def item_summary(self):
-        """إجمالي الكمية والمبلغ لكل صنف في الفاتورة: {item_id: {"qty", "amount"}}."""
+        """إجمالي الكمية (بالوحدة الأساسية) والمبلغ لكل صنف في الفاتورة: {item_id: {"qty", "amount"}}."""
         summary = {}
         for row in self.items.all():
             entry = summary.setdefault(row.item_id, {"qty": flt(0, 3), "amount": flt(0)})
-            entry["qty"] += row.qty
+            entry["qty"] += row.stock_qty
             entry["amount"] += row.amount
         return summary
 
     def returned_quantities(self):
         rows = (
             self.items.model.objects.filter(parent__return_against=self, parent__docstatus=1)
-            .values("item_id").annotate(qty=Sum("qty"))
+            .values("item_id").annotate(qty=Sum("stock_qty"))
         )
         return {r["item_id"]: -flt(r["qty"], 3) for r in rows}
 
@@ -183,7 +184,9 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
         total = flt(0)
         for row in self.items.all():
             if self.is_return:
-                row.qty = -abs(row.qty)
+                # المرتجع دائماً بالوحدة الأساسية وسعرها في الفاتورة الأصلية
+                row.qty = -abs(row.stock_qty if row.uom_id else row.qty)
+                row.uom_id = None
                 row.rate = rates.get(row.item_id, row.rate)
             row.amount = flt(flt(row.qty, 3) * flt(row.rate))
             row.save(update_fields=["qty", "rate", "amount"])
@@ -268,7 +271,7 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
         remaining = original.returnable_quantities()
         requested = {}
         for row in rows:
-            requested[row.item_id] = requested.get(row.item_id, 0) - row.qty
+            requested[row.item_id] = requested.get(row.item_id, 0) - row.stock_qty
         for row in rows:
             available = remaining.get(row.item_id, 0)
             if requested[row.item_id] > available:
@@ -303,7 +306,7 @@ class InvoiceDocument(CurrencyMixin, SubmittableDocument):
             raise ValidationError("لا يمكن إلغاء الفاتورة لوجود مرتجعات معتمدة عليها. ألغِ المرتجعات أولاً.")
 
 
-class InvoiceItem(models.Model):
+class InvoiceItem(UOMLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0)

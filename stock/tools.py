@@ -37,9 +37,17 @@ def shelf_price(item, price, includes_tax, company):
     return flt(price * (100 + flt(company.default_tax_rate)) / 100)
 
 
-def item_json(item, company, includes_tax=None):
+def item_json(item, company, includes_tax=None, unit=None):
+    """بيانات الصنف للبحث والملصقات؛ unit: وحدة تحويل (كرتون…) بباركودها وسعرها."""
     includes_tax = prices_include_tax_default() if includes_tax is None else includes_tax
-    return {"id": item.id, "code": item.code, "name": item.name, "barcode": item.barcode, "uom": str(item.uom),
+    if unit is not None:
+        rate = unit.effective_selling_rate
+        return {"id": item.id, "code": item.code, "name": item.name, "barcode": unit.barcode or item.barcode,
+                "uom": unit.uom_id, "uom_name": str(unit.uom), "factor": str(unit.factor),
+                "price": str(shelf_price(item, rate, includes_tax, company)), "shelf": item.shelf_location,
+                "group": str(item.item_group), "rate": str(rate), "zero_vat": item.vat_category in ("Z", "E", "O")}
+    return {"id": item.id, "code": item.code, "name": item.name, "barcode": item.barcode, "uom": None,
+            "uom_name": str(item.uom), "factor": "1",
             "price": str(shelf_price(item, item.selling_rate, includes_tax, company)),
             "shelf": item.shelf_location, "group": str(item.item_group), "rate": str(item.selling_rate),
             "zero_vat": item.vat_category in ("Z", "E", "O")}
@@ -53,10 +61,16 @@ def _error(exc):
 
 @login_required
 def lookup_api(request):
-    item, scale_qty = Item.resolve_code(request.GET.get("code", ""))
+    code = request.GET.get("code", "")
+    item, unit = Item.match_code(code)
+    scale_qty = None
+    if item is None:
+        from stock.scale import read_scale_barcode
+
+        item, scale_qty = read_scale_barcode(code)
     if item is None:
         return JsonResponse({"error": "لا يوجد صنف بهذا الباركود أو الكود."}, status=404)
-    data = item_json(item, request.company)
+    data = item_json(item, request.company, unit=unit)
     data.update(selling_rate=str(item.selling_rate), buying_rate=str(item.buying_rate))
     if scale_qty is not None:
         # باركود ميزان: الوزن وقيمة العبوة شاملة الضريبة
@@ -79,7 +93,7 @@ def items_api(request):
         if rows is None:
             return JsonResponse({"error": "المستند غير موجود."}, status=404)
         return JsonResponse({"items": [
-            dict(item_json(r.item, company, includes_tax), copies=max(1, math.ceil(abs(r.qty))),
+            dict(item_json(r.item, company, includes_tax), copies=max(1, math.ceil(abs(r.stock_qty))),
                  batch=getattr(r, "batch_no", ""),
                  expiry=r.expiry_date.isoformat() if getattr(r, "expiry_date", None) else "")
             for r in rows if r.item.is_stock_item]})
@@ -273,15 +287,22 @@ def _print_labels(request):
             price = flt(Decimal(str(r.get("price")))) if r.get("price") not in (None, "") else None
         except InvalidOperation:
             price = None
+        # وحدة تحويل (كرتون…): باركودها وسعرها واسمها على الملصق
+        from stock.models import ItemUOM
+
+        unit = None
+        if str(r.get("uom") or "").isdigit():
+            unit = ItemUOM.objects.filter(item=item, uom_id=int(r["uom"])).select_related("uom").first()
         if price is None:
-            price = shelf_price(item, item.selling_rate, includes_tax, company)
-        code = item.barcode or item.code
+            price = shelf_price(item, unit.effective_selling_rate if unit else item.selling_rate, includes_tax, company)
+        code = (unit.barcode if unit and unit.barcode else None) or item.barcode or item.code
         if code not in svg_cache:
             try:
                 svg_cache[code] = barcode.svg(code)
             except barcode.BarcodeError:
                 svg_cache[code] = ""
         label = {"item": item, "price": price, "code": code, "svg": svg_cache[code],
+                 "uom_name": str(unit.uom) if unit else str(item.uom),
                  "batch": str(r.get("batch") or "")[:40], "expiry": _parse_date(r.get("expiry")),
                  "production": _parse_date(r.get("production"))}
         labels_out.extend([label] * copies)

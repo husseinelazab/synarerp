@@ -116,12 +116,20 @@ def items_api(request):
     if shift is None:
         return JsonResponse({"error": "لا توجد وردية مفتوحة."}, status=400)
     stock = dict(Bin.objects.filter(warehouse=shift.profile.warehouse).values_list("item_id", "actual_qty"))
+    from stock.models import ItemUOM
+
+    units = {}
+    for u in ItemUOM.objects.select_related("uom", "item").order_by("factor"):
+        units.setdefault(u.item_id, []).append(u)
     items = [
         {
             "id": i.id, "code": i.code, "name": i.name, "barcode": i.barcode, "group": i.item_group_id,
             "uom": i.uom.name, "rate": float(i.selling_rate), "stock": i.is_stock_item,
             "qty": float(stock.get(i.id, 0)), "plu": i.plu if i.is_weighed else None,
             "zero_vat": i.vat_category in ("Z", "E", "O"),
+            # وحدات التحويل (كرتون…) بباركودها وسعرها لقراءتها في الكاشير حتى دون اتصال
+            "units": [{"uom": u.uom_id, "name": u.uom.name, "factor": float(u.factor), "barcode": u.barcode,
+                       "rate": float(u.effective_selling_rate)} for u in units.get(i.id, [])],
         }
         for i in Item.objects.filter(disabled=False).select_related("uom")
     ]
@@ -155,7 +163,7 @@ def checkout_api(request):
 def receipt(request, pk):
     invoice = get_object_or_404(SalesInvoice.objects.select_related("company", "customer", "pos_shift__profile"), pk=pk)
     return render(request, "pos/receipt.html", {
-        "inv": invoice, "company": invoice.company, "rows": invoice.items.select_related("item"),
+        "inv": invoice, "company": invoice.company, "rows": invoice.items.select_related("item", "uom"),
         "qr": invoice_qr_svg(invoice), "auto_print": request.GET.get("print") == "1",
         "footer": invoice.pos_shift.profile.receipt_footer if invoice.pos_shift_id else "",
     })

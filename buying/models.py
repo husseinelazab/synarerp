@@ -10,6 +10,7 @@ from core.utils import flt
 from core.tenancy import tenant_unique
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
 from stock.pricing import update_buying_rates
+from stock.uom import linked_qty
 
 
 class Supplier(TenantModel):
@@ -131,7 +132,7 @@ class PurchaseInvoice(InvoiceDocument):
         for row in self.items.select_related("item", "item__expense_account", "receipt_item__parent"):
             if row.receipt_item_id and not self.is_return:
                 # البضاعة دخلت المخزون بإذن الاستلام: يُقفل الحساب الوسيط بقيمة الاستلام، وفرق السعر لتسويات المخزون
-                received = flt(row.qty * row.receipt_item.base_rate)
+                received = flt(linked_qty(row, row.receipt_item) * row.receipt_item.base_rate)
                 base_amount = self.to_base(row.amount)
                 entries.append({"account": srbnb_account(company), "debit": received, "base": True})
                 if base_amount != received:
@@ -141,7 +142,8 @@ class PurchaseInvoice(InvoiceDocument):
                 # المخزون يُقيّم بعملة الشركة: سعر الشراء × سعر الصرف.
                 # المرتجع يخرج بسعر التقييم الحالي؛ فرقه عن سعر الشراء يذهب لحساب تسويات المخزون
                 base_amount = self.to_base(row.amount)
-                value = make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate,
+                value = make_stock_ledger_entry(self, row.item, self.warehouse, row.stock_qty,
+                                                row.stock_rate * self.exchange_rate,
                                                 batch_no=row.batch_no, expiry_date=row.expiry_date)
                 entries.append({"account": company.require_account("default_stock_account"), "debit": value, "base": True})
                 if base_amount != value:
@@ -215,7 +217,8 @@ class PurchaseReceipt(FulfillmentDocument):
     def on_submit(self):
         value = flt(0)
         for row in self.items.select_related("item"):
-            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate,
+            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.stock_qty,
+                                             row.stock_rate * self.exchange_rate,
                                              batch_no=row.batch_no, expiry_date=row.expiry_date)
         if value:
             make_gl_entries(self, [

@@ -10,6 +10,7 @@ from django.db import models, transaction
 from core.invoice import CurrencyMixin
 from core.models import SubmittableDocument
 from core.utils import flt
+from stock.uom import UOMLine, linked_qty
 
 SRBNB_ACCOUNT = "بضائع مستلمة لم تصل فواتيرها"
 
@@ -83,7 +84,7 @@ class FulfillmentDocument(CurrencyMixin, SubmittableDocument):
         requested = {}
         for row in rows:
             if row.order_item_id:
-                requested[row.order_item_id] = requested.get(row.order_item_id, 0) + row.qty
+                requested[row.order_item_id] = requested.get(row.order_item_id, 0) + linked_qty(row, row.order_item)
         for row in rows:
             if row.order_item_id:
                 remaining = row.order_item.qty - row.order_item.delivered_qty
@@ -96,7 +97,7 @@ class FulfillmentDocument(CurrencyMixin, SubmittableDocument):
         totals = {}
         for row in self.items.select_related("order_item"):
             if row.order_item_id:
-                totals.setdefault(row.order_item_id, [row.order_item, flt(0, 3)])[1] += row.qty
+                totals.setdefault(row.order_item_id, [row.order_item, flt(0, 3)])[1] += linked_qty(row, row.order_item)
         orders = set()
         for order_item, qty in totals.values():
             order_item.refresh_from_db()
@@ -138,8 +139,8 @@ class FulfillmentDocument(CurrencyMixin, SubmittableDocument):
         with transaction.atomic():
             invoice = model.objects.create(company=self.company, created_by=user, **values)
             for row, qty in remaining.items():
-                invoice.items.create(item=row.item, qty=qty, rate=row.rate, order_item=row.order_item,
-                                     **{self.invoice_link_field: row})
+                invoice.items.create(item=row.item, qty=qty, rate=row.rate, uom_id=row.uom_id,
+                                     order_item=row.order_item, **{self.invoice_link_field: row})
             invoice.calculate_totals()
             invoice.save()
         return invoice
@@ -163,7 +164,7 @@ class FulfillmentDocument(CurrencyMixin, SubmittableDocument):
             raise ValidationError("فُوتر جزء من هذا الإذن؛ ألغِ الفواتير المرتبطة أولاً.")
 
 
-class FulfillmentItem(models.Model):
+class FulfillmentItem(UOMLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
                              verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
@@ -183,7 +184,7 @@ def update_fulfillment_billing(invoice, link_field, sign):
     for row in invoice.items.select_related(link_field):
         linked = getattr(row, link_field)
         if linked is not None:
-            totals.setdefault(linked.pk, [linked, flt(0, 3)])[1] += row.qty
+            totals.setdefault(linked.pk, [linked, flt(0, 3)])[1] += linked_qty(row, linked)
     docs = set()
     for line, qty in totals.values():
         line.refresh_from_db()

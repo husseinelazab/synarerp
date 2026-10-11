@@ -1,11 +1,17 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import (UOM, Batch, Item, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
+from stock.models import (UOM, Batch, Item, ItemUOM, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
                           StockEntry, StockEntryItem, Warehouse)
 
 register(DocType(
     slug="item", model=Item, module="stock",
     list_fields=["code", "name", "item_group", "uom", "selling_rate", "is_stock_item"],
     search_fields=["code", "name", "barcode"],
+    detail_template="stock/_item_detail.html",
+))
+register(DocType(
+    slug="item-uom", model=ItemUOM, module="stock",
+    list_fields=["item", "uom", "factor", "barcode", "selling_rate"],
+    search_fields=["item__name", "item__code", "barcode"],
 ))
 register(DocType(
     slug="stock-entry", model=StockEntry, module="stock",

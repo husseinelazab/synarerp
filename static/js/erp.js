@@ -63,21 +63,35 @@
     }
   }
 
+  // بيانات الصنف ووحداته (تُحفظ لتغيير الوحدة دون طلب جديد)
+  var itemCache = {};
+  function itemData(id) {
+    if (itemCache[id]) return Promise.resolve(itemCache[id]);
+    return fetch("/api/item/" + id + "/", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { itemCache[id] = data; return data; });
+  }
+
+  // سعر السطر حسب الصنف ووحدته (سعر الوحدة إن حُدد، وإلا سعر الأساسية × المعامل)
   function fetchRate(select) {
     if (!rateType || !select.value) return;
     var row = select.closest("tr");
-    fetch("/api/item/" + select.value + "/", { credentials: "same-origin" })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var rate = field(row, "rate");
-        if (rate) rate.value = data[rateType + "_rate"];
-        recalc();
-      });
+    itemData(select.value).then(function (data) {
+      var rate = field(row, "rate"), uom = field(row, "uom");
+      var unit = uom && uom.value && data.uoms[uom.value];
+      if (uom && uom.value && !unit) uom.value = "";  // الوحدة غير معرفة لهذا الصنف
+      if (rate) rate.value = unit ? unit[rateType + "_rate"] : data[rateType + "_rate"];
+      recalc();
+    });
   }
 
   table.addEventListener("input", recalc);
   table.addEventListener("change", function (e) {
     if (e.target.name && /-item$/.test(e.target.name)) fetchRate(e.target);
+    if (e.target.name && /-uom$/.test(e.target.name)) {
+      var itemSelect = field(e.target.closest("tr"), "item");
+      if (itemSelect) fetchRate(itemSelect);
+    }
     recalc();
   });
 
@@ -112,8 +126,12 @@
           if (!res.ok) { scanMsg.className = "scan-msg text-danger"; scanMsg.textContent = "✗ " + res.data.error + " (" + code + ")"; return; }
           if (res.data.weighed) qty = qty * parseFloat(res.data.qty);  // باركود ميزان: الكمية = الوزن
           qty = Math.round(qty * 1000) / 1000;
+          var unitId = res.data.uom ? String(res.data.uom) : "";
           var id = String(res.data.id), rows = activeRows(), row = null;
-          rows.forEach(function (r) { var s = field(r, "item"); if (!row && s && s.value === id) row = r; });
+          rows.forEach(function (r) {
+            var s = field(r, "item"), u = field(r, "uom");
+            if (!row && s && s.value === id && (!u || (u.value || "") === unitId)) row = r;
+          });
           if (row) {
             var q = field(row, "qty");
             if (q) q.value = Math.round((num(q.value) + qty) * 1000) / 1000;
@@ -123,12 +141,13 @@
             var select = field(row, "item");
             select.value = id;
             if (select.value !== id) { scanMsg.className = "scan-msg text-danger"; scanMsg.textContent = "✗ الصنف غير متاح في هذا المستند"; return; }
-            var q2 = field(row, "qty");
+            var q2 = field(row, "qty"), u2 = field(row, "uom");
             if (q2) q2.value = qty;
+            if (u2) u2.value = unitId;
             fetchRate(select);
           }
           scanMsg.className = "scan-msg ok";
-          scanMsg.textContent = "✓ " + res.data.name;
+          scanMsg.textContent = "✓ " + res.data.name + (res.data.uom_name ? " (" + res.data.uom_name + ")" : "");
           recalc();
         });
     });

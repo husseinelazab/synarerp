@@ -9,6 +9,7 @@ from django.db import models, transaction
 from core.invoice import CurrencyMixin, tax_totals
 from core.models import SubmittableDocument
 from core.utils import flt
+from stock.uom import UOMLine, linked_qty
 
 
 class CommercialStatus(models.TextChoices):
@@ -114,7 +115,7 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
             for row, qty in quantities.items():
                 if qty <= 0:
                     continue
-                line = {"item": row.item, "qty": qty, "rate": row.rate}
+                line = {"item": row.item, "qty": qty, "rate": row.rate, "uom_id": row.uom_id}
                 if link_field:
                     line[link_field] = row
                 target.items.create(**line)
@@ -129,7 +130,7 @@ class CommercialDocument(CurrencyMixin, SubmittableDocument):
         return target
 
 
-class CommercialItem(models.Model):
+class CommercialItem(UOMLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0)
@@ -237,7 +238,7 @@ def update_order_billing(invoice, sign):
     rows = [row for row in invoice.items.select_related("order_item") if row.order_item_id]
     totals = {}
     for row in rows:
-        totals.setdefault(row.order_item_id, [row.order_item, flt(0, 3)])[1] += row.qty
+        totals.setdefault(row.order_item_id, [row.order_item, flt(0, 3)])[1] += linked_qty(row, row.order_item)
     orders = set()
     for order_item, qty in totals.values():
         order_item.refresh_from_db()

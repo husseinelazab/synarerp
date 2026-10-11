@@ -31,11 +31,11 @@ def open_purchase_qty():
 
     result = defaultdict(Decimal)
     rows = (PurchaseOrderItem.objects.filter(parent__docstatus=1, parent__status__in=[
-        CommercialStatus.TO_BILL, CommercialStatus.PARTLY_BILLED]).values("item_id", "qty", "delivered_qty", "billed_qty"))
+        CommercialStatus.TO_BILL, CommercialStatus.PARTLY_BILLED]).values("item_id", "qty", "delivered_qty", "billed_qty", "conversion_factor"))
     for r in rows:
         remaining = r["qty"] - max(r["delivered_qty"], r["billed_qty"])
         if remaining > 0:
-            result[r["item_id"]] += remaining
+            result[r["item_id"]] += remaining * r["conversion_factor"]  # بالوحدة الأساسية
     return result
 
 
@@ -74,7 +74,7 @@ def plan(warehouses, include_productions=True, include_sales_orders=True):
         rows = (SalesOrderItem.objects.filter(parent__docstatus=1, parent__status__in=[
             CommercialStatus.TO_BILL, CommercialStatus.PARTLY_BILLED]).select_related("parent", "item"))
         for r in rows:
-            remaining = r.qty - max(r.delivered_qty, r.billed_qty)
+            remaining = (r.qty - max(r.delivered_qty, r.billed_qty)) * r.conversion_factor
             if remaining > 0 and default_bom(r.item) is not None:
                 demand[r.item_id] += remaining
                 so_names[r.item_id].add(r.parent.name)

@@ -45,10 +45,11 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
             qty = flt(line.get("qty"), 3)
             if qty <= 0:
                 raise ValidationError(f"الكمية للصنف {item.name} يجب أن تكون أكبر من صفر.")
-            rate = item.selling_rate
+            uom_id = int(line["uom"]) if str(line.get("uom") or "").isdigit() else None
+            rate = item.price_for(uom_id, "selling")  # سعر الكرتون مثلاً، أو الأساسي × المعامل
             if profile.allow_rate_change and line.get("rate") not in (None, ""):
                 rate = flt(line["rate"])
-            invoice.items.create(item=item, qty=qty, rate=rate)
+            invoice.items.create(item=item, qty=qty, rate=rate, uom_id=uom_id)
         invoice.calculate_totals()
 
         if discount:

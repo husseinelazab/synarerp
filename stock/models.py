@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -99,6 +101,9 @@ class Item(TenantModel):
 
     def clean(self):
         super().clean()
+        if self.barcode and self.company_id and ItemUOM.all_objects.filter(
+                company_id=self.company_id, barcode=self.barcode).exists():
+            raise ValidationError({"barcode": "هذا الباركود مستخدم لوحدة تحويل صنف آخر."})
         if self.is_weighed:
             if not self.plu:
                 raise ValidationError({"plu": "أدخل رقم PLU للصنف الذي يُباع بالوزن."})
@@ -107,12 +112,61 @@ class Item(TenantModel):
             if len(str(self.plu)) > length:
                 raise ValidationError({"plu": f"رقم PLU أطول من {length} أرقام المحددة في إعدادات باركود الموازين."})
 
+    def uom_factor(self, uom_id):
+        """معامل تحويل وحدة إلى الوحدة الأساسية (1 للأساسية)."""
+        if not uom_id or uom_id == self.uom_id:
+            return Decimal(1)
+        row = ItemUOM.all_objects.filter(item_id=self.pk, uom_id=uom_id).first()
+        if row is None:
+            name = UOM.all_objects.filter(pk=uom_id).values_list("name", flat=True).first() or uom_id
+            raise ValidationError(f"الوحدة «{name}» غير معرّفة للصنف «{self.name}». أضفها في وحدات التحويل.")
+        return row.factor
+
+    def price_for(self, uom_id=None, kind="selling"):
+        """سعر البيع أو الشراء بوحدة معينة: سعر الوحدة المحدد، وإلا سعر الأساسية × المعامل."""
+        factor = self.uom_factor(uom_id)
+        if kind == "selling" and uom_id and uom_id != self.uom_id:
+            row = ItemUOM.all_objects.filter(item_id=self.pk, uom_id=uom_id).first()
+            if row and row.selling_rate is not None:
+                return row.selling_rate
+        base = self.selling_rate if kind == "selling" else self.buying_rate
+        return flt(Decimal(base) * factor)
+
+    def uom_options(self):
+        """الوحدات المتاحة: [{uom, name, factor, barcode, selling_rate, buying_rate}] بدءاً بالأساسية."""
+        rows = [{"uom": self.uom_id, "name": str(self.uom), "factor": Decimal(1), "barcode": self.barcode,
+                 "selling_rate": self.selling_rate, "buying_rate": self.buying_rate, "base": True}]
+        for u in self.uoms.select_related("uom").order_by("factor"):
+            rows.append({"uom": u.uom_id, "name": str(u.uom), "factor": u.factor, "barcode": u.barcode,
+                         "selling_rate": u.selling_rate if u.selling_rate is not None
+                         else flt(self.selling_rate * u.factor),
+                         "buying_rate": flt(self.buying_rate * u.factor), "base": False})
+        return rows
+
     @classmethod
-    def resolve_code(cls, code):
-        """قراءة الماسح: (الصنف، الكمية من باركود الميزان أو None) أو (None، None)."""
+    def match_code(cls, code):
+        """(الصنف، وحدة التحويل المطابقة أو None) من باركود أو كود."""
         item = cls.find_by_code(code)
         if item is not None:
             return item, None
+        code = (code or "").strip()
+        if not code:
+            return None, None
+        candidates = [code]
+        if code.isdigit() and len(code) == 12:
+            candidates.append("0" + code)
+        elif code.isdigit() and len(code) == 13 and code.startswith("0"):
+            candidates.append(code[1:])
+        unit = (ItemUOM.objects.filter(barcode__in=candidates, item__disabled=False)
+                .select_related("item", "item__uom", "uom").first())
+        return (unit.item, unit) if unit else (None, None)
+
+    @classmethod
+    def resolve_code(cls, code):
+        """قراءة الماسح: (الصنف، الكمية من باركود الميزان أو None) أو (None، None)."""
+        item, unit = cls.match_code(code)
+        if item is not None:
+            return item, (unit.factor if unit else None)
         from stock.scale import read_scale_barcode
 
         return read_scale_barcode(code)
@@ -131,6 +185,45 @@ class Item(TenantModel):
             candidates.append(code[1:])
         item = qs.filter(barcode__in=candidates).order_by("id").first()
         return item or qs.filter(code__iexact=code).first()
+
+
+class ItemUOM(TenantModel):
+    """وحدة تحويل للصنف: مثل كرتون = 24 حبة، بباركود وسعر بيع خاصين."""
+
+    item = models.ForeignKey(Item, models.CASCADE, related_name="uoms", verbose_name="الصنف",
+                             limit_choices_to={"disabled": False})
+    uom = models.ForeignKey(UOM, models.PROTECT, related_name="+", verbose_name="الوحدة")
+    factor = models.DecimalField("المعامل (كم وحدة أساسية)", max_digits=18, decimal_places=6,
+                                 help_text="عدد الوحدات الأساسية في هذه الوحدة، مثل 24 للكرتون إذا كانت الأساسية «حبة»")
+    barcode = models.CharField("الباركود", max_length=50, blank=True)
+    selling_rate = models.DecimalField("سعر البيع", max_digits=18, decimal_places=2, null=True, blank=True,
+                                       help_text="اتركه فارغاً ليُحسب: سعر الوحدة الأساسية × المعامل")
+
+    class Meta:
+        verbose_name = "وحدة تحويل"
+        verbose_name_plural = "وحدات التحويل"
+        ordering = ["item__code", "factor"]
+        constraints = [tenant_unique("item", "uom", model_label="itemuom")]
+
+    def __str__(self):
+        return f"{self.item.name} — {self.uom} = {flt(self.factor, 6).normalize():f} {self.item.uom}"
+
+    def clean(self):
+        super().clean()
+        if self.factor is not None and self.factor <= 0:
+            raise ValidationError({"factor": "المعامل يجب أن يكون أكبر من صفر."})
+        if self.item_id and self.uom_id and self.uom_id == self.item.uom_id:
+            raise ValidationError({"uom": "هذه هي الوحدة الأساسية للصنف؛ اختر وحدة أخرى."})
+        if self.barcode:
+            company = self.company_id or (self.item.company_id if self.item_id else None)
+            clash = Item.all_objects.filter(company_id=company, barcode=self.barcode).exists() or \
+                ItemUOM.all_objects.filter(company_id=company, barcode=self.barcode).exclude(pk=self.pk).exists()
+            if clash:
+                raise ValidationError({"barcode": "هذا الباركود مستخدم لصنف أو وحدة أخرى."})
+
+    @property
+    def effective_selling_rate(self):
+        return self.selling_rate if self.selling_rate is not None else flt(self.item.selling_rate * self.factor)
 
 
 class ItemPriceHistory(TenantModel):

@@ -20,7 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from core.models import ApiKey, DocStatus, Membership
 from core.registry import REGISTRY
-from core.tenancy import reset_current_company, set_current_company
+from core.tenancy import _current_user, reset_current_company, set_current_company, set_current_user
 
 RATE_LIMIT_PER_MINUTE = 120
 HIDDEN = {"company", "created_by", "password_encrypted", "secret_encrypted", "private_key"}
@@ -64,10 +64,12 @@ def api_view(view):
             ApiKey.objects.filter(pk=key.pk).update(last_used_at=timezone.now())
         request.user, request.membership, request.company, request.api_key = key.user, membership, key.company, key
         token = set_current_company(key.company)
+        user_token = set_current_user(key.user)
         try:
             return view(request, *args, **kwargs)
         finally:
             reset_current_company(token)
+            _current_user.reset(user_token)
     return wrapper
 
 

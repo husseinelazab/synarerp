@@ -79,6 +79,18 @@ class Item(TenantModel):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+    def save(self, *args, **kwargs):
+        # تسجيل تغيّر سعري البيع والشراء (من التعديل اليدوي أو الاستيراد أو آخر شراء)
+        old = None
+        if self.pk:
+            old = Item.all_objects.filter(pk=self.pk).values("selling_rate", "buying_rate").first()
+        super().save(*args, **kwargs)
+        fields = kwargs.get("update_fields")
+        if old and (fields is None or {"selling_rate", "buying_rate"} & set(fields)):
+            from stock.pricing import record_price_changes
+
+            record_price_changes(self, old)
+
     def clean(self):
         super().clean()
         if self.is_weighed:
@@ -113,6 +125,32 @@ class Item(TenantModel):
             candidates.append(code[1:])
         item = qs.filter(barcode__in=candidates).order_by("id").first()
         return item or qs.filter(code__iexact=code).first()
+
+
+class ItemPriceHistory(TenantModel):
+    """سجل تغيّر أسعار الأصناف: من غيّر، ومتى، ومن أي مصدر."""
+
+    SOURCES = [("manual", "تعديل يدوي"), ("import", "استيراد ملف"), ("purchase", "آخر سعر شراء")]
+    FIELDS = [("selling_rate", "سعر البيع"), ("buying_rate", "سعر الشراء")]
+
+    item = models.ForeignKey(Item, models.CASCADE, related_name="price_history", verbose_name="الصنف")
+    field = models.CharField("السعر", max_length=20, choices=FIELDS)
+    old_rate = models.DecimalField("السعر السابق", max_digits=18, decimal_places=2)
+    new_rate = models.DecimalField("السعر الجديد", max_digits=18, decimal_places=2)
+    source = models.CharField("المصدر", max_length=10, choices=SOURCES, default="manual")
+    reference = models.CharField("المرجع", max_length=60, blank=True)
+    user = models.ForeignKey("auth.User", models.SET_NULL, null=True, blank=True, related_name="+",
+                             verbose_name="المستخدم")
+    created_at = models.DateTimeField("الوقت", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "تغيير سعر"
+        verbose_name_plural = "سجل تغيّر الأسعار"
+        ordering = ["-id"]
+
+    @property
+    def change_percent(self):
+        return flt((self.new_rate - self.old_rate) * 100 / self.old_rate) if self.old_rate else None
 
 
 class ScaleValueType(models.TextChoices):

@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>حسب <select name="group_by" class="form-select">{% for k, v in groupings.items %}<option value="{{ k }}" {% if k == group_by %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <label>الترتيب <select name="sort" class="form-select">
+    <option value="profit" {% if sort == 'profit' %}selected{% endif %}>الأعلى ربحاً</option>
+    <option value="sales" {% if sort == 'sales' %}selected{% endif %}>الأعلى مبيعاً</option>
+    <option value="margin" {% if sort == 'margin' %}selected{% endif %}>الأقل هامشاً أولاً</option>
+    <option value="loss" {% if sort == 'loss' %}selected{% endif %}>الخاسر فقط</option></select></label>
+  <label>مجموعة الأصناف <select name="item_group" class="form-select"><option value="">الكل</option>{% for g in item_groups %}<option value="{{ g.pk }}" {% if filters.item_group == g.pk|stringformat:"s" %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></label>
+  <label>العميل <select name="customer" class="form-select"><option value="">الكل</option>{% for c in customers %}<option value="{{ c.pk }}" {% if filters.customer == c.pk|stringformat:"s" %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+  {% if cost_centers %}<label>الفرع <select name="cost_center" class="form-select"><option value="">الكل</option>{% for c in cost_centers %}<option value="{{ c.pk }}" {% if filters.cost_center == c.pk|stringformat:"s" %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>{% endif %}
+  <button class="btn btn-primary">عرض</button>
+  <a class="btn" href="?{{ query }}&format=csv">تصدير CSV</a>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+
+<div class="kpis">
+  <div class="kpi"><span>صافي المبيعات (قبل الضريبة)</span><b>{{ totals.sales|cur }}</b></div>
+  <div class="kpi"><span>تكلفة المبيعات</span><b>{{ totals.cost|cur }}</b></div>
+  <div class="kpi {% if totals.profit < 0 %}kpi-bad{% else %}kpi-good{% endif %}"><span>مجمل الربح</span><b>{{ totals.profit|cur }}</b></div>
+  <div class="kpi"><span>هامش الربح</span><b>{% if totals.margin is not None %}{{ totals.margin|floatformat:1 }}%{% else %}—{% endif %}</b></div>
+</div>
+
+<div class="card">
+<div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>{{ groupings|get_item:group_by }}</th>{% if group_by == 'item' %}<th>الكمية</th>{% endif %}<th>صافي المبيعات</th><th>التكلفة</th><th>مجمل الربح</th><th>هامش الربح</th><th>الربح على التكلفة</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr{% if r.profit < 0 %} class="row-loss"{% endif %}>
+      <td>{% if r.url %}<a href="{{ r.url }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}{% if r.estimated %} <span class="muted small" title="تكلفة تقديرية بمتوسط التكلفة الحالي لأن الفاتورة لم تحرك المخزون">*</span>{% endif %}</td>
+      {% if group_by == 'item' %}<td>{{ r.qty|floatformat:-3 }}</td>{% endif %}
+      <td>{{ r.sales|money }}</td><td>{{ r.cost|money }}</td>
+      <td class="strong {% if r.profit < 0 %}neg{% else %}pos{% endif %}">{{ r.profit|money }}</td>
+      <td>{% if r.margin is not None %}<span class="margin-bar"><i style="width:{% if r.margin > 0 %}{{ r.margin|floatformat:0 }}{% else %}0{% endif %}%"></i></span>{{ r.margin|floatformat:1 }}%{% else %}—{% endif %}</td>
+      <td>{% if r.markup is not None %}{{ r.markup|floatformat:1 }}%{% else %}—{% endif %}</td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لا توجد مبيعات معتمدة في هذه الفترة</td></tr>{% endfor %}
+  </tbody>
+  {% if rows %}<tfoot><tr><th>الإجمالي</th>{% if group_by == 'item' %}<th></th>{% endif %}<th>{{ totals.sales|money }}</th><th>{{ totals.cost|money }}</th><th>{{ totals.profit|money }}</th><th>{% if totals.margin is not None %}{{ totals.margin|floatformat:1 }}%{% endif %}</th><th></th></tr></tfoot>{% endif %}
+</table>
+</div>
+<p class="muted small">صافي المبيعات بعد الخصم وقبل الضريبة وبعملة الشركة، والمرتجعات مخصومة. التكلفة هي التكلفة الفعلية المسجلة عند خروج البضاعة من المخزون (متوسط التكلفة المرجح).
+{% if totals.estimated %}<br>* {{ totals.estimated }} سطر من فواتير لم تحرك المخزون ولا أذون تسليم لها؛ قُدّرت تكلفتها بمتوسط التكلفة الحالي.{% endif %}</p>
+</div>
+{% endblock %}

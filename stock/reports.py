@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.shortcuts import render
@@ -33,4 +35,159 @@ def stock_ledger(request):
     return render(request, "reports/stock_ledger.html", {
         "title": "دفتر حركة المخزون", "from_date": from_date, "to_date": to_date, "entries": entries,
         "items": Item.objects.filter(is_stock_item=True), "warehouses": Warehouse.objects.all(), "selected": selected,
+    })
+
+
+# ---------------- الربحية والتسعير ----------------
+
+def _csv(filename, header, rows):
+    import csv
+
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("﻿")
+    writer = csv.writer(response)
+    writer.writerow(header)
+    writer.writerows(rows)
+    return response
+
+
+@login_required
+def gross_profit_report(request):
+    from accounts.models import CostCenter
+    from selling.models import Customer
+    from stock.models import ItemGroup
+    from stock.profit import GROUPINGS, gross_profit
+
+    from_date, to_date = _period(request)
+    group_by = request.GET.get("group_by") if request.GET.get("group_by") in GROUPINGS else "item"
+    filters = {k: request.GET.get(k) or None for k in ("item_group", "customer", "cost_center")}
+    rows, totals = gross_profit(from_date, to_date, group_by, **filters)
+    sort = request.GET.get("sort", "profit")
+    if sort == "margin":
+        rows.sort(key=lambda r: (r["margin"] is None, r["margin"] if r["margin"] is not None else 0))
+    elif sort == "sales":
+        rows.sort(key=lambda r: -r["sales"])
+    elif sort == "loss":
+        rows = [r for r in rows if r["profit"] < 0]
+        rows.sort(key=lambda r: r["profit"])
+    else:
+        rows.sort(key=lambda r: -r["profit"])
+    if request.GET.get("format") == "csv":
+        return _csv("gross-profit.csv", [GROUPINGS[group_by], "الكمية", "صافي المبيعات", "التكلفة", "مجمل الربح",
+                                         "هامش الربح %", "نسبة الربح على التكلفة %"],
+                    [[r["label"], r["qty"], r["sales"], r["cost"], r["profit"], r["margin"] if r["margin"] is not None else "",
+                      r["markup"] if r["markup"] is not None else ""] for r in rows])
+    return render(request, "reports/gross_profit.html", {
+        "title": "تقرير الربحية (مجمل الربح)", "from_date": from_date, "to_date": to_date, "rows": rows,
+        "totals": totals, "group_by": group_by, "groupings": GROUPINGS, "sort": sort, "filters": filters,
+        "item_groups": ItemGroup.objects.order_by("name"), "customers": Customer.objects.order_by("name"),
+        "cost_centers": CostCenter.objects.filter(is_group=False).order_by("name"),
+        "query": request.GET.urlencode(),
+    })
+
+
+@login_required
+def pricing_analysis(request):
+    import datetime
+
+    from django.utils import timezone
+
+    from core.utils import flt
+    from stock.models import ItemGroup
+    from stock.pricing import selling_from_net, selling_net
+    from stock.profit import gross_profit
+    from stock.tools import prices_include_tax_default
+
+    company = request.company
+    try:
+        target = max(Decimal(0), min(Decimal(request.GET.get("target") or 20), Decimal(95)))
+    except Exception:  # noqa: BLE001
+        target = Decimal(20)
+    try:
+        days = max(1, min(int(request.GET.get("days") or 90), 3650))
+    except ValueError:
+        days = 90
+    group = request.GET.get("item_group") or ""
+    status_filter = request.GET.get("status") or ""
+    q = (request.GET.get("q") or "").strip()
+    today = timezone.localdate()
+    sold = {r["key"]: r for r in gross_profit(today - datetime.timedelta(days=days), today, "item")[0]}
+    bins = {}
+    for row in Bin.objects.values("item_id").annotate(v=Sum("stock_value"), qty=Sum("actual_qty")):
+        bins[row["item_id"]] = row
+    items = Item.objects.filter(disabled=False).select_related("item_group", "uom").order_by("code")
+    if group:
+        items = items.filter(item_group_id=group)
+    if q:
+        items = items.filter(name__icontains=q) | items.filter(code__icontains=q)
+    rows, counts = [], {"loss": 0, "low": 0, "ok": 0, "unknown": 0}
+    for item in items:
+        b = bins.get(item.id)
+        avg = flt(b["v"] / b["qty"]) if b and b["qty"] and b["qty"] > 0 else None
+        last = flt(item.buying_rate) if item.buying_rate else None
+        cost = last or avg  # سعر الاستبدال (آخر شراء) هو أساس قرار التسعير
+        net = selling_net(item, company)
+        margin = flt((net - cost) * 100 / net) if cost and net else None
+        if not item.is_stock_item and not cost:
+            status = "unknown"
+        elif not cost or not net:
+            status = "unknown"
+        elif net < cost:
+            status = "loss"
+        elif margin < target:
+            status = "low"
+        else:
+            status = "ok"
+        counts[status] += 1
+        suggested = None
+        if cost and status in ("loss", "low") and target < 100:
+            suggested = selling_from_net(flt(cost * 100 / (100 - target)), item, company)
+        s = sold.get(item.id)
+        row = {"item": item, "selling": item.selling_rate, "net": net, "last": last, "avg": avg, "cost": cost,
+               "margin": margin, "markup": flt((net - cost) * 100 / cost) if cost and net else None,
+               "status": status, "suggested": suggested,
+               "sold_qty": s["qty"] if s else 0, "sold_profit": s["profit"] if s else None,
+               "sold_margin": s["margin"] if s else None}
+        if not status_filter or status_filter == status:
+            rows.append(row)
+    rank = {"loss": 0, "low": 1, "unknown": 2, "ok": 3}
+    rows.sort(key=lambda r: (rank[r["status"]], r["margin"] if r["margin"] is not None else 0))
+    if request.GET.get("format") == "csv":
+        # الأعمدة بأسماء حقول الاستيراد: يمكن تعديل «سعر البيع» ثم استيراد الملف بوضع «تحديث الموجود»
+        return _csv("pricing.csv", ["كود الصنف", "اسم الصنف", "سعر البيع", "سعر البيع الحالي", "آخر سعر شراء",
+                                    "متوسط التكلفة", "هامش الربح %", "الحالة"],
+                    [[r["item"].code, r["item"].name, r["suggested"] or r["selling"], r["selling"], r["last"] or "",
+                      r["avg"] or "", r["margin"] if r["margin"] is not None else "", STATUS_LABELS[r["status"]]]
+                     for r in rows])
+    return render(request, "reports/pricing.html", {
+        "title": "تحليل التسعير والربحية", "rows": rows, "counts": counts, "target": target, "days": days,
+        "item_groups": ItemGroup.objects.order_by("name"), "group": group, "status_filter": status_filter, "q": q,
+        "includes_tax": prices_include_tax_default(), "status_labels": STATUS_LABELS, "query": request.GET.urlencode(),
+    })
+
+
+STATUS_LABELS = {"loss": "يُباع بخسارة", "low": "هامش منخفض", "ok": "جيد", "unknown": "بلا تكلفة أو سعر"}
+
+
+@login_required
+def price_history(request):
+    from stock.models import ItemPriceHistory
+
+    from_date, to_date = _period(request)
+    entries = (ItemPriceHistory.objects.filter(created_at__date__gte=from_date, created_at__date__lte=to_date)
+               .select_related("item", "user"))
+    selected = {k: request.GET.get(k, "") for k in ("item", "source", "field")}
+    if selected["item"]:
+        entries = entries.filter(item_id=selected["item"])
+    if selected["source"]:
+        entries = entries.filter(source=selected["source"])
+    if selected["field"]:
+        entries = entries.filter(field=selected["field"])
+    return render(request, "reports/price_history.html", {
+        "title": "سجل تغيّر الأسعار", "from_date": from_date, "to_date": to_date, "entries": entries[:1000],
+        "items": Item.objects.order_by("code"), "selected": selected, "sources": ItemPriceHistory.SOURCES,
+        "fields": ItemPriceHistory.FIELDS,
     })

@@ -170,7 +170,7 @@ def read_table(filename, content):
     return headers, rows[1:]
 
 
-def map_headers(dt, headers):
+def map_headers(dt, headers, mode="insert"):
     columns = columns_for(dt)
     by_label = {}
     for column in columns:
@@ -185,7 +185,12 @@ def map_headers(dt, headers):
             unknown.append(header)
         else:
             mapping[index] = column
-    missing = [c.label for c in columns if c.required and c not in mapping.values()]
+    key = import_key(dt.model)
+    if mode == "update" and not dt.is_submittable and key:
+        # التحديث يكفيه الحقل الفريد (مثل كود الصنف) مع الأعمدة المراد تغييرها فقط؛ الباقي يبقى كما هو
+        missing = [c.label for c in columns if c.key == key and c not in mapping.values()]
+    else:
+        missing = [c.label for c in columns if c.required and c not in mapping.values()]
     return mapping, unknown, missing
 
 
@@ -315,7 +320,7 @@ def run_import(dt, filename, content, mode="insert", submit=False, valid_only=Fa
     except ValidationError as exc:
         result["errors"].append({"row": "", "column": "", "message": " ".join(exc.messages)})
         return result
-    mapping, unknown, missing = map_headers(dt, headers)
+    mapping, unknown, missing = map_headers(dt, headers, mode)
     result["unknown_columns"], result["missing_columns"] = unknown, missing
     if missing:
         result["errors"].append({"row": 1, "column": "", "message": "أعمدة مطلوبة غير موجودة: " + "، ".join(missing)})
@@ -328,7 +333,10 @@ def run_import(dt, filename, content, mode="insert", submit=False, valid_only=Fa
             for group in groups:
                 savepoint = transaction.savepoint()
                 try:
-                    obj, created = _import_group(dt, mapping, group, mode, submit, user)
+                    from stock.pricing import price_source
+
+                    with price_source("import", filename):
+                        obj, created = _import_group(dt, mapping, group, mode, submit, user)
                 except GroupError as exc:
                     transaction.savepoint_rollback(savepoint)
                     result["failed"] += 1

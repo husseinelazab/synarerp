@@ -299,3 +299,20 @@ tr.row-hl td { background: #fff7d6; }
 .search-results div:hover { background: var(--primary-light); }
 @media (max-width: 1000px) { .labels-grid, .label-sources { grid-template-columns: 1fr; } .labels-grid .sticky-side { position: static; } }
 .btn-sm { padding: 3px 10px; font-size: 13px; }
+
+/* تقارير الربحية والتسعير */
+.kpis > .kpi { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; color: var(--text); }
+.kpis > .kpi > span { color: var(--muted); font-size: 13px; }
+.kpis > .kpi > b { font-size: 22px; }
+a.kpi:hover { border-color: var(--primary); text-decoration: none; }
+.kpi-bad > b { color: var(--danger); }
+.kpi-good > b { color: var(--success); }
+.kpi-warn > b { color: var(--warning); }
+tr.row-loss td { background: #fdf1f0; }
+tr.row-low td { background: #fff8e8; }
+.badge.pr-loss { background: var(--danger); color: #fff; }
+.badge.pr-low { background: #f5c26b; color: #4a3200; }
+.badge.pr-ok { background: #d8f0df; color: var(--success); }
+.badge.pr-unknown { background: #eef1f4; color: var(--muted); }
+.margin-bar { display: inline-block; width: 50px; height: 6px; background: #e3e8ee; border-radius: 3px; margin-inline-end: 6px; vertical-align: middle; overflow: hidden; }
+.margin-bar i { display: block; height: 100%; max-width: 100%; background: var(--success); }

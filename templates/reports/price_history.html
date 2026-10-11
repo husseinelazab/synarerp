@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>الصنف <select name="item" class="form-select"><option value="">الكل</option>{% for i in items %}<option value="{{ i.pk }}" {% if selected.item == i.pk|stringformat:"s" %}selected{% endif %}>{{ i }}</option>{% endfor %}</select></label>
+  <label>السعر <select name="field" class="form-select"><option value="">الكل</option>{% for k, v in fields %}<option value="{{ k }}" {% if selected.field == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <label>المصدر <select name="source" class="form-select"><option value="">الكل</option>{% for k, v in sources %}<option value="{{ k }}" {% if selected.source == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="card">
+<div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>الوقت</th><th>الصنف</th><th>السعر</th><th>من</th><th>إلى</th><th>التغيّر</th><th>المصدر</th><th>المرجع</th><th>المستخدم</th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr><td>{{ e.created_at|date:"Y-m-d H:i" }}</td><td><a href="{% url 'doc_detail' 'item' e.item_id %}">{{ e.item }}</a></td><td>{{ e.get_field_display }}</td>
+      <td>{{ e.old_rate|money }}</td><td><b>{{ e.new_rate|money }}</b></td>
+      <td class="{% if e.new_rate > e.old_rate %}neg{% else %}pos{% endif %}">{% if e.change_percent is not None %}{{ e.change_percent|floatformat:1 }}%{% endif %}</td>
+      <td>{{ e.get_source_display }}</td><td>{{ e.reference }}</td><td>{{ e.user|default:"" }}</td></tr>
+  {% empty %}<tr><td colspan="9" class="muted center">لا توجد تغييرات في هذه الفترة</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% endblock %}

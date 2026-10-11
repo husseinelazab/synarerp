@@ -18,6 +18,7 @@ PATH_MODULES = [
     ("/reports/accounts/balances/supplier/", {"buying", "accounts"}),
     ("/reports/accounts/", "accounts"),
     ("/assets/", "accounts"),
+    ("/reports/stock/gross-profit/", {"selling", "accounts", "stock"}),
     ("/reports/stock/", "stock"),
     ("/stock/", "stock"),
     ("/pos/", "pos"),

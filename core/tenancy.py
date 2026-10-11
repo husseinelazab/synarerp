@@ -10,6 +10,16 @@ from contextlib import contextmanager
 from django.db import models
 
 _current_company = contextvars.ContextVar("current_company", default=None)
+_current_user = contextvars.ContextVar("current_user", default=None)
+
+
+def get_current_user():
+    """المستخدم صاحب الطلب الحالي (لسجلات التدقيق مثل سجل تغيّر الأسعار)."""
+    return _current_user.get()
+
+
+def set_current_user(user):
+    return _current_user.set(user)
 
 
 def get_current_company():

@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>بحث <input name="q" value="{{ q }}" class="form-control" placeholder="اسم أو كود"></label>
+  <label>مجموعة الأصناف <select name="item_group" class="form-select"><option value="">الكل</option>{% for g in item_groups %}<option value="{{ g.pk }}" {% if group == g.pk|stringformat:"s" %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></label>
+  <label>الحالة <select name="status" class="form-select"><option value="">الكل</option>{% for k, v in status_labels.items %}<option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  <label>هامش الربح المستهدف % <input type="number" name="target" value="{{ target|floatformat:-2 }}" min="0" max="95" step="0.5" class="form-control" style="width:90px"></label>
+  <label>مبيعات آخر (يوم) <input type="number" name="days" value="{{ days }}" min="1" class="form-control" style="width:80px"></label>
+  <button class="btn btn-primary">عرض</button>
+  <a class="btn" href="?{{ query }}&format=csv" title="ملف بأسعار مقترحة يمكن تعديله ثم استيراده بوضع «تحديث الموجود» من قائمة الأصناف">تصدير للتعديل والاستيراد</a>
+</form>
+
+<div class="kpis">
+  <a class="kpi kpi-bad" href="?status=loss&target={{ target }}"><span>أصناف تُباع بخسارة</span><b>{{ counts.loss }}</b></a>
+  <a class="kpi kpi-warn" href="?status=low&target={{ target }}"><span>هامش أقل من {{ target|floatformat:-1 }}%</span><b>{{ counts.low }}</b></a>
+  <a class="kpi kpi-good" href="?status=ok&target={{ target }}"><span>تسعير جيد</span><b>{{ counts.ok }}</b></a>
+  <a class="kpi" href="?status=unknown&target={{ target }}"><span>بلا تكلفة أو سعر</span><b>{{ counts.unknown }}</b></a>
+</div>
+
+<div class="card">
+<div class="table-wrap">
+<table class="table report">
+  <thead><tr>
+    <th>الصنف</th><th>سعر البيع{% if includes_tax %} (شامل){% endif %}</th><th>قبل الضريبة</th><th>آخر سعر شراء</th><th>متوسط التكلفة</th>
+    <th>هامش الربح</th><th>الربح على التكلفة</th><th>الحالة</th><th>السعر المقترح</th><th>مبيعات {{ days }} يوم</th><th>ربحها الفعلي</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="row-{{ r.status }}">
+      <td><a href="{% url 'doc_detail' 'item' r.item.pk %}">{{ r.item.name }}</a><div class="muted small" dir="ltr">{{ r.item.code }}</div></td>
+      <td>{{ r.selling|money }}</td><td>{{ r.net|money }}</td>
+      <td>{% if r.last %}{{ r.last|money }}{% else %}—{% endif %}</td>
+      <td>{% if r.avg %}{{ r.avg|money }}{% else %}—{% endif %}</td>
+      <td class="strong">{% if r.margin is not None %}{{ r.margin|floatformat:1 }}%{% else %}—{% endif %}</td>
+      <td>{% if r.markup is not None %}{{ r.markup|floatformat:1 }}%{% else %}—{% endif %}</td>
+      <td><span class="badge pr-{{ r.status }}">{{ status_labels|get_item:r.status }}</span></td>
+      <td>{% if r.suggested %}<b>{{ r.suggested|money }}</b>{% endif %}</td>
+      <td>{{ r.sold_qty|floatformat:-3 }}</td>
+      <td class="{% if r.sold_profit < 0 %}neg{% endif %}">{% if r.sold_profit is not None %}{{ r.sold_profit|money }}{% else %}—{% endif %}</td>
+    </tr>
+  {% empty %}<tr><td colspan="11" class="muted center">لا توجد أصناف مطابقة</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted small">الحالة تُحسب على <b>آخر سعر شراء</b> (تكلفة الاستبدال)، أو متوسط التكلفة إن لم يوجد. هامش الربح = (سعر البيع قبل الضريبة − التكلفة) ÷ سعر البيع.
+السعر المقترح يحقق الهامش المستهدف{% if includes_tax %} ويشمل الضريبة مثل أسعار البطاقات{% endif %}. لتطبيق الأسعار: «تصدير للتعديل والاستيراد» ← عدّل عمود «سعر البيع» ← الأصناف ← استيراد ← «تحديث الموجود».</p>
+</div>
+{% endblock %}

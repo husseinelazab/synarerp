@@ -9,6 +9,7 @@ from core.models import TenantModel
 from core.utils import flt
 from core.tenancy import tenant_unique
 from stock.ledger import cancel_stock_ledger_entries, make_stock_ledger_entry
+from stock.pricing import update_buying_rates
 
 
 class Supplier(TenantModel):
@@ -159,6 +160,7 @@ class PurchaseInvoice(InvoiceDocument):
                            else f"فاتورة مشتريات من المورد {self.supplier}")
         make_gl_entries(self, entries, remarks=self.remarks or default_remarks, exchange_rate=self.exchange_rate)
         self.apply_return_to_original()
+        update_buying_rates(self)
 
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
@@ -166,6 +168,7 @@ class PurchaseInvoice(InvoiceDocument):
         self.unapply_return_from_original()
         update_order_billing(self, -1)
         update_fulfillment_billing(self, "receipt_item", -1)
+        update_buying_rates(self, cancelled=True)
 
 
 class PurchaseInvoiceItem(InvoiceItem):
@@ -217,11 +220,13 @@ class PurchaseReceipt(FulfillmentDocument):
                 {"account": srbnb_account(self.company), "credit": value, "base": True},
             ], remarks=self.remarks or f"استلام بضاعة من المورد {self.supplier}")
         self.update_order_delivery(+1)
+        update_buying_rates(self)
 
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
         self.update_order_delivery(-1)
+        update_buying_rates(self, cancelled=True)
 
 
 class PurchaseReceiptItem(FulfillmentItem):

@@ -34,6 +34,9 @@ class Company(models.Model):
     email = models.EmailField("البريد الإلكتروني", blank=True)
     address = models.TextField("العنوان", blank=True)
     default_tax_rate = models.DecimalField("نسبة ضريبة القيمة المضافة %", max_digits=5, decimal_places=2, default=15)
+    update_buying_rate_on_purchase = models.BooleanField(
+        "تحديث سعر الشراء في بطاقة الصنف من آخر شراء", default=True,
+        help_text="عند اعتماد فاتورة مشتريات أو إذن استلام يصبح سعر الشراء = آخر سعر شراء، مع تنبيه إن تجاوز سعر البيع")
 
     default_cash_account = models.ForeignKey(
         "accounts.Account", models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="حساب النقدية الافتراضي"

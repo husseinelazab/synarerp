@@ -40,7 +40,8 @@ def build_menu(request):
             {"items": [doc("عروض الأسعار", "quotation"), doc("أوامر البيع", "sales-order"), doc("أذون التسليم", "delivery-note"),
                        doc("فواتير المبيعات", "sales-invoice"), doc("العملاء", "customer"),
                        _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive")]},
-            {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer")]},
+            {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
+                                          _item("الربحية (مجمل الربح)", "gross_profit")]},
         ]},
         {"key": "buying", "label": "المشتريات", "sections": [
             {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
@@ -72,6 +73,9 @@ def build_menu(request):
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
             {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),
                                           _item("الموازين", "stock_scales")]},
+            {"title": "التسعير", "items": [_item("تحليل التسعير والربحية", "pricing_analysis"),
+                                          _item("الربحية (مجمل الربح)", "gross_profit"),
+                                          _item("سجل تغيّر الأسعار", "price_history")]},
             {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger")]},
         ]},
     ]

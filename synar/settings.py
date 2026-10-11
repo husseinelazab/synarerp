@@ -123,6 +123,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ذاكرة مؤقتة مشتركة بين كل عمليات الخادم (لحدّ محاولات الدخول الخاطئة) في جدول بقاعدة البيانات
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "synar_cache"}}
 
+AUTHENTICATION_BACKENDS = ["core.auth_backends.CaseInsensitiveModelBackend"]
+
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"

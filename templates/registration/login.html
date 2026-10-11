@@ -11,9 +11,9 @@
     {% elif form.errors %}<div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
     {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
     <label>اسم المستخدم</label>
-    <input type="text" name="username" class="form-control" autofocus required>
+    <input type="text" name="username" class="form-control" autofocus required autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" dir="ltr">
     <label>كلمة المرور</label>
-    <input type="password" name="password" class="form-control" required>
+    <input type="password" name="password" class="form-control" required autocomplete="current-password" dir="ltr">
     <input type="hidden" name="next" value="{{ next }}">
     <button type="submit" class="btn btn-primary btn-block">دخول</button>
     {% if PASSWORD_RESET_ENABLED %}<p class="center small" style="margin-top:12px"><a href="{% url 'password_reset' %}">نسيت كلمة المرور؟</a></p>{% endif %}

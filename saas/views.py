@@ -48,7 +48,7 @@ def signup(request):
                                             first_name=first, last_name=last)
             company = provision_company(data["company_name"], owner=user, tax_id=data["tax_id"],
                                         phone=data["phone"], plan=data["plan"])
-        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
         request.session[SESSION_KEY] = company.pk
         messages.success(request, f"مرحباً بك في {settings.ERP_NAME}! تم تأسيس «{company}» وبدأت فترتك التجريبية "
                                   f"لمدة {company.subscription.plan.trial_days} يوماً.")

@@ -265,3 +265,15 @@ class HardeningTests(TestCase):
         self.assertTrue(all(c.data_type == "s" for c in cells))
         csv_text = build_csv(columns_for(REGISTRY["customer"]), [["=1+1", "-2", "عادي"]]).decode("utf-8-sig")
         self.assertIn("'=1+1,'-2,عادي", csv_text)
+
+    def test_login_username_is_case_insensitive(self):
+        cache.clear()
+        make_company("شركة الحروف", "caseowner")
+        response = self.client.post(reverse("login"), {"username": "CaseOwner", "password": "pass12345"})
+        self.assertRedirects(response, reverse("dashboard"), fetch_redirect_response=False)
+        self.client.logout()
+        response = self.client.post(reverse("login"), {"username": "CaseOwner", "password": "wrong"})
+        self.assertEqual(response.status_code, 200)
+        page = self.client.get(reverse("login")).content.decode()
+        self.assertIn('autocapitalize="none"', page)
+        cache.clear()

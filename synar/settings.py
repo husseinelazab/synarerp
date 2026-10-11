@@ -12,6 +12,10 @@ if not SECRET_KEY or (not DEBUG and SECRET_KEY.startswith("dev-insecure")):
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("SYNAR_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("SYNAR_CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
+# وضع التجربة: الوصول عبر localhost (ومنه تحويل منفذ Codespaces المحلي الذي يفتح https://localhost:8000)
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += [f"{scheme}://{host}:8000" for scheme in ("http", "https") for host in ("localhost", "127.0.0.1")]
+
 # التشغيل داخل GitHub Codespaces: السماح برابط المعاينة الذي يوفره GitHub
 if os.environ.get("CODESPACE_NAME"):
     _domain = os.environ.get("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev")
@@ -122,6 +126,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ذاكرة مؤقتة مشتركة بين كل عمليات الخادم (لحدّ محاولات الدخول الخاطئة) في جدول بقاعدة البيانات
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "synar_cache"}}
+
+AUTHENTICATION_BACKENDS = ["core.auth_backends.CaseInsensitiveModelBackend"]
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"

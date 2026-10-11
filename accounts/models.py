@@ -740,3 +740,87 @@ class ExchangeRevaluationLine(models.Model):
     class Meta:
         verbose_name = "سطر إعادة تقييم"
         verbose_name_plural = "الحسابات"
+
+
+class BudgetAction(models.TextChoices):
+    NONE = "none", "متابعة فقط"
+    WARN = "warn", "تنبيه المدير عند التجاوز"
+    STOP = "stop", "منع الترحيل عند التجاوز"
+
+
+class Budget(SubmittableDocument):
+    """موازنة سنوية لحسابات المصروفات (للشركة كلها أو لمركز تكلفة)، تُقارن بالفعلي وتُراقب عند الترحيل."""
+
+    naming_prefix = "BUD"
+    posts_to_ledger = False
+    posting_note = "الموازنة لا تُنشئ قيوداً؛ بعد اعتمادها تُقارن بالفعلي ويُطبق إجراء التجاوز عند ترحيل المصروفات."
+
+    fiscal_year = models.ForeignKey("core.FiscalYear", models.PROTECT, verbose_name="السنة المالية")
+    cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة / الفرع",
+                                    help_text="فارغ = موازنة الشركة كلها. المركز الرئيسي يشمل فروعه")
+    action = models.CharField("عند تجاوز الموازنة", max_length=10, choices=BudgetAction.choices,
+                              default=BudgetAction.WARN)
+    total_amount = models.DecimalField("إجمالي الموازنة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "موازنة تقديرية"
+        verbose_name_plural = "الموازنات التقديرية"
+
+    def __str__(self):
+        return f"{self.name} - {self.fiscal_year}" + (f" - {self.cost_center}" if self.cost_center_id else "")
+
+    def save(self, *args, **kwargs):
+        if self.fiscal_year_id and self.is_draft:
+            self.posting_date = self.fiscal_year.start_date
+        super().save(*args, **kwargs)
+
+    def calculate_totals(self):
+        if self.pk:
+            self.total_amount = flt(sum((flt(line.amount) for line in self.lines.all()), flt(0)))
+
+    def validate_for_submit(self):
+        lines = list(self.lines.select_related("account"))
+        if not lines:
+            raise ValidationError("أضف حساباً واحداً على الأقل.")
+        seen = set()
+        for line in lines:
+            if line.account_id in seen:
+                raise ValidationError(f"الحساب {line.account} مكرر في الموازنة.")
+            seen.add(line.account_id)
+            if line.account.root_type != RootType.EXPENSE or line.account.is_group:
+                raise ValidationError(f"الحساب {line.account}: الموازنة لحسابات المصروفات الفرعية فقط.")
+            if flt(line.amount) <= 0:
+                raise ValidationError(f"الحساب {line.account}: أدخل مبلغ الموازنة.")
+        clash = Budget.objects.filter(fiscal_year=self.fiscal_year, cost_center=self.cost_center,
+                                      docstatus=1).exclude(pk=self.pk).first()
+        if clash:
+            raise ValidationError(f"توجد موازنة معتمدة لنفس السنة والمركز ({clash.name}). ألغها أولاً لاعتماد موازنة معدلة.")
+
+    def center_ids(self):
+        return self.cost_center.descendant_ids() if self.cost_center_id else None
+
+    def actuals(self, to_date=None, exclude_voucher=None):
+        """الفعلي لكل حساب في الموازنة من بداية السنة حتى التاريخ (صافي المدين)."""
+        qs = GLEntry.all_objects.filter(company=self.company, is_cancelled=False,
+                                        account_id__in=self.lines.values("account_id"),
+                                        posting_date__gte=self.fiscal_year.start_date,
+                                        posting_date__lte=min(to_date or self.fiscal_year.end_date, self.fiscal_year.end_date))
+        if self.cost_center_id:
+            qs = qs.filter(cost_center_id__in=self.center_ids())
+        if exclude_voucher:
+            qs = qs.exclude(voucher_type=exclude_voucher)
+        rows = qs.values("account_id").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
+        return {row["account_id"]: flt(row["d"]) - flt(row["c"]) for row in rows}
+
+
+class BudgetLine(models.Model):
+    parent = models.ForeignKey(Budget, models.CASCADE, related_name="lines")
+    account = models.ForeignKey(Account, models.PROTECT, verbose_name="الحساب",
+                                limit_choices_to={"is_group": False, "root_type": RootType.EXPENSE})
+    amount = models.DecimalField("الموازنة السنوية", max_digits=18, decimal_places=2)
+    notes = models.CharField("ملاحظة", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "سطر موازنة"
+        verbose_name_plural = "الحسابات"
+        ordering = ["id"]

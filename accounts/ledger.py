@@ -65,6 +65,10 @@ def make_gl_entries(doc, entries, remarks="", exchange_rate=None):
     if total_debit != total_credit:
         raise ValidationError(f"القيد غير متوازن: المدين {total_debit} والدائن {total_credit}.")
 
+    from accounts.budget import check_budgets
+
+    check_budgets(doc, rows)
+
     GLEntry.objects.bulk_create([
         GLEntry(
             company=doc.company,

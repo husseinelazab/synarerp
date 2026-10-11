@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% load erp l10n %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>الموازنة <select name="budget" class="form-select">{% for b in budgets %}<option value="{{ b.pk }}" {% if b == budget %}selected{% endif %}>{{ b }}</option>{% empty %}<option value="">لا توجد موازنات معتمدة</option>{% endfor %}</select></label>
+  <label>حتى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+  <a class="btn" href="{% url 'doc_new' 'budget' %}">+ موازنة جديدة</a>
+</form>
+{% if budget %}
+<div class="card">
+  <p class="muted">{{ budget.fiscal_year }}{% if budget.cost_center %} — {{ budget.cost_center }}{% else %} — الشركة كلها{% endif %} — حتى {{ end|date:"Y-m-d" }}
+    ({{ elapsed }} من {{ months }} شهراً) — عند التجاوز: {{ budget.get_action_display }}</p>
+  <table class="table report">
+    <thead><tr><th>الحساب</th><th>الموازنة السنوية</th><th>الموازنة حتى التاريخ</th><th>الفعلي</th><th>الفرق (وفر + / تجاوز −)</th><th>المتبقي من السنة</th><th>نسبة الاستهلاك</th></tr></thead>
+    <tbody>
+      {% for r in rows %}<tr>
+        <td><a href="{% url 'general_ledger' %}?account={{ r.account.id }}&from_date={{ budget.fiscal_year.start_date|date:'Y-m-d' }}&to_date={{ end|date:'Y-m-d' }}{% if budget.cost_center %}&cost_center={{ budget.cost_center.id }}{% endif %}">{{ r.account }}</a></td>
+        <td>{{ r.amount|money }}</td><td>{{ r.to_date|money }}</td><td>{{ r.actual|money }}</td>
+        <td class="{% if r.variance < 0 %}neg{% else %}pos{% endif %}">{{ r.variance|money }}</td><td>{{ r.remaining|money }}</td>
+        <td>{% if r.used is not None %}<span class="badge {% if r.used > 100 %}pr-loss{% elif r.used > 90 %}pr-low{% else %}pr-ok{% endif %}">{{ r.used|unlocalize }}%</span>{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><th>الإجمالي</th><th>{{ totals.amount|cur }}</th><th>{{ totals.to_date|cur }}</th><th>{{ totals.actual|cur }}</th><th>{{ totals.variance|cur }}</th><th>{{ totals.remaining|cur }}</th><th>{% if used is not None %}{{ used|unlocalize }}%{% endif %}</th></tr></tfoot>
+  </table>
+  <p class="muted">الموازنة حتى التاريخ = الموازنة السنوية موزعة بالتساوي على أشهر السنة المالية. الفعلي = صافي المدين على الحساب{% if budget.cost_center %} في المركز وفروعه{% endif %}، دون قيد إقفال السنة.</p>
+</div>
+{% else %}
+<div class="card"><p class="muted center">لا توجد موازنات معتمدة. أنشئ موازنة تقديرية لحسابات المصروفات واعتمدها.</p></div>
+{% endif %}
+{% endblock %}

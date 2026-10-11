@@ -1,4 +1,4 @@
-from accounts.models import (Account, BankTransaction, CostCenter, ExchangeRevaluation, ExchangeRevaluationLine, JournalEntry,
+from accounts.models import (Account, BankTransaction, Budget, BudgetLine, CostCenter, ExchangeRevaluation, ExchangeRevaluationLine, JournalEntry,
                              JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine, OpeningPartyBalance, OpeningPartyLine,
                              PaymentEntry, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -54,6 +54,16 @@ register(DocType(
                      help="اترك الجدول فارغاً واحفظ لتُجلب حسابات البنك والصندوق الأجنبية بأرصدتها حتى التاريخ "
                           "وآخر سعر صرف مسجل. يمكنك تعديل السعر قبل الاعتماد، والفرق يُرحّل لحساب فروق أسعار الصرف."),
     totals=["total_difference"],
+))
+register(DocType(
+    slug="budget", model=Budget, module="accounts",
+    list_fields=["name", "fiscal_year", "cost_center", "action", "total_amount"],
+    form_fields=["fiscal_year", "cost_center", "action", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(BudgetLine, ["account", "amount", "notes"], label="حسابات المصروفات",
+                     help="المبلغ السنوي لكل حساب مصروف؛ يُوزع بالتساوي على الأشهر في تقرير «الموازنة مقابل الفعلي». "
+                          "الرقابة (التنبيه أو المنع) تقارن مجموع مصروف السنة بالموازنة السنوية."),
+    totals=["total_amount"],
 ))
 register(DocType(
     slug="cost-center", model=CostCenter, module="accounts",

@@ -73,6 +73,8 @@ def build_menu(request):
                 _item("معالج الأرصدة الافتتاحية", "opening_wizard"), doc("أرصدة الحسابات", "opening-account"),
                 doc("أرصدة العملاء والموردين", "opening-party"), doc("المخزون الافتتاحي", "opening-stock"),
             ]},
+            {"title": "الموازنات", "items": [doc("الموازنات التقديرية", "budget"),
+                                            _item("الموازنة مقابل الفعلي", "budget_variance")]},
             {"title": "نهاية السنة", "items": [doc("إقفال السنة المالية", "period-closing")]},
         ]},
         {"key": "stock", "label": "المخزون", "sections": [

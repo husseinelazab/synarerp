@@ -14,6 +14,7 @@ from core.display import detail_fields, display_value, field_label
 from core.forms import build_form_class, build_formset_class, style_form
 from core.models import DocStatus
 from core.registry import get_doctype
+from core.utils import client_ip
 
 
 def _error_text(exc):
@@ -581,7 +582,7 @@ def company_export(request):
         who = request.user.get_full_name() or request.user.username
         log_event(company, request.user, "export", company,
                   {"عدد الجداول": [None, len(manifest)], "عدد السجلات": [None, sum(t["count"] for t in manifest)]},
-                  request.META.get("REMOTE_ADDR", ""))
+                  client_ip(request))
         notify_managers(company, f"صدّر {who} نسخة كاملة من بيانات الشركة", "/settings/audit/?action=export")
         return FileResponse(tmp, as_attachment=True, filename=export_filename(company),
                             content_type="application/zip")

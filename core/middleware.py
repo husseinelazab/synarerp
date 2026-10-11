@@ -4,6 +4,7 @@ from django.shortcuts import redirect, render
 
 from core.models import Company, Membership, Role
 from core.tenancy import _current_ip, _current_user, reset_current_company, set_current_company, set_current_user
+from core.utils import client_ip
 
 SESSION_KEY = "company_id"
 
@@ -43,7 +44,7 @@ class TenantMiddleware:
         request.membership, request.company = membership, membership.company
         token = set_current_company(membership.company)
         user_token = set_current_user(request.user)
-        ip_token = _current_ip.set(request.META.get("REMOTE_ADDR", "")[:45])
+        ip_token = _current_ip.set(client_ip(request))
         try:
             if membership.pk is None:  # مدير المنصة في وضع الدعم الفني
                 from core.audit import log_support_access

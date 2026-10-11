@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from core.tenancy import tenant_context
+from core.utils import client_ip
 from hr.models import AttendanceDevice, PunchSource
 
 log = logging.getLogger(__name__)
@@ -20,18 +21,13 @@ def _text(body, status=200):
     return HttpResponse(body, status=status, content_type="text/plain; charset=utf-8")
 
 
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return forwarded.split(",")[0].strip() if forwarded else request.META.get("REMOTE_ADDR", "")
-
-
 def _device(request):
     serial = (request.GET.get("SN") or "").strip()
     device = AttendanceDevice.all_objects.filter(serial_number=serial, enabled=True).select_related("company").first()
     if device is None:
-        log.warning("جهاز بصمة غير مسجل أو موقوف: %s من %s", serial, _client_ip(request))
+        log.warning("جهاز بصمة غير مسجل أو موقوف: %s من %s", serial, client_ip(request))
         return None
-    ip = _client_ip(request)
+    ip = client_ip(request)
     if not device.ip_allowed(ip):
         log.warning("جهاز البصمة %s من عنوان غير مسموح %s", serial, ip)
         return None

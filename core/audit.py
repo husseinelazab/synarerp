@@ -14,6 +14,8 @@ from django.apps import apps as global_apps
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
+from core.utils import client_ip
+
 log = logging.getLogger(__name__)
 
 TRACKED_APPS = {"core", "accounts", "stock", "selling", "buying", "hr", "pos", "assets", "manufacturing",
@@ -188,7 +190,7 @@ def log_support_access(request, company):
     user = request.user
     who = user.get_full_name() or user.username
     log_event(company, user, "access", company, {"المستخدم": [None, who], "الصفحة": [None, request.path[:200]]},
-              request.META.get("REMOTE_ADDR", ""))
+              client_ip(request))
     notify_managers(company, f"دخل فريق الدعم الفني ({who}) إلى حساب الشركة", "/settings/audit/?action=access",
                     body=f"دخل {who} من فريق الدعم الفني إلى حساب {company.name}. يمكنك مراجعة ما تم من سجل التعديلات، "
                          f"أو إيقاف دخول الدعم من إعدادات الشركة.")

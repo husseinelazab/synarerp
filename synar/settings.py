@@ -153,6 +153,8 @@ if SYNAR_EMAIL_ENABLED:
 else:
     EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
 SYNAR_SITE_URL = os.environ.get("SYNAR_SITE_URL", "")
+# خلف وكيل عكسي (Caddy في الإنتاج) يُؤخذ عنوان العميل من X-Forwarded-For؛ بدونه يُتجاهل لأنه قابل للتزوير
+SYNAR_TRUST_PROXY = os.environ.get("SYNAR_TRUST_PROXY", "0" if DEBUG else "1") == "1"
 
 # ───────── الأمان في الإنتاج ─────────
 if not DEBUG:

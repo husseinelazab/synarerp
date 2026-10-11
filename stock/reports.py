@@ -5,6 +5,7 @@ from django.db.models import Sum
 from django.shortcuts import render
 
 from accounts.reports import _period
+from core.utils import csv_safe
 from stock.models import Bin, Item, StockLedgerEntry, Warehouse
 
 
@@ -50,7 +51,7 @@ def _csv(filename, header, rows):
     response.write("﻿")
     writer = csv.writer(response)
     writer.writerow(header)
-    writer.writerows(rows)
+    writer.writerows([csv_safe(v) for v in row] for row in rows)
     return response
 
 

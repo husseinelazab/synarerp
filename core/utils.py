@@ -47,3 +47,30 @@ def currency_symbol_html(currency=None):
     if code == "SAR":
         return f'<span class="cur" title="ريال سعودي" aria-label="ريال سعودي">{SAR_SIGN}</span>'
     return f'<span class="cur" title="{escape(currency.name)}">{escape(currency.symbol or code)}</span>'
+
+
+def client_ip(request):
+    """عنوان IP للعميل. خلف الوكيل العكسي نأخذ آخر عنوان في X-Forwarded-For لأن الوكيل هو من يضيفه؛
+    ما قبله يرسله العميل نفسه ويمكن تزويره (لتجاوز حد محاولات الدخول أو قائمة عناوين أجهزة البصمة)."""
+    from django.conf import settings
+
+    if settings.SYNAR_TRUST_PROXY:
+        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+        if forwarded.strip():
+            return forwarded.split(",")[-1].strip()[:45]
+    return request.META.get("REMOTE_ADDR", "")[:45]
+
+
+def sheet_append(sheet, row):
+    """إضافة صف إلى ورقة Excel دون تحويل النصوص التي تبدأ بـ = إلى صيغ تُنفَّذ عند فتح الملف."""
+    sheet.append(row)
+    for cell in sheet[sheet.max_row]:
+        if cell.data_type == "f":
+            cell.data_type = "s"
+
+
+def csv_safe(value):
+    """منع حقن الصيغ في ملفات CSV: النص الذي يبدأ بـ = + - @ يُسبق بفاصلة عليا فيُعرض كما هو."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value

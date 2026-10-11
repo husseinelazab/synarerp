@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core.forms import style_form
@@ -102,7 +103,10 @@ def resubmit(request, pk):
             messages.success(request, f"تم الإرسال: {einvoice.get_status_display()}.")
         else:
             messages.error(request, f"{einvoice.get_status_display()}: " + " ".join(einvoice.response.get("messages", [])))
-    return redirect(request.POST.get("next") or "einvoice_list")
+    next_url = request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        next_url = "einvoice_list"
+    return redirect(next_url)
 
 
 @login_required

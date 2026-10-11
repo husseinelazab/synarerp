@@ -17,6 +17,7 @@ from django.forms import modelform_factory
 from django.forms.models import model_to_dict
 
 from core.forms import build_form_class, formfield_callback
+from core.utils import csv_safe, sheet_append
 
 REF_LABEL = "المرجع"
 DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩٫٬", "0123456789.,")
@@ -412,7 +413,7 @@ def build_workbook(dt, columns, rows, with_help=True):
         sheet.column_dimensions[cell.column_letter].width = max(14, min(40, len(cell.value) + 6))
     sheet.freeze_panes = "A2"
     for row in rows:
-        sheet.append(row)
+        sheet_append(sheet, row)
 
     if with_help:
         help_sheet = workbook.create_sheet("تعليمات")
@@ -463,5 +464,5 @@ def build_csv(columns, rows):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([c.label + (" *" if c.required else "") for c in columns])
-    writer.writerows(rows)
+    writer.writerows([csv_safe(v) for v in row] for row in rows)
     return ("﻿" + output.getvalue()).encode("utf-8")

@@ -1,0 +1,72 @@
+{% extends "base.html" %}{% load erp l10n %}
+{% block title %}مراجعة الفاتورة المقروءة{% endblock %}
+{% block heading %}مراجعة الفاتورة المقروءة{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="small muted" style="margin:0">من الملف «{{ file_name }}». راجع المورد والبنود؛ البنود غير المطابقة تحتاج اختيار الصنف من القائمة.
+    سيُنشأ <strong>مسودة</strong> لا تؤثر على الحسابات أو المخزون حتى تعتمدها.</p>
+</div>
+{% for w in review.warnings %}<div class="alert alert-warning">{{ w }}</div>{% endfor %}
+<form method="post">
+  {% csrf_token %}
+  <div class="card">
+    <h3>بيانات الفاتورة</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="ai-supplier">المورد <span class="req">*</span></label>
+        <select name="supplier" id="ai-supplier" class="form-select">
+          <option value="">— اختر —</option>
+          {% for s in suppliers %}<option value="{{ s.pk }}" {% if values.supplier %}{% if values.supplier == s.pk|stringformat:"s" %}selected{% endif %}{% elif review.supplier.pk == s.pk %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+          <option value="new" {% if values.supplier == "new" or not review.supplier and not values.supplier %}selected{% endif %}>+ مورد جديد</option>
+        </select>
+        <small class="muted">كما في الفاتورة: {{ result.supplier_name|default:"—" }}{% if result.supplier_tax_id %} — الرقم الضريبي <span dir="ltr">{{ result.supplier_tax_id }}</span>{% endif %}</small>
+      </div>
+      <div class="field">
+        <label for="ai-new-name">اسم المورد الجديد</label>
+        <input id="ai-new-name" name="new_supplier_name" class="form-control" value="{{ values.new_supplier_name|default:result.supplier_name }}">
+        <small class="muted">يُستخدم فقط عند اختيار «مورد جديد».</small>
+      </div>
+      <div class="field">
+        <label for="ai-new-tax">الرقم الضريبي للمورد الجديد</label>
+        <input id="ai-new-tax" name="new_supplier_tax_id" class="form-control" dir="ltr" value="{{ values.new_supplier_tax_id|default:result.supplier_tax_id }}">
+      </div>
+      <div class="field">
+        <label for="ai-bill">رقم فاتورة المورد</label>
+        <input id="ai-bill" name="bill_no" class="form-control" dir="ltr" value="{{ values.bill_no|default:result.bill_no }}">
+      </div>
+      <div class="field">
+        <label for="ai-date">التاريخ</label>
+        <input id="ai-date" type="date" name="posting_date" class="form-control" value="{{ values.posting_date|default:result.invoice_date }}">
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>البنود</h3>
+    <p class="muted small">الأسعار غير شاملة للضريبة{% if result.prices_include_vat %} (حُوّلت من أسعار شاملة بنسبة {{ review.tax_rate }}%){% endif %}.</p>
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>إضافة</th><th>كما في الفاتورة</th><th>الصنف في النظام</th><th class="num">الكمية</th><th class="num">السعر</th></tr></thead>
+      <tbody>{% for row in review.rows %}{% with i=forloop.counter0 %}
+        <tr>
+          <td><input type="checkbox" name="include_{{ i }}" value="1" {% if row.checked %}checked{% endif %} aria-label="إضافة البند"></td>
+          <td style="min-width:140px">{{ row.description }}{% if row.item_code %}<br><small class="muted" dir="ltr">{{ row.item_code }}</small>{% endif %}{% if row.unit %} <small class="muted">({{ row.unit }})</small>{% endif %}</td>
+          <td>
+            <select name="item_{{ i }}" class="form-select" style="min-width:220px" aria-label="الصنف">
+              <option value="">— اختر الصنف —</option>
+              {% for it in items %}<option value="{{ it.pk }}" {% if it.pk == row.item_id %}selected{% endif %}>{{ it.name }} ({{ it.code }})</option>{% endfor %}
+            </select>
+            {% if row.matched_by %}<small class="muted">طوبق تلقائياً بـ{{ row.matched_by }}</small>{% else %}<small class="text-danger">لم يُطابق؛ اختر الصنف</small>{% endif %}
+          </td>
+          <td class="num"><input name="qty_{{ i }}" style="min-width:90px" class="form-control num" dir="ltr" inputmode="decimal" value="{{ row.qty|unlocalize }}" aria-label="الكمية"></td>
+          <td class="num"><input name="rate_{{ i }}" style="min-width:90px" class="form-control num" dir="ltr" inputmode="decimal" value="{{ row.rate|unlocalize }}" aria-label="السعر"></td>
+        </tr>
+      {% endwith %}{% endfor %}</tbody>
+      <tfoot><tr><th colspan="4">الصافي قبل الضريبة (كما قُرئ)</th><th class="num">{{ review.net_total|money }}</th></tr>
+        {% if result.grand_total %}<tr><th colspan="4">الإجمالي المطبوع على الفاتورة شامل الضريبة</th><th class="num">{{ result.grand_total|money }}</th></tr>{% endif %}</tfoot>
+    </table></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary btn-lg" name="action" value="create">إنشاء فاتورة مشتريات (مسودة)</button>
+    <button class="btn" name="action" value="discard" formnovalidate>تجاهل</button>
+  </div>
+</form>
+{% endblock %}

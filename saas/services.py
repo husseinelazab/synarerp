@@ -9,11 +9,11 @@ from saas.models import Plan, Subscription, SubscriptionPayment, SubscriptionSta
 
 DEFAULT_PLANS = [
     {"code": "basic", "name": "الأساسية", "description": "للمنشآت الصغيرة: محاسبة، مبيعات، مشتريات، مخزون",
-     "price_monthly": 149, "price_yearly": 1490, "max_users": 3, "includes_pos": False, "sort_order": 1},
-    {"code": "pro", "name": "الاحترافية", "description": "كل ما في الأساسية مع نقاط البيع وعدد أكبر من المستخدمين",
-     "price_monthly": 299, "price_yearly": 2990, "max_users": 10, "includes_pos": True, "sort_order": 2},
+     "price_monthly": 149, "price_yearly": 1490, "max_users": 3, "includes_pos": False, "includes_ai": False, "sort_order": 1},
+    {"code": "pro", "name": "الاحترافية", "description": "كل ما في الأساسية مع نقاط البيع وقراءة الفواتير بالذكاء الاصطناعي وعدد أكبر من المستخدمين",
+     "price_monthly": 299, "price_yearly": 2990, "max_users": 10, "includes_pos": True, "includes_ai": True, "sort_order": 2},
     {"code": "enterprise", "name": "المؤسسات", "description": "للشركات المتوسطة والفروع المتعددة",
-     "price_monthly": 599, "price_yearly": 5990, "max_users": 50, "includes_pos": True, "sort_order": 3},
+     "price_monthly": 599, "price_yearly": 5990, "max_users": 50, "includes_pos": True, "includes_ai": True, "sort_order": 3},
 ]
 
 

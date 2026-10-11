@@ -250,3 +250,51 @@ class PurchaseReceiptItem(FulfillmentItem):
     @property
     def base_rate(self):
         return self.rate * (self.parent.exchange_rate or 1)
+
+
+class AIModel(models.TextChoices):
+    OPUS = "claude-opus-5-5", "Claude Opus 5.5 — الأدق (موصى به)"
+    SONNET = "claude-sonnet-5-5", "Claude Sonnet 5.5 — متوازن وأقل تكلفة"
+    HAIKU = "claude-haiku-5-5", "Claude Haiku 5.5 — الأسرع والأرخص"
+
+
+class AIInvoiceSettings(TenantModel):
+    """ربط الشركة بحسابها لدى Anthropic (Claude) لقراءة فواتير الموردين. التكلفة على مفتاح الشركة نفسها."""
+
+    enabled = models.BooleanField("تفعيل قراءة الفواتير بالذكاء الاصطناعي", default=False)
+    api_key_encrypted = models.TextField(blank=True, editable=False)
+    model = models.CharField("النموذج", max_length=40, choices=AIModel.choices, default=AIModel.OPUS)
+    consent = models.BooleanField(
+        "أوافق على إرسال صور وملفات فواتير الموردين إلى Anthropic لقراءتها", default=False,
+        help_text="تُرسل الفاتورة المرفوعة فقط، وقت الرفع، ولا يُحفظ الملف في النظام.")
+    invoices_read = models.PositiveIntegerField("عدد الفواتير المقروءة", default=0, editable=False)
+    last_used_at = models.DateTimeField(null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "إعدادات الذكاء الاصطناعي"
+        verbose_name_plural = "إعدادات الذكاء الاصطناعي"
+        constraints = [models.UniqueConstraint(fields=["company"], name="one_ai_settings_per_company")]
+
+    @classmethod
+    def for_company(cls, company):
+        obj = cls.all_objects.filter(company=company).first()
+        return obj or cls.all_objects.create(company=company)
+
+    @property
+    def has_key(self):
+        return bool(self.api_key_encrypted)
+
+    @property
+    def api_key(self):
+        from core.mail import decrypt_password
+
+        return decrypt_password(self.api_key_encrypted)
+
+    def set_api_key(self, key):
+        from core.mail import encrypt_password
+
+        self.api_key_encrypted = encrypt_password(key.strip()) if key else ""
+
+    @property
+    def active(self):
+        return self.enabled and self.consent and self.has_key

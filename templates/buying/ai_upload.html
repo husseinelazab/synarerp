@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}قراءة فاتورة مورد{% endblock %}
+{% block heading %}قراءة فاتورة مورد بالذكاء الاصطناعي{% endblock %}
+{% block content %}
+{% if not cfg.active %}
+<div class="card">
+  <div class="alert alert-info" style="margin:0">الخاصية غير مفعّلة لشركتك بعد.
+    {% if request.membership.can_manage %}فعّلها من <a href="{% url 'ai_settings' %}">الإعدادات ← الذكاء الاصطناعي</a> بإدخال مفتاح Anthropic API الخاص بشركتك.
+    {% else %}اطلب من مالك الحساب أو المدير تفعيلها من الإعدادات.{% endif %}</div>
+</div>
+{% else %}
+<form method="post" enctype="multipart/form-data" class="card" id="ai-upload">
+  {% csrf_token %}
+  <p>ارفع صورة فاتورة المورد (يمكنك تصويرها بالجوال) أو ملف PDF. سيقرأ الذكاء الاصطناعي المورد والتاريخ والبنود والأسعار،
+    ثم تراجعها قبل إنشاء فاتورة مشتريات <strong>مسودة</strong>.</p>
+  <div class="field">
+    <label for="ai-file">ملف الفاتورة <span class="req">*</span></label>
+    <input id="ai-file" type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" capture="environment" class="form-control" required>
+    <small class="muted">JPG أو PNG أو WebP حتى 5 ميجابايت، أو PDF حتى 10 ميجابايت. الصورة الواضحة المستقيمة تعطي أدق نتيجة.</small>
+  </div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg" id="ai-submit">قراءة الفاتورة</button></div>
+  <p class="muted small" id="ai-wait" hidden>جارٍ قراءة الفاتورة… قد يستغرق ذلك حتى دقيقة، لا تغلق الصفحة.</p>
+</form>
+<script>
+document.getElementById("ai-upload").addEventListener("submit", function () {
+  document.getElementById("ai-submit").disabled = true;
+  document.getElementById("ai-wait").hidden = false;
+});
+</script>
+{% endif %}
+{% endblock %}

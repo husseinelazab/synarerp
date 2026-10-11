@@ -11,6 +11,7 @@
     <div class="total-line"><span>صالح حتى</span><strong>{{ subscription.period_end|date:"Y-m-d" }}{% if subscription.is_valid %} (متبقٍ {{ subscription.days_left }} يوماً){% endif %}</strong></div>
     <div class="total-line"><span>المستخدمون</span><strong>{{ users_count }} من {{ subscription.plan.max_users }}</strong></div>
     <div class="total-line"><span>نقاط البيع</span><strong>{% if subscription.plan.includes_pos %}متاحة{% else %}غير متاحة في هذه الباقة{% endif %}</strong></div>
+    <div class="total-line"><span>قراءة الفواتير بالذكاء الاصطناعي</span><strong>{% if subscription.plan.includes_ai %}متاحة{% else %}غير متاحة في هذه الباقة{% endif %}</strong></div>
     {% else %}<p class="muted">لا يوجد اشتراك.</p>{% endif %}
   </div>
   <div class="card">
@@ -23,8 +24,8 @@
 <div class="card">
   <h3>الباقات المتاحة</h3>
   <table class="table">
-    <thead><tr><th>الباقة</th><th>شهرياً</th><th>سنوياً</th><th>المستخدمون</th><th>نقاط البيع</th></tr></thead>
-    <tbody>{% for p in plans %}<tr class="{% if subscription.plan_id == p.id %}group{% endif %}"><td>{{ p.name }}{% if subscription.plan_id == p.id %} (الحالية){% endif %}</td><td>{{ p.price_monthly|money }}</td><td>{{ p.price_yearly|money }}</td><td>{{ p.max_users }}</td><td>{% if p.includes_pos %}✓{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+    <thead><tr><th>الباقة</th><th>شهرياً</th><th>سنوياً</th><th>المستخدمون</th><th>نقاط البيع</th><th>الذكاء الاصطناعي</th></tr></thead>
+    <tbody>{% for p in plans %}<tr class="{% if subscription.plan_id == p.id %}group{% endif %}"><td>{{ p.name }}{% if subscription.plan_id == p.id %} (الحالية){% endif %}</td><td>{{ p.price_monthly|money }}</td><td>{{ p.price_yearly|money }}</td><td>{{ p.max_users }}</td><td>{% if p.includes_pos %}✓{% else %}—{% endif %}</td><td>{% if p.includes_ai %}✓{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
   </table>
 </div>
 <div class="card">

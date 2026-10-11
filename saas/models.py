@@ -13,6 +13,7 @@ class Plan(models.Model):
     price_yearly = models.DecimalField("السعر السنوي", max_digits=12, decimal_places=2, default=0)
     max_users = models.PositiveIntegerField("الحد الأقصى للمستخدمين", default=3)
     includes_pos = models.BooleanField("تشمل نقاط البيع", default=False)
+    includes_ai = models.BooleanField("تشمل قراءة الفواتير بالذكاء الاصطناعي", default=False)
     trial_days = models.PositiveIntegerField("أيام التجربة المجانية", default=14)
     is_public = models.BooleanField("تظهر في صفحة الأسعار", default=True)
     sort_order = models.PositiveIntegerField("الترتيب", default=0)

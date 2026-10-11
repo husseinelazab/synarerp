@@ -1,0 +1,15 @@
+{% load erp %}
+{% if obj.payment_mode == "cheque" %}
+<div class="card">
+  <h3>الشيك {{ obj.cheque_no }}</h3>
+  <div class="total-line"><span>تاريخ الاستحقاق</span><strong>{{ obj.cheque_date|date:"Y-m-d" }}</strong></div>
+  {% if obj.drawee_bank %}<div class="total-line"><span>البنك المسحوب عليه</span><strong>{{ obj.drawee_bank }}</strong></div>{% endif %}
+  {% with c=obj.cheque %}
+  {% if c %}
+    <div class="total-line"><span>الحالة</span><strong>{{ c.get_status_display }}{% if c.status_date %} — {{ c.status_date|date:"Y-m-d" }}{% endif %}</strong></div>
+    {% if c.bounce_reason %}<div class="total-line"><span>سبب الارتداد</span><strong>{{ c.bounce_reason }}</strong></div>{% endif %}
+    {% with next_url=request.get_full_path today=obj.cheque_date %}{% include "accounts/_cheque_actions.html" %}{% endwith %}
+  {% else %}<p class="muted">يُسجل الشيك في حساب {% if obj.payment_type == "receive" %}الشيكات تحت التحصيل{% else %}الشيكات المستحقة الدفع{% endif %} عند اعتماد السند، ثم يُتابع من «المحاسبة ← البنوك ← الشيكات».</p>{% endif %}
+  {% endwith %}
+</div>
+{% endif %}

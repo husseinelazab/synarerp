@@ -261,10 +261,12 @@ class JournalEntry(SubmittableDocument):
         check_journal_cancel(self)
 
     def on_cancel(self):
+        from accounts.cheques import on_journal_cancel as on_cheque_journal_cancel
         from assets.services import on_journal_cancel
 
         cancel_gl_entries(self)
         on_journal_cancel(self)
+        on_cheque_journal_cancel(self)
 
 
 class JournalEntryAccount(models.Model):
@@ -304,6 +306,11 @@ class PaymentType(models.TextChoices):
     PAY = "pay", "سند صرف"
 
 
+class PaymentMode(models.TextChoices):
+    DIRECT = "direct", "نقدي / تحويل"
+    CHEQUE = "cheque", "شيك"
+
+
 class PaymentEntry(CurrencyMixin, SubmittableDocument):
     naming_prefix = "PAY"
 
@@ -329,6 +336,12 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
         "buying.PurchaseInvoice", models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="فاتورة المشتريات"
     )
     reference_no = models.CharField("رقم المرجع (شيك / حوالة)", max_length=50, blank=True)
+    payment_mode = models.CharField(
+        "طريقة الدفع", max_length=10, choices=PaymentMode.choices, default=PaymentMode.DIRECT,
+        help_text="الشيك يُرحّل لحساب الشيكات تحت التحصيل (أو المستحقة الدفع) حتى يُصرف من البنك أو يرتد")
+    cheque_no = models.CharField("رقم الشيك", max_length=30, blank=True)
+    cheque_date = models.DateField("تاريخ استحقاق الشيك", null=True, blank=True)
+    drawee_bank = models.CharField("البنك المسحوب عليه", max_length=100, blank=True)
 
     class Meta(SubmittableDocument.Meta):
         verbose_name = "سند قبض / صرف"
@@ -362,6 +375,11 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
             raise ValidationError("المبلغ يجب أن يكون أكبر من صفر.")
         if self.invoice and self.invoice.currency_id != self.currency_id:
             raise ValidationError(f"عملة السند يجب أن تطابق عملة الفاتورة ({self.invoice.currency}).")
+        if self.payment_mode == PaymentMode.CHEQUE:
+            if not self.cheque_no or not self.cheque_date:
+                raise ValidationError("أدخل رقم الشيك وتاريخ استحقاقه.")
+            if self.is_foreign_currency or self.account.is_foreign_currency:
+                raise ValidationError("الشيكات بعملة الشركة فقط.")
         if self.account.is_foreign_currency and self.account.account_currency_id != self.currency_id:
             raise ValidationError(f"الحساب {self.account} بعملة {self.account.account_currency.code}؛ "
                                   f"السند يجب أن يكون بنفس العملة.")
@@ -391,16 +409,22 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
         # النقدية بسعر صرف السند، والذمة بسعر صرف الفاتورة التي نشأت بها؛ الفرق ربح أو خسارة صرف
         cash_base = self.to_base(amount)
         party_base = flt(amount * (self.invoice.exchange_rate if self.invoice else self.exchange_rate))
+        cash_account = self.account
+        if self.payment_mode == PaymentMode.CHEQUE:
+            from accounts.cheques import cheques_account
+
+            # الشيك يبقى في حساب وسيط حتى يُصرف فعلاً من البنك
+            cash_account = cheques_account(self.company, self.payment_type == PaymentType.RECEIVE)
         if self.payment_type == PaymentType.RECEIVE:
             entries = [
-                {"account": self.account, "debit": cash_base, "base": True, "account_amount": amount},
+                {"account": cash_account, "debit": cash_base, "base": True, "account_amount": amount},
                 {"account": party_account, "credit": party_base, "base": True, **party},
             ]
             gain = cash_base - party_base
         else:
             entries = [
                 {"account": party_account, "debit": party_base, "base": True, **party},
-                {"account": self.account, "credit": cash_base, "base": True, "account_amount": -amount},
+                {"account": cash_account, "credit": cash_base, "base": True, "account_amount": -amount},
             ]
             gain = party_base - cash_base
         if gain:
@@ -411,10 +435,21 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
         self.save(update_fields=["exchange_difference"])
         make_gl_entries(self, entries, remarks=self.remarks or self.get_payment_type_display())
         self._update_invoice_outstanding(-amount * self.direction)
+        if self.payment_mode == PaymentMode.CHEQUE:
+            Cheque.objects.update_or_create(payment=self, defaults={
+                "company": self.company, "status": ChequeStatus.PENDING, "status_date": None,
+                "clearance_entry": None, "bounce_entry": None,
+            })
+
+    def before_cancel(self):
+        cheque = getattr(self, "cheque", None)
+        if cheque is not None and cheque.status != ChequeStatus.PENDING:
+            raise ValidationError(f"الشيك {cheque.cheque_no} {cheque.get_status_display()}؛ ألغِ قيد الصرف أو الارتداد أولاً.")
 
     def on_cancel(self):
         cancel_gl_entries(self)
         self._update_invoice_outstanding(flt(self.amount) * self.direction)
+        Cheque.objects.filter(payment=self).update(status=ChequeStatus.CANCELLED, status_date=self.posting_date)
 
     def _update_invoice_outstanding(self, delta):
         invoice = self.invoice
@@ -846,3 +881,39 @@ class BudgetLine(models.Model):
         verbose_name = "سطر موازنة"
         verbose_name_plural = "الحسابات"
         ordering = ["id"]
+
+
+class ChequeStatus(models.TextChoices):
+    PENDING = "pending", "تحت التحصيل / لم يُصرف"
+    CLEARED = "cleared", "صُرف"
+    BOUNCED = "bounced", "مرتد"
+    CANCELLED = "cancelled", "ملغى"
+
+
+class Cheque(TenantModel):
+    """شيك وارد أو صادر من سند قبض/صرف، يُتابع حتى صرفه من البنك أو ارتداده."""
+
+    payment = models.OneToOneField(PaymentEntry, models.CASCADE, related_name="cheque", verbose_name="السند")
+    status = models.CharField("الحالة", max_length=10, choices=ChequeStatus.choices, default=ChequeStatus.PENDING)
+    status_date = models.DateField("تاريخ الحالة", null=True, blank=True)
+    clearance_entry = models.ForeignKey(JournalEntry, models.SET_NULL, null=True, blank=True, related_name="+",
+                                        verbose_name="قيد الصرف")
+    bounce_entry = models.ForeignKey(JournalEntry, models.SET_NULL, null=True, blank=True, related_name="+",
+                                     verbose_name="قيد الارتداد")
+    bounce_reason = models.CharField("سبب الارتداد", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "شيك"
+        verbose_name_plural = "الشيكات"
+        ordering = ["payment__cheque_date", "id"]
+
+    def __str__(self):
+        return f"شيك {self.cheque_no}"
+
+    @property
+    def cheque_no(self):
+        return self.payment.cheque_no
+
+    @property
+    def is_received(self):
+        return self.payment.payment_type == PaymentType.RECEIVE

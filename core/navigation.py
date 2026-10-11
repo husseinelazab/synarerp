@@ -60,7 +60,7 @@ def build_menu(request):
                        _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
             {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
                                                  _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
-            {"title": "البنوك", "items": [_item("التسوية البنكية", "bank_reconciliation"),
+            {"title": "البنوك", "items": [_item("الشيكات", "cheques_report"), _item("التسوية البنكية", "bank_reconciliation"),
                                          doc("حركات كشف البنك", "bank-transaction"),
                                          _item("أرصدة الحسابات الأجنبية", "foreign_currency_balances"),
                                          doc("إعادة تقييم العملات الأجنبية", "exchange-revaluation")]},

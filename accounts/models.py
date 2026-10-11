@@ -32,6 +32,12 @@ class AccountType(models.TextChoices):
     EQUITY = "equity", "حقوق ملكية"
 
 
+class CashFlowCategory(models.TextChoices):
+    OPERATING = "operating", "أنشطة تشغيلية"
+    INVESTING = "investing", "أنشطة استثمارية"
+    FINANCING = "financing", "أنشطة تمويلية"
+
+
 class Account(TenantModel):
     number = models.CharField("رقم الحساب", max_length=20, blank=True)
     name = models.CharField("اسم الحساب", max_length=150)
@@ -41,6 +47,9 @@ class Account(TenantModel):
     is_group = models.BooleanField("حساب رئيسي (مجموعة)", default=False)
     root_type = models.CharField("النوع الجذري", max_length=20, choices=RootType.choices)
     account_type = models.CharField("نوع الحساب", max_length=30, choices=AccountType.choices, blank=True)
+    cash_flow_category = models.CharField(
+        "تصنيف التدفق النقدي", max_length=10, choices=CashFlowCategory.choices, blank=True,
+        help_text="فارغ = تلقائي: الأصول الثابتة استثمارية، وحقوق الملكية والقروض تمويلية، والباقي تشغيلي")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -74,6 +83,16 @@ class Account(TenantModel):
             ids.append(node.id)
             stack.extend(node.children.all())
         return ids
+
+    @property
+    def effective_cash_flow_category(self):
+        if self.cash_flow_category:
+            return self.cash_flow_category
+        if self.account_type in (AccountType.FIXED_ASSET, AccountType.ACCUMULATED_DEPRECIATION):
+            return CashFlowCategory.INVESTING
+        if self.root_type == RootType.EQUITY:
+            return CashFlowCategory.FINANCING
+        return CashFlowCategory.OPERATING
 
 
 class CostCenter(TenantModel):

@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  {% if not as_of or mode == 'monthly' %}<label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>{% endif %}
+  <label>{% if as_of %}حتى تاريخ{% else %}إلى تاريخ{% endif %} <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>المقارنة <select name="mode" class="form-select">{% for key, label in modes %}<option value="{{ key }}" {% if key == mode %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  {% include "reports/_level.html" %}
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+<div class="card"><div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>الحساب</th>{% for h in headers %}<th class="num">{{ h }}</th>{% endfor %}{% if show_variance %}<th class="num">الفرق</th><th class="num">التغير %</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for section in sections %}
+    <tr class="group depth-0"><td colspan="{{ headers|length|add:3 }}"><strong>{{ section.label }}</strong></td></tr>
+    {% for r in section.rows %}<tr class="{% if r.is_group %}group depth-{{ r.depth }}{% else %}leaf{% endif %}">
+      <td style="padding-inline-start: {{ r.depth }}.2em">{% if r.is_group or not r.account.pk %}{{ r.account }}{% else %}<a href="{% url 'general_ledger' %}?account={{ r.account.pk }}">{{ r.account }}</a>{% endif %}</td>
+      {% for v in r.values %}<td class="num">{{ v|money }}</td>{% endfor %}
+      {% if show_variance %}<td class="num {% if r.variance.diff < 0 %}neg{% endif %}">{{ r.variance.diff|money }}</td><td class="num">{% if r.variance.percent is not None %}{{ r.variance.percent|floatformat:1 }}%{% else %}—{% endif %}</td>{% endif %}
+    </tr>{% endfor %}
+    <tr class="subtotal"><th>إجمالي {{ section.label }}</th>{% for t in section.totals %}<th class="num">{{ t|money }}</th>{% endfor %}{% if show_variance %}<th colspan="2"></th>{% endif %}</tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><th>{{ result_label }}</th>{% for v in result %}<th class="num">{{ v|cur }}</th>{% endfor %}
+    {% if show_variance %}<th class="num">{{ result_variance.diff|money }}</th><th class="num">{% if result_variance.percent is not None %}{{ result_variance.percent|floatformat:1 }}%{% else %}—{% endif %}</th>{% endif %}</tr></tfoot>
+</table></div>
+{% if balanced is not None %}<p>{% if balanced %}<span class="ok">الميزانية متوازنة في كل الأعمدة ✓</span>{% else %}<span class="field-error">الميزانية غير متوازنة في أحد الأعمدة</span>{% endif %}</p>{% endif %}
+</div>
+{% endblock %}

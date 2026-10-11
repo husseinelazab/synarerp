@@ -54,6 +54,7 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
     with tenant_context(company):
         _create_accounts(CHART_OF_ACCOUNTS, None, None)
         accounts = {a.number: a for a in Account.objects.all()}
+        Account.objects.filter(number="2201").update(cash_flow_category="financing")
         for field, number in DEFAULT_ACCOUNTS.items():
             setattr(company, field, accounts[number])
         company.save()

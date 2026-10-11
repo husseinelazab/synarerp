@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="card">
+  <p class="muted small">بالطريقة المباشرة: كل حركة على حسابات النقدية والبنوك تُنسب للحسابات المقابلة لها في نفس المستند.
+    التصنيف من «تصنيف التدفق النقدي» في بطاقة الحساب (تلقائياً: الأصول الثابتة استثمارية، وحقوق الملكية والقروض تمويلية).</p>
+  <table class="table report">
+    <tbody>
+      <tr class="subtotal"><th>رصيد النقدية والبنوك أول الفترة</th><th class="num">{{ opening|cur }}</th></tr>
+      {% for section in sections %}
+        <tr class="group depth-0"><td colspan="2"><strong>{{ section.label }}</strong></td></tr>
+        {% for r in section.rows %}<tr class="leaf"><td style="padding-inline-start:1.5em">{% if r.account %}<a href="{% url 'general_ledger' %}?account={{ r.account.pk }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}</td><td class="num {% if r.amount < 0 %}neg{% endif %}">{{ r.amount|money }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="muted" style="padding-inline-start:1.5em">لا توجد حركات</td></tr>{% endfor %}
+        <tr class="subtotal"><th>صافي التدفق من {{ section.label }}</th><th class="num">{{ section.total|cur }}</th></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><th>صافي التغير في النقدية</th><th class="num">{{ net|cur }}</th></tr>
+      <tr><th>رصيد النقدية والبنوك آخر الفترة</th><th class="num">{{ closing|cur }}</th></tr>
+    </tfoot>
+  </table>
+  {% if reconciles %}<p class="ok small">✓ الرصيد الافتتاحي + صافي التغير = الرصيد الختامي</p>{% else %}<p class="field-error">الرصيد لا يطابق — راجع القيود بين حسابات النقدية.</p>{% endif %}
+</div>
+{% endblock %}

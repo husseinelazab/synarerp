@@ -163,3 +163,33 @@ def _after_delete(sender, instance, **kwargs):
     snapshot = {str(f.verbose_name): _display(instance, f, getattr(instance, f.attname))
                 for f in audit_fields(sender) if getattr(instance, f.attname) not in (None, "", False)}
     _write(instance, "delete", snapshot)
+
+
+def log_event(company, user, action, obj, changes=None, ip=""):
+    """حدث أمني يدوي (دخول الدعم الفني، التصدير الكامل) في سجل التعديلات."""
+    from core.models import AuditLog
+
+    AuditLog.objects.create(
+        company=company, user=user if getattr(user, "is_authenticated", False) else None, action=action,
+        model_label=obj._meta.label_lower, model_name=str(obj._meta.verbose_name), object_id=str(obj.pk),
+        object_repr=str(obj)[:200], changes=changes or {}, ip=ip[:45])
+
+
+SUPPORT_SESSION_KEY = "support_access_logged"
+
+
+def log_support_access(request, company):
+    """يُسجَّل دخول مدير المنصة لشركة ليس عضواً فيها مرة لكل جلسة، ويُنبَّه مالكو الشركة."""
+    logged = request.session.get(SUPPORT_SESSION_KEY, [])
+    if company.pk in logged:
+        return
+    from core.notify import notify_managers
+
+    user = request.user
+    who = user.get_full_name() or user.username
+    log_event(company, user, "access", company, {"المستخدم": [None, who], "الصفحة": [None, request.path[:200]]},
+              request.META.get("REMOTE_ADDR", ""))
+    notify_managers(company, f"دخل فريق الدعم الفني ({who}) إلى حساب الشركة", "/settings/audit/?action=access",
+                    body=f"دخل {who} من فريق الدعم الفني إلى حساب {company.name}. يمكنك مراجعة ما تم من سجل التعديلات، "
+                         f"أو إيقاف دخول الدعم من إعدادات الشركة.")
+    request.session[SUPPORT_SESSION_KEY] = logged + [company.pk]

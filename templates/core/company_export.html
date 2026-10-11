@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}تصدير كامل البيانات{% endblock %}
+{% block heading %}تصدير كامل بيانات الشركة{% endblock %}
+{% block content %}
+<div class="card">
+  <p>ملف ZIP واحد فيه كل بيانات شركتك: الحسابات والقيود، العملاء والموردون، الأصناف والمخزون، الفواتير والمستندات بأسطرها، الموظفون والرواتب، والإعدادات وسجل التعديلات.
+    احتفظ به نسخةً لديك، أو استخدمه لنقل بياناتك إلى نظام آخر.</p>
+  <ul class="small" style="line-height:1.9;padding-inline-start:20px">
+    <li>كل جدول في ملف JSON مستقل، ومعها ملف <code>manifest.json</code> بأسماء الجداول وعدد السجلات.</li>
+    <li>لا يحتوي الملف على كلمات المرور أو رموز المزوّدين أو مفاتيح التشفير.</li>
+    <li>يُسجَّل كل تصدير في سجل التعديلات ويصل تنبيه به لمالكي الشركة ومديريها.</li>
+    <li>لتصدير جدول واحد إلى Excel استخدم زر «تصدير» في قائمة ذلك المستند.</li>
+  </ul>
+  {% if allowed %}
+  <form method="post" onsubmit="setTimeout(()=>this.querySelector('button').disabled=true,10)">{% csrf_token %}
+    <button class="btn btn-primary">تنزيل نسخة كاملة ({{ total }} سجل)</button>
+  </form>
+  {% else %}
+  <div class="alert alert-error">التصدير الكامل متاح لمالك الحساب فقط{% if not request.membership.pk %}، ولا يتاح في وضع الدعم الفني{% endif %}.</div>
+  {% endif %}
+</div>
+<div class="card">
+  <h3>محتوى النسخة</h3>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>الجدول</th><th>عدد السجلات</th></tr></thead>
+    <tbody>{% for name, count in tables %}<tr><td>{{ name }}</td><td>{{ count }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

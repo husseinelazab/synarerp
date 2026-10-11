@@ -5,7 +5,9 @@
 <div class="toolbar">
   <a class="btn" href="{% url 'platform_dashboard' %}">كل الشركات</a>
   <div class="actions">
-    <form method="post">{% csrf_token %}<button class="btn" name="action" value="enter">الدخول للشركة (دعم فني)</button></form>
+    {% if company.allow_support_access %}
+    <form method="post" onsubmit="return confirm('سيُسجَّل دخولك في سجل الشركة ويصل لمالكها تنبيه. متابعة؟')">{% csrf_token %}<button class="btn" name="action" value="enter">الدخول للشركة (دعم فني)</button></form>
+    {% else %}<span class="badge">أوقفت الشركة دخول الدعم الفني</span>{% endif %}
     {% if subscription.status == 'suspended' %}
       <form method="post">{% csrf_token %}<button class="btn btn-success" name="action" value="reactivate">إعادة تفعيل</button></form>
     {% else %}

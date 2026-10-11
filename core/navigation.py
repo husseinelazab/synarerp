@@ -125,6 +125,7 @@ def build_menu(request):
     if membership.can_manage:
         settings_items = [_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
                           _item("سجل التعديلات", "audit_log"),
+                          _item("تصدير كامل البيانات", "company_export"),
                           _item("البريد الإلكتروني", "company_email_settings"),
                           _item("رسائل SMS وواتساب", "messaging_settings"),
                           _item("سجل الرسائل", "message_log"),

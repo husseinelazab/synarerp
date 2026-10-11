@@ -45,6 +45,10 @@ class TenantMiddleware:
         user_token = set_current_user(request.user)
         ip_token = _current_ip.set(request.META.get("REMOTE_ADDR", "")[:45])
         try:
+            if membership.pk is None:  # مدير المنصة في وضع الدعم الفني
+                from core.audit import log_support_access
+
+                log_support_access(request, membership.company)
             blocked = self._check_access(request, path)
             return blocked or self.get_response(request)
         finally:
@@ -61,7 +65,7 @@ class TenantMiddleware:
         if membership is None and user.is_superuser and company_id:
             # مدير المنصة يدخل أي شركة لأغراض الدعم الفني بصلاحية المالك (دون حفظ عضوية)
             company = Company.objects.filter(pk=company_id).first()
-            if company:
+            if company and company.allow_support_access:
                 return Membership(user=user, company=company, role=Role.OWNER)
         if membership is None:
             membership = memberships.order_by("id").first()

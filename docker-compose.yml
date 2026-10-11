@@ -27,6 +27,7 @@ services:
       SYNAR_DB_PASSWORD: ${SYNAR_DB_PASSWORD}
     volumes:
       - media:/app/media
+      - ./backups:/app/backups:ro  # لعرض حالة النسخ الاحتياطي في لوحة المنصة (قراءة فقط)
     depends_on:
       db:
         condition: service_healthy
@@ -58,7 +59,10 @@ services:
       - web
 
   backup:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: deploy/backup.Dockerfile
+    image: synar-backup:latest
     restart: unless-stopped
     environment:
       PGHOST: db
@@ -67,6 +71,7 @@ services:
       PGPASSWORD: ${SYNAR_DB_PASSWORD}
       BACKUP_KEEP_DAYS: ${SYNAR_BACKUP_KEEP_DAYS:-14}
       BACKUP_HOUR: ${SYNAR_BACKUP_HOUR:-2}
+      BACKUP_PASSPHRASE: ${SYNAR_BACKUP_PASSPHRASE:-}
       TZ: Asia/Riyadh
     volumes:
       - ./backups:/backups

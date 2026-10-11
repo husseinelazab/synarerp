@@ -3,6 +3,19 @@
 {% block heading %}إدارة المنصة{% endblock %}
 {% block content %}
 <div class="kpis">{% for label, value in stats %}<div class="card kpi"><div class="kpi-label">{{ label }}</div><div class="kpi-value">{% if forloop.counter > 4 %}{{ value|money }}{% else %}{{ value }}{% endif %}</div></div>{% endfor %}</div>
+{% if backup.available %}
+<div class="card">
+  <h3>النسخ الاحتياطي</h3>
+  {% if backup.problems %}{% for p in backup.problems %}<div class="alert alert-error">{{ p }}</div>{% endfor %}{% endif %}
+  {% if backup.latest %}
+  <p>آخر نسخة: <b dir="ltr">{{ backup.latest.time|date:"Y-m-d H:i" }}</b> (منذ {{ backup.latest.time|timesince }})
+    — {{ backup.latest.size|filesizeformat }} —
+    {% if backup.latest.encrypted %}<span class="ok">✓ مشفّرة</span>{% else %}<span class="text-danger">غير مشفّرة</span>{% endif %}
+    {% if backup.last_attempt.ok %} — <span class="ok">✓ فُحصت سلامتها</span>{% endif %}</p>
+  <p class="muted small">عدد النسخ المحفوظة: {{ backup.count }} بحجم {{ backup.total_size|filesizeformat }}. النسخ على نفس الخادم؛ انسخها دورياً إلى مكان خارجي.</p>
+  {% endif %}
+</div>
+{% endif %}
 {% if expiring %}
 <div class="card"><h3>اشتراكات تنتهي خلال 7 أيام</h3>
 <table class="table"><tbody>{% for s in expiring %}<tr><td><a href="{% url 'platform_company' s.company_id %}">{{ s.company }}</a></td><td>{{ s.plan }}</td><td>{{ s.get_status_display }}</td><td>{{ s.period_end|date:"Y-m-d" }}</td></tr>{% endfor %}</tbody></table></div>

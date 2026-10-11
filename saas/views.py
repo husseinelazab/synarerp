@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 from core.middleware import SESSION_KEY
 from core.models import Company, Membership, Role
 from core.provisioning import provision_company
+from saas.backups import backup_status
 from saas.forms import (CompanySettingsForm, MemberCreateForm, MemberRoleForm, RecordPaymentForm,
                         SignupForm)
 from saas.models import Plan, Subscription, SubscriptionPayment, SubscriptionStatus
@@ -60,7 +61,11 @@ def signup(request):
 @login_required
 @require_POST
 def switch_company(request, pk):
-    allowed = request.user.is_superuser or Membership.objects.filter(user=request.user, company_id=pk, is_active=True).exists()
+    member = Membership.objects.filter(user=request.user, company_id=pk, is_active=True).exists()
+    if request.user.is_superuser and not member and not Company.objects.filter(pk=pk, allow_support_access=True).exists():
+        messages.error(request, "أوقفت هذه الشركة دخول فريق الدعم الفني من إعداداتها.")
+        return redirect("platform_dashboard")
+    allowed = request.user.is_superuser or member
     if allowed:
         request.session[SESSION_KEY] = pk
     return redirect("dashboard")
@@ -184,6 +189,7 @@ def platform_dashboard(request):
     return render(request, "platform/dashboard.html", {
         "stats": stats, "companies": companies[:300], "query": query,
         "expiring": valid.filter(period_end__lte=today + timezone.timedelta(days=7)).order_by("period_end"),
+        "backup": backup_status(),
     })
 
 
@@ -206,6 +212,9 @@ def platform_company(request, pk):
             messages.success(request, "تم تحديث حالة الاشتراك.")
             return redirect("platform_company", pk=pk)
         if action == "enter":
+            if not company.allow_support_access and not company.memberships.filter(user=request.user).exists():
+                messages.error(request, "أوقفت هذه الشركة دخول فريق الدعم الفني من إعداداتها.")
+                return redirect("platform_company", pk=company.pk)
             request.session[SESSION_KEY] = company.pk
             return redirect("dashboard")
     return render(request, "platform/company.html", {

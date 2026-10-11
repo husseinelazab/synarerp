@@ -11,6 +11,7 @@ urlpatterns = [
     path("settings/email/", views.company_email_settings, name="company_email_settings"),
     path("settings/print/", views.print_settings, name="print_settings"),
     path("settings/audit/", views.audit_log, name="audit_log"),
+    path("settings/export-all/", views.company_export, name="company_export"),
     path("settings/api/", views.api_keys, name="api_keys"),
     path("settings/api/docs/", views.api_docs, name="api_docs"),
     path("platform/email/", views.platform_email_settings, name="platform_email_settings"),

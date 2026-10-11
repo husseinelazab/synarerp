@@ -322,4 +322,5 @@ tr.row-low td { background: #fff8e8; }
 .badge.audit-update { background: var(--primary-light); color: var(--primary); }
 .badge.audit-delete, .badge.audit-cancel { background: #fdecec; color: var(--danger); }
 .badge.audit-submit { background: var(--success); color: #fff; }
+.badge.audit-access, .badge.audit-export { background: #fff3cd; color: #8a5a00; }
 .nowrap { white-space: nowrap; }

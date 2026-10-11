@@ -36,6 +36,9 @@ class Company(models.Model):
     require_two_factor = models.BooleanField(
         "إلزام كل المستخدمين بالتحقق الثنائي", default=False,
         help_text="يطلب من كل مستخدم تفعيل رمز تطبيق المصادقة (Google/Microsoft Authenticator) قبل استخدام النظام")
+    allow_support_access = models.BooleanField(
+        "السماح لفريق الدعم الفني بالدخول إلى بيانات الشركة", default=True,
+        help_text="عند الإلغاء لا يستطيع مدير المنصة فتح حساب شركتك من لوحة المنصة. كل دخول للدعم يُسجَّل ويصلك تنبيه به")
     email = models.EmailField("البريد الإلكتروني", blank=True)
     address = models.TextField("العنوان", blank=True)
     default_tax_rate = models.DecimalField("نسبة ضريبة القيمة المضافة %", max_digits=5, decimal_places=2, default=15)
@@ -600,6 +603,8 @@ class AuditAction(models.TextChoices):
     DELETE = "delete", "حذف"
     SUBMIT = "submit", "اعتماد"
     CANCEL = "cancel", "إلغاء"
+    ACCESS = "access", "دخول الدعم الفني"
+    EXPORT = "export", "تصدير كامل البيانات"
 
 
 class AuditLog(models.Model):

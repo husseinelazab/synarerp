@@ -556,3 +556,36 @@ def audit_log(request):
                                                                                                 key=lambda m: m[1]),
         "users": users, "query": query.urlencode(),
     })
+
+
+@login_required
+def company_export(request):
+    """تصدير كامل بيانات الشركة (لمالك الحساب فقط)."""
+    from core.company_export import company_querysets, export_filename
+
+    membership = request.membership
+    allowed = membership.role == "owner" and membership.pk is not None  # ليس لوضع الدعم الفني
+    if request.method == "POST" and allowed:
+        import tempfile
+
+        from django.http import FileResponse
+
+        from core.audit import log_event
+        from core.company_export import write_export
+        from core.notify import notify_managers
+
+        company = request.company
+        tmp = tempfile.TemporaryFile()
+        manifest = write_export(company, tmp, request.user)
+        tmp.seek(0)
+        who = request.user.get_full_name() or request.user.username
+        log_event(company, request.user, "export", company,
+                  {"عدد الجداول": [None, len(manifest)], "عدد السجلات": [None, sum(t["count"] for t in manifest)]},
+                  request.META.get("REMOTE_ADDR", ""))
+        notify_managers(company, f"صدّر {who} نسخة كاملة من بيانات الشركة", "/settings/audit/?action=export")
+        return FileResponse(tmp, as_attachment=True, filename=export_filename(company),
+                            content_type="application/zip")
+    tables = [(str(model._meta.verbose_name_plural), qs.count()) for model, qs in company_querysets(request.company)]
+    tables = [t for t in tables if t[1]]
+    return render(request, "core/company_export.html", {
+        "allowed": allowed, "tables": tables, "total": sum(c for _n, c in tables)})

@@ -182,3 +182,6 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": os.environ.get("SYNAR_LOG_LEVEL", "INFO")},
     "loggers": {"django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False}},
 }
+
+# مجلد النسخ الاحتياطية (للقراءة فقط) لعرض حالتها في لوحة إدارة المنصة
+SYNAR_BACKUP_DIR = os.environ.get("SYNAR_BACKUP_DIR", str(BASE_DIR / "backups"))

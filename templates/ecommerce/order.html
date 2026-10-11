@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}طلب {{ order.connection.get_platform_display }} رقم {{ order.number|default:order.external_id }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="total-line"><span>الحالة</span><strong>{{ order.get_status_display }}</strong></div>
+  {% if order.error %}<div class="alert {% if order.status == 'review' %}alert-error{% else %}alert-info{% endif %}">{{ order.error }}</div>{% endif %}
+  <div class="total-line"><span>المتجر</span><strong><a href="{{ order.connection.get_absolute_url }}">{{ order.connection.name }}</a></strong></div>
+  <div class="total-line"><span>المشتري</span><strong>{{ data.customer.name|default:"—" }} <bdi dir="ltr">{{ data.customer.phone }}</bdi></strong></div>
+  <div class="total-line"><span>التاريخ / الدفع</span><strong>{{ order_date|date:"Y-m-d" }} — <span dir="ltr">{{ data.payment_method|default:"—" }}</span></strong></div>
+  {% if order.invoice %}<div class="total-line"><span>الفاتورة</span><strong><a href="{{ order.invoice.get_absolute_url }}">{{ order.invoice.name }}</a> ({{ order.invoice.get_docstatus_display }})</strong></div>{% endif %}
+  {% if order.payment %}<div class="total-line"><span>سند القبض</span><strong><a href="{{ order.payment.get_absolute_url }}">{{ order.payment.name }}</a></strong></div>{% endif %}
+  {% if order.status == "review" %}
+  <form method="post" class="actions" style="margin-top:12px">{% csrf_token %}
+    <button class="btn btn-primary" name="action" value="retry">إعادة المحاولة</button>
+    <button class="btn" name="action" value="ignore" onclick="return confirm('تجاهل هذا الطلب؟')">تجاهل</button>
+  </form>
+  {% endif %}
+</div>
+{% if missing and order.status == "review" %}
+<div class="card">
+  <h3>ربط الأصناف غير المعرّفة</h3>
+  {% for line in missing %}
+  <form method="post" class="filters" style="margin-bottom:8px">{% csrf_token %}<input type="hidden" name="action" value="map"><input type="hidden" name="sku" value="{{ line.sku }}">
+    <label>SKU <b dir="ltr">{{ line.sku|default:"—" }}</b> — {{ line.name }}</label>
+    <select name="item" class="form-select" required><option value="">— اختر الصنف —</option>{% for i in items %}<option value="{{ i.pk }}">{{ i.code }} - {{ i.name }}</option>{% endfor %}</select>
+    <button class="btn btn-primary" {% if not line.sku %}disabled title="الصنف بلا SKU في المتجر؛ أضف له SKU هناك"{% endif %}>ربط وإعادة المحاولة</button>
+  </form>
+  {% endfor %}
+  <p class="muted small">الربط يُحفظ فتُطابق الطلبات القادمة تلقائياً. الأفضل وضع SKU المتجر نفسه في كود الصنف أو باركوده.</p>
+</div>
+{% endif %}
+<div class="card">
+  <h3>الأصناف كما وردت</h3>
+  <table class="table"><thead><tr><th>SKU</th><th>الاسم</th><th>الكمية</th><th>سعر الوحدة (قبل / شامل الضريبة)</th><th>الإجمالي</th></tr></thead>
+    <tbody>{% for line in data.items %}<tr><td dir="ltr">{{ line.sku|default:"—" }}</td><td>{{ line.name }}</td><td>{{ line.qty|plain_number }}</td><td>{% if line.unit_net is not None %}{{ line.unit_net|money }}{% else %}—{% endif %} / {% if line.unit_gross is not None %}{{ line.unit_gross|money }}{% else %}—{% endif %}</td><td>{% if line.line_total is not None %}{{ line.line_total|money }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody></table>
+  <div class="total-line"><span>الشحن / الخصم / الإجمالي</span><strong>{{ data.shipping|money }} / {{ data.discount|money }} / {% if data.total is not None %}{{ data.total|money }}{% else %}—{% endif %} <span dir="ltr">{{ data.currency }}</span></strong></div>
+</div>
+<details class="card"><summary>الحمولة الأصلية (JSON)</summary><pre dir="ltr" style="white-space:pre-wrap;font-size:12px">{{ payload }}</pre></details>
+{% endblock %}

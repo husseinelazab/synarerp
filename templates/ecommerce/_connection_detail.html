@@ -1,0 +1,32 @@
+{% load erp %}
+<div class="card">
+  <h3>رابط استقبال الطلبات (Webhook)</h3>
+  <div class="share-link">
+    <input type="text" readonly class="form-control" dir="ltr" id="wh-url" value="{{ request.scheme }}://{{ request.get_host }}{{ obj.webhook_path }}" onclick="this.select()">
+    <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('wh-url').value);this.textContent='✓ نُسخ'">نسخ</button>
+  </div>
+  {% if obj.platform == "salla" %}
+  <ol class="muted small" style="margin-top:10px">
+    <li>من <b dir="ltr">Salla Partners</b> أنشئ تطبيقاً لمتجرك (أو استخدم تطبيق المنصة إن توفر) وثبّته في متجرك.</li>
+    <li>في إعدادات الـ Webhooks للتطبيق ضع الرابط أعلاه، واختر الأحداث: <code dir="ltr">order.created</code> و<code dir="ltr">order.updated</code> و<code dir="ltr">order.status.updated</code>.</li>
+    <li>انسخ «Webhook Secret» من التطبيق إلى حقل «سر الـ Webhook» هنا (تعديل) ليُتحقق من توقيع كل طلب.</li>
+  </ol>
+  {% else %}
+  <ol class="muted small" style="margin-top:10px">
+    <li>من <b dir="ltr">Zid Partners</b> أنشئ تطبيقاً لمتجرك وثبّته.</li>
+    <li>اشترك في أحداث الطلبات (إنشاء الطلب وتحديث حالته) بالرابط أعلاه، ويُفضّل إضافة اسم الحدث: <code dir="ltr">?event=order.create</code>.</li>
+    <li>الرابط نفسه سري وخاص بمتجرك؛ ويمكن إضافة سر يُرسل في ترويسة Authorization للتحقق الإضافي.</li>
+  </ol>
+  {% endif %}
+  <p class="muted small">كل طلب يصبح فاتورة مبيعات تخصم من «{{ obj.warehouse }}»، ويُسجل سند قبض للطلب المدفوع إلكترونياً{% if not obj.payment_account %} (حدد «حساب تحصيلات المتجر» لتفعيله){% endif %}. الأصناف تُطابق بـ SKU مع كود الصنف أو باركوده، وما لا يُطابق يذهب لقائمة المراجعة.
+    {% if obj.last_event_at %}آخر طلب وصل {{ obj.last_event_at|date:"Y-m-d H:i" }}.{% else %}لم يصل أي طلب بعد.{% endif %}</p>
+  <p><a class="btn" href="{% url 'ecommerce_orders' %}">طلبات المتاجر</a></p>
+</div>
+<div class="card">
+  <h3>تجربة الربط بطلب حقيقي</h3>
+  <p class="muted small">الصق حمولة طلب كما تظهر في سجل الـ Webhooks في لوحة {{ obj.get_platform_display }} (JSON) لترى كيف تُقرأ وتُنشأ فاتورتها قبل التشغيل الفعلي.</p>
+  <form method="post" action="{% url 'ecommerce_test' obj.pk %}">{% csrf_token %}
+    <textarea name="payload" rows="6" class="form-control" dir="ltr" placeholder='{"event": "order.created", "merchant": 123, "data": {...}}'></textarea>
+    <button class="btn btn-primary" style="margin-top:8px">معالجة الطلب</button>
+  </form>
+</div>

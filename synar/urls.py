@@ -36,6 +36,7 @@ urlpatterns = [
     path("stock/", include("stock.tool_urls")),
     path("manufacturing/", include("manufacturing.urls")),
     path("", include("messaging.urls")),
+    path("", include("ecommerce.urls")),
     path("pos/", include("pos.urls")),
     path("einvoice/", include("einvoice.urls")),
     path("hr/", include("hr.urls")),

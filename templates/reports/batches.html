@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>المستودع <select name="warehouse" class="form-select"><option value="">الكل</option>{% for w in warehouses %}<option value="{{ w.pk }}" {% if selected.warehouse == w.pk|stringformat:"s" %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></label>
+  <label>الصنف <select name="item" class="form-select"><option value="">الكل</option>{% for i in items %}<option value="{{ i.pk }}" {% if selected.item == i.pk|stringformat:"s" %}selected{% endif %}>{{ i }}</option>{% endfor %}</select></label>
+  <label>الحالة <select name="status" class="form-select"><option value="">الكل</option>
+    <option value="expired" {% if selected.status == 'expired' %}selected{% endif %}>منتهية</option>
+    <option value="near" {% if selected.status == 'near' %}selected{% endif %}>قريبة الانتهاء</option>
+    <option value="ok" {% if selected.status == 'ok' %}selected{% endif %}>صالحة</option>
+    <option value="none" {% if selected.status == 'none' %}selected{% endif %}>بلا تاريخ انتهاء</option></select></label>
+  <label>قريبة الانتهاء خلال (يوم) <input type="number" name="days" value="{{ warn_days }}" min="1" class="form-control" style="width:90px"></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+<div class="kpis">
+  <a class="kpi kpi-bad" href="?status=expired&days={{ warn_days }}"><span>تشغيلات منتهية لها رصيد</span><b>{{ counts.expired }}</b><span>قيمتها {{ values.expired|money }}</span></a>
+  <a class="kpi kpi-warn" href="?status=near&days={{ warn_days }}"><span>تنتهي خلال {{ warn_days }} يوماً</span><b>{{ counts.near }}</b><span>قيمتها {{ values.near|money }}</span></a>
+  <a class="kpi kpi-good" href="?status=ok&days={{ warn_days }}"><span>صالحة</span><b>{{ counts.ok }}</b></a>
+  <a class="kpi" href="?status=none&days={{ warn_days }}"><span>بلا تاريخ انتهاء</span><b>{{ counts.none }}</b></a>
+</div>
+<div class="card">
+<div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>الصنف</th><th>التشغيلة</th><th>المستودع</th><th>الإنتاج</th><th>الانتهاء</th><th>المتبقي</th><th>الكمية</th><th>القيمة التقريبية</th><th>الحالة</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="{% if r.status == 'expired' %}row-loss{% elif r.status == 'near' %}row-low{% endif %}">
+      <td>{{ r.bb.batch.item }}</td><td dir="ltr"><a href="{% url 'doc_detail' 'batch' r.bb.batch_id %}">{{ r.bb.batch.batch_no }}</a></td><td>{{ r.bb.warehouse }}</td>
+      <td>{{ r.bb.batch.manufacturing_date|date:"Y-m-d" }}</td><td><b>{{ r.bb.batch.expiry_date|date:"Y-m-d" }}</b></td>
+      <td>{% if r.days is not None %}{% if r.days < 0 %}منذ {{ r.days|abs }} يوم{% else %}{{ r.days }} يوم{% endif %}{% endif %}</td>
+      <td>{{ r.bb.qty|floatformat:-3 }} {{ r.bb.batch.item.uom }}</td><td>{{ r.value|money }}</td>
+      <td>{% if r.status == 'expired' %}<span class="badge pr-loss">منتهية</span>{% elif r.status == 'near' %}<span class="badge pr-low">قريبة الانتهاء</span>{% elif r.status == 'ok' %}<span class="badge pr-ok">صالحة</span>{% else %}<span class="badge pr-unknown">—</span>{% endif %}</td>
+    </tr>
+  {% empty %}<tr><td colspan="9" class="muted center">لا توجد تشغيلات بهذه الشروط</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted small">المبيعات ونقطة البيع والإنتاج تصرف تلقائياً من التشغيلة الأقرب انتهاءً وتمنع المنتهية. لإتلاف تشغيلة منتهية: حركة مخزنية «صرف» مع رقم التشغيلة.</p>
+</div>
+{% endblock %}

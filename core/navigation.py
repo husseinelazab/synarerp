@@ -69,6 +69,7 @@ def build_menu(request):
         ]},
         {"key": "stock", "label": "المخزون", "sections": [
             {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("الجرد", "stock-count"),
+                       doc("التشغيلات", "batch"),
                        doc("المستودعات", "warehouse"),
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
             {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),
@@ -76,7 +77,8 @@ def build_menu(request):
             {"title": "التسعير", "items": [_item("تحليل التسعير والربحية", "pricing_analysis"),
                                           _item("الربحية (مجمل الربح)", "gross_profit"),
                                           _item("سجل تغيّر الأسعار", "price_history")]},
-            {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger")]},
+            {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger"),
+                                          _item("التشغيلات والصلاحية", "batch_report")]},
         ]},
     ]
     einvoice_items = [_item("الفواتير الإلكترونية", "einvoice_list")]

@@ -1,6 +1,6 @@
 """مُجدول المهام الدورية (يعمل في حاوية مستقلة في الإنتاج).
 
-- يومياً في الساعة SYNAR_REMINDERS_HOUR (افتراضي 7 صباحاً): تنبيهات الموارد البشرية (hr_reminders).
+- يومياً في الساعة SYNAR_REMINDERS_HOUR (افتراضي 7 صباحاً): تنبيهات الموارد البشرية (hr_reminders) وصلاحية التشغيلات (expiry_alerts).
 - كل ساعة: إعادة إرسال الفواتير الإلكترونية المعلقة — للشركات التي فعّلت الربط مع منصة فاتورة بنفسها فقط.
 """
 import os
@@ -29,6 +29,7 @@ class Command(BaseCommand):
         reminders_hour = int(os.environ.get("SYNAR_REMINDERS_HOUR", "7"))
         if options["once"]:
             self.run("hr_reminders")
+            self.run("expiry_alerts")
             self.run("zatca_submit")
             return
         self.stdout.write("المجدول يعمل.")
@@ -42,4 +43,5 @@ class Command(BaseCommand):
             if now.hour >= reminders_hour and now.date() != last_daily:
                 last_daily = now.date()
                 self.run("hr_reminders")
+                self.run("expiry_alerts")
             time.sleep(60)

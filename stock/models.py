@@ -67,7 +67,9 @@ class Item(TenantModel):
     scale_name = models.CharField("الاسم على الميزان", max_length=40, blank=True,
                                   help_text="اختياري: اسم مختصر يُطبع على ملصق الميزان (بعض الموازين لا تدعم العربية)")
     shelf_life_days = models.PositiveSmallIntegerField("مدة الصلاحية بالأيام", null=True, blank=True,
-                                                       help_text="يحسب منها الميزان تاريخ الانتهاء على الملصق")
+                                                       help_text="يُحسب منها تاريخ الانتهاء للتشغيلات الجديدة وملصق الميزان")
+    has_batch_no = models.BooleanField("تتبع التشغيلات والصلاحية", default=False,
+                                       help_text="يُتابَع رصيد كل تشغيلة بتاريخ انتهائها، ويُصرف الأقرب انتهاءً أولاً، ويُمنع بيع المنتهي")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -85,6 +87,10 @@ class Item(TenantModel):
         if self.pk:
             old = Item.all_objects.filter(pk=self.pk).values("selling_rate", "buying_rate").first()
         super().save(*args, **kwargs)
+        if self.has_batch_no:
+            from stock.batches import sync_initial_batches
+
+            sync_initial_batches(self)
         fields = kwargs.get("update_fields")
         if old and (fields is None or {"selling_rate", "buying_rate"} & set(fields)):
             from stock.pricing import record_price_changes
@@ -284,6 +290,51 @@ class Warehouse(TenantModel):
         return self.name
 
 
+class Batch(TenantModel):
+    """تشغيلة (دفعة إنتاج/توريد) لصنف بتاريخ إنتاج وانتهاء."""
+
+    item = models.ForeignKey(Item, models.PROTECT, related_name="batches", verbose_name="الصنف",
+                             limit_choices_to={"has_batch_no": True})
+    batch_no = models.CharField("رقم التشغيلة", max_length=40)
+    manufacturing_date = models.DateField("تاريخ الإنتاج", null=True, blank=True)
+    expiry_date = models.DateField("تاريخ الانتهاء", null=True, blank=True, db_index=True)
+    reference = models.CharField("مصدر التشغيلة", max_length=60, blank=True, editable=False)
+    created_at = models.DateTimeField("أُنشئت في", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "تشغيلة"
+        verbose_name_plural = "التشغيلات"
+        ordering = ["expiry_date", "id"]
+        constraints = [tenant_unique("item", "batch_no", model_label="batch")]
+
+    def __str__(self):
+        return f"{self.batch_no}" + (f" (ينتهي {self.expiry_date:%Y-%m-%d})" if self.expiry_date else "")
+
+    def is_expired(self, on_date=None):
+        from django.utils import timezone
+
+        return bool(self.expiry_date and self.expiry_date < (on_date or timezone.localdate()))
+
+    @property
+    def days_left(self):
+        from django.utils import timezone
+
+        return (self.expiry_date - timezone.localdate()).days if self.expiry_date else None
+
+
+class BatchBin(TenantModel):
+    """رصيد التشغيلة في مستودع (يُحدَّث مع كل حركة مخزون)."""
+
+    batch = models.ForeignKey(Batch, models.CASCADE, related_name="bins", verbose_name="التشغيلة")
+    warehouse = models.ForeignKey("stock.Warehouse", models.CASCADE, related_name="+", verbose_name="المستودع")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=0)
+
+    class Meta:
+        verbose_name = "رصيد تشغيلة"
+        verbose_name_plural = "أرصدة التشغيلات"
+        constraints = [models.UniqueConstraint(fields=["batch", "warehouse"], name="unique_batch_bin")]
+
+
 class Bin(TenantModel):
     """الرصيد الحالي لكل صنف في كل مستودع."""
 
@@ -311,6 +362,8 @@ class StockLedgerEntry(TenantModel):
     voucher_type = models.CharField("نوع المستند", max_length=50)
     voucher_no = models.CharField("رقم المستند", max_length=40)
     voucher_id = models.PositiveBigIntegerField("معرّف المستند")
+    batch = models.ForeignKey(Batch, models.PROTECT, null=True, blank=True, related_name="ledger_entries",
+                              verbose_name="التشغيلة")
     is_cancelled = models.BooleanField("ملغى", default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -328,6 +381,8 @@ class StockEntryPurpose(models.TextChoices):
 
 
 class StockEntry(SubmittableDocument):
+    allow_expired_explicit = True  # إتلاف تشغيلة منتهية بذكر رقمها؛ الصرف التلقائي يتجاوز المنتهية
+
     naming_prefix = "STE"
 
     purpose = models.CharField("الغرض", max_length=20, choices=StockEntryPurpose.choices, default=StockEntryPurpose.RECEIPT)
@@ -371,13 +426,20 @@ class StockEntry(SubmittableDocument):
         value_change = flt(0)
         for row in self.items.select_related("item"):
             if self.purpose == StockEntryPurpose.RECEIPT:
-                value_change += make_stock_ledger_entry(self, row.item, self.to_warehouse, row.qty, row.rate or row.item.buying_rate)
+                value_change += make_stock_ledger_entry(self, row.item, self.to_warehouse, row.qty,
+                                                        row.rate or row.item.buying_rate,
+                                                        batch_no=row.batch_no, expiry_date=row.expiry_date)
             elif self.purpose == StockEntryPurpose.ISSUE:
-                value_change += make_stock_ledger_entry(self, row.item, self.from_warehouse, -row.qty)
+                value_change += make_stock_ledger_entry(self, row.item, self.from_warehouse, -row.qty,
+                                                        batch_no=row.batch_no)
             else:
-                out_value = make_stock_ledger_entry(self, row.item, self.from_warehouse, -row.qty)
-                rate = -out_value / row.qty
-                make_stock_ledger_entry(self, row.item, self.to_warehouse, row.qty, rate)
+                # التحويل ينقل نفس التشغيلات بنفس التكلفة إلى المستودع الهدف
+                parts = []
+                make_stock_ledger_entry(self, row.item, self.from_warehouse, -row.qty, batch_no=row.batch_no,
+                                        allocations=parts)
+                for batch, part, diff in parts:
+                    make_stock_ledger_entry(self, row.item, self.to_warehouse, -part, -diff / -part if part else 0,
+                                            batch_no=batch.batch_no if batch else "")
         if value_change:
             stock = self.company.require_account("default_stock_account")
             adjustment = self.company.require_account("default_stock_adjustment_account")
@@ -424,7 +486,8 @@ class OpeningStock(SubmittableDocument):
     def on_submit(self):
         value = flt(0)
         for row in self.items.select_related("item"):
-            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate)
+            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate,
+                                             batch_no=row.batch_no, expiry_date=row.expiry_date)
         if value:
             make_gl_entries(self, [
                 {"account": self.company.require_account("default_stock_account"), "debit": value},
@@ -444,6 +507,10 @@ class OpeningStockItem(models.Model):
     rate = models.DecimalField("تكلفة الوحدة", max_digits=18, decimal_places=2, default=0)
     amount = models.DecimalField("القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
 
+    batch_no = models.CharField("رقم التشغيلة", max_length=40, blank=True,
+                                help_text="للأصناف المتتبعة: تشغيلة الوارد، أو التشغيلة المطلوب صرفها (فارغ = الأقرب انتهاءً)")
+    expiry_date = models.DateField("تاريخ الانتهاء", null=True, blank=True)
+
     class Meta:
         verbose_name = "صنف افتتاحي"
         verbose_name_plural = "الأصناف"
@@ -456,6 +523,10 @@ class StockEntryItem(models.Model):
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0, help_text="يُستخدم في إذن الاستلام فقط")
     amount = models.DecimalField("القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
 
+    batch_no = models.CharField("رقم التشغيلة", max_length=40, blank=True,
+                                help_text="للأصناف المتتبعة: تشغيلة الوارد، أو التشغيلة المطلوب صرفها (فارغ = الأقرب انتهاءً)")
+    expiry_date = models.DateField("تاريخ الانتهاء", null=True, blank=True)
+
     class Meta:
         verbose_name = "بند حركة مخزنية"
         verbose_name_plural = "بنود الحركة"
@@ -465,6 +536,7 @@ class StockCount(SubmittableDocument):
     """الجرد الفعلي: مطابقة الكميات المعدودة مع الدفترية وترحيل الفروقات (زيادة أو عجز) لحساب تسويات المخزون."""
 
     naming_prefix = "CNT"
+    allow_expired_batches = True  # عجز الجرد يُخصم من الأقرب انتهاءً حتى لو انتهت
 
     warehouse = models.ForeignKey(Warehouse, models.PROTECT, verbose_name="المستودع")
     item_group = models.ForeignKey(ItemGroup, models.PROTECT, null=True, blank=True, verbose_name="مجموعة الأصناف",
@@ -529,8 +601,13 @@ class StockCount(SubmittableDocument):
         value_change = flt(0)
         for row in self.items.select_related("item"):
             if row.difference_qty > 0:
+                # الزيادة تُضاف لأحدث تشغيلة موجودة في المستودع (أو تشغيلة جديدة إن لم توجد)
+                from stock.batches import available_batches
+
+                existing = available_batches(row.item, self.warehouse, self.posting_date, True) if row.item.has_batch_no else []
                 value_change += make_stock_ledger_entry(self, row.item, self.warehouse, row.difference_qty,
-                                                        row.valuation_rate)
+                                                        row.valuation_rate,
+                                                        batch_no=existing[-1][0].batch_no if existing else "")
             elif row.difference_qty < 0:
                 value_change += make_stock_ledger_entry(self, row.item, self.warehouse, row.difference_qty)
         self.difference_value = value_change

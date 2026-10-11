@@ -89,6 +89,7 @@ class PurchaseOrderItem(OrderItem):
 
 class PurchaseInvoice(InvoiceDocument):
     naming_prefix = "PINV"
+    allow_expired_batches = True  # مرتجع المشتريات يُعيد البضاعة المنتهية للمورد
     return_prefix = "PRET"
     party_field = "supplier"
     return_locked_fields = InvoiceDocument.return_locked_fields + ["supplier"]
@@ -140,7 +141,8 @@ class PurchaseInvoice(InvoiceDocument):
                 # المخزون يُقيّم بعملة الشركة: سعر الشراء × سعر الصرف.
                 # المرتجع يخرج بسعر التقييم الحالي؛ فرقه عن سعر الشراء يذهب لحساب تسويات المخزون
                 base_amount = self.to_base(row.amount)
-                value = make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate)
+                value = make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate,
+                                                batch_no=row.batch_no, expiry_date=row.expiry_date)
                 entries.append({"account": company.require_account("default_stock_account"), "debit": value, "base": True})
                 if base_amount != value:
                     entries.append({
@@ -213,7 +215,8 @@ class PurchaseReceipt(FulfillmentDocument):
     def on_submit(self):
         value = flt(0)
         for row in self.items.select_related("item"):
-            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate)
+            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate * self.exchange_rate,
+                                             batch_no=row.batch_no, expiry_date=row.expiry_date)
         if value:
             make_gl_entries(self, [
                 {"account": self.company.require_account("default_stock_account"), "debit": value, "base": True},

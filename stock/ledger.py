@@ -13,13 +13,45 @@ def _locked_bin(item, warehouse):
     return Bin.all_objects.select_for_update().get(item=item, warehouse=warehouse)
 
 
-def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None):
-    """تسجيل حركة مخزون: الكمية الموجبة وارد والسالبة صادر. تعيد فرق قيمة المخزون."""
-    from stock.models import StockLedgerEntry
+def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None, batch_no="", expiry_date=None,
+                            manufacturing_date=None, allocations=None):
+    """تسجيل حركة مخزون: الكمية الموجبة وارد والسالبة صادر. تعيد فرق قيمة المخزون.
 
+    للأصناف المتتبعة بالتشغيلات تُوزَّع الكمية على تشغيلة أو أكثر (سطر حركة لكل تشغيلة).
+    allocations: قائمة تُضاف إليها (التشغيلة، الكمية، فرق القيمة) لكل سطر، لمن يحتاج تتبع التوزيع (التحويل).
+    """
     if not item.is_stock_item:
         return flt(0)
     qty = flt(qty, 3)
+    if not item.has_batch_no or not qty:
+        diff = _post(doc, item, warehouse, qty, incoming_rate, None)
+        if allocations is not None:
+            allocations.append((None, qty, diff))
+        return diff
+    from stock.batches import locked_batch_bin, plan_issue, plan_receipt
+
+    if qty > 0:
+        plan = plan_receipt(doc, item, qty, batch_no, expiry_date, manufacturing_date)
+    else:
+        plan = [(b, -q) for b, q in plan_issue(doc, item, warehouse, -qty, batch_no)]
+    total = flt(0)
+    for batch, part in plan:
+        bb = locked_batch_bin(batch, warehouse)
+        if flt(bb.qty + part, 3) < 0:
+            raise ValidationError(f"رصيد التشغيلة {batch.batch_no} من «{item.name}» في «{warehouse}» "
+                                  f"هو {bb.qty} والمطلوب {-part}.")
+        bb.qty = flt(bb.qty + part, 3)
+        bb.save()
+        diff = _post(doc, item, warehouse, part, incoming_rate, batch)
+        total += diff
+        if allocations is not None:
+            allocations.append((batch, part, diff))
+    return total
+
+
+def _post(doc, item, warehouse, qty, incoming_rate, batch):
+    from stock.models import StockLedgerEntry
+
     b = _locked_bin(item, warehouse)
     old_qty, old_value = flt(b.actual_qty, 3), flt(b.stock_value)
     new_qty = old_qty + qty
@@ -53,6 +85,7 @@ def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None):
         voucher_type=doc.doctype_slug,
         voucher_no=doc.name,
         voucher_id=doc.pk,
+        batch=batch,
     )
     return difference
 
@@ -63,8 +96,17 @@ def cancel_stock_ledger_entries(doc):
 
     entries = StockLedgerEntry.all_objects.filter(
         voucher_type=doc.doctype_slug, voucher_id=doc.pk, is_cancelled=False
-    ).select_related("item", "warehouse").order_by("-id")
+    ).select_related("item", "warehouse", "batch").order_by("-id")
     for sle in entries:
+        if sle.batch_id:
+            from stock.batches import locked_batch_bin
+
+            bb = locked_batch_bin(sle.batch, sle.warehouse)
+            bb.qty = flt(bb.qty - sle.actual_qty, 3)
+            if bb.qty < 0:
+                raise ValidationError(f"لا يمكن الإلغاء: سيصبح رصيد التشغيلة {sle.batch.batch_no} "
+                                      f"من «{sle.item.name}» سالباً.")
+            bb.save()
         b = _locked_bin(sle.item, sle.warehouse)
         b.actual_qty = flt(b.actual_qty - sle.actual_qty, 3)
         if b.actual_qty < 0:

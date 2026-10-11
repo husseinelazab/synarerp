@@ -8,4 +8,5 @@ urlpatterns = [
     path("gross-profit/", reports.gross_profit_report, name="gross_profit"),
     path("pricing/", reports.pricing_analysis, name="pricing_analysis"),
     path("price-history/", reports.price_history, name="price_history"),
+    path("batches/", reports.batch_report, name="batch_report"),
 ]

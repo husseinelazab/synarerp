@@ -191,3 +191,44 @@ def price_history(request):
         "items": Item.objects.order_by("code"), "selected": selected, "sources": ItemPriceHistory.SOURCES,
         "fields": ItemPriceHistory.FIELDS,
     })
+
+
+@login_required
+def batch_report(request):
+    """أرصدة التشغيلات وتواريخ صلاحيتها في كل مستودع."""
+    import datetime
+
+    from django.utils import timezone
+
+    from stock.batches import expiry_status
+    from stock.models import BatchBin
+
+    try:
+        warn_days = max(1, min(int(request.GET.get("days") or 30), 3650))
+    except ValueError:
+        warn_days = 30
+    selected = {k: request.GET.get(k, "") for k in ("warehouse", "item", "status")}
+    bins = (BatchBin.objects.filter(qty__gt=0).select_related("batch", "batch__item", "batch__item__uom", "warehouse")
+            .order_by("batch__expiry_date", "batch__item__code"))
+    if selected["warehouse"]:
+        bins = bins.filter(warehouse_id=selected["warehouse"])
+    if selected["item"]:
+        bins = bins.filter(batch__item_id=selected["item"])
+    valuation = {(b.item_id, b.warehouse_id): b.valuation_rate for b in Bin.objects.all()}
+    today = timezone.localdate()
+    rows, counts, values = [], {"expired": 0, "near": 0, "ok": 0, "none": 0}, {"expired": 0, "near": 0}
+    for bb in bins:
+        status = expiry_status(bb.batch, warn_days, today)
+        value = bb.qty * valuation.get((bb.batch.item_id, bb.warehouse_id), 0)
+        counts[status] += 1
+        if status in values:
+            values[status] += value
+        if selected["status"] and selected["status"] != status:
+            continue
+        rows.append({"bb": bb, "status": status, "value": value, "days": bb.batch.days_left})
+    return render(request, "reports/batches.html", {
+        "title": "التشغيلات والصلاحية", "rows": rows, "counts": counts, "values": values, "warn_days": warn_days,
+        "selected": selected, "warehouses": Warehouse.objects.all(),
+        "items": Item.objects.filter(has_batch_no=True).order_by("code"), "today": today,
+        "horizon": today + datetime.timedelta(days=warn_days),
+    })

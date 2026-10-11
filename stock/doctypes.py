@@ -1,5 +1,5 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import (UOM, Item, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
+from stock.models import (UOM, Batch, Item, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
                           StockEntry, StockEntryItem, Warehouse)
 
 register(DocType(
@@ -12,7 +12,7 @@ register(DocType(
     list_fields=["name", "posting_date", "purpose", "from_warehouse", "to_warehouse", "total_amount"],
     form_fields=["purpose", "posting_date", "from_warehouse", "to_warehouse", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(StockEntryItem, ["item", "qty", "rate"], rate_type="buying"),
+    child=ChildTable(StockEntryItem, ["item", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
     totals=["total_amount"],
 ))
 register(DocType(
@@ -30,7 +30,7 @@ register(DocType(
     slug="opening-stock", model=OpeningStock, module="stock",
     list_fields=["name", "posting_date", "warehouse", "total_amount"], form_fields=["warehouse", "posting_date", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(OpeningStockItem, ["item", "qty", "rate"], label="الأصناف", rate_type="buying"),
+    child=ChildTable(OpeningStockItem, ["item", "qty", "rate", "batch_no", "expiry_date"], label="الأصناف", rate_type="buying"),
     totals=["total_amount"],
 ))
 register(DocType(
@@ -49,4 +49,9 @@ register(DocType(
     slug="scale", model=Scale, module="stock",
     list_fields=["name", "brand", "driver", "enabled", "last_sync_at", "last_sync_message"],
     search_fields=["name", "brand"],
+))
+register(DocType(
+    slug="batch", model=Batch, module="stock",
+    list_fields=["batch_no", "item", "manufacturing_date", "expiry_date", "reference"],
+    search_fields=["batch_no", "item__name", "item__code"],
 ))

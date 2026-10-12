@@ -76,6 +76,9 @@ class Item(TenantModel):
                                       help_text="الكمية المقترح شراؤها (بالوحدة الأساسية). صفر = ما يكفي للوصول للحد")
     has_batch_no = models.BooleanField("تتبع التشغيلات والصلاحية", default=False,
                                        help_text="يُتابَع رصيد كل تشغيلة بتاريخ انتهائها، ويُصرف الأقرب انتهاءً أولاً، ويُمنع بيع المنتهي")
+    valuation_method = models.CharField(
+        "طريقة التقييم", max_length=10, choices=[("average", "المتوسط المرجح المتحرك"), ("fifo", "الوارد أولاً صادر أولاً (FIFO)")],
+        default="average", help_text="FIFO: تُصرف التكلفة من أقدم دفعات الشراء أولاً (مناسب للأصناف متقلبة السعر)")
     has_serial_no = models.BooleanField("تتبع الأرقام التسلسلية", default=False,
                                         help_text="رقم لكل قطعة (أجهزة، جوالات…): يُدخل عند الشراء والبيع ويُتابع ضمانه")
     warranty_days = models.PositiveIntegerField("مدة الضمان بالأيام", default=0, help_text="تُحسب من تاريخ البيع")
@@ -445,6 +448,7 @@ class Bin(TenantModel):
     actual_qty = models.DecimalField("الكمية الفعلية", max_digits=18, decimal_places=3, default=0)
     valuation_rate = models.DecimalField("سعر التقييم", max_digits=18, decimal_places=6, default=0)
     stock_value = models.DecimalField("قيمة المخزون", max_digits=18, decimal_places=2, default=0)
+    fifo_queue = models.JSONField("طبقات الوارد أولاً", default=list, blank=True, editable=False)  # [[الكمية، السعر]]
 
     class Meta:
         verbose_name = "رصيد صنف"

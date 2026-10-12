@@ -53,6 +53,52 @@ def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None, batch
     return total
 
 
+def fifo_seed(b, qty, value):
+    """طبقات الرصيد؛ الرصيد السابق لتفعيل FIFO (أو المختلف عن الطبقات) يصبح طبقة واحدة بمتوسطه."""
+    queue = [[Decimal(q), Decimal(r)] for q, r in (b.fifo_queue or [])]
+    if flt(sum((q for q, _r in queue), Decimal(0)), 3) != flt(qty, 3):
+        queue = [[Decimal(qty), Decimal(value) / Decimal(qty)]] if qty > 0 else []
+    return [[str(q), str(r)] for q, r in queue]
+
+
+def fifo_consume(queue, qty):
+    """يصرف الكمية من أقدم الطبقات؛ يعيد (الطبقات المتبقية، تكلفة المصروف)."""
+    remaining, cost, result = Decimal(qty), Decimal(0), []
+    for q, r in ([Decimal(q), Decimal(r)] for q, r in queue):
+        take = min(q, remaining)
+        cost += take * r
+        remaining -= take
+        if q - take > 0:
+            result.append([str(q - take), str(r)])
+    return result, flt(cost)
+
+
+def rebuild_fifo(item, warehouse):
+    """بعد الإلغاء: إعادة بناء الطبقات من الحركات النشطة بالترتيب (الإلغاء قد يكون من منتصف السجل)."""
+    from stock.models import StockLedgerEntry
+
+    b = _locked_bin(item, warehouse)
+    queue = []
+    for sle in StockLedgerEntry.objects.filter(item=item, warehouse=warehouse, is_cancelled=False).order_by("id"):
+        if sle.actual_qty > 0:
+            queue.append([str(sle.actual_qty), str(sle.incoming_rate)])
+        elif sle.actual_qty < 0:
+            queue, _cost = fifo_consume(queue, -sle.actual_qty)
+        elif sle.stock_value_difference and queue:
+            queue = fifo_spread(queue, sle.stock_value_difference)
+    b.fifo_queue = queue
+    b.save(update_fields=["fifo_queue"])
+
+
+def fifo_spread(queue, value):
+    """توزيع قيمة إضافية (تكاليف شحن) على الطبقات بنسبة كمياتها."""
+    total = sum((Decimal(q) for q, _r in queue), Decimal(0))
+    if not total:
+        return queue
+    per_unit = Decimal(value) / total
+    return [[q, str(Decimal(r) + per_unit)] for q, r in queue]
+
+
 def _post(doc, item, warehouse, qty, incoming_rate, batch):
     from stock.models import StockLedgerEntry
 
@@ -60,17 +106,25 @@ def _post(doc, item, warehouse, qty, incoming_rate, batch):
     old_qty, old_value = flt(b.actual_qty, 3), flt(b.stock_value)
     new_qty = old_qty + qty
 
+    if new_qty < 0:
+        raise ValidationError(
+            f"الرصيد غير كافٍ: المتاح من «{item.name}» في «{warehouse}» هو {old_qty} والمطلوب {-qty}."
+        )
     if qty > 0:
         rate = Decimal(str(incoming_rate)) if incoming_rate is not None else b.valuation_rate
         new_value = flt(old_value + qty * rate)
         b.valuation_rate = flt(new_value / new_qty, 6) if new_qty else flt(rate, 6)
+        if item.valuation_method == "fifo":
+            b.fifo_queue = fifo_seed(b, old_qty, old_value) + [[str(qty), str(rate)]]
     else:
-        if new_qty < 0:
-            raise ValidationError(
-                f"الرصيد غير كافٍ: المتاح من «{item.name}» في «{warehouse}» هو {old_qty} والمطلوب {-qty}."
-            )
         rate = Decimal(0)
-        new_value = flt(new_qty * b.valuation_rate) if new_qty else flt(0)
+        if item.valuation_method == "fifo" and qty:
+            queue, consumed = fifo_consume(fifo_seed(b, old_qty, old_value), -qty)
+            b.fifo_queue = queue
+            new_value = flt(old_value - consumed) if new_qty else flt(0)
+            b.valuation_rate = flt(new_value / new_qty, 6) if new_qty else b.valuation_rate
+        else:
+            new_value = flt(new_qty * b.valuation_rate) if new_qty else flt(0)
 
     difference = new_value - old_value
     b.actual_qty, b.stock_value = new_qty, new_value
@@ -106,6 +160,8 @@ def make_value_adjustment(doc, item, warehouse, value):
     if not value or flt(b.actual_qty, 3) <= 0:
         return flt(0)
     b.stock_value = flt(b.stock_value + value)
+    if item.valuation_method == "fifo":
+        b.fifo_queue = fifo_spread(fifo_seed(b, b.actual_qty, b.stock_value - value), value)
     if b.stock_value < 0:
         raise ValidationError(f"لا يمكن أن تصبح قيمة رصيد «{item.name}» في «{warehouse}» سالبة.")
     b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
@@ -146,7 +202,10 @@ def cancel_stock_ledger_entries(doc):
             b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
         b.save()
     ids = list(entries.values_list("id", flat=True))
+    touched = {(sle.item, sle.warehouse) for sle in entries if sle.item.valuation_method == "fifo"}
     entries.update(is_cancelled=True)
+    for item, warehouse in touched:
+        rebuild_fifo(item, warehouse)
     from stock import serials
 
     serials.restore(StockLedgerEntry.all_objects.filter(id__in=ids))

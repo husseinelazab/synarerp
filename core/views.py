@@ -90,6 +90,7 @@ def doc_list(request, slug):
         "choice_filters": choice_filters,
         "filter_query": "&".join(f"{k}={v}" for k, v in choice_filters.items()),
         "filter_label": " / ".join(dict(dt.model._meta.get_field(k).choices)[v] for k, v in choice_filters.items()),
+        "type_title": dt.type_titles.get(choice_filters.get(dt.type_field)) if dt.type_field else None,
     })
 
 
@@ -128,6 +129,9 @@ def doc_form(request, slug, pk=None):
 
             initial["warehouse"] = Warehouse.objects.filter(disabled=False).values_list("id", flat=True).first()
     initial.update({k: v for k, v in request.GET.items() if k in FormClass.base_fields})
+    # نوع محدد من الرابط (سند قبض / سند صرف): يُخفى اختياره ويصبح عنوان النموذج
+    type_value = getattr(instance, dt.type_field, None) if instance else request.GET.get(dt.type_field)
+    type_title = dt.type_titles.get(type_value) if dt.type_field else None
 
     from core.permissions import allowed_centers
 
@@ -144,6 +148,10 @@ def doc_form(request, slug, pk=None):
         form.fields["cost_center"].queryset = form.fields["cost_center"].queryset.filter(id__in=centers)
         form.fields["cost_center"].required = True
     formset = FormSetClass(request.POST or None, instance=instance) if FormSetClass else None
+    if type_title:
+        from django.forms import HiddenInput
+
+        form.fields[dt.type_field].widget = HiddenInput()
     style_form(form)
     empty_form = None
     if formset is not None:
@@ -192,7 +200,7 @@ def doc_form(request, slug, pk=None):
 
     return render(request, "core/form.html", {
         "dt": dt, "form": form, "formset": formset, "empty_form": empty_form, "instance": instance, "is_return": is_return,
-        "posts_to_ledger": getattr(dt.model, "posts_to_ledger", True),
+        "posts_to_ledger": getattr(dt.model, "posts_to_ledger", True), "type_title": type_title,
     })
 
 

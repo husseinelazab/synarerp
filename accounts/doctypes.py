@@ -18,6 +18,8 @@ register(DocType(
     form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount", "withholding_rate", "currency", "exchange_rate",
                  "sales_invoice", "purchase_invoice", "reference_no", "remarks"],
     search_fields=["name", "customer__name", "supplier__name", "reference_no"],
+    type_field="payment_type",
+    type_titles={"receive": ("سند قبض", "سندات القبض"), "pay": ("سند صرف", "سندات الصرف")},
     child=ChildTable(PaymentReference, ["sales_invoice", "purchase_invoice", "allocated_amount"],
                      label="التخصيص على الفواتير", min_rows=0,
                      help="لتوزيع السند على عدة فواتير أضف سطراً لكل فاتورة بالمبلغ المخصص لها، أو احفظ السند ثم "

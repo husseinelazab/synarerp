@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ dt.label_plural }}{% endblock %}
-{% block heading %}{{ dt.label_plural }}{% if filter_label %} — {{ filter_label }}{% endif %}{% endblock %}
+{% block title %}{% if type_title %}{{ type_title.1 }}{% else %}{{ dt.label_plural }}{% endif %}{% endblock %}
+{% block heading %}{% if type_title %}{{ type_title.1 }}{% else %}{{ dt.label_plural }}{% if filter_label %} — {{ filter_label }}{% endif %}{% endif %}{% endblock %}
 {% block content %}
 <div class="toolbar">
   <form method="get" class="filters">

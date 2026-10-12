@@ -44,10 +44,10 @@
       {% if settings.status == 'active' %}<form method="post">{% csrf_token %}<button class="btn btn-danger-outline" name="action" value="toggle">{% if settings.enabled %}إيقاف مؤقت{% else %}إعادة التشغيل{% endif %}</button></form>{% endif %}
     </div>
     {% if settings.compliance_results.results %}
-    <table class="table" style="margin-top:12px">
+    <div class="table-wrap"><table class="table" style="margin-top:12px">
       <thead><tr><th>المستند التجريبي</th><th>النتيجة</th><th>الرسائل</th></tr></thead>
       <tbody>{% for r in settings.compliance_results.results %}<tr><td>{{ r.label }}</td><td>{% if r.passed %}<span class="ok">✓ ناجح</span>{% else %}<span class="neg">✗ لم يجتز ({{ r.http_status }})</span>{% endif %}</td><td class="small">{{ r.messages|join:" · " }}</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
     {% endif %}
   </div>
 </div>

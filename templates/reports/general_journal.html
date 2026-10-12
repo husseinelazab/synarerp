@@ -20,11 +20,11 @@
     <h3><a href="{% url 'doc_detail' v.type v.id %}">{{ v.type|voucher_label }} {{ v.no }}</a></h3>
     <span class="muted">{{ v.date|date:"Y-m-d" }}</span>
   </div>
-  <table class="table journal">
+  <div class="table-wrap"><table class="table journal">
     <thead><tr><th>الحساب</th><th>الطرف</th><th>البيان</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead>
     <tbody>{% for g in v.lines %}<tr><td>{{ g.account }}</td><td>{{ g.party|default:"" }}</td><td class="muted">{{ g.remarks }}</td><td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>{% endfor %}</tbody>
     <tfoot><tr><th colspan="3">إجمالي القيد</th><th class="num">{{ v.debit|money }}</th><th class="num">{{ v.credit|money }}</th></tr></tfoot>
-  </table>
+  </table></div>
 </div>
 {% empty %}
 <div class="card muted center">لا توجد قيود مرحّلة في هذه الفترة. تذكّر أن المسودات لا تُرحّل حتى يتم اعتمادها.</div>

@@ -28,8 +28,8 @@
 {% if stations %}
 <div class="card">
   <h3>تحميل محطات العمل</h3>
-  <table class="table report"><thead><tr><th>المحطة</th><th>الساعات</th><th>التكلفة</th></tr></thead>
-  <tbody>{% for s in stations %}<tr><td>{{ s.ws }}</td><td>{{ s.hours|floatformat:-2 }}</td><td>{{ s.cost|money }}</td></tr>{% endfor %}</tbody></table>
+  <div class="table-wrap"><table class="table report"><thead><tr><th>المحطة</th><th>الساعات</th><th>التكلفة</th></tr></thead>
+  <tbody>{% for s in stations %}<tr><td>{{ s.ws }}</td><td>{{ s.hours|floatformat:-2 }}</td><td>{{ s.cost|money }}</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endif %}
 {% endblock %}

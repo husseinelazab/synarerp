@@ -15,7 +15,7 @@
 </div>
 <div class="card">
   <h3>العمليات</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الطريقة والمسار</th><th>الوظيفة</th></tr></thead>
     <tbody>
       <tr><td><code>GET /api/v1/{slug}/</code></td><td>القائمة: <code>?q=</code> بحث، <code>?docstatus=1</code>، تصفية بأي حقل مثل <code>?customer=5</code> أو <code>?posting_date__gte=2026-01-01</code>، <code>?modified_since=</code>، <code>?page=</code> و<code>?page_size=</code> (حتى 100)</td></tr>
@@ -28,7 +28,7 @@
       <tr><td><code>GET /api/v1/reports/stock-balance/</code></td><td>أرصدة المخزون (<code>?warehouse=</code>، <code>?item=</code>)</td></tr>
       <tr><td><code>GET /api/v1/reports/account-balances/</code></td><td>أرصدة الحسابات كما في <code>?as_of=</code></td></tr>
     </tbody>
-  </table>
+  </table></div>
   <p>الأخطاء: <code>{"error": {"code": "validation_error", "message": "…", "fields": {"customer": ["…"]}}}</code> مع رموز HTTP:
     400 بيانات، 401 مفتاح، 403 صلاحية، 404 غير موجود، 409 مستند معتمد، 429 تجاوز الحد.</p>
 </div>
@@ -45,14 +45,14 @@
 {% for s in schemas %}
 <div class="card" id="{{ s.slug }}">
   <div class="card-head"><h3>{{ s.label_plural }} <code>{{ s.slug }}</code></h3>{% if s.submittable %}<span class="badge status-0">يُعتمد ويُلغى</span>{% endif %}</div>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الحقل</th><th>الاسم</th><th>النوع</th><th>مطلوب</th><th>ملاحظات</th></tr></thead>
     <tbody>{% for f in s.fields %}<tr><td><code>{{ f.name }}</code></td><td>{{ f.label }}</td><td>{{ f.type }}</td><td>{% if f.required %}نعم{% endif %}</td>
       <td class="small">{% if f.link_to %}رابط إلى {{ f.link_to }}{% endif %}{% for c in f.choices %}<code>{{ c.value }}</code> {{ c.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>{% endfor %}
     {% if s.child %}<tr><td><code>{{ s.child.key }}</code></td><td>{{ s.child.label }}</td><td>list</td><td></td>
       <td class="small">كل بند: {% for f in s.child.fields %}<code>{{ f.name }}</code> ({{ f.label }}){% if not forloop.last %}، {% endif %}{% endfor %}</td></tr>{% endif %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 {% endfor %}
 </div>

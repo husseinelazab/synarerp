@@ -23,7 +23,7 @@
 </div>
 
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الجهاز</th><th>الرقم التسلسلي</th><th>الموقع</th><th>الحالة</th><th>آخر اتصال</th><th>البصمات</th><th>آخر بصمة</th><th></th></tr></thead>
     <tbody>{% for d in devices %}<tr class="{% if not d.enabled %}cancelled{% endif %}">
       <td>{{ d.name }}</td><td dir="ltr"><code>{{ d.serial_number }}</code></td><td>{{ d.location|default:"—" }}</td>
@@ -32,7 +32,7 @@
       <td>{{ d.punch_count }}</td><td>{{ d.last_punch|date:"Y-m-d H:i"|default:"—" }}</td>
       <td><a href="?edit={{ d.pk }}">تعديل</a></td></tr>
     {% empty %}<tr><td colspan="8" class="muted center">لا توجد أجهزة مسجلة</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 
 <form method="post" novalidate class="card">
@@ -48,8 +48,8 @@
   <div class="card-head"><h3>أرقام بصمة غير مرتبطة بموظفين</h3>
     <form method="post">{% csrf_token %}<button class="btn" name="action" value="reprocess">إعادة معالجة بعد ربطها</button></form></div>
   <p class="muted small">أضف الرقم في ملف الموظف ← «رقم الموظف في جهاز البصمة» ثم اضغط إعادة المعالجة لتُحتسب بصماته السابقة.</p>
-  <table class="table"><thead><tr><th>رقم البصمة</th><th>عدد البصمات</th><th>آخر بصمة</th></tr></thead>
-    <tbody>{% for u in unknown %}<tr><td dir="ltr"><code>{{ u.pin }}</code></td><td>{{ u.n }}</td><td>{{ u.last|date:"Y-m-d H:i" }}</td></tr>{% endfor %}</tbody></table>
+  <div class="table-wrap"><table class="table"><thead><tr><th>رقم البصمة</th><th>عدد البصمات</th><th>آخر بصمة</th></tr></thead>
+    <tbody>{% for u in unknown %}<tr><td dir="ltr"><code>{{ u.pin }}</code></td><td>{{ u.n }}</td><td>{{ u.last|date:"Y-m-d H:i" }}</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endif %}
 {% endblock %}

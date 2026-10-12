@@ -7,12 +7,12 @@
     <div><dt>المسترد</dt><dd>{{ obj.repaid_amount|cur }}</dd></div>
   </dl>
   {% if obj.repayments.exists %}
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>المستند</th><th>الفترة</th><th class="num">المبلغ</th></tr></thead>
     <tbody>{% for r in obj.repayments.all %}<tr>
       {% if r.payroll_line %}<td><a href="{{ r.payroll_line.parent.get_absolute_url }}">{{ r.payroll_line.parent }}</a></td><td>{{ r.payroll_line.parent.period_label }}</td>
       {% else %}<td><a href="{{ r.settlement.get_absolute_url }}">{{ r.settlement }}</a></td><td>مخالصة نهاية الخدمة</td>{% endif %}
       <td class="num">{{ r.amount|money }}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
   {% else %}<p class="muted">تُخصم الأقساط تلقائياً في مسيرات الرواتب المعتمدة، ويُسترد المتبقي كاملاً في مخالصة نهاية الخدمة.</p>{% endif %}
 </div>

@@ -143,6 +143,7 @@ b, .strong { font-weight: 700; }
   body { background: #fff; }
   .no-print { display: none !important; }
   .sheet { width: auto; min-height: calc(297mm - 22mm); margin: 0; padding: 0; box-shadow: none; overflow: visible; }
+  .sheet.landscape { min-height: auto; }
   .tpl-modern .sheet { padding-top: 0; }
   .tpl-modern .doc-header { margin: 0 0 0; padding: 8mm 8mm 6mm; border-radius: 0 0 10px 10px; }
 }
@@ -154,3 +155,8 @@ b, .strong { font-weight: 700; }
   .seller { text-align: right; max-width: none; }
   .items { display: block; overflow-x: auto; }
 }
+
+/* المستندات ذات الجداول العريضة (مسير الرواتب…): ورقة بالعرض وخط أصغر */
+.sheet.landscape { width: 297mm; min-height: 210mm; padding: 9mm; }
+.landscape .items th, .landscape .items td { font-size: 10.5px; padding: 4px 3px; }
+.items td, .items th { overflow-wrap: break-word; }

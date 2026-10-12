@@ -30,7 +30,7 @@
 </div>
 <div class="card">
   <h3>طلباتي</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الطلب</th><th>التفاصيل</th><th>الحالة</th><th></th></tr></thead>
     <tbody>
     {% for lv in leaves %}<tr><td>{{ lv.leave_type }}</td><td>{{ lv.from_date|date:"Y-m-d" }} ← {{ lv.to_date|date:"Y-m-d" }} ({{ lv.total_days }} يوم)</td>
@@ -41,24 +41,24 @@
       <td>{% if ln.is_draft %}<form method="post" action="{% url 'portal_withdraw' 'loan' ln.pk %}" onsubmit="return confirm('سحب الطلب؟')">{% csrf_token %}<button class="btn btn-sm">سحب</button></form>{% endif %}</td></tr>{% endfor %}
     {% if not leaves and not loans %}<tr><td colspan="4" class="muted center">لا توجد طلبات</td></tr>{% endif %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 {% if appraisals %}
 <div class="card">
   <h3>تقييمات أدائي</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الفترة</th><th>النتيجة</th><th>التقدير</th><th>فرص التحسين</th></tr></thead>
     <tbody>{% for a in appraisals %}<tr><td>{{ a.period_from|date:"Y-m-d" }} ← {{ a.period_to|date:"Y-m-d" }}</td><td><strong>{{ a.score_percent|unlocalize }}%</strong></td><td>{{ a.rating }}</td><td class="small">{{ a.improvements|default:"—"|linebreaksbr }}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 <div class="card">
   <h3>قسائم الرواتب</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الشهر</th><th class="num">إجمالي الاستحقاق</th><th class="num">الاستقطاعات</th><th class="num">الصافي</th><th></th></tr></thead>
     <tbody>{% for p in payslips %}<tr><td>{{ p.parent.period_label }}</td><td class="num">{{ p.gross_pay|money }}</td><td class="num">{{ p.total_deduction|money }}</td><td class="num"><strong>{{ p.net_pay|money }}</strong></td>
       <td><a href="{% url 'portal_payslip' p.pk %}" target="_blank">عرض القسيمة</a></td></tr>
     {% empty %}<tr><td colspan="5" class="muted center">لا توجد قسائم بعد</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

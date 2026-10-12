@@ -3,7 +3,7 @@
 {% block content %}
 {% include "reports/_period.html" %}
 <div class="card">
-<table class="table report">
+<div class="table-wrap"><table class="table report">
   <thead>
     <tr><th rowspan="2">الحساب</th><th colspan="2" class="center">الرصيد الافتتاحي</th><th colspan="2" class="center">حركة الفترة</th><th colspan="2" class="center">الرصيد الختامي</th></tr>
     <tr><th class="num">مدين</th><th class="num">دائن</th><th class="num">مدين</th><th class="num">دائن</th><th class="num">مدين</th><th class="num">دائن</th></tr>
@@ -15,6 +15,6 @@
     {% empty %}<tr><td colspan="7" class="muted center">لا توجد حركات</td></tr>{% endfor %}
   </tbody>
   <tfoot><tr><th>الإجمالي</th>{% for v in totals %}<th class="num">{{ v|cur }}</th>{% endfor %}</tr></tfoot>
-</table>
+</table></div>
 </div>
 {% endblock %}

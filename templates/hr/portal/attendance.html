@@ -10,11 +10,11 @@
   </form>
 </div>
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>التاريخ</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>ساعات العمل</th><th>تأخير (د)</th><th>إضافي معتمد</th></tr></thead>
     <tbody>{% for r in records %}<tr><td>{{ r.attendance_date|date:"l Y-m-d" }}</td><td>{{ r.get_status_display }}</td><td>{{ r.check_in|time:"H:i"|default:"—" }}</td><td>{{ r.check_out|time:"H:i"|default:"—" }}</td>
       <td>{{ r.worked_hours|floatformat:-2 }}</td><td>{% if r.late_minutes %}<span class="text-danger">{{ r.late_minutes }}</span>{% else %}—{% endif %}</td><td>{{ r.overtime_hours|floatformat:-2 }}</td></tr>
     {% empty %}<tr><td colspan="7" class="muted center">لا توجد سجلات لهذا الشهر</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

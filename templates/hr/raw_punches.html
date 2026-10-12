@@ -11,7 +11,7 @@
   <div class="actions"><a class="btn" href="{% url 'attendance_monthly' %}">التقرير الشهري</a></div>
 </div>
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الوقت</th><th>رقم البصمة</th><th>الموظف</th><th>المصدر</th><th>ملاحظة</th></tr></thead>
     <tbody>{% for p in page.object_list %}<tr>
       <td>{{ p.punched_at|date:"Y-m-d H:i" }}</td><td dir="ltr"><code>{{ p.pin }}</code></td>
@@ -19,7 +19,7 @@
       <td>{% if p.device %}{{ p.device.name }}{% else %}{{ p.get_source_display }}{% endif %}</td>
       <td class="small">{{ p.error|default:"" }}</td></tr>
     {% empty %}<tr><td colspan="5" class="muted center">لا توجد بصمات</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
   {% if page.paginator.num_pages > 1 %}<div class="pagination">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&q={{ request.GET.q }}">السابق</a>{% endif %}<span>صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&q={{ request.GET.q }}">التالي</a>{% endif %}</div>{% endif %}
 </div>
 {% endblock %}

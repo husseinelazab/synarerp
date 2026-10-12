@@ -34,23 +34,23 @@
 <div class="grid-2">
   <div class="card" id="pending">
     <h3>طلبات بانتظار الاعتماد</h3>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th>الطلب</th><th>الموظف</th><th>التفاصيل</th></tr></thead>
       <tbody>
       {% for lv in pending_leaves %}<tr><td><a href="{{ lv.get_absolute_url }}">{{ lv.name }}</a>{% if lv.requested_via_portal %} <span class="badge status-0">من البوابة</span>{% endif %}</td><td>{{ lv.employee.full_name }}</td><td>{{ lv.leave_type }} · {{ lv.from_date|date:"Y-m-d" }} ← {{ lv.to_date|date:"Y-m-d" }} ({{ lv.total_days }} يوم)</td></tr>{% endfor %}
       {% for ln in pending_loans %}<tr><td><a href="{{ ln.get_absolute_url }}">{{ ln.name }}</a>{% if ln.requested_via_portal %} <span class="badge status-0">من البوابة</span>{% endif %}</td><td>{{ ln.employee.full_name }}</td><td>سلفة {{ ln.amount|money }} · قسط {{ ln.installment_amount|money }}</td></tr>{% endfor %}
       {% if not pending_leaves and not pending_loans %}<tr><td colspan="3" class="muted center">لا توجد طلبات معلّقة</td></tr>{% endif %}
       </tbody>
-    </table>
+    </table></div>
   </div>
   <div class="card" id="expiring">
     <h3>وثائق منتهية أو تنتهي خلال 60 يوماً</h3>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th>الموظف</th><th>الوثيقة</th><th>تاريخ الانتهاء</th><th>المتبقي</th></tr></thead>
       <tbody>{% for e in expiring %}<tr><td><a href="{{ e.employee.get_absolute_url }}">{{ e.employee.full_name }}</a></td><td>{{ e.document }}</td><td>{{ e.date|date:"Y-m-d" }}<div class="muted small">{{ e.date|hijri }}</div></td>
         <td><span class="days-left {% if e.days < 0 %}expired{% elif e.days <= 30 %}soon{% endif %}">{% if e.days < 0 %}منتهية منذ {{ e.days|abs }} يوم{% else %}{{ e.days }} يوم{% endif %}</span></td></tr>
       {% empty %}<tr><td colspan="4" class="muted center">لا توجد وثائق قريبة الانتهاء</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
   </div>
 </div>
 

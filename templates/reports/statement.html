@@ -5,13 +5,13 @@
 {% for section in sections %}
 <div class="card">
   <h3>{{ section.label }}</h3>
-  <table class="table report">
+  <div class="table-wrap"><table class="table report">
     <tbody>
       {% for r in section.rows %}<tr class="{% if r.is_group %}group depth-{{ r.depth }}{% else %}leaf{% endif %}"><td style="padding-inline-start: {{ r.depth }}.2em">{% if r.is_group or not r.account.pk %}{{ r.account }}{% else %}<a href="{% url 'general_ledger' %}?account={{ r.account.pk }}">{{ r.account }}</a>{% endif %}</td><td class="num">{{ r.amount|money }}</td></tr>
       {% empty %}<tr><td colspan="2" class="muted">لا توجد أرصدة</td></tr>{% endfor %}
     </tbody>
     <tfoot><tr><th>إجمالي {{ section.label }}</th><th class="num">{{ section.total|cur }}</th></tr></tfoot>
-  </table>
+  </table></div>
 </div>
 {% endfor %}
 <div class="card totals-card">

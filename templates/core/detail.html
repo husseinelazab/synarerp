@@ -87,9 +87,9 @@
 {% if approvals %}
 <div class="card">
   <h3>سلسلة الاعتماد</h3>
-  <table class="table"><thead><tr><th>المستوى</th><th>المعتمد</th><th>الحالة</th></tr></thead>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المستوى</th><th>المعتمد</th><th>الحالة</th></tr></thead>
     <tbody>{% for a in approvals %}<tr><td>{{ a.level }}</td><td>{{ a.approvers }}</td>
-      <td>{% if a.record %}<span class="badge status-1">اعتمده {{ a.record.user.get_full_name|default:a.record.user.username }} — {{ a.record.approved_at|date:"Y-m-d H:i" }}</span>{% else %}<span class="badge status-0">بانتظار</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+      <td>{% if a.record %}<span class="badge status-1">اعتمده {{ a.record.user.get_full_name|default:a.record.user.username }} — {{ a.record.approved_at|date:"Y-m-d H:i" }}</span>{% else %}<span class="badge status-0">بانتظار</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
   <p class="muted small">زر «اعتماد» يسجل موافقتك على مستواك؛ يُعتمد المستند ويُرحّل بعد اكتمال كل المستويات. تعديل المسودة يلغي الموافقات السابقة.</p>
 </div>
 {% endif %}
@@ -103,10 +103,10 @@
 {% if child_rows %}
 <div class="card">
   <h3>{{ dt.child.label }}</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>#</th>{% for h in child_headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
     <tbody>{% for row in child_rows %}<tr><td>{{ forloop.counter }}</td>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
@@ -136,30 +136,30 @@
 {% if obj.linked_documents %}
 <div class="card">
   <h3>المستندات المرتبطة</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>المستند</th><th>الرقم</th><th>التاريخ</th><th class="num">الإجمالي</th><th>الحالة</th></tr></thead>
     <tbody>{% for d in obj.linked_documents %}<tr><td>{{ d.document_title|default:d|default:"" }}</td><td><a href="{{ d.get_absolute_url }}">{{ d.name }}</a></td><td>{{ d.posting_date|date:"Y-m-d" }}</td><td class="num">{{ d.grand_total|cur:d.currency }}</td><td><span class="badge status-{{ d.docstatus }}">{{ d.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
 {% if obj.returns.exists %}
 <div class="card">
   <h3>المرتجعات</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الرقم</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead>
     <tbody>{% for r in obj.returns.all %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r.name }}</a></td><td>{{ r.posting_date|date:"Y-m-d" }}</td><td>{{ r.grand_total|money }}</td><td><span class="badge status-{{ r.docstatus }}">{{ r.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
 {% if payments %}
 <div class="card">
   <h3>السندات المرتبطة</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الرقم</th><th>التاريخ</th><th>المبلغ</th><th>الحالة</th></tr></thead>
     <tbody>{% for row in payments %}{% with p=row.doc %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.name }}</a> <span class="muted small">{{ p|verbose_name }}</span></td><td>{{ p.posting_date|date:"Y-m-d" }}</td><td>{{ row.amount|money }}</td><td><span class="badge status-{{ p.docstatus }}">{{ p.get_docstatus_display }}</span></td></tr>{% endwith %}{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
@@ -190,21 +190,21 @@
     <h3>القيد المحاسبي {% if obj.is_cancelled %}(ملغى){% endif %}</h3>
     <span class="muted">رقم القيد: {{ obj.name }} · التاريخ: {{ obj.posting_date|date:"Y-m-d" }}</span>
   </div>
-  <table class="table journal">
+  <div class="table-wrap"><table class="table journal">
     <thead><tr><th>الحساب</th><th>الطرف</th><th>مركز التكلفة</th><th>البيان</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead>
     <tbody>{% for g in gl_entries %}<tr class="{% if g.is_cancelled %}cancelled{% endif %}"><td><a href="{% url 'general_ledger' %}?account={{ g.account_id }}">{{ g.account }}</a></td><td>{{ g.party|default:"" }}</td><td>{{ g.cost_center|default:"" }}</td><td class="muted">{{ g.remarks }}</td><td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>{% endfor %}</tbody>
     <tfoot><tr><th colspan="4">الإجمالي {% if gl_totals.balanced %}<span class="ok">✓ متوازن</span>{% endif %}</th><th class="num">{{ gl_totals.debit|cur }}</th><th class="num">{{ gl_totals.credit|cur }}</th></tr></tfoot>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
 {% if stock_entries %}
 <div class="card">
   <h3>حركات المخزون</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الصنف</th><th>المستودع</th><th>الكمية</th><th>سعر التقييم</th><th>فرق القيمة</th><th>الحالة</th></tr></thead>
     <tbody>{% for s in stock_entries %}<tr class="{% if s.is_cancelled %}cancelled{% endif %}"><td>{{ s.item }}</td><td>{{ s.warehouse }}</td><td>{{ s.actual_qty|floatformat:-3 }}</td><td>{{ s.valuation_rate|money }}</td><td>{{ s.stock_value_difference|money }}</td><td>{% if s.is_cancelled %}ملغى{% else %}فعّال{% endif %}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 {% endblock %}

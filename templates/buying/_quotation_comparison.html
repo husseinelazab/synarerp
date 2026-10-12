@@ -3,12 +3,12 @@
   <h3>مقارنة عروض الموردين</h3>
   <p class="muted small">من «طلب عرض سعر من مورد» أنشئ عرضاً لكل مورد (أو «نسخة لمورد آخر» من عرض قائم)، أدخل أسعاره واعتمده،
     ثم حوّل الأفضل إلى أمر شراء. الأسعار مقارنة بعملة الشركة لكل وحدة أساسية.</p>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الصنف</th><th>الكمية</th><th>العروض (الأقل أولاً)</th></tr></thead>
     <tbody>{% for r in rows %}<tr><td>{{ r.item }}</td><td>{{ r.qty|floatformat:-3 }}</td><td>
       {% for o in r.offers %}<div class="{% if o.best %}ok strong{% endif %}">{% if o.best %}★ {% endif %}{{ o.supplier }}: {{ o.base_rate|money }}
         <a class="muted small" href="{{ o.quote.get_absolute_url }}">{{ o.quote.name }}</a>{% if o.lead_days %} <span class="muted small">توريد {{ o.lead_days }} يوم</span>{% endif %}</div>
       {% empty %}<span class="muted">لا توجد عروض معتمدة</span>{% endfor %}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endwith %}{% endif %}

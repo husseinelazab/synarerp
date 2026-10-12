@@ -70,8 +70,8 @@
     {% endlocalize %}
     <details class="table-view">
       <summary>عرض كجدول</summary>
-      <table class="table"><thead><tr><th>الشهر</th><th>المبيعات</th><th>المشتريات</th></tr></thead>
-      <tbody>{% for m in chart.data %}<tr><td>{{ m.label }}</td><td>{{ m.sales|money }}</td><td>{{ m.purchases|money }}</td></tr>{% endfor %}</tbody></table>
+      <div class="table-wrap"><table class="table"><thead><tr><th>الشهر</th><th>المبيعات</th><th>المشتريات</th></tr></thead>
+      <tbody>{% for m in chart.data %}<tr><td>{{ m.label }}</td><td>{{ m.sales|money }}</td><td>{{ m.purchases|money }}</td></tr>{% endfor %}</tbody></table></div>
     </details>
   </div>
   <div class="card">
@@ -84,7 +84,7 @@
 
 <div class="card">
   <div class="card-head"><h3>آخر الفواتير</h3><span><a href="{% url 'doc_list' 'sales-invoice' %}">المبيعات</a> · <a href="{% url 'doc_list' 'purchase-invoice' %}">المشتريات</a></span></div>
-  <table class="table table-hover">
+  <div class="table-wrap"><table class="table table-hover">
     <thead><tr><th>الرقم</th><th>النوع</th><th>الطرف</th><th>التاريخ</th><th class="num">الإجمالي</th><th>الحالة</th></tr></thead>
     <tbody>
     {% for doc in recent %}
@@ -100,6 +100,6 @@
       <tr><td colspan="6" class="muted center">لا توجد فواتير بعد — ابدأ من «إنشاء جديد».</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

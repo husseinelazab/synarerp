@@ -9,12 +9,12 @@
   <button class="btn btn-primary">عرض</button>
 </form>
 <div class="card">
-<table class="table report">
+<div class="table-wrap"><table class="table report">
   <thead><tr><th>التاريخ</th><th>الصنف</th><th>المستودع</th><th>الكمية</th><th>الرصيد بعد الحركة</th><th>سعر التقييم</th><th>فرق القيمة</th><th>المستند</th></tr></thead>
   <tbody>
     {% for e in entries %}<tr><td>{{ e.posting_date|date:"Y-m-d" }}</td><td>{{ e.item }}</td><td>{{ e.warehouse }}</td><td class="{% if e.actual_qty < 0 %}neg{% else %}pos{% endif %}">{{ e.actual_qty|floatformat:-3 }}</td><td>{{ e.qty_after_transaction|floatformat:-3 }}</td><td>{{ e.valuation_rate|money }}</td><td>{{ e.stock_value_difference|money }}</td><td><a href="{% url 'doc_detail' e.voucher_type e.voucher_id %}">{{ e.voucher_type|voucher_label }} {{ e.voucher_no }}</a></td></tr>
     {% empty %}<tr><td colspan="8" class="muted center">لا توجد حركات</td></tr>{% endfor %}
   </tbody>
-</table>
+</table></div>
 </div>
 {% endblock %}

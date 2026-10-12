@@ -37,23 +37,23 @@
 <div class="grid-2">
   <div class="card">
     <div class="card-head"><h3>في الدفاتر ولم تظهر في الكشف ({{ book_entries|length }})</h3></div>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th></th><th>التاريخ</th><th>المستند</th><th class="num">وارد</th><th class="num">صادر</th></tr></thead>
       <tbody>{% for g in book_entries %}<tr><td><input type="radio" name="entry" value="{{ g.pk }}"></td><td>{{ g.posting_date|date:"Y-m-d" }}</td>
         <td><a href="{% url 'doc_detail' g.voucher_type g.voucher_id %}">{{ g.voucher_no }}</a><div class="muted small">{{ g.remarks|truncatechars:40 }}</div></td>
         <td class="num">{% if g.debit %}{{ g.debit|money }}{% endif %}</td><td class="num">{% if g.credit %}{{ g.credit|money }}{% endif %}</td></tr>
       {% empty %}<tr><td colspan="5" class="muted center">لا توجد قيود غير مطابقة</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
   </div>
   <div class="card">
     <div class="card-head"><h3>في الكشف ولم تُطابق ({{ statement_lines|length }})</h3><a href="{% url 'doc_new' 'bank-transaction' %}?account={{ account.pk }}">+ إضافة حركة</a></div>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th></th><th>التاريخ</th><th>البيان</th><th class="num">إيداع</th><th class="num">سحب</th></tr></thead>
       <tbody>{% for l in statement_lines %}<tr><td><input type="radio" name="line" value="{{ l.pk }}"></td><td>{{ l.date|date:"Y-m-d" }}</td>
         <td>{{ l.description|default:"" }}<div class="muted small">{{ l.reference }}</div></td>
         <td class="num">{% if l.deposit %}{{ l.deposit|money }}{% endif %}</td><td class="num">{% if l.withdrawal %}{{ l.withdrawal|money }}{% endif %}</td></tr>
       {% empty %}<tr><td colspan="5" class="muted center">لا توجد حركات غير مطابقة</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
   </div>
 </div>
 <div class="form-actions" style="margin-bottom:18px"><button class="btn btn-success" name="action" value="match">مطابقة المحدد</button></div>
@@ -62,13 +62,13 @@
 {% if matched %}
 <div class="card">
   <h3>آخر المطابقات</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>تاريخ الكشف</th><th>البيان</th><th>القيد</th><th class="num">المبلغ</th><th></th></tr></thead>
     <tbody>{% for l in matched %}<tr><td>{{ l.date|date:"Y-m-d" }}</td><td>{{ l.description }}</td>
       <td><a href="{% url 'doc_detail' l.matched_entry.voucher_type l.matched_entry.voucher_id %}">{{ l.matched_entry.voucher_no }}</a></td>
       <td class="num">{{ l.amount|money }}</td>
       <td><form method="post">{% csrf_token %}<input type="hidden" name="account" value="{{ account.pk }}"><input type="hidden" name="to_date" value="{{ to_date|date:'Y-m-d' }}"><input type="hidden" name="line" value="{{ l.pk }}"><button class="link-btn" name="action" value="unmatch">إلغاء المطابقة</button></form></td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 {% else %}

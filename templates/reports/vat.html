@@ -5,7 +5,7 @@
 <div class="card">
 <p class="muted small">مرتب حسب بنود نموذج إقرار ضريبة القيمة المضافة لدى هيئة الزكاة والضريبة والجمارك. المرتجعات والإشعارات الدائنة مخصومة تلقائياً،
   والمبالغ بعملة الشركة. راجعه مع محاسبك قبل التقديم.</p>
-<table class="table report">
+<div class="table-wrap"><table class="table report">
   <thead><tr><th>#</th><th>البند</th><th class="num">المبلغ (بدون الضريبة)</th><th class="num">مبلغ الضريبة</th></tr></thead>
   <tbody>
     {% for r in sales_rows %}<tr><td>{{ r.no }}</td><td>{{ r.label }}</td><td class="num">{{ r.net|money }}</td><td class="num">{{ r.tax|money }}</td></tr>{% endfor %}
@@ -14,7 +14,7 @@
     <tr class="subtotal"><th>12</th><th>إجمالي المشتريات</th><th class="num">{{ purchases_net|money }}</th><th class="num">{{ input_tax|money }}</th></tr>
   </tbody>
   <tfoot><tr><th colspan="3">صافي الضريبة {% if net_vat >= 0 %}المستحقة للهيئة{% else %}القابلة للاسترداد{% endif %}</th><th class="num">{{ net_vat|cur }}</th></tr></tfoot>
-</table>
+</table></div>
 {% if out_of_scope.sales or out_of_scope.purchases %}
 <p class="muted small">خارج نطاق الضريبة (لا تُدرج في الإقرار): مبيعات {{ out_of_scope.sales|money }} · مشتريات {{ out_of_scope.purchases|money }}.</p>
 {% endif %}

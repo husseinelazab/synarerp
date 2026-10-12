@@ -5,11 +5,11 @@
 <div class="card">
   <p class="muted small">المدفوعات لموردين غير مقيمين بنسبة استقطاع (من سندات الصرف). يُقدم الإقرار وتُسدد الضريبة للهيئة خلال
     عشرة أيام من نهاية الشهر الذي تم فيه الدفع. حدد النسبة ونوع الدفعة في بطاقة المورد.</p>
-  <table class="table report"><thead><tr><th>نوع الدفعة</th><th class="num">النسبة</th><th class="num">عدد الدفعات</th><th class="num">إجمالي المبالغ</th><th class="num">الضريبة المستقطعة</th></tr></thead>
+  <div class="table-wrap"><table class="table report"><thead><tr><th>نوع الدفعة</th><th class="num">النسبة</th><th class="num">عدد الدفعات</th><th class="num">إجمالي المبالغ</th><th class="num">الضريبة المستقطعة</th></tr></thead>
   <tbody>{% for g in groups %}<tr><td>{{ g.type }}</td><td class="num">{{ g.rate|floatformat:-2 }}%</td><td class="num">{{ g.count }}</td><td class="num">{{ g.gross|money }}</td><td class="num">{{ g.tax|money }}</td></tr>
   {% empty %}<tr><td colspan="5" class="muted center">لا توجد مدفوعات خاضعة في الفترة</td></tr>{% endfor %}</tbody>
-  <tfoot><tr><th colspan="4">إجمالي الضريبة المستحقة للهيئة</th><th class="num">{{ total_tax|cur }}</th></tr></tfoot></table>
+  <tfoot><tr><th colspan="4">إجمالي الضريبة المستحقة للهيئة</th><th class="num">{{ total_tax|cur }}</th></tr></tfoot></table></div>
 </div>
-{% if payments %}<div class="card"><h3>التفاصيل</h3><table class="table"><thead><tr><th>التاريخ</th><th>السند</th><th>المورد</th><th class="num">المبلغ</th><th class="num">الاستقطاع</th></tr></thead>
-<tbody>{% for p in payments %}<tr><td>{{ p.posting_date|date:"Y-m-d" }}</td><td><a href="{{ p.get_absolute_url }}">{{ p.name }}</a></td><td>{{ p.supplier }}</td><td class="num">{{ p.amount|cur:p.currency }}</td><td class="num">{{ p.withholding_amount|cur:p.currency }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if payments %}<div class="card"><h3>التفاصيل</h3><div class="table-wrap"><table class="table"><thead><tr><th>التاريخ</th><th>السند</th><th>المورد</th><th class="num">المبلغ</th><th class="num">الاستقطاع</th></tr></thead>
+<tbody>{% for p in payments %}<tr><td>{{ p.posting_date|date:"Y-m-d" }}</td><td><a href="{{ p.get_absolute_url }}">{{ p.name }}</a></td><td>{{ p.supplier }}</td><td class="num">{{ p.amount|cur:p.currency }}</td><td class="num">{{ p.withholding_amount|cur:p.currency }}</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
 {% endblock %}

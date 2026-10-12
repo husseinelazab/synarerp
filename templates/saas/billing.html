@@ -23,17 +23,17 @@
 </div>
 <div class="card">
   <h3>الباقات المتاحة</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الباقة</th><th>شهرياً</th><th>سنوياً</th><th>المستخدمون</th><th>نقاط البيع</th><th>الذكاء الاصطناعي</th></tr></thead>
     <tbody>{% for p in plans %}<tr class="{% if subscription.plan_id == p.id %}group{% endif %}"><td>{{ p.name }}{% if subscription.plan_id == p.id %} (الحالية){% endif %}</td><td>{{ p.price_monthly|money }}</td><td>{{ p.price_yearly|money }}</td><td>{{ p.max_users }}</td><td>{% if p.includes_pos %}✓{% else %}—{% endif %}</td><td>{% if p.includes_ai %}✓{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 <div class="card">
   <h3>سجل المدفوعات</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>التاريخ</th><th>الباقة</th><th>المدة</th><th>الفترة</th><th>المبلغ</th><th>الطريقة</th></tr></thead>
     <tbody>{% for pay in payments %}<tr><td>{{ pay.created_at|date:"Y-m-d" }}</td><td>{{ pay.plan }}</td><td>{{ pay.months }} شهر</td><td>{{ pay.period_start|date:"Y-m-d" }} ← {{ pay.period_end|date:"Y-m-d" }}</td><td>{{ pay.amount|money }}</td><td>{{ pay.get_method_display }}</td></tr>
     {% empty %}<tr><td colspan="6" class="muted center">لا توجد مدفوعات بعد</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

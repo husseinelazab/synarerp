@@ -13,9 +13,9 @@
   </dl>
   {% if obj.payment_entries %}
   <h4>قيود الصرف</h4>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>القيد</th><th>البيان</th><th class="num">المبلغ</th><th>الحالة</th></tr></thead>
     <tbody>{% for je in obj.payment_entries %}<tr><td><a href="{{ je.get_absolute_url }}">{{ je.name }}</a></td><td>{{ je.remarks }}</td><td class="num">{{ je.total_debit|money }}</td><td><span class="badge status-{{ je.docstatus }}">{{ je.get_docstatus_display }}</span></td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
   {% endif %}
 </div>

@@ -13,10 +13,10 @@
 <div class="card">
   <div class="card-head"><h3>أقساط غير مرحّلة ({{ rows|length }})</h3>
     {% if rows %}<form method="post" onsubmit="return confirm('ترحيل الإهلاك؟')">{% csrf_token %}<input type="hidden" name="upto" value="{{ upto|date:'Y-m-d' }}"><button class="btn btn-success">ترحيل {{ total|cur }}</button></form>{% endif %}</div>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الشهر</th><th>الأصل</th><th>الفئة</th><th class="num">القسط</th></tr></thead>
     <tbody>{% for r in rows %}<tr><td>{{ r.schedule_date|date:"Y-m" }}</td><td><a href="{{ r.asset.get_absolute_url }}">{{ r.asset }}</a></td><td>{{ r.asset.category }}</td><td class="num">{{ r.amount|money }}</td></tr>
     {% empty %}<tr><td colspan="4" class="muted center">لا توجد أقساط مستحقة حتى هذا التاريخ</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

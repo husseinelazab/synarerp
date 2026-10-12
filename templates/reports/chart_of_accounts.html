@@ -6,7 +6,7 @@
   <a class="btn" href="{% url 'doc_export' 'account' %}">تصدير Excel</a>
   <a class="btn btn-primary" href="{% url 'doc_new' 'account' %}">+ حساب جديد</a></div></div>
 <div class="card">
-<table class="table report tree">
+<div class="table-wrap"><table class="table report tree">
   <thead><tr><th>الحساب</th><th>النوع</th><th>الرصيد (مدين + / دائن −)</th></tr></thead>
   <tbody>
   {% for node in rows %}
@@ -17,6 +17,6 @@
     </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@
   <a class="btn btn-primary" href="{% url 'user_create' %}">+ إضافة مستخدم</a>
 </div>
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th><th>التحقق الثنائي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>{% for m in members %}<tr class="{% if not m.is_active %}cancelled{% endif %}">
       <td>{{ m.user.get_full_name|default:"—" }}</td><td dir="ltr" style="text-align:right">{{ m.user.username }}</td><td>{{ m.user.email|default:"—" }}</td>
@@ -16,7 +16,7 @@
       <td>{% if m.user.two_factor.enabled %}<span class="badge status-1">مفعّل</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{% if m.is_active %}نشط{% else %}موقوف{% endif %}</td>
       <td>{% if m.role != 'owner' %}<a href="{% url 'user_edit' m.pk %}">إدارة</a>{% endif %}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 <div class="card muted">
   <strong>الأدوار:</strong> المالك والمدير يديران الإعدادات والمستخدمين والاشتراك · المستخدم يعمل على الوحدات والفروع المسموحة له (من «إدارة») ويعتمد المستندات إن مُنح ذلك · الكاشير يصل إلى نقطة البيع فقط.

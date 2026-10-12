@@ -34,8 +34,8 @@
   </div>
 </div>
 <div class="card"><h3>سجل المدفوعات</h3>
-  <table class="table"><thead><tr><th>التاريخ</th><th>الباقة</th><th>الأشهر</th><th>الفترة</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead>
+  <div class="table-wrap"><table class="table"><thead><tr><th>التاريخ</th><th>الباقة</th><th>الأشهر</th><th>الفترة</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead>
   <tbody>{% for p in payments %}<tr><td>{{ p.created_at|date:"Y-m-d" }}</td><td>{{ p.plan }}</td><td>{{ p.months }}</td><td>{{ p.period_start|date:"Y-m-d" }} ← {{ p.period_end|date:"Y-m-d" }}</td><td>{{ p.amount|money }}</td><td>{{ p.get_method_display }}</td><td>{{ p.reference }}</td></tr>
-  {% empty %}<tr><td colspan="7" class="muted center">لا توجد مدفوعات</td></tr>{% endfor %}</tbody></table>
+  {% empty %}<tr><td colspan="7" class="muted center">لا توجد مدفوعات</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endblock %}

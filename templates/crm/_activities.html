@@ -1,7 +1,7 @@
 {% load erp %}{% if dt.slug == 'lead' and obj.opportunities.exists %}
 <div class="card"><h3>فرص البيع</h3>
-<table class="table"><thead><tr><th>الفرصة</th><th>المرحلة</th><th class="num">القيمة المتوقعة</th></tr></thead>
-<tbody>{% for o in obj.opportunities.all %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o }}</a></td><td>{{ o.get_stage_display }}</td><td class="num">{{ o.expected_amount|money }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>الفرصة</th><th>المرحلة</th><th class="num">القيمة المتوقعة</th></tr></thead>
+<tbody>{% for o in obj.opportunities.all %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o }}</a></td><td>{{ o.get_stage_display }}</td><td class="num">{{ o.expected_amount|money }}</td></tr>{% endfor %}</tbody></table></div></div>
 {% endif %}
 <div class="card">
   <div class="card-head"><h3>المتابعات</h3><a class="btn btn-sm" href="{% url 'doc_new' 'activity' %}?{% if dt.slug == 'lead' %}lead{% else %}opportunity{% endif %}={{ obj.pk }}">+ متابعة</a></div>

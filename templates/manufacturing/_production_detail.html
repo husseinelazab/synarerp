@@ -3,10 +3,10 @@
   <div class="card">
     <h3>{% if obj.is_draft %}توفر المواد في «{{ obj.source_warehouse }}»{% else %}المواد المصروفة{% endif %}</h3>
     {% if obj.is_draft %}
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th>المادة</th><th>المطلوب</th><th>المتاح الصالح</th><th>العجز</th></tr></thead>
       <tbody>{% for a in obj.availability %}<tr{% if a.short %} class="row-loss"{% endif %}><td>{{ a.row.item }}</td><td>{{ a.row.qty|floatformat:-3 }}</td><td>{{ a.available|floatformat:-3 }}</td><td>{% if a.short %}<b class="neg">{{ a.short|floatformat:-3 }}</b>{% else %}<span class="pos">✓</span>{% endif %}</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
     {% if obj.has_shortage %}<div class="alert alert-error">لا يكفي رصيد بعض المواد؛ اشترِها أو حوّلها لمستودع المواد قبل الاعتماد.</div>{% endif %}
     {% else %}
     <p class="small">صُرفت المواد بتكلفتها الفعلية وقت الإنتاج{% if obj.item.has_batch_no %}، ومن التشغيلات الأقرب انتهاءً{% endif %}.</p>

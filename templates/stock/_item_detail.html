@@ -4,7 +4,7 @@
     <h3>وحدات البيع والشراء</h3>
     <a class="btn btn-sm btn-primary" href="{% url 'doc_new' 'item-uom' %}?item={{ obj.pk }}">+ إضافة وحدة (كرتون، علبة…)</a>
   </div>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الوحدة</th><th>تساوي</th><th>الباركود</th><th>سعر البيع</th><th></th></tr></thead>
     <tbody>
     {% for u in obj.uom_options %}
@@ -14,6 +14,6 @@
         <td>{% if not u.base %}<a class="small" href="{% url 'doc_list' 'item-uom' %}?q={{ obj.code }}">تعديل</a>{% endif %}</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   <p class="muted small">الرصيد والتكلفة دائماً بالوحدة الأساسية. اختر الوحدة في سطر الفاتورة أو الأمر، أو امسح باركودها، فتُحوّل الكمية تلقائياً.</p>
 </div>

@@ -12,7 +12,7 @@
   <button type="button" class="btn" onclick="window.print()">طباعة</button>
 </form>
 <div class="card">
-<table class="table report">
+<div class="table-wrap"><table class="table report">
   <thead><tr><th>التاريخ</th><th>الحساب</th><th>الطرف</th><th>مركز التكلفة</th><th>المستند</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
   <tbody>
     <tr class="subtle"><td colspan="8">الرصيد الافتتاحي</td><td>{{ opening|money }}</td></tr>
@@ -25,7 +25,7 @@
     {% endfor %}
   </tbody>
   <tfoot><tr><th colspan="6">الإجمالي / الرصيد الختامي</th><th>{{ total_debit|cur }}</th><th>{{ total_credit|cur }}</th><th>{{ closing|cur }}</th></tr></tfoot>
-</table>
+</table></div>
 <p class="muted">الرصيد الموجب = مدين، والسالب = دائن.</p>
 </div>
 {% endblock %}

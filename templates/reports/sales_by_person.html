@@ -24,7 +24,7 @@
 </form>{% endif %}
 </div>
 <div class="card"><h3>حسب المنطقة</h3>
-<table class="table report"><thead><tr><th>المنطقة</th><th class="num">العملاء</th><th class="num">الفواتير</th><th class="num">صافي المبيعات</th></tr></thead>
-<tbody>{% for r in by_territory %}<tr><td>{{ r.territory }}</td><td class="num">{{ r.customers }}</td><td class="num">{{ r.invoices }}</td><td class="num">{{ r.net|money }}</td></tr>{% endfor %}</tbody></table>
+<div class="table-wrap"><table class="table report"><thead><tr><th>المنطقة</th><th class="num">العملاء</th><th class="num">الفواتير</th><th class="num">صافي المبيعات</th></tr></thead>
+<tbody>{% for r in by_territory %}<tr><td>{{ r.territory }}</td><td class="num">{{ r.customers }}</td><td class="num">{{ r.invoices }}</td><td class="num">{{ r.net|money }}</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endblock %}

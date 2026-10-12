@@ -73,7 +73,11 @@ code { background: #eef; padding: 1px 6px; border-radius: 4px; direction: ltr; d
 .child-table td { padding: 6px; vertical-align: top; }
 .child-table .form-control, .child-table .form-select { min-width: 110px; }
 .child-totals { text-align: left; font-weight: 700; }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.table td, .table th { overflow-wrap: break-word; }
+.table td.num, .table th.num { white-space: nowrap; overflow-wrap: normal; }
+.content { min-width: 0; max-width: 100%; }
+.detail-grid dd { overflow-wrap: anywhere; }
 
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: right; }
@@ -200,7 +204,7 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
 .trend.down { color: var(--danger); }
 .dash-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 18px; }
 .dash-grid .card { margin: 0; }
-.legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
 .legend span { display: flex; align-items: center; gap: 6px; }
 .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .sw-1, .bar-sales { background: #2a78d6; fill: #2a78d6; }
@@ -330,3 +334,13 @@ tr.row-low td { background: #fff8e8; }
 .pipeline-col{padding:12px}
 .pipeline-card{display:flex;flex-direction:column;gap:2px;padding:10px;margin-top:8px;border:1px solid #e3e7ee;border-radius:8px;background:#fafbfd;color:inherit;text-decoration:none}
 .pipeline-card:hover{border-color:#1f4e79}
+
+/* الشاشات الصغيرة: الشريط العلوي يلتف بدلاً من أن يدفع الصفحة خارج العرض */
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
+  .topbar-title { flex: 1 1 60%; min-width: 0; font-size: 16px; overflow-wrap: anywhere; }
+  .user-box { flex: 1 1 100%; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; min-width: 0; }
+  .user-box .company-switch .form-select { min-width: 0; max-width: 100%; }
+  .toolbar, .actions { flex-wrap: wrap; }
+  .filters .form-control, .filters .form-select { min-width: 0; width: 100%; }
+}

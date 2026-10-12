@@ -306,6 +306,8 @@ def doc_print(request, slug, pk):
         "hijri_date": format_hijri(posting_date) if posting_date else "",
         "generic_fields": detail_fields(obj, exclude=exclude) if p["kind"] == "generic" else [],
         "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
+        # الجداول العريضة (مثل مسير الرواتب) تُطبع بالعرض وبخط أصغر حتى لا تخرج عن الورقة
+        "landscape": len(child_headers) > 7,
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals if f != "outstanding_amount"],
     })
 

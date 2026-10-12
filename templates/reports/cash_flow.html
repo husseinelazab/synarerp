@@ -5,7 +5,7 @@
 <div class="card">
   <p class="muted small">بالطريقة المباشرة: كل حركة على حسابات النقدية والبنوك تُنسب للحسابات المقابلة لها في نفس المستند.
     التصنيف من «تصنيف التدفق النقدي» في بطاقة الحساب (تلقائياً: الأصول الثابتة استثمارية، وحقوق الملكية والقروض تمويلية).</p>
-  <table class="table report">
+  <div class="table-wrap"><table class="table report">
     <tbody>
       <tr class="subtotal"><th>رصيد النقدية والبنوك أول الفترة</th><th class="num">{{ opening|cur }}</th></tr>
       {% for section in sections %}
@@ -19,7 +19,7 @@
       <tr><th>صافي التغير في النقدية</th><th class="num">{{ net|cur }}</th></tr>
       <tr><th>رصيد النقدية والبنوك آخر الفترة</th><th class="num">{{ closing|cur }}</th></tr>
     </tfoot>
-  </table>
+  </table></div>
   {% if reconciles %}<p class="ok small">✓ الرصيد الافتتاحي + صافي التغير = الرصيد الختامي</p>{% else %}<p class="field-error">الرصيد لا يطابق — راجع القيود بين حسابات النقدية.</p>{% endif %}
 </div>
 {% endblock %}

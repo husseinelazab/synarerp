@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{% static 'css/currency.css' %}">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'css/print.css' %}">
-<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }</style>
+<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }{% if landscape %} @page { size: A4 landscape; margin: 8mm; }{% endif %}</style>
 </head>
 <body class="tpl-{{ template }}">
 <div class="toolbar no-print">
@@ -20,7 +20,7 @@
   <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
 </div>
 
-<main class="sheet">
+<main class="sheet{% if landscape %} landscape{% endif %}">
   {% if obj.is_draft %}<div class="watermark">مسودة</div>{% elif obj.is_cancelled %}<div class="watermark">ملغاة</div>{% endif %}
 
   <header class="doc-header">

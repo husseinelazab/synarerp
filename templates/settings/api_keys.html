@@ -28,7 +28,7 @@
   </div>
 </form>
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>الاسم</th><th>البادئة</th><th>المستخدم</th><th>أنشئ</th><th>آخر استخدام</th><th>الحالة</th><th></th></tr></thead>
     <tbody>{% for k in keys %}<tr class="{% if k.revoked %}cancelled{% endif %}">
       <td>{{ k.name }}</td><td dir="ltr"><code>snr_{{ k.prefix }}_…</code></td><td>{{ k.user.username }}</td>
@@ -36,6 +36,6 @@
       <td>{% if k.revoked %}ملغى{% else %}<span class="badge status-1">فعّال</span>{% endif %}</td>
       <td>{% if not k.revoked %}<form method="post" onsubmit="return confirm('إلغاء المفتاح نهائياً؟')">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="key" value="{{ k.pk }}"><button class="btn btn-sm btn-danger-outline">إلغاء</button></form>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="7" class="muted center">لا توجد مفاتيح</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

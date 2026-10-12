@@ -2,9 +2,9 @@
 <div class="card">
   <h3>سجل الحركة</h3>
   {% if obj.warranty_expiry %}<p>{% if obj.under_warranty %}<span class="badge status-1">ضمن الضمان حتى {{ obj.warranty_expiry|date:"Y-m-d" }}</span>{% else %}<span class="badge status-2">انتهى الضمان في {{ obj.warranty_expiry|date:"Y-m-d" }}</span>{% endif %}</p>{% endif %}
-  <table class="table"><thead><tr><th>التاريخ</th><th>المستند</th><th>المستودع</th><th>الحركة</th><th>الحالة</th></tr></thead>
+  <div class="table-wrap"><table class="table"><thead><tr><th>التاريخ</th><th>المستند</th><th>المستودع</th><th>الحركة</th><th>الحالة</th></tr></thead>
   <tbody>{% for e in obj.ledger_entries.all %}<tr class="{% if e.is_cancelled %}cancelled{% endif %}"><td>{{ e.posting_date|date:"Y-m-d" }}</td>
     <td><a href="{% url 'doc_detail' e.voucher_type e.voucher_id %}">{{ e.voucher_no }}</a> <span class="muted small">{{ e.voucher_type|voucher_label }}</span></td>
     <td>{{ e.warehouse }}</td><td>{% if e.actual_qty > 0 %}دخول{% else %}خروج{% endif %}</td><td>{% if e.is_cancelled %}ملغى{% else %}فعّال{% endif %}</td></tr>
-  {% endfor %}</tbody></table>
+  {% endfor %}</tbody></table></div>
 </div>

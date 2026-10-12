@@ -37,12 +37,12 @@
 {% if history %}
 <div class="card">
   <h3>آخر عمليات الاستيراد</h3>
-  <table class="table table-hover">
+  <div class="table-wrap"><table class="table table-hover">
     <thead><tr><th>التاريخ</th><th>الملف</th><th>المستخدم</th><th>الحالة</th><th>النتيجة</th></tr></thead>
     <tbody>{% for job in history %}<tr class="clickable" data-href="{% url 'doc_import_job' dt.slug job.pk %}">
       <td><a href="{% url 'doc_import_job' dt.slug job.pk %}">{{ job.created_at|date:"Y-m-d H:i" }}</a></td><td>{{ job.file_name }}</td><td>{{ job.created_by|default:"" }}</td>
       <td>{{ job.get_status_display }}</td><td>{{ job.result.created|default:0 }} جديد · {{ job.result.updated|default:0 }} محدّث · {{ job.result.failed|default:0 }} خطأ</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 {% endblock %}

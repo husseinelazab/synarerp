@@ -8,20 +8,20 @@
 </div>
 <div class="card">
   <h3>ملخص الفئات</h3>
-  <table class="table report">
+  <div class="table-wrap"><table class="table report">
     <thead><tr><th>الفئة</th><th>العدد</th><th class="num">التكلفة</th><th class="num">مجمع الإهلاك</th><th class="num">القيمة الدفترية</th></tr></thead>
     <tbody>{% for name, g in groups.items %}<tr><td>{{ name }}</td><td>{{ g.count }}</td><td class="num">{{ g.cost|money }}</td><td class="num">{{ g.accumulated|money }}</td><td class="num">{{ g.book|money }}</td></tr>
     {% empty %}<tr><td colspan="5" class="muted center">لا توجد أصول</td></tr>{% endfor %}</tbody>
     <tfoot><tr><th colspan="2">الإجمالي</th><th class="num">{{ totals.cost|cur }}</th><th class="num">{{ totals.accumulated|cur }}</th><th class="num">{{ totals.book|cur }}</th></tr></tfoot>
-  </table>
+  </table></div>
 </div>
 <div class="card">
   <h3>الأصول</h3>
-  <table class="table report">
+  <div class="table-wrap"><table class="table report">
     <thead><tr><th>الأصل</th><th>الفئة</th><th>تاريخ الشراء</th><th>العهدة / الموقع</th><th class="num">التكلفة</th><th class="num">مجمع الإهلاك</th><th class="num">القيمة الدفترية</th></tr></thead>
     <tbody>{% for r in rows %}<tr><td><a href="{{ r.asset.get_absolute_url }}">{{ r.asset }}</a></td><td>{{ r.asset.category }}</td><td>{{ r.asset.purchase_date|date:"Y-m-d" }}</td>
       <td>{{ r.asset.custodian.full_name|default:"" }}{% if r.asset.location %} · {{ r.asset.location }}{% endif %}</td>
       <td class="num">{{ r.cost|money }}</td><td class="num">{{ r.accumulated|money }}</td><td class="num">{{ r.book|money }}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

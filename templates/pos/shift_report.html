@@ -2,16 +2,16 @@
 {% block title %}تقرير الوردية #{{ shift.pk }}{% if card_transactions %}
 <div class="card">
   <h3>عمليات البطاقات — للمطابقة مع كشف تسوية مدى من البنك</h3>
-  <table class="table"><thead><tr><th>الوقت</th><th>الفاتورة</th><th>النوع</th><th>المبلغ</th><th>رقم الموافقة</th><th>المرجع RRN</th><th>البطاقة</th><th>الجهاز</th><th>الوضع</th></tr></thead>
-  <tbody>{% for t in card_transactions %}<tr><td>{{ t.created_at|date:"H:i" }}</td><td>{% if t.invoice %}<a href="{{ t.invoice.get_absolute_url }}">{{ t.invoice.name }}</a>{% if t.invoice.docstatus == 2 %} <span class="badge status-2">ملغاة</span>{% endif %}{% endif %}</td><td>{{ t.get_kind_display }}</td><td>{{ t.amount|money }}</td><td dir="ltr">{{ t.auth_code }}</td><td dir="ltr">{{ t.rrn }}</td><td dir="ltr">{% if t.card_last4 %}{{ t.scheme|upper }} •••• {{ t.card_last4 }}{% endif %}</td><td dir="ltr">{{ t.terminal_id }}</td><td>{{ t.get_mode_display|truncatechars:20 }}</td></tr>{% endfor %}</tbody></table>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الوقت</th><th>الفاتورة</th><th>النوع</th><th>المبلغ</th><th>رقم الموافقة</th><th>المرجع RRN</th><th>البطاقة</th><th>الجهاز</th><th>الوضع</th></tr></thead>
+  <tbody>{% for t in card_transactions %}<tr><td>{{ t.created_at|date:"H:i" }}</td><td>{% if t.invoice %}<a href="{{ t.invoice.get_absolute_url }}">{{ t.invoice.name }}</a>{% if t.invoice.docstatus == 2 %} <span class="badge status-2">ملغاة</span>{% endif %}{% endif %}</td><td>{{ t.get_kind_display }}</td><td>{{ t.amount|money }}</td><td dir="ltr">{{ t.auth_code }}</td><td dir="ltr">{{ t.rrn }}</td><td dir="ltr">{% if t.card_last4 %}{{ t.scheme|upper }} •••• {{ t.card_last4 }}{% endif %}</td><td dir="ltr">{{ t.terminal_id }}</td><td>{{ t.get_mode_display|truncatechars:20 }}</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endif %}
 {% endblock %}
 {% block heading %}تقرير الوردية #{{ shift.pk }} — {{ shift.profile }}{% if card_transactions %}
 <div class="card">
   <h3>عمليات البطاقات — للمطابقة مع كشف تسوية مدى من البنك</h3>
-  <table class="table"><thead><tr><th>الوقت</th><th>الفاتورة</th><th>النوع</th><th>المبلغ</th><th>رقم الموافقة</th><th>المرجع RRN</th><th>البطاقة</th><th>الجهاز</th><th>الوضع</th></tr></thead>
-  <tbody>{% for t in card_transactions %}<tr><td>{{ t.created_at|date:"H:i" }}</td><td>{% if t.invoice %}<a href="{{ t.invoice.get_absolute_url }}">{{ t.invoice.name }}</a>{% if t.invoice.docstatus == 2 %} <span class="badge status-2">ملغاة</span>{% endif %}{% endif %}</td><td>{{ t.get_kind_display }}</td><td>{{ t.amount|money }}</td><td dir="ltr">{{ t.auth_code }}</td><td dir="ltr">{{ t.rrn }}</td><td dir="ltr">{% if t.card_last4 %}{{ t.scheme|upper }} •••• {{ t.card_last4 }}{% endif %}</td><td dir="ltr">{{ t.terminal_id }}</td><td>{{ t.get_mode_display|truncatechars:20 }}</td></tr>{% endfor %}</tbody></table>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الوقت</th><th>الفاتورة</th><th>النوع</th><th>المبلغ</th><th>رقم الموافقة</th><th>المرجع RRN</th><th>البطاقة</th><th>الجهاز</th><th>الوضع</th></tr></thead>
+  <tbody>{% for t in card_transactions %}<tr><td>{{ t.created_at|date:"H:i" }}</td><td>{% if t.invoice %}<a href="{{ t.invoice.get_absolute_url }}">{{ t.invoice.name }}</a>{% if t.invoice.docstatus == 2 %} <span class="badge status-2">ملغاة</span>{% endif %}{% endif %}</td><td>{{ t.get_kind_display }}</td><td>{{ t.amount|money }}</td><td dir="ltr">{{ t.auth_code }}</td><td dir="ltr">{{ t.rrn }}</td><td dir="ltr">{% if t.card_last4 %}{{ t.scheme|upper }} •••• {{ t.card_last4 }}{% endif %}</td><td dir="ltr">{{ t.terminal_id }}</td><td>{{ t.get_mode_display|truncatechars:20 }}</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endif %}
 {% endblock %}
@@ -37,20 +37,20 @@
 <div class="grid-2">
   <div class="card">
     <h3>الأصناف الأكثر مبيعاً</h3>
-    <table class="table"><thead><tr><th>الصنف</th><th>الكمية</th><th>القيمة</th></tr></thead>
-    <tbody>{% for r in top_items %}<tr><td>{{ r.items__item__name }}</td><td>{{ r.qty|floatformat:-3 }}</td><td>{{ r.amount|money }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">لا توجد مبيعات</td></tr>{% endfor %}</tbody></table>
+    <div class="table-wrap"><table class="table"><thead><tr><th>الصنف</th><th>الكمية</th><th>القيمة</th></tr></thead>
+    <tbody>{% for r in top_items %}<tr><td>{{ r.items__item__name }}</td><td>{{ r.qty|floatformat:-3 }}</td><td>{{ r.amount|money }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">لا توجد مبيعات</td></tr>{% endfor %}</tbody></table></div>
   </div>
   <div class="card">
     <h3>الفواتير</h3>
-    <table class="table"><thead><tr><th>الفاتورة</th><th>الوقت</th><th>الإجمالي</th><th>نقداً</th><th>بطاقة</th><th>الحالة</th></tr></thead>
-    <tbody>{% for inv in invoices %}<tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.created_at|date:"H:i" }}</td><td>{{ inv.grand_total|money }}</td><td>{{ inv.cash_received|money }}</td><td>{{ inv.paid_card|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span>{% if inv.is_return %} <span class="badge status-2">مرتجع</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="muted">لا توجد فواتير</td></tr>{% endfor %}</tbody></table>
+    <div class="table-wrap"><table class="table"><thead><tr><th>الفاتورة</th><th>الوقت</th><th>الإجمالي</th><th>نقداً</th><th>بطاقة</th><th>الحالة</th></tr></thead>
+    <tbody>{% for inv in invoices %}<tr><td><a href="{{ inv.get_absolute_url }}">{{ inv.name }}</a></td><td>{{ inv.created_at|date:"H:i" }}</td><td>{{ inv.grand_total|money }}</td><td>{{ inv.cash_received|money }}</td><td>{{ inv.paid_card|money }}</td><td><span class="badge status-{{ inv.docstatus }}">{{ inv.get_docstatus_display }}</span>{% if inv.is_return %} <span class="badge status-2">مرتجع</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="muted">لا توجد فواتير</td></tr>{% endfor %}</tbody></table></div>
   </div>
 </div>
 {% if card_transactions %}
 <div class="card">
   <h3>عمليات البطاقات — للمطابقة مع كشف تسوية مدى من البنك</h3>
-  <table class="table"><thead><tr><th>الوقت</th><th>الفاتورة</th><th>النوع</th><th>المبلغ</th><th>رقم الموافقة</th><th>المرجع RRN</th><th>البطاقة</th><th>الجهاز</th><th>الوضع</th></tr></thead>
-  <tbody>{% for t in card_transactions %}<tr><td>{{ t.created_at|date:"H:i" }}</td><td>{% if t.invoice %}<a href="{{ t.invoice.get_absolute_url }}">{{ t.invoice.name }}</a>{% if t.invoice.docstatus == 2 %} <span class="badge status-2">ملغاة</span>{% endif %}{% endif %}</td><td>{{ t.get_kind_display }}</td><td>{{ t.amount|money }}</td><td dir="ltr">{{ t.auth_code }}</td><td dir="ltr">{{ t.rrn }}</td><td dir="ltr">{% if t.card_last4 %}{{ t.scheme|upper }} •••• {{ t.card_last4 }}{% endif %}</td><td dir="ltr">{{ t.terminal_id }}</td><td>{{ t.get_mode_display|truncatechars:20 }}</td></tr>{% endfor %}</tbody></table>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الوقت</th><th>الفاتورة</th><th>النوع</th><th>المبلغ</th><th>رقم الموافقة</th><th>المرجع RRN</th><th>البطاقة</th><th>الجهاز</th><th>الوضع</th></tr></thead>
+  <tbody>{% for t in card_transactions %}<tr><td>{{ t.created_at|date:"H:i" }}</td><td>{% if t.invoice %}<a href="{{ t.invoice.get_absolute_url }}">{{ t.invoice.name }}</a>{% if t.invoice.docstatus == 2 %} <span class="badge status-2">ملغاة</span>{% endif %}{% endif %}</td><td>{{ t.get_kind_display }}</td><td>{{ t.amount|money }}</td><td dir="ltr">{{ t.auth_code }}</td><td dir="ltr">{{ t.rrn }}</td><td dir="ltr">{% if t.card_last4 %}{{ t.scheme|upper }} •••• {{ t.card_last4 }}{% endif %}</td><td dir="ltr">{{ t.terminal_id }}</td><td>{{ t.get_mode_display|truncatechars:20 }}</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endif %}
 {% endblock %}

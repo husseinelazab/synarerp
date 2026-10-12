@@ -43,10 +43,10 @@
 {% if result.errors %}
 <div class="card">
   <h3>الأخطاء ({{ result.errors|length }})</h3>
-  <table class="table">
+  <div class="table-wrap"><table class="table">
     <thead><tr><th>رقم الصف في الملف</th><th>العمود</th><th>الخطأ</th></tr></thead>
     <tbody>{% for e in result.errors %}<tr><td>{{ e.row }}</td><td>{{ e.column }}</td><td class="neg">{{ e.message }}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 {% endblock %}

@@ -36,6 +36,7 @@ class Command(BaseCommand):
             self.run("accounts_alerts")
             self.run("run_recurring")
             self.run("crm_reminders")
+            self.run("support_alerts")
             self.run("zatca_submit")
             from core.jobs import run_pending
 
@@ -65,4 +66,5 @@ class Command(BaseCommand):
                 self.run("accounts_alerts")
                 self.run("run_recurring")
                 self.run("crm_reminders")
+                self.run("support_alerts")
             time.sleep(int(os.environ.get("SYNAR_SCHEDULER_TICK", "5")))

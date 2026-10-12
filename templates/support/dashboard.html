@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'service-ticket' %}">+ تذكرة</a>
+  <a class="btn" href="{% url 'doc_new' 'maintenance-contract' %}">+ عقد صيانة</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>تذاكر مفتوحة</span><b>{{ open_tickets|length }}</b></div>
+  <div class="kpi {% if overdue %}kpi-bad{% endif %}"><span>متأخرة عن الموعد</span><b>{{ overdue|length }}</b></div>
+  <div class="kpi kpi-good"><span>الالتزام بمستوى الخدمة (30 يوماً)</span><b>{% if sla_rate is not None %}{{ sla_rate }}%{% else %}—{% endif %}</b><span>{{ resolved_count }} محلولة</span></div>
+  {% for s in by_status %}<div class="kpi"><span>{{ statuses|get_item:s.status }}</span><b>{{ s.n }}</b></div>{% endfor %}
+</div>
+<div class="card"><h3>التذاكر المفتوحة</h3>
+<table class="table"><thead><tr><th>التذكرة</th><th>العميل</th><th>الأولوية</th><th>الحالة</th><th>الفني</th><th>موعد الحل</th><th>التغطية</th></tr></thead>
+<tbody>{% for t in open_tickets %}<tr class="{% if t.is_overdue %}row-loss{% endif %}"><td><a href="{{ t.get_absolute_url }}">{{ t }}</a></td><td>{{ t.customer }}</td>
+<td>{{ t.get_priority_display }}</td><td>{{ t.get_status_display }}</td><td>{{ t.assigned_to|default:"" }}</td><td>{{ t.due_at|date:"Y-m-d H:i" }}</td>
+<td>{% if t.covered %}<span class="badge status-1">مشمولة</span>{% else %}<span class="badge status-0">مدفوعة</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted center">لا توجد تذاكر مفتوحة</td></tr>{% endfor %}</tbody></table></div>
+<div class="grid-2">
+<div class="card"><h3>زيارات خلال 7 أيام</h3><table class="table"><tbody>{% for v in visits %}<tr class="{% if v.scheduled_date < today %}row-loss{% endif %}"><td><a href="{{ v.get_absolute_url }}">{{ v.scheduled_date|date:"Y-m-d" }}</a></td><td>{{ v.customer }}</td><td>{{ v.purpose }}</td><td>{{ v.technician|default:"" }}</td></tr>{% empty %}<tr><td class="muted">لا زيارات</td></tr>{% endfor %}</tbody></table></div>
+<div class="card"><h3>عقود تنتهي خلال 30 يوماً</h3><table class="table"><tbody>{% for c in expiring %}<tr><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td>{{ c.customer }}</td><td>{{ c.end_date|date:"Y-m-d" }}</td></tr>{% empty %}<tr><td class="muted">لا شيء</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

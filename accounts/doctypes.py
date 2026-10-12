@@ -8,7 +8,7 @@ register(DocType(
     list_fields=["name", "posting_date", "entry_type", "total_debit", "remarks"],
     form_fields=["posting_date", "entry_type", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(JournalEntryAccount, ["account", "customer", "supplier", "debit", "credit", "cost_center", "description"],
+    child=ChildTable(JournalEntryAccount, ["account", "customer", "supplier", "debit", "credit", "cost_center", "project", "description"],
                      label="الحسابات"),
     totals=["total_debit", "total_credit"],
 ))
@@ -116,7 +116,7 @@ register(DocType(
     list_fields=["name", "posting_date", "custody", "total_expenses", "returned_amount"],
     form_fields=["custody", "posting_date", "returned_amount", "return_account", "remarks"],
     search_fields=["name", "custody__name", "custody__employee__full_name"],
-    child=ChildTable(CustodyExpense, ["account", "description", "bill_no", "amount", "tax_amount", "cost_center"],
+    child=ChildTable(CustodyExpense, ["account", "description", "bill_no", "amount", "tax_amount", "cost_center", "project"],
                      label="المصروفات", min_rows=0),
     totals=["total_expenses", "returned_amount"],
 ))

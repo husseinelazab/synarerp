@@ -143,6 +143,8 @@ class GLEntry(TenantModel):
     customer = models.ForeignKey("selling.Customer", models.PROTECT, null=True, blank=True, verbose_name="العميل")
     supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
     cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة")
+    project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
+                                verbose_name="المشروع")
     voucher_type = models.CharField("نوع المستند", max_length=50)
     voucher_no = models.CharField("رقم المستند", max_length=40)
     voucher_id = models.PositiveBigIntegerField("معرّف المستند")
@@ -210,6 +212,7 @@ class JournalEntry(SubmittableDocument):
                 "customer": line.customer,
                 "supplier": line.supplier,
                 "cost_center": line.cost_center,
+                "project": line.project,
                 "remarks": line.description or self.remarks,
             }
             for line in self.accounts.select_related("account", "customer", "supplier")
@@ -238,6 +241,8 @@ class JournalEntryAccount(models.Model):
     credit = models.DecimalField("دائن", max_digits=18, decimal_places=2, default=0)
     cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة",
                                     limit_choices_to={"is_group": False, "disabled": False})
+    project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
+                                verbose_name="المشروع")
     description = models.CharField("البيان", max_length=255, blank=True)
 
     class Meta:
@@ -1536,7 +1541,7 @@ class CustodySettlement(SubmittableDocument):
         entries = []
         for line in self.lines.select_related("account"):
             entries.append({"account": line.account, "debit": line.amount, "cost_center": line.cost_center,
-                            "remarks": line.description or self.custody.purpose})
+                            "project": line.project, "remarks": line.description or self.custody.purpose})
             if line.tax_amount:
                 entries.append({"account": self.company.require_account("default_input_tax_account"),
                                 "debit": line.tax_amount, "remarks": f"ضريبة مدخلات {line.bill_no}".strip()})
@@ -1562,6 +1567,8 @@ class CustodyExpense(models.Model):
     tax_amount = models.DecimalField("ضريبة القيمة المضافة", max_digits=18, decimal_places=2, default=0)
     cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, related_name="+",
                                     limit_choices_to={"is_group": False, "disabled": False}, verbose_name="مركز التكلفة")
+    project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
+                                verbose_name="المشروع")
 
     class Meta:
         verbose_name = "مصروف من العهدة"

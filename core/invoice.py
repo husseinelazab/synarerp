@@ -86,6 +86,8 @@ class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
     cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True, related_name="+",
                                     limit_choices_to={"is_group": False, "disabled": False},
                                     verbose_name="مركز التكلفة / الفرع")
+    project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
+                                verbose_name="المشروع")
     total = models.DecimalField("الإجمالي قبل الخصم", max_digits=18, decimal_places=2, default=0, editable=False)
     discount_amount = models.DecimalField("الخصم", max_digits=18, decimal_places=2, default=0)
     net_total = models.DecimalField("الصافي قبل الضريبة", max_digits=18, decimal_places=2, default=0, editable=False)
@@ -110,7 +112,7 @@ class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
     return_prefix = "RET"
     # حقول تُنسخ من الفاتورة الأصلية إلى المرتجع ولا يجوز تغييرها فيه
     return_locked_fields = ["tax_rate", "vat_category", "vat_exemption_reason", "update_stock", "cost_center", "currency",
-                            "exchange_rate"]
+                            "exchange_rate", "project"]
 
     class Meta(SubmittableDocument.Meta):
         abstract = True

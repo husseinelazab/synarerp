@@ -501,6 +501,8 @@ class StockEntry(SubmittableDocument):
     to_warehouse = models.ForeignKey(
         Warehouse, models.PROTECT, null=True, blank=True, related_name="+", verbose_name="إلى مستودع"
     )
+    project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
+                                verbose_name="المشروع")
     material_request = models.ForeignKey("buying.MaterialRequest", models.SET_NULL, null=True, blank=True,
                                          related_name="transfers", editable=False, verbose_name="طلب المواد")
     total_amount = models.DecimalField("إجمالي القيمة", max_digits=18, decimal_places=2, default=0, editable=False)

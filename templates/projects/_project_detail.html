@@ -1,0 +1,15 @@
+{% load erp %}{% with t=obj.gl_totals %}
+<div class="kpis">
+  <div class="kpi"><span>نسبة الإنجاز</span><b>{{ obj.progress|floatformat:0 }}%</b></div>
+  <div class="kpi"><span>المفوتر</span><b>{{ obj.billed_amount|money }}</b></div>
+  <div class="kpi"><span>الإيرادات</span><b>{{ t.revenue|money }}</b></div>
+  <div class="kpi"><span>التكاليف</span><b>{{ t.cost|money }}</b></div>
+  <div class="kpi {% if t.profit < 0 %}kpi-bad{% else %}kpi-good{% endif %}"><span>الربح</span><b>{{ t.profit|money }}</b></div>
+</div>{% endwith %}
+<div class="card">
+  <div class="card-head"><h3>المهام</h3><a class="btn btn-sm" href="{% url 'doc_new' 'project-task' %}?project={{ obj.pk }}">+ مهمة</a></div>
+  <table class="table"><thead><tr><th>المهمة</th><th>المسؤول</th><th>الاستحقاق</th><th>الحالة</th><th class="num">الإنجاز</th><th class="num">الوزن</th></tr></thead>
+  <tbody>{% for t in obj.tasks.all %}<tr class="{% if t.is_overdue %}row-loss{% endif %}"><td><a href="{{ t.get_absolute_url }}">{{ t }}</a></td><td>{{ t.assigned_to|default:"" }}</td>
+    <td>{{ t.due_date|date:"Y-m-d" }}</td><td>{{ t.get_status_display }}</td><td class="num">{{ t.effective_progress|floatformat:0 }}%</td><td class="num">{{ t.weight|floatformat:-2 }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا توجد مهام</td></tr>{% endfor %}</tbody></table>
+</div>

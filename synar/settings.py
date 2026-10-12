@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "messaging",
     "pricing",
     "crm",
+    "projects",
 ]
 
 MIDDLEWARE = [

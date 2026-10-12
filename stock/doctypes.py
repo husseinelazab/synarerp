@@ -16,7 +16,7 @@ register(DocType(
 register(DocType(
     slug="stock-entry", model=StockEntry, module="stock",
     list_fields=["name", "posting_date", "purpose", "from_warehouse", "to_warehouse", "total_amount"],
-    form_fields=["purpose", "posting_date", "from_warehouse", "to_warehouse", "remarks"],
+    form_fields=["purpose", "posting_date", "from_warehouse", "to_warehouse", "project", "remarks"],
     search_fields=["name", "remarks"],
     child=ChildTable(StockEntryItem, ["item", "qty", "rate", "batch_no", "expiry_date", "serial_nos"], rate_type="buying"),
     totals=["total_amount"],

@@ -71,7 +71,11 @@ def filtered_queryset(request, dt):
 @login_required
 def doc_list(request, slug):
     if slug == "account":
-        return redirect("chart_of_accounts")
+        from django.urls import reverse
+        from django.utils.http import urlencode
+
+        query = request.GET.get("q", "").strip()
+        return redirect(reverse("chart_of_accounts") + (f"?{urlencode({'q': query})}" if query else ""))
     dt = get_doctype(slug)
     qs, query, status, choice_filters = filtered_queryset(request, dt)
     page = Paginator(qs, 25).get_page(request.GET.get("page"))

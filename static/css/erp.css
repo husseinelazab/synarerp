@@ -28,6 +28,9 @@ code { background: #eef; padding: 1px 6px; border-radius: 4px; direction: ltr; d
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { display: flex; align-items: center; gap: 16px; background: var(--card); padding: 12px 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
 .topbar-title { flex: 1; font-size: 18px; font-weight: 700; }
+.global-search { flex: 0 1 280px; margin: 0; }
+.global-search .form-control { width: 100%; padding-top: 6px; padding-bottom: 6px; }
+.search-group h3 { margin-top: 0; }
 .user-box { display: flex; align-items: center; gap: 12px; font-size: 14px; }
 .user-box form { margin: 0; }
 .menu-toggle { display: none; background: none; border: 0; font-size: 22px; cursor: pointer; }
@@ -339,8 +342,23 @@ tr.row-low td { background: #fff8e8; }
 @media (max-width: 700px) {
   .topbar { flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
   .topbar-title { flex: 1 1 60%; min-width: 0; font-size: 16px; overflow-wrap: anywhere; }
+  .global-search { flex: 1 1 100%; order: 3; }
   .user-box { flex: 1 1 100%; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; min-width: 0; }
   .user-box .company-switch .form-select { min-width: 0; max-width: 100%; }
   .toolbar, .actions { flex-wrap: wrap; }
   .filters .form-control, .filters .form-select { min-width: 0; width: 100%; }
 }
+
+/* القوائم المنسدلة القابلة للبحث */
+.combo { position: relative; min-width: 140px; }
+.combo-native { display: none !important; }
+.combo-input { width: 100%; background-image: linear-gradient(45deg, transparent 50%, #8a95a3 50%), linear-gradient(135deg, #8a95a3 50%, transparent 50%);
+  background-position: 14px 50%, 9px 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-left: 26px; }
+.combo-list { position: fixed; z-index: 60; max-height: 280px; overflow-y: auto; background: #fff;
+  border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 28px rgba(20, 50, 79, .16); min-width: 220px; }
+.combo-item { padding: 7px 10px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.combo-item.active { background: #eaf2fb; }
+.combo-item.selected { font-weight: 700; color: var(--primary); }
+.combo-empty { padding: 8px 10px; color: var(--muted); font-size: 13px; }
+.table-search { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.table-search .form-control { max-width: 340px; }

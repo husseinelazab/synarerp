@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <input name="q" value="{{ query }}" class="form-control" type="search" autofocus
+         placeholder="ابحث باسم عميل أو مورد أو صنف، رقم فاتورة أو قيد، رقم شيك، جوال، رقم ضريبي…">
+  <button class="btn btn-primary">بحث</button>
+</form>
+{% if too_short %}
+  <div class="card"><p class="muted">اكتب حرفين على الأقل.</p></div>
+{% elif query and not groups %}
+  <div class="card"><p class="muted">لا توجد نتائج لـ «{{ query }}» فيما تملك صلاحية الاطلاع عليه.</p></div>
+{% elif groups %}
+  <p class="muted small">{{ total }} نتيجة في {{ groups|length }} نوع.</p>
+  {% for g in groups %}
+  <div class="card search-group">
+    <h3>{{ g.dt.label_plural }} <span class="muted small">· {{ g.module }}</span></h3>
+    <div class="table-wrap"><table class="table no-search">
+      <thead><tr>{% for h in g.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in g.rows %}<tr>{% for cell in row.cells %}<td>{% if forloop.first %}<a href="{{ row.obj.get_absolute_url }}">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table></div>
+    {% if g.more %}<a href="{% url 'doc_list' g.dt.slug %}?q={{ query|urlencode }}" class="small">عرض كل النتائج في {{ g.dt.label_plural }} ←</a>{% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="card"><p class="muted">ابحث في كل المستندات والبيانات الأساسية دفعة واحدة. يمكنك أيضاً البحث من المربع أعلى أي صفحة.</p></div>
+{% endif %}
+{% endblock %}

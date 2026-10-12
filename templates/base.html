@@ -35,6 +35,9 @@
     <header class="topbar">
       <button class="menu-toggle" type="button" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
       <div class="topbar-title">{% block heading %}{% endblock %}</div>
+      {% if current_company %}<form method="get" action="{% url 'global_search' %}" class="global-search" role="search">
+        <input type="search" name="q" class="form-control" placeholder="بحث في النظام…  ( / )" aria-label="بحث في النظام" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">
+      </form>{% endif %}
       <div class="user-box">
         {% if current_company %}
           {% if user_memberships|length > 1 %}
@@ -65,5 +68,6 @@
   {% block auth_content %}{% endblock %}
 {% endif %}
 <script src="{% static 'js/erp.js' %}"></script>
+<script src="{% static 'js/search.js' %}"></script>
 </body>
 </html>

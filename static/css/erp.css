@@ -67,6 +67,10 @@ code { background: #eef; padding: 1px 6px; border-radius: 4px; direction: ltr; d
 .form-control, .form-select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 14px; background: #fff; }
 .form-control:focus, .form-select:focus { outline: 2px solid var(--primary-light); border-color: var(--primary); }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px 20px; }
+/* قائمة خيارات متعددة (مربعات اختيار): تأخذ عرض النموذج وتُرتب في أعمدة */
+.field-multi { grid-column: 1 / -1; }
+.field-multi > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 16px; margin: 4px 0; }
+.field-multi > div label { display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer; }
 .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 .field-check { display: flex; align-items: center; gap: 8px; flex-direction: row-reverse; justify-content: flex-end; }
 .field-check label { margin: 0; }
@@ -229,7 +233,13 @@ td.num, th.num { direction: ltr; text-align: left !important; }
 .table td.num bdi { unicode-bidi: isolate; }
 .chev { font-style: normal; color: #9fb6cc; transition: transform .15s; width: 14px; text-align: center; }
 .chev::before { content: "‹"; font-size: 20px; line-height: 1; }
-.nav-module[open] .chev { transform: rotate(-90deg); }
+.nav-module[open] > summary .chev { transform: rotate(-90deg); }
+.nav-group > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; border-radius: 6px; }
+.nav-group > summary::-webkit-details-marker { display: none; }
+.nav-group > summary:hover { color: #dbe6f0; }
+.nav-group > summary .chev { transform: scale(.75); }
+.nav-group[open] > summary .chev { transform: scale(.75) rotate(-90deg); }
+.nav-group[open] > summary { color: #dbe6f0; }
 .import-tips { line-height: 2; color: var(--muted); padding-inline-start: 18px; }
 .column-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .column-chip { background: var(--primary-light); color: var(--primary); border-radius: 16px; padding: 4px 12px; font-size: 13px; }

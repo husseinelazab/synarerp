@@ -24,13 +24,17 @@ def _item(label, name, *args, query=""):
     return {"label": label, "url": reverse(name, args=args) + query}
 
 
+def platform_items():
+    return [_item("الشركات والاشتراكات", "platform_dashboard"), _item("الباقات والوحدات", "platform_plans"),
+            _item("خادم البريد", "platform_email_settings")]
+
+
 def build_menu(request):
     membership = getattr(request, "membership", None)
     if membership is None:
         if request.user.is_superuser:
-            return [{"key": "platform", "label": "إدارة المنصة", "icon": ICONS["platform"],
-                     "sections": [{"items": [_item("الشركات والاشتراكات", "platform_dashboard"),
-                                             _item("خادم البريد", "platform_email_settings")]}]}]
+            return _mark_active(request, [{"key": "platform", "label": "إدارة المنصة",
+                                           "sections": [{"items": platform_items()}]}])
         return []
     subscription = getattr(request.company, "subscription", None)
     includes_ai = bool(subscription and subscription.plan.includes_ai)
@@ -40,121 +44,123 @@ def build_menu(request):
             _item("صفحتي", "portal_home"), _item("طلب إجازة", "portal_leave"), _item("طلب سلفة", "portal_loan"),
             _item("حضوري", "portal_attendance"), _item("حسابي", "profile")]}]}])
 
+    # كل وحدة: أقسام بعناوين ثابتة (العمليات، الأطراف والمدفوعات، الإعداد، التقارير)، وكل عنصر في مكان واحد قدر الإمكان
     modules = [
         {"key": "selling", "label": "المبيعات", "sections": [
-            {"items": [doc("عروض الأسعار", "quotation"), doc("أوامر البيع", "sales-order"), doc("أذون التسليم", "delivery-note"),
-                       doc("فواتير المبيعات", "sales-invoice"), doc("العملاء", "customer"),
-                       _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
-                       _item("تسوية دفعات العملاء", "payment_reconcile", query="?party_type=customer"),
-                       _item("شيكات العملاء", "doc_list", "cheque", query="?direction=received")]},
-            {"title": "التسعير والعروض", "items": [doc("قوائم الأسعار", "price-list"), doc("العروض وقواعد التسعير", "pricing-rule"),
-                                                  doc("فئات العملاء", "customer-group"), doc("برامج الولاء", "loyalty-program"),
-                                                  doc("حركات نقاط الولاء", "loyalty-point-entry")]},
-            {"title": "فريق المبيعات", "items": [_item("المبيعات والعمولات", "sales_by_person"),
-                                                doc("مندوبو المبيعات", "sales-person"), doc("مناطق البيع", "territory")]},
-            {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
-                                          _item("أعمار ديون العملاء", "aging_report", "customer"),
-                                          _item("الربحية (مجمل الربح)", "gross_profit")]},
+            {"title": "المبيعات", "items": [doc("عروض الأسعار", "quotation"), doc("أوامر البيع", "sales-order"),
+                                           doc("أذون التسليم", "delivery-note"), doc("فواتير المبيعات", "sales-invoice")]},
+            {"title": "العملاء والتحصيل", "items": [
+                doc("العملاء", "customer"),
+                _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
+                _item("شيكات العملاء", "doc_list", "cheque", query="?direction=received"),
+                _item("تسوية دفعات العملاء", "payment_reconcile", query="?party_type=customer")]},
+            {"title": "التسعير والعروض", "items": [
+                doc("قوائم الأسعار", "price-list"), doc("أسعار الأصناف في القوائم", "item-price"),
+                doc("العروض وقواعد التسعير", "pricing-rule"), doc("برامج الولاء", "loyalty-program"),
+                doc("حركات نقاط الولاء", "loyalty-point-entry"),
+                _item("تحليل التسعير والربحية", "pricing_analysis"), _item("سجل تغيّر الأسعار", "price_history")]},
+            {"title": "فريق المبيعات", "items": [doc("مندوبو المبيعات", "sales-person"), doc("مناطق البيع", "territory"),
+                                                doc("فئات العملاء", "customer-group")]},
+            {"title": "التقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
+                                           _item("أعمار ديون العملاء", "aging_report", "customer"),
+                                           _item("المبيعات والعمولات", "sales_by_person"),
+                                           _item("الربحية (مجمل الربح)", "gross_profit")]},
+        ]},
+        {"key": "buying", "label": "المشتريات", "sections": [
+            {"title": "المشتريات", "items": [
+                doc("طلبات المواد", "material-request"), doc("عروض أسعار الموردين", "supplier-quotation"),
+                doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"),
+                doc("فواتير المشتريات", "purchase-invoice"), doc("تكاليف الشحن والجمارك", "landed-cost")]
+                + ([_item("قراءة فاتورة مورد بالذكاء الاصطناعي", "ai_invoice_upload")] if includes_ai else [])},
+            {"title": "الموردون والسداد", "items": [
+                doc("الموردون", "supplier"),
+                _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
+                _item("شيكات الموردين", "doc_list", "cheque", query="?direction=issued"),
+                _item("تسوية دفعات الموردين", "payment_reconcile", query="?party_type=supplier")]},
+            {"title": "التقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier"),
+                                           _item("أعمار ديون الموردين", "aging_report", "supplier")]},
+        ]},
+        {"key": "stock", "label": "المخزون", "sections": [
+            {"title": "الحركات", "items": [doc("الحركات المخزنية", "stock-entry"), doc("الجرد", "stock-count"),
+                                          doc("التشغيلات", "batch"), doc("الأرقام التسلسلية والضمان", "serial-no")]},
+            {"title": "الأصناف والمستودعات", "items": [doc("الأصناف", "item"), doc("مجموعات الأصناف", "item-group"),
+                                                      doc("وحدات القياس", "uom"), doc("المستودعات", "warehouse")]},
+            {"title": "الجودة", "items": [doc("فحوصات الجودة", "quality-inspection"), doc("نماذج الفحص", "quality-template")]},
+            {"title": "الباركود والموازين", "items": [_item("طباعة الملصقات", "stock_labels"),
+                                                     _item("فاحص الأسعار", "stock_price_checker"),
+                                                     _item("الموازين", "stock_scales")]},
+            {"title": "التقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger"),
+                                           _item("التشغيلات والصلاحية", "batch_report"),
+                                           _item("حد إعادة الطلب", "reorder_report")]},
+        ]},
+        {"key": "accounts", "label": "المحاسبة", "sections": [
+            {"title": "القيود والسندات", "items": [
+                doc("قيود اليومية", "journal-entry"),
+                _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
+                _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
+                doc("المستندات المتكررة", "recurring-document"),
+                doc("المصروفات المقدمة والإيرادات المؤجلة", "deferral")]},
+            {"title": "الحسابات والموازنات", "items": [
+                _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center"),
+                doc("الموازنات التقديرية", "budget"), _item("الموازنة مقابل الفعلي", "budget_report")]},
+            {"title": "البنوك والشيكات", "items": [
+                _item("التسوية البنكية", "bank_reconciliation"), doc("حركات كشف البنك", "bank-transaction"),
+                _item("الشيكات المستحقة", "cheques_due"), doc("حافظة الشيكات", "cheque")]},
+            {"title": "الذمم والعهد", "items": [
+                _item("تسوية الدفعات", "payment_reconcile"), doc("مستندات تسوية الدفعات", "payment-reconciliation"),
+                doc("شروط الدفع والأقساط", "payment-terms"),
+                doc("العهد النقدية", "cash-custody"), doc("تسويات العهد", "custody-settlement")]},
+            {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
+                                                 _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
+            {"title": "القوائم المالية", "items": [
+                _item("دفتر اليومية العام", "general_journal"), _item("دفتر الأستاذ العام", "general_ledger"),
+                _item("ميزان المراجعة", "trial_balance"), _item("قائمة الدخل", "profit_and_loss"),
+                _item("الميزانية العمومية", "balance_sheet"), _item("قائمة التدفقات النقدية", "cash_flow"),
+                _item("قائمة الدخل المقارنة", "comparative_pnl"), _item("الميزانية المقارنة", "comparative_balance_sheet"),
+                _item("القوائم الموحدة للشركات", "consolidated")]},
+            {"title": "الضرائب والزكاة", "items": [
+                _item("إقرار ضريبة القيمة المضافة", "vat_report"), _item("إقرار ضريبة الاستقطاع", "withholding_report"),
+                doc("الإقرارات الزكوية", "zakat")]},
+            {"title": "بداية العمل ونهاية الفترة", "items": [
+                _item("معالج الأرصدة الافتتاحية", "opening_wizard"), doc("أرصدة الحسابات", "opening-account"),
+                doc("أرصدة العملاء والموردين", "opening-party"), doc("المخزون الافتتاحي", "opening-stock"),
+                doc("إعادة تقييم العملات الأجنبية", "exchange-revaluation"), doc("إقفال السنة المالية", "period-closing")]},
+        ]},
+    ]
+    if subscription and subscription.plan.includes_pos:
+        modules.append({"key": "pos", "label": "نقاط البيع", "sections": [
+            {"items": [_item("شاشة نقطة البيع", "pos_terminal"), _item("الورديات", "pos_shifts"),
+                       doc("ملفات نقاط البيع", "pos-profile")]},
+        ]})
+    einvoice_items = [_item("الفواتير الإلكترونية", "einvoice_list")]
+    if membership.can_manage:
+        einvoice_items.append(_item("الربط مع منصة فاتورة", "einvoice_settings"))
+    modules += [
+        {"key": "einvoice", "label": "الفوترة الإلكترونية", "sections": [{"items": einvoice_items}]},
+        {"key": "manufacturing", "label": "التصنيع", "sections": [
+            {"title": "الإنتاج", "items": [doc("أوامر الإنتاج", "production"), doc("قوائم المواد", "bom"),
+                                          _item("تخطيط احتياجات المواد", "mrp"),
+                                          doc("إعادة التعبئة والتفكيك", "repack"), doc("قوالب إعادة التعبئة", "repack-template")]},
+            {"title": "الإعداد", "items": [doc("محطات العمل", "workstation"), doc("مسارات التشغيل", "routing")]},
+            {"title": "التقارير", "items": [_item("الإنتاج والهالك", "production_report")]},
         ]},
         {"key": "crm", "label": "إدارة العملاء (CRM)", "sections": [
             {"items": [_item("مسار المبيعات", "crm_pipeline"), _item("متابعاتي", "crm_followups"),
                        doc("العملاء المحتملون", "lead"), doc("فرص البيع", "opportunity"), doc("المتابعات", "activity")]},
         ]},
         {"key": "projects", "label": "المشاريع", "sections": [
-            {"items": [_item("ربحية المشاريع", "project_report"), doc("المشاريع", "project"),
-                       doc("مهام المشاريع", "project-task")]},
+            {"items": [doc("المشاريع", "project"), doc("مهام المشاريع", "project-task"),
+                       _item("ربحية المشاريع", "project_report")]},
         ]},
         {"key": "support", "label": "الصيانة وخدمة العملاء", "sections": [
             {"items": [_item("لوحة الصيانة", "support_dashboard"), doc("التذاكر", "service-ticket"),
-                       doc("عقود الصيانة", "maintenance-contract"), doc("الزيارات", "maintenance-visit"),
-                       doc("الأرقام التسلسلية والضمان", "serial-no")]},
-        ]},
-        {"key": "buying", "label": "المشتريات", "sections": [
-            {"items": [doc("طلبات المواد", "material-request"), doc("عروض أسعار الموردين", "supplier-quotation"),
-                       doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
-                       doc("تحميل تكاليف الشحن والجمارك", "landed-cost"),
-                       doc("الموردون", "supplier"),
-                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
-                       _item("تسوية دفعات الموردين", "payment_reconcile", query="?party_type=supplier"),
-                       _item("شيكات الموردين", "doc_list", "cheque", query="?direction=issued")]
-                      + ([_item("قراءة فاتورة مورد بالذكاء الاصطناعي", "ai_invoice_upload")] if includes_ai else [])},
-            {"title": "تقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier"),
-                                          _item("أعمار ديون الموردين", "aging_report", "supplier"),
-                                          _item("حد إعادة الطلب", "reorder_report")]},
-        ]},
-        {"key": "accounts", "label": "المحاسبة", "sections": [
-            {"items": [doc("قيود اليومية", "journal-entry"),
-                       _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
-                       _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
-                       _item("دليل الحسابات", "chart_of_accounts"), doc("مراكز التكلفة والفروع", "cost-center")]},
-            {"title": "الذمم", "items": [_item("تسوية الدفعات", "payment_reconcile"), doc("شروط الدفع والأقساط", "payment-terms"),
-                                        doc("مستندات تسوية الدفعات", "payment-reconciliation")]},
-            {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
-                                                 _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
-            {"title": "الشيكات", "items": [_item("الشيكات المستحقة", "cheques_due"), doc("حافظة الشيكات", "cheque"),
-                                          _item("شيك وارد جديد", "doc_new", "cheque", query="?direction=received"),
-                                          _item("شيك صادر جديد", "doc_new", "cheque", query="?direction=issued")]},
-            {"title": "البنوك", "items": [_item("التسوية البنكية", "bank_reconciliation"),
-                                         doc("حركات كشف البنك", "bank-transaction")]},
-            {"title": "تقارير", "items": [
-                _item("دفتر اليومية العام", "general_journal"), _item("دفتر الأستاذ العام", "general_ledger"),
-                _item("ميزان المراجعة", "trial_balance"), _item("قائمة الدخل", "profit_and_loss"),
-                _item("الميزانية العمومية", "balance_sheet"), _item("قائمة التدفقات النقدية", "cash_flow"),
-                _item("قائمة الدخل المقارنة", "comparative_pnl"), _item("الميزانية المقارنة", "comparative_balance_sheet"),
-                _item("القوائم الموحدة للشركات", "consolidated"),
-                _item("إقرار ضريبة القيمة المضافة", "vat_report"), _item("إقرار ضريبة الاستقطاع", "withholding_report"),
-                doc("الإقرارات الزكوية", "zakat"),
-            ]},
-            {"title": "بداية العمل", "items": [
-                _item("معالج الأرصدة الافتتاحية", "opening_wizard"), doc("أرصدة الحسابات", "opening-account"),
-                doc("أرصدة العملاء والموردين", "opening-party"), doc("المخزون الافتتاحي", "opening-stock"),
-            ]},
-            {"title": "العهد النقدية", "items": [doc("العهد", "cash-custody"), doc("تسويات العهد", "custody-settlement")]},
-            {"title": "التكرار والتوزيع", "items": [doc("المستندات المتكررة", "recurring-document"),
-                                                   doc("المصروفات المقدمة والإيرادات المؤجلة", "deferral")]},
-            {"title": "الموازنات", "items": [_item("الموازنة مقابل الفعلي", "budget_report"), doc("الموازنات التقديرية", "budget")]},
-            {"title": "نهاية الفترة", "items": [doc("إعادة تقييم العملات الأجنبية", "exchange-revaluation"),
-                                               doc("إقفال السنة المالية", "period-closing")]},
-        ]},
-        {"key": "stock", "label": "المخزون", "sections": [
-            {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("طلبات المواد", "material-request"), doc("الجرد", "stock-count"),
-                       doc("التشغيلات", "batch"), doc("الأرقام التسلسلية والضمان", "serial-no"),
-                       doc("المستودعات", "warehouse"),
-                       doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
-            {"title": "الجودة", "items": [doc("فحوصات الجودة", "quality-inspection"), doc("نماذج الفحص", "quality-template")]},
-            {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),
-                                          _item("الموازين", "stock_scales")]},
-            {"title": "التسعير", "items": [doc("قوائم الأسعار", "price-list"), doc("أسعار الأصناف في القوائم", "item-price"),
-                                          _item("تحليل التسعير والربحية", "pricing_analysis"),
-                                          _item("الربحية (مجمل الربح)", "gross_profit"),
-                                          _item("سجل تغيّر الأسعار", "price_history")]},
-            {"title": "تقارير", "items": [_item("أرصدة المخزون", "stock_balance"), _item("دفتر حركة المخزون", "stock_ledger"),
-                                          _item("التشغيلات والصلاحية", "batch_report"),
-                                          _item("حد إعادة الطلب", "reorder_report")]},
-        ]},
-        {"key": "manufacturing", "label": "التصنيع", "sections": [
-            {"items": [doc("أوامر الإنتاج", "production"), doc("قوائم المواد", "bom"),
-                       doc("إعادة التعبئة والتفكيك", "repack"), doc("قوالب إعادة التعبئة", "repack-template"),
-                       _item("تخطيط احتياجات المواد", "mrp")]},
-            {"title": "الإعداد", "items": [doc("محطات العمل", "workstation"), doc("مسارات التشغيل", "routing")]},
-            {"title": "تقارير", "items": [_item("الإنتاج والهالك", "production_report"),
-                                          _item("الربحية (مجمل الربح)", "gross_profit"),
-                                          _item("التشغيلات والصلاحية", "batch_report")]},
+                       doc("عقود الصيانة", "maintenance-contract"), doc("الزيارات", "maintenance-visit")]},
         ]},
     ]
-    einvoice_items = [_item("الفواتير الإلكترونية", "einvoice_list")]
-    if membership.can_manage:
-        einvoice_items.append(_item("الربط مع منصة فاتورة", "einvoice_settings"))
-    modules.append({"key": "einvoice", "label": "الفوترة الإلكترونية", "sections": [{"items": einvoice_items}]})
-    if subscription and subscription.plan.includes_pos:
-        modules.append({"key": "pos", "label": "نقاط البيع", "sections": [
-            {"items": [_item("شاشة نقطة البيع", "pos_terminal"), _item("الورديات", "pos_shifts"),
-                       doc("ملفات نقاط البيع", "pos-profile")]},
-        ]})
     modules.append({"key": "hr", "label": "الموارد البشرية", "sections": [
-        {"items": [_item("لوحة الموارد البشرية", "hr_dashboard"), doc("الموظفون", "employee"),
-                   doc("مسيرات الرواتب", "payroll-run"),
-                   doc("سلف الموظفين", "employee-loan"), doc("مخالصات نهاية الخدمة", "eos-settlement")]},
+        {"title": "الموظفون والرواتب", "items": [
+            _item("لوحة الموارد البشرية", "hr_dashboard"), doc("الموظفون", "employee"), doc("مسيرات الرواتب", "payroll-run"),
+            doc("سلف الموظفين", "employee-loan"), doc("مخالصات نهاية الخدمة", "eos-settlement")]},
         {"title": "الحضور والانصراف", "items": [_item("تسجيل الحضور اليومي", "attendance_daily"),
                                                  _item("تقرير الحضور الشهري", "attendance_monthly"),
                                                  doc("سجل الحضور", "attendance"),
@@ -164,27 +170,42 @@ def build_menu(request):
         {"title": "الإجازات", "items": [doc("طلبات الإجازات", "leave-application"), _item("أرصدة الإجازات", "leave_balances"),
                                         doc("أنواع الإجازات", "leave-type")]},
         {"title": "الأداء", "items": [doc("تقييمات الأداء", "appraisal"), doc("نماذج التقييم", "appraisal-template")]},
-        {"title": "تقارير", "items": [_item("مخصص نهاية الخدمة", "eos_provision")]},
+        {"title": "التقارير", "items": [_item("مخصص نهاية الخدمة", "eos_provision")]},
         {"title": "الإعداد", "items": ([_item("إعدادات الرواتب والتأمينات", "payroll_settings")] if membership.can_manage else [])
          + [doc("ورديات العمل", "work-shift"), doc("جدول الورديات", "shift-assignment"), doc("العطل الرسمية", "holiday"),
             doc("الأقسام", "department"), doc("المسميات الوظيفية", "designation")]},
     ]})
-    settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
     if membership.can_manage:
-        settings_items = ([_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
-                          _item("سجل التعديلات", "audit_log"), _item("سلاسل الاعتماد", "doc_list", "approval-rule"),
-                          _item("تصدير كامل البيانات", "company_export"),
-                          _item("البريد الإلكتروني", "company_email_settings"),
-                          _item("رسائل SMS وواتساب", "messaging_settings"),
-                          _item("سجل الرسائل", "message_log"),
-                          _item("الطباعة والشعار", "print_settings"),
-                          _item("الواجهة البرمجية (API)", "api_keys")]
-                          + ([_item("الذكاء الاصطناعي", "ai_settings")] if includes_ai else [])
-                          + [_item("الاشتراك والفوترة", "billing")] + settings_items)
-    modules.append({"key": "settings", "label": "الإعدادات", "sections": [{"items": settings_items}]})
+        settings_sections = [
+            {"title": "الشركة", "items": [_item("إعدادات الشركة", "company_settings"), doc("السنوات المالية", "fiscal-year"),
+                                         doc("أسعار الصرف", "exchange-rate"), _item("الطباعة والشعار", "print_settings")]},
+            {"title": "المستخدمون والأمان", "items": [_item("المستخدمون والصلاحيات", "users_list"),
+                                                     _item("سلاسل الاعتماد", "doc_list", "approval-rule"),
+                                                     _item("سجل التعديلات", "audit_log")]},
+            {"title": "التواصل", "items": [_item("البريد الإلكتروني", "company_email_settings"),
+                                          _item("رسائل SMS وواتساب", "messaging_settings"), _item("سجل الرسائل", "message_log")]},
+            {"title": "التكامل", "items": [_item("الواجهة البرمجية (API)", "api_keys")]
+             + ([_item("الذكاء الاصطناعي", "ai_settings")] if includes_ai else [])},
+            {"title": "الاشتراك والبيانات", "items": [_item("الاشتراك والفوترة", "billing"),
+                                                     _item("تصدير كامل البيانات", "company_export")]},
+        ]
+    else:
+        settings_sections = [{"items": [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]}]
+    modules.append({"key": "settings", "label": "الإعدادات", "sections": settings_sections})
     if request.user.is_superuser:
-        modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [
-            {"items": [_item("الشركات والاشتراكات", "platform_dashboard"), _item("خادم البريد", "platform_email_settings")]}]})
+        modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [{"items": platform_items()}]})
+
+    # ما أغلقته باقة الشركة لا يظهر لأحد، ولا مالك الحساب
+    plan = subscription.plan if subscription else None
+    if plan is not None:
+        from core.permissions import plan_allows_path
+
+        modules = [m for m in modules if m["key"] in ("settings", "platform") or plan.allows_module(m["key"])]
+        for module in modules:
+            for section in module["sections"]:
+                section["items"] = [i for i in section["items"] if plan_allows_path(plan, i["url"].split("?")[0])]
+            module["sections"] = [s for s in module["sections"] if s["items"]]
+        modules = [m for m in modules if m["sections"]]
 
     # المستخدم العادي يرى الوحدات المسموحة له فقط، وداخلها ما يحق له فتحه
     modules = [m for m in modules if m["key"] in ("settings", "platform") or membership.allows_module(m["key"])]
@@ -214,4 +235,9 @@ def _mark_active(request, modules):
     if best:
         best[0]["open"] = True
         best[1]["active"] = True
+    for module in modules:
+        # القسم الذي فيه الصفحة الحالية مفتوح، وإلا فالقسم الأول من الوحدة
+        sections = module["sections"]
+        active = next((s for s in sections if any(i.get("active") for i in s["items"])), None)
+        (active or sections[0])["open"] = True
     return modules

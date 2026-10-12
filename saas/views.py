@@ -13,7 +13,7 @@ from core.middleware import SESSION_KEY
 from core.models import Company, Membership, Role
 from core.provisioning import provision_company
 from saas.backups import backup_status
-from saas.forms import (CompanySettingsForm, MemberCreateForm, MemberRoleForm, RecordPaymentForm,
+from saas.forms import (CompanySettingsForm, MemberCreateForm, MemberRoleForm, PlanForm, RecordPaymentForm,
                         SignupForm)
 from saas.models import Plan, Subscription, SubscriptionPayment, SubscriptionStatus
 from saas.services import active_user_count, check_user_limit, ensure_default_plans, record_payment
@@ -227,3 +227,26 @@ def platform_company(request, pk):
         "members": company.memberships.select_related("user"),
         "payments": subscription.payments.select_related("plan") if subscription else [],
     })
+
+
+@user_passes_test(_superuser)
+def platform_plans(request):
+    ensure_default_plans()
+    from core.permissions import PLAN_MODULES
+
+    plans = list(Plan.objects.annotate(companies=Count("subscription")))
+    matrix = [(label, [p.allows_module(key) for p in plans]) for key, label in PLAN_MODULES]
+    matrix.append(("قراءة الفواتير بالذكاء الاصطناعي", [p.includes_ai for p in plans]))
+    return render(request, "platform/plans.html", {"plans": plans, "matrix": matrix})
+
+
+@user_passes_test(_superuser)
+def platform_plan_edit(request, pk=None):
+    plan = get_object_or_404(Plan, pk=pk) if pk else None
+    form = PlanForm(request.POST or None, instance=plan)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "تم حفظ الباقة، وتسري على كل الشركات المشتركة فيها فوراً.")
+        return redirect("platform_plans")
+    return render(request, "settings/user_form.html", {
+        "form": form, "title": f"الباقة: {plan}" if plan else "باقة جديدة", "back_url": "platform_plans"})

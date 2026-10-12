@@ -15,6 +15,10 @@ PERMISSION_MODULES = [
     ("einvoice", "الفوترة الإلكترونية"),
 ]
 
+# الوحدات التي يمكن فتحها أو إغلاقها في الباقات (المحاسبة أساس النظام فلا تُغلق)
+CORE_MODULES = {"accounts"}
+PLAN_MODULES = [(key, label) for key, label in PERMISSION_MODULES if key not in CORE_MODULES]
+
 # مسارات غير المستندات ← الوحدة
 PATH_MODULES = [
     # أرصدة العملاء والموردين تظهر في قائمتي المبيعات والمشتريات
@@ -68,6 +72,12 @@ def modules_for_path(path):
         if path.startswith(prefix):
             return module if isinstance(module, set) else {module}
     return None
+
+
+def plan_allows_path(plan, path):
+    """هل تتيح باقة الشركة هذا المسار؟ (المسار المشترك يكفي أن تكون إحدى وحداته مفتوحة)"""
+    modules = modules_for_path(path)
+    return plan is None or modules is None or any(plan.allows_module(m) for m in modules)
 
 
 # مسارات تكشف التكاليف والأرباح (تُحجب عمن أُخفيت عنه التكاليف)

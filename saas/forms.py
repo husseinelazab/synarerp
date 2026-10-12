@@ -143,3 +143,32 @@ class RecordPaymentForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         style_form(self)
+
+
+class PlanForm(forms.ModelForm):
+    modules = forms.MultipleChoiceField(
+        label="الوحدات المفتوحة في الباقة", required=False, widget=forms.CheckboxSelectMultiple,
+        help_text="ما لا تحدده يُغلق ويختفي من قائمة شركات هذه الباقة. المحاسبة متاحة دائماً لأنها أساس النظام.")
+
+    class Meta:
+        model = Plan
+        fields = ["name", "code", "description", "price_monthly", "price_yearly", "max_users", "trial_days",
+                  "modules", "includes_ai", "is_public", "sort_order"]
+
+    def __init__(self, *args, **kwargs):
+        from core.permissions import PLAN_MODULES
+
+        super().__init__(*args, **kwargs)
+        self.fields["modules"].choices = PLAN_MODULES
+        self.fields["modules"].initial = [key for key, _ in PLAN_MODULES
+                                          if self.instance.pk is None or self.instance.allows_module(key)]
+        style_form(self)
+        self.fields["modules"].widget.attrs.pop("class", None)
+
+    def save(self, commit=True):
+        from core.permissions import PLAN_MODULES
+
+        opened = set(self.cleaned_data["modules"])
+        self.instance.includes_pos = "pos" in opened
+        self.instance.closed_modules = [key for key, _ in PLAN_MODULES if key != "pos" and key not in opened]
+        return super().save(commit)

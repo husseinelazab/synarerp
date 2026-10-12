@@ -13,7 +13,7 @@
         {% if member.is_active %}<button class="btn btn-danger-outline" name="action" value="deactivate" onclick="return confirm('إيقاف وصول هذا المستخدم للشركة؟')">إيقاف المستخدم</button>
         {% else %}<button class="btn btn-success" name="action" value="activate">إعادة تفعيل</button>{% endif %}
       {% endif %}
-      <a class="btn" href="{% url 'users_list' %}">رجوع</a>
+      <a class="btn" href="{% if back_url %}{% url back_url %}{% else %}{% url 'users_list' %}{% endif %}">رجوع</a>
     </div>
   </form>
 </div>

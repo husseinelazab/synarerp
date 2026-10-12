@@ -27,7 +27,7 @@ def dashboard(request):
 
         return landing(request)
     membership = getattr(request, "membership", None)
-    if membership is not None and not membership.allows_module("accounts"):
+    if membership is not None and (not membership.allows_module("accounts") or not membership.may("costs")):
         # من لا يملك صلاحية المحاسبة لا يرى أرقام الأرباح والنقدية
         return render(request, "core/dashboard_limited.html", {"today": timezone.localdate()})
     from core.dashboard import dashboard_context
@@ -225,6 +225,9 @@ def doc_detail(request, slug, pk):
     obj = get_object_or_404(_scoped(request, dt), pk=pk)
     child_headers, child_rows = _child_table(dt, obj)
     exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus"}
+    membership = getattr(request, "membership", None)
+    if membership is not None and not membership.may("costs"):
+        exclude |= {"buying_rate", "valuation_rate", "stock_value", "price_list_rate"}
     context = {
         "dt": dt, "obj": obj, "doc_currency": getattr(obj, "currency", None), "today": timezone.localdate(),
         "fields": detail_fields(obj, exclude=exclude),
@@ -328,6 +331,9 @@ def _run_action(request, dt, obj, action):
             suffix = " وترحيل قيوده" if getattr(obj, "posts_to_ledger", True) else ""
             messages.success(request, f"تم اعتماد {dt.label} {obj}{suffix}.")
         elif action == "cancel":
+            from core.permissions import require_action
+
+            require_action(request, "cancel")
             obj.cancel()
             messages.success(request, f"تم إلغاء {dt.label} {obj}.")
     except ValidationError as exc:
@@ -341,6 +347,13 @@ def doc_action(request, slug, pk, action):
     dt = get_doctype(slug)
     obj = get_object_or_404(_scoped(request, dt), pk=pk)
     if action == "delete":
+        from core.permissions import require_action
+
+        try:
+            require_action(request, "delete")
+        except ValidationError as exc:
+            messages.error(request, _error_text(exc))
+            return redirect("doc_detail", slug=slug, pk=pk)
         if dt.is_submittable and not obj.is_draft:
             messages.error(request, "يمكن حذف المسودات فقط. ألغِ المستند بدلاً من ذلك.")
             return redirect(obj.get_absolute_url())

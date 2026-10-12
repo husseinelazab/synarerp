@@ -330,6 +330,13 @@ class Membership(models.Model):
                                help_text="فارغة = كل الوحدات")
     can_submit = models.BooleanField("يعتمد ويلغي المستندات", default=True,
                                      help_text="إن أُلغي: يُنشئ المسودات فقط ويعتمدها غيره")
+    can_cancel = models.BooleanField("يلغي المستندات المعتمدة", default=True)
+    can_delete = models.BooleanField("يحذف المسودات والسجلات", default=True)
+    can_export = models.BooleanField("يصدّر القوائم إلى Excel", default=True)
+    hide_costs = models.BooleanField("إخفاء التكاليف والأرباح", default=False,
+                                     help_text="لا يرى أسعار الشراء والتقييم وتقارير الربحية")
+    denied_doctypes = models.JSONField("مستندات محجوبة", default=list, blank=True)
+    read_only_doctypes = models.JSONField("مستندات للاطلاع فقط", default=list, blank=True)
     cost_centers = models.ManyToManyField("accounts.CostCenter", blank=True, related_name="+",
                                           verbose_name="الفروع / مراكز التكلفة المسموحة",
                                           help_text="فارغة = كل الفروع")
@@ -352,6 +359,23 @@ class Membership(models.Model):
     @property
     def may_submit(self):
         return self.can_manage or self.can_submit
+
+    def doctype_access(self, slug):
+        """none / read / write لنوع مستند."""
+        if self.can_manage:
+            return "write"
+        if slug in (self.denied_doctypes or []):
+            return "none"
+        if slug in (self.read_only_doctypes or []):
+            return "read"
+        return "write"
+
+    def may(self, action):
+        """cancel / delete / export / costs."""
+        if self.can_manage:
+            return True
+        return {"cancel": self.can_submit and self.can_cancel, "delete": self.can_delete,
+                "export": self.can_export, "costs": not self.hide_costs}.get(action, True)
 
     def allowed_cost_center_ids(self):
         """None = كل الفروع؛ وإلا مجموعة مراكز التكلفة المسموحة."""

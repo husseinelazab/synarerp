@@ -165,8 +165,16 @@ def build_menu(request):
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [
             {"items": [_item("الشركات والاشتراكات", "platform_dashboard"), _item("خادم البريد", "platform_email_settings")]}]})
 
-    # المستخدم العادي يرى الوحدات المسموحة له فقط
+    # المستخدم العادي يرى الوحدات المسموحة له فقط، وداخلها ما يحق له فتحه
     modules = [m for m in modules if m["key"] in ("settings", "platform") or membership.allows_module(m["key"])]
+    if not membership.can_manage:
+        from core.permissions import path_allowed
+
+        for module in modules:
+            for section in module["sections"]:
+                section["items"] = [i for i in section["items"] if path_allowed(membership, i["url"].split("?")[0])]
+            module["sections"] = [s for s in module["sections"] if s["items"]]
+        modules = [m for m in modules if m["sections"]]
     return _mark_active(request, modules)
 
 

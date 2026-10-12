@@ -7,12 +7,12 @@
 </form>
 <div class="card">
 <table class="table report">
-  <thead><tr><th>الصنف</th><th>المستودع</th><th>الوحدة</th><th>الكمية</th><th>محجوز لأوامر البيع</th><th>المتاح</th><th>سعر التقييم</th><th>القيمة</th></tr></thead>
+  <thead><tr><th>الصنف</th><th>المستودع</th><th>الوحدة</th><th>الكمية</th><th>محجوز لأوامر البيع</th><th>المتاح</th>{% if can_see_costs %}<th>سعر التقييم</th><th>القيمة</th>{% endif %}</tr></thead>
   <tbody>
-    {% for b in bins %}<tr><td>{{ b.item }}</td><td>{{ b.warehouse }}</td><td>{{ b.item.uom }}</td><td>{{ b.actual_qty|floatformat:-3 }}</td><td>{% if b.reserved_qty %}{{ b.reserved_qty|floatformat:-3 }}{% endif %}</td><td class="{% if b.available_qty < 0 %}neg{% endif %}">{{ b.available_qty|floatformat:-3 }}</td><td>{{ b.valuation_rate|money }}</td><td>{{ b.stock_value|money }}</td></tr>
+    {% for b in bins %}<tr><td>{{ b.item }}</td><td>{{ b.warehouse }}</td><td>{{ b.item.uom }}</td><td>{{ b.actual_qty|floatformat:-3 }}</td><td>{% if b.reserved_qty %}{{ b.reserved_qty|floatformat:-3 }}{% endif %}</td><td class="{% if b.available_qty < 0 %}neg{% endif %}">{{ b.available_qty|floatformat:-3 }}</td>{% if can_see_costs %}<td>{{ b.valuation_rate|money }}</td><td>{{ b.stock_value|money }}</td>{% endif %}</tr>
     {% empty %}<tr><td colspan="6" class="muted center">لا توجد أرصدة</td></tr>{% endfor %}
   </tbody>
-  <tfoot><tr><th colspan="7">إجمالي قيمة المخزون</th><th>{{ total_value|cur }}</th></tr></tfoot>
+  {% if can_see_costs %}<tfoot><tr><th colspan="7">إجمالي قيمة المخزون</th><th>{{ total_value|cur }}</th></tr></tfoot>{% endif %}
 </table>
 </div>
 {% endblock %}

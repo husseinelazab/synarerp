@@ -64,9 +64,34 @@ def modules_for_path(path):
     return None
 
 
+# مسارات تكشف التكاليف والأرباح (تُحجب عمن أُخفيت عنه التكاليف)
+COST_PATHS = ("/reports/stock/gross-profit/", "/reports/stock/pricing/", "/reports/stock/price-history/",
+              "/reports/accounts/profit-and-loss/", "/reports/accounts/balance-sheet/")
+
+
 def path_allowed(membership, path):
+    if path.startswith("/app/"):
+        parts = path.split("/")
+        slug = parts[2]
+        access = membership.doctype_access(slug)
+        if access == "none":
+            return False
+        if access == "read" and len(parts) > 3 and (parts[3] in ("new", "import") or
+                                                     (len(parts) > 4 and parts[4] not in ("", "print"))):
+            return False  # الاطلاع فقط: لا إنشاء ولا تعديل ولا إجراءات
+        if len(parts) > 3 and parts[3] == "export" and not membership.may("export"):
+            return False
+    if path.startswith(COST_PATHS) and not membership.may("costs"):
+        return False
     modules = modules_for_path(path)
     return modules is None or any(membership.allows_module(m) for m in modules)
+
+
+def require_action(request, action):
+    membership = getattr(request, "membership", None)
+    if membership is not None and not membership.may(action):
+        labels = {"cancel": "إلغاء المستندات", "delete": "الحذف", "export": "التصدير"}
+        raise ValidationError(f"ليست لديك صلاحية {labels.get(action, action)}.")
 
 
 def require_submit(request):

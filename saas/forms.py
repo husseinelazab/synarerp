@@ -101,7 +101,15 @@ class MemberRoleForm(forms.Form):
     modules = forms.MultipleChoiceField(
         label="الوحدات المسموحة", required=False, widget=forms.CheckboxSelectMultiple,
         help_text="للدور «مستخدم» فقط. لا تحدد شيئاً للسماح بكل الوحدات.")
-    can_submit = forms.BooleanField(label="يعتمد ويلغي المستندات (وإلا يُنشئ مسودات فقط)", required=False)
+    can_submit = forms.BooleanField(label="يعتمد المستندات (وإلا يُنشئ مسودات فقط)", required=False)
+    can_cancel = forms.BooleanField(label="يلغي المستندات المعتمدة", required=False)
+    can_delete = forms.BooleanField(label="يحذف المسودات والسجلات", required=False)
+    can_export = forms.BooleanField(label="يصدّر القوائم إلى Excel", required=False)
+    hide_costs = forms.BooleanField(label="إخفاء التكاليف والأرباح (أسعار الشراء والتقييم وتقارير الربحية)", required=False)
+    denied_doctypes = forms.MultipleChoiceField(label="مستندات محجوبة تماماً", required=False,
+                                                widget=forms.CheckboxSelectMultiple)
+    read_only_doctypes = forms.MultipleChoiceField(label="مستندات للاطلاع فقط (بلا إنشاء أو تعديل)", required=False,
+                                                   widget=forms.CheckboxSelectMultiple)
     cost_centers = forms.ModelMultipleChoiceField(
         label="الفروع / مراكز التكلفة المسموحة", required=False, queryset=None,
         widget=forms.CheckboxSelectMultiple,
@@ -113,9 +121,15 @@ class MemberRoleForm(forms.Form):
 
         super().__init__(*args, **kwargs)
         self.fields["modules"].choices = PERMISSION_MODULES
+        from core.registry import MODULES, REGISTRY
+
+        doctypes = sorted(((slug, f"{MODULES.get(dt.module, '')}: {dt.label_plural}") for slug, dt in REGISTRY.items()
+                           if dt.module != "setup"), key=lambda c: c[1])
+        self.fields["denied_doctypes"].choices = doctypes
+        self.fields["read_only_doctypes"].choices = doctypes
         self.fields["cost_centers"].queryset = CostCenter.objects.filter(is_group=False, disabled=False)
         style_form(self)
-        for name in ("modules", "cost_centers"):
+        for name in ("modules", "cost_centers", "denied_doctypes", "read_only_doctypes"):
             self.fields[name].widget.attrs.pop("class", None)
 
 

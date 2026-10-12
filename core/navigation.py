@@ -47,6 +47,8 @@ def build_menu(request):
             {"title": "التسعير والعروض", "items": [doc("قوائم الأسعار", "price-list"), doc("العروض وقواعد التسعير", "pricing-rule"),
                                                   doc("فئات العملاء", "customer-group"), doc("برامج الولاء", "loyalty-program"),
                                                   doc("حركات نقاط الولاء", "loyalty-point-entry")]},
+            {"title": "فريق المبيعات", "items": [_item("المبيعات والعمولات", "sales_by_person"),
+                                                doc("مندوبو المبيعات", "sales-person"), doc("مناطق البيع", "territory")]},
             {"title": "تقارير", "items": [_item("أرصدة العملاء", "party_balances", "customer"),
                                           _item("أعمار ديون العملاء", "aging_report", "customer"),
                                           _item("الربحية (مجمل الربح)", "gross_profit")]},

@@ -30,6 +30,7 @@ PATH_MODULES = [
     ("/stock/", "stock"),
     ("/messaging/", "selling"),
     ("/buying/", "buying"),
+    ("/selling/", "selling"),
     ("/manufacturing/", "manufacturing"),
     ("/pos/", "pos"),
     ("/einvoice/", "einvoice"),

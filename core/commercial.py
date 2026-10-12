@@ -105,7 +105,7 @@ class CommercialDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
         values = {self.party_field: self.party, "currency": self.currency, "exchange_rate": self.exchange_rate,
                   "tax_rate": self.tax_rate, "remarks": self.remarks}
         for name in ("prices_include_tax", "warehouse", "cost_center", "terms", "price_list", "coupon_code",
-                     "ignore_pricing_rules"):
+                     "ignore_pricing_rules", "sales_person"):
             if name in shared and hasattr(self, name):
                 values[name] = getattr(self, name)
         values = {k: v for k, v in values.items() if k in shared}

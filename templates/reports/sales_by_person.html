@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>المنطقة <select name="territory" class="form-select"><option value="">كل المناطق</option>{% for t in territories %}<option value="{{ t.pk }}" {% if t == territory %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+</form>
+<div class="kpis"><div class="kpi"><span>صافي المبيعات</span><b>{{ total_net|money }}</b></div><div class="kpi"><span>إجمالي العمولات</span><b>{{ total_commission|money }}</b></div></div>
+<div class="card"><h3>حسب المندوب</h3><div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>المندوب</th><th class="num">الفواتير</th><th class="num">صافي المبيعات</th><th class="num">المستهدف</th><th class="num">التحقق</th><th class="num">المحصّل</th><th class="num">العمولة</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td>{% if r.person %}<a href="{% url 'doc_detail' 'sales-person' r.person.pk %}">{{ r.person }}</a>{% else %}<span class="muted">بدون مندوب</span>{% endif %}</td>
+    <td class="num">{{ r.invoices }}</td><td class="num">{{ r.net|money }}</td><td class="num">{% if r.target %}{{ r.target|money }}{% endif %}</td>
+    <td class="num {% if r.achieved is not None and r.achieved < 100 %}neg{% endif %}">{% if r.achieved is not None %}{{ r.achieved|floatformat:0 }}%{% endif %}</td>
+    <td class="num">{% if r.collected_percent is not None %}{{ r.collected_percent|floatformat:0 }}%{% endif %}</td><td class="num">{{ r.commission|money }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لا توجد مبيعات في الفترة</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if current_membership.can_manage and payroll_runs %}
+<form method="post" class="inline-form" style="margin-top:12px">{% csrf_token %}
+  <label>إضافة العمولات إلى مسير الرواتب <select name="payroll_run" class="form-select">{% for p in payroll_runs %}<option value="{{ p.pk }}">{{ p }} — {{ p.get_month_display }} {{ p.year }}</option>{% endfor %}</select></label>
+  <button class="btn" onclick="return confirm('إضافة عمولات الفترة إلى «الإضافات» للمندوبين المرتبطين بموظفين؟')">إضافة</button>
+</form>{% endif %}
+</div>
+<div class="card"><h3>حسب المنطقة</h3>
+<table class="table report"><thead><tr><th>المنطقة</th><th class="num">العملاء</th><th class="num">الفواتير</th><th class="num">صافي المبيعات</th></tr></thead>
+<tbody>{% for r in by_territory %}<tr><td>{{ r.territory }}</td><td class="num">{{ r.customers }}</td><td class="num">{{ r.invoices }}</td><td class="num">{{ r.net|money }}</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}

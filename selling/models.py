@@ -37,6 +37,54 @@ class CustomerGroup(TenantModel):
         return self.name
 
 
+class Territory(TenantModel):
+    """منطقة بيع (شجرة: المنطقة الوسطى ← الرياض ← شمال الرياض)."""
+
+    name = models.CharField("اسم المنطقة", max_length=100)
+    parent = models.ForeignKey("self", models.PROTECT, null=True, blank=True, related_name="children",
+                               verbose_name="المنطقة الأم")
+
+    class Meta:
+        verbose_name = "منطقة بيع"
+        verbose_name_plural = "مناطق البيع"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="territory")]
+
+    def __str__(self):
+        return self.name
+
+    def descendant_ids(self):
+        ids, stack = [], [self]
+        while stack:
+            node = stack.pop()
+            ids.append(node.id)
+            stack.extend(node.children.all())
+        return ids
+
+
+class SalesPerson(TenantModel):
+    """مندوب مبيعات بنسبة عمولة، ويمكن ربطه بموظف لإضافة عمولته لمسير الرواتب."""
+
+    name = models.CharField("اسم المندوب", max_length=100)
+    employee = models.ForeignKey("hr.Employee", models.SET_NULL, null=True, blank=True, related_name="+",
+                                 verbose_name="الموظف")
+    territory = models.ForeignKey(Territory, models.SET_NULL, null=True, blank=True, related_name="sales_persons",
+                                  verbose_name="المنطقة")
+    commission_rate = models.DecimalField("نسبة العمولة %", max_digits=5, decimal_places=2, default=0,
+                                          help_text="من صافي المبيعات قبل الضريبة")
+    monthly_target = models.DecimalField("المستهدف الشهري", max_digits=18, decimal_places=2, default=0)
+    disabled = models.BooleanField("موقوف", default=False)
+
+    class Meta:
+        verbose_name = "مندوب مبيعات"
+        verbose_name_plural = "مندوبو المبيعات"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="salesperson")]
+
+    def __str__(self):
+        return self.name
+
+
 class Customer(TenantModel):
     name = models.CharField("اسم العميل", max_length=200)
     customer_type = models.CharField("نوع العميل", max_length=20, choices=CustomerType.choices, default=CustomerType.COMPANY)
@@ -63,6 +111,10 @@ class Customer(TenantModel):
                                         related_name="+", verbose_name="برنامج الولاء")
     payment_terms = models.ForeignKey("accounts.PaymentTermsTemplate", models.SET_NULL, null=True, blank=True,
                                       related_name="+", verbose_name="شروط الدفع الافتراضية")
+    sales_person = models.ForeignKey(SalesPerson, models.SET_NULL, null=True, blank=True, related_name="customers",
+                                     verbose_name="المندوب المسؤول")
+    territory = models.ForeignKey(Territory, models.SET_NULL, null=True, blank=True, related_name="customers",
+                                  verbose_name="المنطقة")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -92,6 +144,8 @@ class Quotation(CommercialDocument):
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     valid_till = models.DateField("صالح حتى", null=True, blank=True)
+    sales_person = models.ForeignKey(SalesPerson, models.PROTECT, null=True, blank=True, related_name="+",
+                                     verbose_name="المندوب", help_text="فارغ = مندوب العميل")
 
     class Meta(CommercialDocument.Meta):
         verbose_name = "عرض سعر"
@@ -147,6 +201,8 @@ class SalesOrder(OrderDocument):
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     delivery_date = models.DateField("تاريخ التسليم المتوقع", null=True, blank=True)
+    sales_person = models.ForeignKey(SalesPerson, models.PROTECT, null=True, blank=True, related_name="+",
+                                     verbose_name="المندوب", help_text="فارغ = مندوب العميل")
     warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+",
                                   verbose_name="المستودع")
     cost_center = models.ForeignKey("accounts.CostCenter", models.PROTECT, null=True, blank=True, related_name="+",
@@ -214,10 +270,15 @@ class SalesInvoice(InvoiceDocument):
     naming_prefix = "SINV"
     return_prefix = "SRET"
     party_field = "customer"
-    return_locked_fields = InvoiceDocument.return_locked_fields + ["prices_include_tax", "customer"]
+    return_locked_fields = InvoiceDocument.return_locked_fields + ["prices_include_tax", "customer", "sales_person",
+                                                                   "commission_rate"]
 
     customer = models.ForeignKey(Customer, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="العميل")
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=False)
+    sales_person = models.ForeignKey(SalesPerson, models.PROTECT, null=True, blank=True, related_name="+",
+                                     verbose_name="المندوب", help_text="فارغ = مندوب العميل")
+    commission_rate = models.DecimalField("نسبة العمولة %", max_digits=5, decimal_places=2, default=0, editable=False)
+    commission_amount = models.DecimalField("العمولة", max_digits=18, decimal_places=2, default=0, editable=False)
     order = models.ForeignKey(SalesOrder, models.PROTECT, null=True, blank=True, related_name="invoices",
                               editable=False, verbose_name="أمر البيع")
     quotation = models.ForeignKey(Quotation, models.PROTECT, null=True, blank=True, related_name="invoices",
@@ -260,6 +321,12 @@ class SalesInvoice(InvoiceDocument):
 
     def calculate_totals(self):
         super().calculate_totals()
+        if self.is_draft and not self.is_return:
+            if not self.sales_person_id and self.customer_id and self.customer.sales_person_id:
+                self.sales_person = self.customer.sales_person
+            self.commission_rate = self.sales_person.commission_rate if self.sales_person_id else flt(0)
+        # العمولة من الصافي بعملة الشركة (والمرتجع يخصم عمولته)
+        self.commission_amount = flt(self.base_net_total * flt(self.commission_rate) / 100)
         self.loyalty_amount = flt(0)
         if self.loyalty_points and not self.is_return:
             from pricing.engine import program_for

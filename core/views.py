@@ -168,6 +168,10 @@ def doc_form(request, slug, pk=None):
                 if dt.is_submittable:
                     obj.calculate_totals()
                     obj.save()
+                    if instance is not None:
+                        from core.approvals import reset
+
+                        reset(obj)
         except ValidationError as exc:
             form.add_error(None, _error_text(exc))
         except IntegrityError:
@@ -232,6 +236,10 @@ def doc_detail(request, slug, pk):
         debit = sum(g.debit for g in context["gl_entries"])
         credit = sum(g.credit for g in context["gl_entries"])
         context["gl_totals"] = {"debit": debit, "credit": credit, "balanced": debit == credit}
+    if dt.is_submittable and obj.is_draft:
+        from core.approvals import status as approval_status
+
+        context["approvals"] = approval_status(obj)
     if hasattr(obj, "payment_rows"):
         context["payments"] = obj.payment_rows()
     membership = getattr(request, "membership", None)
@@ -309,6 +317,13 @@ def _run_action(request, dt, obj, action):
     try:
         require_submit(request)
         if action == "submit":
+            from core.approvals import approve_or_block
+
+            # الموافقة تُحفظ ولو بقي المستند بانتظار مستوى آخر
+            pending = approve_or_block(obj, getattr(request, "membership", None), request.user)
+            if pending:
+                messages.info(request, pending)
+                return redirect("doc_detail", slug=dt.slug, pk=obj.pk)
             obj.submit()
             suffix = " وترحيل قيوده" if getattr(obj, "posts_to_ledger", True) else ""
             messages.success(request, f"تم اعتماد {dt.label} {obj}{suffix}.")

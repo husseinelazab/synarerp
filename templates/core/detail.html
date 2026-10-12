@@ -78,6 +78,16 @@
   {% endif %}
 {% endif %}
 
+{% if approvals %}
+<div class="card">
+  <h3>سلسلة الاعتماد</h3>
+  <table class="table"><thead><tr><th>المستوى</th><th>المعتمد</th><th>الحالة</th></tr></thead>
+    <tbody>{% for a in approvals %}<tr><td>{{ a.level }}</td><td>{{ a.approvers }}</td>
+      <td>{% if a.record %}<span class="badge status-1">اعتمده {{ a.record.user.get_full_name|default:a.record.user.username }} — {{ a.record.approved_at|date:"Y-m-d H:i" }}</span>{% else %}<span class="badge status-0">بانتظار</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  <p class="muted small">زر «اعتماد» يسجل موافقتك على مستواك؛ يُعتمد المستند ويُرحّل بعد اكتمال كل المستويات. تعديل المسودة يلغي الموافقات السابقة.</p>
+</div>
+{% endif %}
+
 <div class="card">
   <dl class="detail-grid">
     {% for label, value in fields %}<div><dt>{{ label }}</dt><dd>{{ value|linebreaksbr }}</dd></div>{% endfor %}

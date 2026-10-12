@@ -251,6 +251,11 @@ def _save(request, dt, payload, instance=None):
 def _run(request, obj, action):
     from core.permissions import require_submit
 
+    if action == "submit":
+        from core.approvals import check_before_submit
+
+        require_submit(request)
+        check_before_submit(obj, request)  # خارج المعاملة: الموافقة تُحفظ ولو بقي مستوى معلق
     with transaction.atomic():
         if action in ("submit", "cancel"):
             require_submit(request)

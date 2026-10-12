@@ -19,7 +19,7 @@ EMPLOYEE_PREFIXES = ("/me/", "/switch-company/", "/account/")
 # مسموحة قبل تفعيل التحقق الثنائي الإلزامي
 TWO_FACTOR_SAFE_PREFIXES = ("/account/", "/switch-company/", "/billing/")
 # صفحات الإدارة لمالك الحساب والمدير فقط
-MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/")
+MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/", "/app/approval-rule/")
 
 
 class TenantMiddleware:

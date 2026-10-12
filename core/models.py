@@ -632,3 +632,68 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.get_action_display()} {self.model_name} {self.object_repr}"
+
+
+class ApproverRole(models.TextChoices):
+    OWNER = "owner", "مالك الحساب"
+    MANAGER = "manager", "المالك أو المدير"
+    USER = "user", "مستخدم محدد"
+
+
+class ApprovalRule(TenantModel):
+    """سلسلة اعتماد: مستند بقيمة تتجاوز حداً لا يُعتمد حتى يوافق عليه أصحاب كل مستوى بالترتيب."""
+
+    doctype = models.CharField("نوع المستند", max_length=50)
+    level = models.PositiveSmallIntegerField("المستوى", default=1, help_text="1 أولاً ثم 2 ثم 3…")
+    min_amount = models.DecimalField("عندما تبلغ القيمة", max_digits=18, decimal_places=2, default=0,
+                                     help_text="بعملة الشركة. صفر = كل المستندات من هذا النوع")
+    approver_role = models.CharField("المعتمد", max_length=10, choices=ApproverRole.choices, default=ApproverRole.MANAGER)
+    approver = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, null=True, blank=True, related_name="+",
+                                 verbose_name="المستخدم المعتمد", help_text="عند اختيار «مستخدم محدد»")
+    disabled = models.BooleanField("موقوفة", default=False)
+
+    class Meta:
+        verbose_name = "قاعدة اعتماد"
+        verbose_name_plural = "سلاسل الاعتماد"
+        ordering = ["doctype", "level", "min_amount"]
+
+    def __str__(self):
+        return f"{self.doctype_label} — المستوى {self.level} من {self.min_amount:,.2f}"
+
+    @property
+    def doctype_label(self):
+        from core.registry import voucher_label
+
+        return voucher_label(self.doctype)
+
+    def clean(self):
+        from core.registry import REGISTRY
+
+        dt = REGISTRY.get(self.doctype)
+        if dt is None or not dt.is_submittable:
+            raise ValidationError({"doctype": "اختر نوع مستند قابل للاعتماد."})
+        if self.approver_role == ApproverRole.USER and not self.approver_id:
+            raise ValidationError({"approver": "حدد المستخدم المعتمد."})
+
+    def can_approve(self, membership):
+        if membership is None or membership.pk is None:
+            return False
+        if self.approver_role == ApproverRole.USER:
+            return membership.user_id == self.approver_id
+        if self.approver_role == ApproverRole.OWNER:
+            return membership.role == Role.OWNER
+        return membership.can_manage
+
+
+class ApprovalRecord(TenantModel):
+    doctype = models.CharField("نوع المستند", max_length=50)
+    object_id = models.PositiveBigIntegerField("المعرّف")
+    level = models.PositiveSmallIntegerField("المستوى")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, related_name="+",
+                             verbose_name="اعتمده")
+    approved_at = models.DateTimeField("الوقت", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "اعتماد مستوى"
+        verbose_name_plural = "سجل الاعتمادات"
+        ordering = ["level", "approved_at"]

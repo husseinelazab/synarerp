@@ -303,6 +303,10 @@ def _import_group(dt, mapping, group, mode, submit, user):
         obj.calculate_totals()
         obj.save()
         if submit:
+            from core.approvals import required_rules
+
+            if required_rules(obj):
+                raise ValidationError("المستند يحتاج سلسلة اعتماد؛ استورده كمسودة ثم اعتمده من صفحته.")
             obj.submit()
     return obj, created
 

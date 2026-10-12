@@ -17,6 +17,8 @@ def display_value(obj, field_name):
     field = obj._meta.get_field(field_name)
     if field.choices:
         return getattr(obj, f"get_{field_name}_display")()
+    if field_name == "doctype" and hasattr(obj, "doctype_label"):
+        return obj.doctype_label
     value = getattr(obj, field_name)
     if value is None or value == "":
         return "—"

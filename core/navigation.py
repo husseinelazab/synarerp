@@ -144,7 +144,7 @@ def build_menu(request):
     settings_items = [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]
     if membership.can_manage:
         settings_items = ([_item("إعدادات الشركة", "company_settings"), _item("المستخدمون والصلاحيات", "users_list"),
-                          _item("سجل التعديلات", "audit_log"),
+                          _item("سجل التعديلات", "audit_log"), _item("سلاسل الاعتماد", "doc_list", "approval-rule"),
                           _item("تصدير كامل البيانات", "company_export"),
                           _item("البريد الإلكتروني", "company_email_settings"),
                           _item("رسائل SMS وواتساب", "messaging_settings"),

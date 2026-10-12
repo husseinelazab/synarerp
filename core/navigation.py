@@ -52,7 +52,8 @@ def build_menu(request):
                                           _item("الربحية (مجمل الربح)", "gross_profit")]},
         ]},
         {"key": "buying", "label": "المشتريات", "sections": [
-            {"items": [doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
+            {"items": [doc("طلبات المواد", "material-request"), doc("عروض أسعار الموردين", "supplier-quotation"),
+                       doc("أوامر الشراء", "purchase-order"), doc("أذون الاستلام", "purchase-receipt"), doc("فواتير المشتريات", "purchase-invoice"),
                        doc("تحميل تكاليف الشحن والجمارك", "landed-cost"),
                        doc("الموردون", "supplier"),
                        _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
@@ -89,7 +90,7 @@ def build_menu(request):
             {"title": "نهاية السنة", "items": [doc("إقفال السنة المالية", "period-closing")]},
         ]},
         {"key": "stock", "label": "المخزون", "sections": [
-            {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("الجرد", "stock-count"),
+            {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("طلبات المواد", "material-request"), doc("الجرد", "stock-count"),
                        doc("التشغيلات", "batch"),
                        doc("المستودعات", "warehouse"),
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},

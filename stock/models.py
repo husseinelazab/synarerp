@@ -489,6 +489,8 @@ class StockEntry(SubmittableDocument):
     to_warehouse = models.ForeignKey(
         Warehouse, models.PROTECT, null=True, blank=True, related_name="+", verbose_name="إلى مستودع"
     )
+    material_request = models.ForeignKey("buying.MaterialRequest", models.SET_NULL, null=True, blank=True,
+                                         related_name="transfers", editable=False, verbose_name="طلب المواد")
     total_amount = models.DecimalField("إجمالي القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
 
     class Meta(SubmittableDocument.Meta):
@@ -544,10 +546,30 @@ class StockEntry(SubmittableDocument):
                 {"account": stock, "debit": value_change if value_change > 0 else 0, "credit": -value_change if value_change < 0 else 0},
                 {"account": adjustment, "debit": -value_change if value_change < 0 else 0, "credit": value_change if value_change > 0 else 0},
             ], remarks=self.get_purpose_display())
+        self._update_material_request(+1)
 
     def on_cancel(self):
         cancel_stock_ledger_entries(self)
         cancel_gl_entries(self)
+        self._update_material_request(-1)
+
+    def _update_material_request(self, sign):
+        """التحويل المنشأ من طلب مواد يُحتسب منفذاً من بنوده (بالوحدة الأساسية)."""
+        if not self.material_request_id:
+            return
+        moved = {}
+        for row in self.items.all():
+            moved[row.item_id] = moved.get(row.item_id, flt(0, 3)) + flt(row.qty, 3)
+        for mr_item in self.material_request.items.all():
+            qty = moved.get(mr_item.item_id, flt(0, 3))
+            if not qty:
+                continue
+            in_uom = flt(qty / (mr_item.conversion_factor or 1), 3)
+            share = min(in_uom, mr_item.qty - mr_item.ordered_qty) if sign > 0 else min(in_uom, mr_item.ordered_qty)
+            mr_item.ordered_qty = flt(mr_item.ordered_qty + sign * share, 3)
+            mr_item.save(update_fields=["ordered_qty"])
+            moved[mr_item.item_id] = qty - flt(share * (mr_item.conversion_factor or 1), 3)
+        self.material_request.refresh_status()
 
 
 class OpeningStock(SubmittableDocument):

@@ -1,4 +1,5 @@
-from buying.models import (LandedCostCharge, LandedCostVoucher, PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
+from buying.models import (LandedCostCharge, MaterialRequest, MaterialRequestItem, SupplierQuotation,
+                           SupplierQuotationItem, LandedCostVoucher, PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
                            PurchaseReceiptItem, Supplier)
 from core.registry import ChildTable, DocType, register
 
@@ -45,4 +46,22 @@ register(DocType(
                      help="كل تكلفة تُقيد دائنة على حسابها ومدينة على المخزون. سجّل فاتورة شركة الشحن أو المخلص الجمركي "
                           "على حساب مصروف مؤقت ثم اختر نفس الحساب هنا لنقلها إلى تكلفة البضاعة."),
     totals=["total_charges", "capitalized", "expensed"],
+))
+register(DocType(
+    slug="material-request", model=MaterialRequest, module="buying",
+    list_fields=["name", "posting_date", "purpose", "warehouse", "required_by", "per_ordered", "status"],
+    form_fields=["purpose", "posting_date", "warehouse", "from_warehouse", "required_by", "department", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(MaterialRequestItem, ["item", "uom", "qty", "notes"], label="الأصناف المطلوبة",
+                     display_fields=["item", "uom", "qty", "ordered_qty", "notes"]),
+    detail_template="buying/_quotation_comparison.html",
+))
+register(DocType(
+    slug="supplier-quotation", model=SupplierQuotation, module="buying",
+    list_fields=["name", "posting_date", "supplier", "valid_till", "grand_total", "status"],
+    form_fields=["supplier", "posting_date", "valid_till", "lead_days", "warehouse", "currency", "exchange_rate",
+                 "tax_rate", "terms", "remarks"],
+    search_fields=["name", "supplier__name"],
+    child=ChildTable(SupplierQuotationItem, ["item", "uom", "qty", "rate"], rate_type="buying"),
+    totals=["total", "net_total", "tax_amount", "grand_total"],
 ))

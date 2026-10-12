@@ -41,7 +41,8 @@ SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
                    "price-list": {"selling", "buying", "stock"}, "item-price": {"selling", "buying", "stock"},
                    "pricing-rule": {"selling", "buying", "stock"},
                    "payment-terms": {"selling", "buying", "accounts"},
-                   "cheque": {"selling", "buying", "accounts"}}
+                   "cheque": {"selling", "buying", "accounts"},
+                   "material-request": {"buying", "stock", "manufacturing"}}
 
 
 def modules_for_path(path):

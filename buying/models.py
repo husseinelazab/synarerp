@@ -2,7 +2,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
-from core.commercial import CommercialStatus, OrderDocument, OrderItem, update_order_billing
+from core.commercial import (CommercialDocument, CommercialItem, CommercialStatus, OrderDocument, OrderItem,
+                             update_order_billing)
 from core.fulfillment import FulfillmentDocument, FulfillmentItem, srbnb_account, update_fulfillment_billing
 from core.invoice import InvoiceDocument, InvoiceItem
 from core.models import SubmittableDocument, TenantModel
@@ -84,12 +85,307 @@ class PurchaseOrder(OrderDocument):
         if self.discount_amount or self.prices_include_tax:
             raise ValidationError("أوامر الشراء تُدخل بأسعار صافية غير شاملة للضريبة وبدون خصم إجمالي.")
 
+    def on_submit(self):
+        super().on_submit()
+        self._update_sources(+1)
+
+    def on_cancel(self):
+        super().on_cancel()
+        self._update_sources(-1)
+
+    def _update_sources(self, sign):
+        rows = list(self.items.select_related("material_request_item__parent", "supplier_quotation_item__parent"))
+        update_request_ordered(rows, sign)
+        for quote in {r.supplier_quotation_item.parent for r in rows if r.supplier_quotation_item_id}:
+            quote.refresh_status()
+
 
 class PurchaseOrderItem(OrderItem):
     parent = models.ForeignKey(PurchaseOrder, models.CASCADE, related_name="items")
+    material_request_item = models.ForeignKey("buying.MaterialRequestItem", models.SET_NULL, null=True, blank=True,
+                                              editable=False, related_name="order_items", verbose_name="بند طلب المواد")
+    supplier_quotation_item = models.ForeignKey("buying.SupplierQuotationItem", models.SET_NULL, null=True,
+                                                blank=True, editable=False, related_name="order_items",
+                                                verbose_name="بند عرض سعر المورد")
 
     class Meta:
         verbose_name = "بند أمر شراء"
+        verbose_name_plural = "الأصناف"
+
+
+class MaterialRequestPurpose(models.TextChoices):
+    PURCHASE = "purchase", "شراء"
+    TRANSFER = "transfer", "تحويل من مستودع آخر"
+
+
+class MaterialRequestStatus(models.TextChoices):
+    DRAFT = "draft", "مسودة"
+    PENDING = "pending", "بانتظار التنفيذ"
+    PARTIAL = "partial", "منفذ جزئياً"
+    ORDERED = "ordered", "منفذ بالكامل"
+    CLOSED = "closed", "مغلق"
+    CANCELLED = "cancelled", "ملغى"
+
+
+class MaterialRequest(SubmittableDocument):
+    """طلب مواد داخلي من قسم أو مستودع: يتحول إلى طلب عروض أسعار من الموردين أو أمر شراء أو تحويل مخزني."""
+
+    naming_prefix = "MR"
+    posts_to_ledger = False
+
+    purpose = models.CharField("الغرض", max_length=10, choices=MaterialRequestPurpose.choices,
+                               default=MaterialRequestPurpose.PURCHASE)
+    warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, related_name="+", verbose_name="للمستودع")
+    from_warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+",
+                                       verbose_name="من مستودع (للتحويل)")
+    required_by = models.DateField("مطلوب قبل", null=True, blank=True)
+    department = models.ForeignKey("hr.Department", models.SET_NULL, null=True, blank=True, related_name="+",
+                                   verbose_name="القسم الطالب")
+    status = models.CharField("الحالة", max_length=10, choices=MaterialRequestStatus.choices,
+                              default=MaterialRequestStatus.DRAFT, editable=False)
+    per_ordered = models.DecimalField("نسبة التنفيذ %", max_digits=6, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "طلب مواد"
+        verbose_name_plural = "طلبات المواد (الشراء الداخلية)"
+
+    posting_note = "طلب داخلي لا يُنشئ قيوداً؛ نفّذه بطلب عروض أسعار أو أمر شراء أو تحويل مخزني."
+
+    def validate_for_submit(self):
+        rows = list(self.items.select_related("item"))
+        if not rows:
+            raise ValidationError("أضف صنفاً واحداً على الأقل.")
+        if any(r.qty <= 0 for r in rows):
+            raise ValidationError("الكميات يجب أن تكون أكبر من صفر.")
+        if self.purpose == MaterialRequestPurpose.TRANSFER:
+            if not self.from_warehouse_id or self.from_warehouse_id == self.warehouse_id:
+                raise ValidationError("حدد مستودع مصدر مختلفاً للتحويل.")
+
+    def on_submit(self):
+        self.status = MaterialRequestStatus.PENDING
+        self.save(update_fields=["status"])
+
+    def on_cancel(self):
+        if any(r.ordered_qty for r in self.items.all()):
+            raise ValidationError("نُفذ جزء من الطلب؛ ألغِ أوامر الشراء أو التحويلات المرتبطة أولاً.")
+        self.status = MaterialRequestStatus.CANCELLED
+        self.save(update_fields=["status"])
+
+    def remaining(self):
+        return {row: row.qty - row.ordered_qty for row in self.items.select_related("item") if row.qty > row.ordered_qty}
+
+    def refresh_status(self):
+        rows = list(self.items.all())
+        requested = sum((r.qty for r in rows), flt(0, 3))
+        done = sum((min(r.ordered_qty, r.qty) for r in rows), flt(0, 3))
+        self.per_ordered = flt(done * 100 / requested) if requested else flt(0)
+        if self.status not in (MaterialRequestStatus.CLOSED, MaterialRequestStatus.CANCELLED):
+            self.status = (MaterialRequestStatus.ORDERED if done >= requested else
+                           MaterialRequestStatus.PARTIAL if done > 0 else MaterialRequestStatus.PENDING)
+        self.save(update_fields=["per_ordered", "status"])
+
+    @property
+    def is_open(self):
+        return self.is_submitted and self.status in (MaterialRequestStatus.PENDING, MaterialRequestStatus.PARTIAL)
+
+    @property
+    def available_actions(self):
+        if not self.is_open:
+            return []
+        if self.purpose == MaterialRequestPurpose.TRANSFER:
+            return [("make_transfer", "إنشاء تحويل مخزني"), ("close_request", "إغلاق الطلب")]
+        return [("make_supplier_quotation", "طلب عرض سعر من مورد"), ("make_purchase_order", "إنشاء أمر شراء"),
+                ("close_request", "إغلاق الطلب")]
+
+    @property
+    def linked_documents(self):
+        if not self.pk:
+            return []
+        quotes = SupplierQuotation.objects.filter(items__material_request_item__parent=self).distinct()
+        orders = PurchaseOrder.objects.filter(items__material_request_item__parent=self).distinct()
+        return list(quotes) + list(orders)
+
+    def quotation_comparison(self):
+        """مقارنة عروض الموردين المعتمدة لكل صنف: [{"item", "qty", "offers": [{supplier, rate, quote, best}]}]."""
+        rows = []
+        for mr_item in self.items.select_related("item"):
+            offers = []
+            for q in (SupplierQuotationItem.objects.filter(material_request_item=mr_item, parent__docstatus=1)
+                      .select_related("parent", "parent__supplier")):
+                base = flt(q.stock_rate * (q.parent.exchange_rate or 1))  # بعملة الشركة لكل وحدة أساسية
+                offers.append({"supplier": q.parent.supplier, "rate": q.rate, "base_rate": base, "quote": q.parent,
+                               "lead_days": q.parent.lead_days, "best": False})
+            if offers:
+                min(offers, key=lambda o: o["base_rate"])["best"] = True
+            rows.append({"item": mr_item.item, "qty": mr_item.qty, "offers": sorted(offers, key=lambda o: o["base_rate"])})
+        return rows
+
+    def _check_open(self):
+        if not self.is_open:
+            raise ValidationError("الطلب غير معتمد أو منفذ بالكامل أو مغلق.")
+
+    def _lines(self, target, link=True):
+        from django.db import transaction
+
+        remaining = self.remaining()
+        if not remaining:
+            raise ValidationError("لا توجد كميات متبقية في الطلب.")
+        with transaction.atomic():
+            target.save()
+            for row, qty in remaining.items():
+                line = {"item": row.item, "qty": qty, "uom_id": row.uom_id,
+                        "rate": row.item.price_for(row.uom_id, "buying") if hasattr(target, "supplier_id") else 0}
+                if link:
+                    line["material_request_item"] = row
+                target.items.create(**line)
+            if hasattr(target, "calculate_totals"):
+                target.calculate_totals()
+                target.save()
+        return target
+
+    def make_supplier_quotation(self, user=None):
+        self._check_open()
+        return self._lines(SupplierQuotation(company=self.company, created_by=user, warehouse=self.warehouse,
+                                             remarks=f"طلب عرض سعر للطلب {self.name}"))
+
+    def make_purchase_order(self, user=None):
+        self._check_open()
+        supplier = Supplier.objects.filter(disabled=False).first()
+        if supplier is None:
+            raise ValidationError("أضف مورداً أولاً.")
+        return self._lines(PurchaseOrder(company=self.company, created_by=user, supplier=supplier,
+                                         warehouse=self.warehouse, schedule_date=self.required_by,
+                                         remarks=f"أمر شراء للطلب {self.name} — راجع المورد قبل الاعتماد"))
+
+    def make_transfer(self, user=None):
+        from django.db import transaction
+
+        from stock.models import StockEntry, StockEntryPurpose
+
+        self._check_open()
+        with transaction.atomic():
+            entry = StockEntry.objects.create(company=self.company, created_by=user, purpose=StockEntryPurpose.TRANSFER,
+                                              from_warehouse=self.from_warehouse, to_warehouse=self.warehouse,
+                                              material_request=self, remarks=f"تحويل للطلب {self.name}")
+            for row, qty in self.remaining().items():
+                entry.items.create(item=row.item, qty=flt(qty * row.conversion_factor, 3))
+            entry.calculate_totals()
+            entry.save()
+        return entry
+
+    def close_request(self, user=None):
+        self._check_open()
+        self.status = MaterialRequestStatus.CLOSED
+        self.save(update_fields=["status"])
+
+
+class MaterialRequestItem(models.Model):
+    parent = models.ForeignKey(MaterialRequest, models.CASCADE, related_name="items")
+    item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
+    uom = models.ForeignKey("stock.UOM", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="الوحدة",
+                            help_text="فارغ = الوحدة الأساسية")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    conversion_factor = models.DecimalField("معامل التحويل", max_digits=18, decimal_places=6, default=1, editable=False)
+    ordered_qty = models.DecimalField("المنفذ", max_digits=18, decimal_places=3, default=0, editable=False)
+    notes = models.CharField("ملاحظات", max_length=150, blank=True)
+
+    class Meta:
+        verbose_name = "بند طلب مواد"
+        verbose_name_plural = "الأصناف المطلوبة"
+
+    def save(self, *args, **kwargs):
+        if self.item_id:
+            self.conversion_factor = self.item.uom_factor(self.uom_id)
+        super().save(*args, **kwargs)
+
+
+def update_request_ordered(rows, sign):
+    """تحديث المنفذ من طلبات المواد عند اعتماد (+1) أو إلغاء (-1) أمر شراء أو تحويل مرتبط."""
+    requests = set()
+    for row in rows:
+        mr_item = row.material_request_item
+        if mr_item is None:
+            continue
+        qty = flt(flt(row.qty, 3) * flt(getattr(row, "conversion_factor", 1) or 1, 6) / flt(mr_item.conversion_factor or 1, 6), 3)
+        mr_item.ordered_qty = max(flt(mr_item.ordered_qty + sign * qty, 3), flt(0, 3))
+        mr_item.save(update_fields=["ordered_qty"])
+        requests.add(mr_item.parent)
+    for request in requests:
+        request.refresh_status()
+
+
+class SupplierQuotation(CommercialDocument):
+    """عرض سعر مورد: يُطلب من عدة موردين لنفس طلب المواد، ويُقارن، ويُحوّل الأفضل إلى أمر شراء."""
+
+    naming_prefix = "SQ"
+    party_field = "supplier"
+
+    supplier = models.ForeignKey(Supplier, models.PROTECT, null=True, blank=True, limit_choices_to={"disabled": False},
+                                 verbose_name="المورد")
+    valid_till = models.DateField("صالح حتى", null=True, blank=True)
+    lead_days = models.PositiveIntegerField("مدة التوريد (يوم)", default=0)
+    warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+",
+                                  verbose_name="مستودع الاستلام")
+
+    class Meta(CommercialDocument.Meta):
+        verbose_name = "عرض سعر مورد"
+        verbose_name_plural = "عروض أسعار الموردين"
+
+    def validate_for_submit(self):
+        if not self.supplier_id:
+            raise ValidationError("حدد المورد.")
+        super().validate_for_submit()
+
+    @property
+    def available_actions(self):
+        if self.is_submitted and self.status == CommercialStatus.OPEN:
+            actions = [("make_purchase_order", "إنشاء أمر شراء")]
+            if self.items.filter(material_request_item__isnull=False).exists():
+                actions.append(("copy_for_supplier", "نسخة لمورد آخر"))
+            return actions
+        return []
+
+    @property
+    def linked_documents(self):
+        return list(PurchaseOrder.objects.filter(items__supplier_quotation_item__parent=self).distinct()) if self.pk else []
+
+    def make_purchase_order(self, user=None):
+        if not (self.is_submitted and self.status == CommercialStatus.OPEN):
+            raise ValidationError("يمكن تحويل العروض المعتمدة المفتوحة فقط.")
+        order = self._copy_to(PurchaseOrder, user, {row: row.qty for row in self.items.all()},
+                              link_field="supplier_quotation_item",
+                              extra={"warehouse": self.warehouse,
+                                     "schedule_date": self.posting_date + __import__("datetime").timedelta(days=self.lead_days)})
+        for row in order.items.select_related("supplier_quotation_item"):
+            row.material_request_item_id = row.supplier_quotation_item.material_request_item_id
+            row.save(update_fields=["material_request_item"])
+        return order
+
+    def copy_for_supplier(self, user=None):
+        copy = SupplierQuotation.objects.create(company=self.company, created_by=user, warehouse=self.warehouse,
+                                                remarks=self.remarks)
+        for row in self.items.all():
+            copy.items.create(item=row.item, qty=row.qty, uom_id=row.uom_id, rate=0,
+                              material_request_item_id=row.material_request_item_id)
+        copy.calculate_totals()
+        copy.save()
+        return copy
+
+    def refresh_status(self):
+        if self.is_submitted:
+            ordered = PurchaseOrder.objects.filter(items__supplier_quotation_item__parent=self, docstatus=1).exists()
+            self.status = CommercialStatus.ORDERED if ordered else CommercialStatus.OPEN
+            self.save(update_fields=["status"])
+
+
+class SupplierQuotationItem(CommercialItem):
+    parent = models.ForeignKey(SupplierQuotation, models.CASCADE, related_name="items")
+    material_request_item = models.ForeignKey(MaterialRequestItem, models.SET_NULL, null=True, blank=True,
+                                              editable=False, related_name="quotation_items",
+                                              verbose_name="بند طلب المواد")
+
+    class Meta:
+        verbose_name = "بند عرض سعر مورد"
         verbose_name_plural = "الأصناف"
 
 

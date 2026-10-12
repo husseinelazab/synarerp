@@ -36,10 +36,20 @@ class Command(BaseCommand):
             self.run("accounts_alerts")
             self.run("run_recurring")
             self.run("zatca_submit")
+            from core.jobs import run_pending
+
+            run_pending()
             return
         self.stdout.write("المجدول يعمل.")
         last_daily = last_hourly = None
+        from core.jobs import run_pending
+
         while True:
+            close_old_connections()
+            try:
+                run_pending()
+            except Exception as exc:  # خطأ في الطابور لا يوقف المهام الدورية
+                self.stderr.write(f"فشل تنفيذ المهام الخلفية: {exc}")
             now = timezone.localtime()
             hour_key = now.strftime("%Y%m%d%H")
             if hour_key != last_hourly:
@@ -53,4 +63,4 @@ class Command(BaseCommand):
                 self.run("reorder_alerts")
                 self.run("accounts_alerts")
                 self.run("run_recurring")
-            time.sleep(60)
+            time.sleep(int(os.environ.get("SYNAR_SCHEDULER_TICK", "5")))

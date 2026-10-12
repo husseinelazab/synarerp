@@ -60,17 +60,46 @@ def import_page(request, slug):
     })
 
 
+from core.jobs import background_enabled, enqueue, task  # noqa: E402
+
+# الملفات الأكبر من هذا العدد تُستورد في الخلفية (عند تفعيل المهام الخلفية)
+BACKGROUND_IMPORT_ROWS = 200
+
+
+@task("data_import")
+def execute_import(job=None, import_id=None):
+    """تنفيذ استيراد محفوظ (من الطلب مباشرة أو من طابور المهام الخلفية)."""
+    from django.contrib.auth import get_user_model
+
+    record = DataImport.objects.get(pk=import_id)
+    dt = get_doctype(record.doctype_slug)
+    user = get_user_model().objects.filter(pk=record.created_by_id).first()
+    record.result = run_import(dt, record.file_name, bytes(record.content), record.mode, record.submit_after,
+                               record.valid_only, dry_run=False, user=user)
+    imported = record.result["created"] + record.result["updated"]
+    record.status = ImportStatus.DONE if imported else ImportStatus.FAILED
+    record.result["executed_at"] = timezone.now().isoformat()
+    record.save()
+    if job is not None and background_enabled():
+        from core.notify import notify
+
+        notify(record.company, [user], f"انتهى استيراد {dt.label_plural} ({record.file_name}): {imported} سجل",
+               f"/app/{dt.slug}/import/{record.pk}/")
+    return imported
+
+
 @login_required
 def import_job(request, slug, pk):
     dt = get_doctype(slug)
     job = get_object_or_404(DataImport, pk=pk, doctype_slug=slug)
     if request.method == "POST" and job.status == ImportStatus.PREVIEWED:
-        job.result = run_import(dt, job.file_name, bytes(job.content), job.mode, job.submit_after, job.valid_only,
-                                dry_run=False, user=request.user)
-        imported = job.result["created"] + job.result["updated"]
-        job.status = ImportStatus.DONE if imported else ImportStatus.FAILED
-        job.result["executed_at"] = timezone.now().isoformat()
-        job.save()
+        if background_enabled() and job.result.get("total", 0) > BACKGROUND_IMPORT_ROWS:
+            job.status = ImportStatus.QUEUED
+            job.save(update_fields=["status"])
+            enqueue("data_import", company=request.company, user=request.user, import_id=job.pk)
+            messages.info(request, "بدأ الاستيراد في الخلفية؛ ستصلك رسالة عند انتهائه ويمكنك متابعة عملك.")
+            return redirect("doc_import_job", slug=slug, pk=pk)
+        imported = execute_import(import_id=job.pk)
         if imported:
             messages.success(request, f"تم استيراد {imported} سجل بنجاح.")
         else:

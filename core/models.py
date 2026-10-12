@@ -387,6 +387,7 @@ class Membership(models.Model):
 
 class ImportStatus(models.TextChoices):
     PREVIEWED = "previewed", "تمت المعاينة"
+    QUEUED = "queued", "قيد التنفيذ في الخلفية"
     DONE = "done", "تم الاستيراد"
     FAILED = "failed", "فشل"
 
@@ -799,3 +800,34 @@ class RecurringDocument(TenantModel):
                 self.disabled = True
             self.save()
         return doc
+
+
+class JobStatus(models.TextChoices):
+    QUEUED = "queued", "في الانتظار"
+    RUNNING = "running", "قيد التنفيذ"
+    DONE = "done", "تم"
+    FAILED = "failed", "فشل"
+
+
+class BackgroundJob(models.Model):
+    """مهمة خلفية في قاعدة البيانات ينفذها المجدول (استيراد كبير، تقارير ثقيلة…) فلا ينتظرها المستخدم."""
+
+    company = models.ForeignKey(Company, models.CASCADE, null=True, blank=True, related_name="+")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True, related_name="+")
+    task = models.CharField("المهمة", max_length=100)
+    kwargs = models.JSONField(default=dict, blank=True)
+    status = models.CharField("الحالة", max_length=10, choices=JobStatus.choices, default=JobStatus.QUEUED,
+                              db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "مهمة خلفية"
+        verbose_name_plural = "المهام الخلفية"
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.task} #{self.pk} ({self.get_status_display()})"

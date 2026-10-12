@@ -20,6 +20,10 @@
 
 {% if result.unknown_columns %}<div class="alert alert-warning">أعمدة غير معروفة سيتم تجاهلها: {{ result.unknown_columns|join:"، " }}</div>{% endif %}
 
+{% if job.status == 'queued' %}
+<div class="posting-banner draft"><div><strong>الاستيراد قيد التنفيذ في الخلفية…</strong> تتحدث الصفحة تلقائياً، وتصلك رسالة عند الانتهاء.</div></div>
+<script>setTimeout(function () { location.reload(); }, 5000);</script>
+{% endif %}
 {% if job.status == 'previewed' %}
   {% if can_execute %}
   <div class="posting-banner posted">

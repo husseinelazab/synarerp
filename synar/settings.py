@@ -127,6 +127,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ذاكرة مؤقتة مشتركة بين كل عمليات الخادم (لحدّ محاولات الدخول الخاطئة) في جدول بقاعدة البيانات
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "synar_cache"}}
+if os.environ.get("SYNAR_REDIS_URL"):
+    # Redis أسرع بكثير تحت الضغط ويشترك فيه كل عمّال الخادم (اختياري؛ يُفعّل في docker-compose)
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache",
+                          "LOCATION": os.environ["SYNAR_REDIS_URL"], "KEY_PREFIX": "synar"}}
 
 AUTHENTICATION_BACKENDS = ["core.auth_backends.CaseInsensitiveModelBackend"]
 

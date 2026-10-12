@@ -15,6 +15,11 @@ services:
       interval: 10s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+
   web:
     build: .
     image: synar-erp:latest
@@ -25,12 +30,16 @@ services:
       SYNAR_DB_NAME: ${SYNAR_DB_NAME:-synar}
       SYNAR_DB_USER: ${SYNAR_DB_USER:-synar}
       SYNAR_DB_PASSWORD: ${SYNAR_DB_PASSWORD}
+      SYNAR_REDIS_URL: redis://redis:6379/0
+      SYNAR_BACKGROUND_JOBS: "1"
     volumes:
       - media:/app/media
       - ./backups:/app/backups:ro  # لعرض حالة النسخ الاحتياطي في لوحة المنصة (قراءة فقط)
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     command: ["web"]
 
   scheduler:

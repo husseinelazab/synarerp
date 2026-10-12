@@ -1,4 +1,4 @@
-from accounts.models import (Account, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -71,4 +71,12 @@ register(DocType(
     list_fields=["name", "disabled"], form_fields=["name", "disabled"], search_fields=["name"],
     child=ChildTable(PaymentTermLine, ["description", "invoice_portion", "credit_days"], label="الأقساط",
                      help="مجموع النسب 100%. مثال: 30% بعد 0 يوم (مقدم)، ثم 35% بعد 30 يوماً، ثم 35% بعد 60 يوماً."),
+))
+register(DocType(
+    slug="cheque", model=Cheque, module="accounts",
+    list_fields=["name", "direction", "cheque_no", "customer", "supplier", "cheque_date", "amount", "status"],
+    form_fields=["direction", "posting_date", "customer", "supplier", "cheque_no", "drawer_bank", "cheque_date",
+                 "amount", "bank_account", "sales_invoice", "purchase_invoice", "remarks"],
+    search_fields=["name", "cheque_no", "customer__name", "supplier__name", "drawer_bank"],
+    totals=["amount"],
 ))

@@ -30,6 +30,8 @@ class AccountType(models.TextChoices):
     INCOME = "income_account", "حساب إيراد"
     EXPENSE = "expense_account", "حساب مصروف"
     EQUITY = "equity", "حقوق ملكية"
+    CHEQUES_RECEIVABLE = "cheques_receivable", "أوراق قبض (شيكات تحت التحصيل)"
+    CHEQUES_PAYABLE = "cheques_payable", "أوراق دفع (شيكات صادرة)"
 
 
 class CashFlowCategory(models.TextChoices):
@@ -334,7 +336,9 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
     supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
     account = models.ForeignKey(
         Account, on_delete=models.PROTECT, verbose_name="حساب الصندوق / البنك",
-        limit_choices_to={"is_group": False, "account_type__in": [AccountType.CASH, AccountType.BANK]},
+        limit_choices_to={"is_group": False, "account_type__in": [AccountType.CASH, AccountType.BANK,
+                                                                   AccountType.CHEQUES_RECEIVABLE,
+                                                                   AccountType.CHEQUES_PAYABLE]},
     )
     amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
     currency = models.ForeignKey("core.Currency", models.PROTECT, null=True, blank=True, related_name="+",
@@ -922,3 +926,199 @@ class BankTransaction(TenantModel):
             raise ValidationError("أدخل مبلغ الإيداع أو السحب فقط.")
         if self.deposit < 0 or self.withdrawal < 0:
             raise ValidationError("المبالغ يجب أن تكون موجبة.")
+
+
+# ---------- الشيكات (أوراق القبض والدفع) ----------
+
+class ChequeDirection(models.TextChoices):
+    RECEIVED = "received", "شيك وارد (ورقة قبض)"
+    ISSUED = "issued", "شيك صادر (ورقة دفع)"
+
+
+class ChequeStatus(models.TextChoices):
+    DRAFT = "draft", "مسودة"
+    IN_HAND = "in_hand", "في الحافظة"
+    DEPOSITED = "deposited", "مودع تحت التحصيل"
+    ISSUED = "issued", "صادر لم يُصرف"
+    CLEARED = "cleared", "محصّل / مصروف"
+    BOUNCED = "bounced", "مرتد"
+    CANCELLED = "cancelled", "ملغى"
+
+
+CHEQUE_ACCOUNTS = {
+    ChequeDirection.RECEIVED: ("1108", "أوراق القبض - شيكات تحت التحصيل", AccountType.CHEQUES_RECEIVABLE, RootType.ASSET),
+    ChequeDirection.ISSUED: ("2107", "أوراق الدفع - شيكات صادرة", AccountType.CHEQUES_PAYABLE, RootType.LIABILITY),
+}
+
+
+def cheque_account(company, direction):
+    """حساب الشيكات للشركة، ويُنشأ تحت الأصول/الخصوم المتداولة إن لم يوجد (للشركات القائمة)."""
+    number, name, kind, root = CHEQUE_ACCOUNTS[direction]
+    account = Account.all_objects.filter(company=company, account_type=kind, is_group=False, disabled=False).first()
+    if account is not None:
+        return account
+    parent = (Account.all_objects.filter(company=company, number=number[:2], is_group=True).first() or
+              Account.all_objects.filter(company=company, root_type=root, is_group=True, parent__isnull=True).first())
+    account, _ = Account.all_objects.get_or_create(
+        company=company, name=name, defaults={"number": number, "parent": parent, "root_type": root, "account_type": kind})
+    return account
+
+
+class Cheque(SubmittableDocument):
+    """شيك وارد من عميل أو صادر لمورد بتاريخ استحقاق: يُسجل سنداً على حساب الأوراق ثم يُحصّل أو يرتد."""
+
+    naming_prefix = "CHQ"
+
+    direction = models.CharField("نوع الشيك", max_length=10, choices=ChequeDirection.choices,
+                                 default=ChequeDirection.RECEIVED)
+    customer = models.ForeignKey("selling.Customer", models.PROTECT, null=True, blank=True, verbose_name="العميل")
+    supplier = models.ForeignKey("buying.Supplier", models.PROTECT, null=True, blank=True, verbose_name="المورد")
+    cheque_no = models.CharField("رقم الشيك", max_length=40)
+    drawer_bank = models.CharField("البنك المسحوب عليه", max_length=100, blank=True)
+    cheque_date = models.DateField("تاريخ الاستحقاق")
+    amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
+    bank_account = models.ForeignKey(
+        Account, models.PROTECT, null=True, blank=True, related_name="+", verbose_name="حساب البنك",
+        limit_choices_to={"is_group": False, "account_type": AccountType.BANK},
+        help_text="الوارد: البنك المودع فيه. الصادر: البنك المسحوب منه. فارغ = أول حساب بنك")
+    sales_invoice = models.ForeignKey("selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="+",
+                                      verbose_name="سداد فاتورة مبيعات", limit_choices_to={"docstatus": 1,
+                                                                                          "outstanding_amount__gt": 0})
+    purchase_invoice = models.ForeignKey("buying.PurchaseInvoice", models.PROTECT, null=True, blank=True,
+                                         related_name="+", verbose_name="سداد فاتورة مشتريات",
+                                         limit_choices_to={"docstatus": 1, "outstanding_amount__gt": 0})
+    status = models.CharField("حالة الشيك", max_length=10, choices=ChequeStatus.choices, default=ChequeStatus.DRAFT,
+                              editable=False)
+    payment = models.ForeignKey(PaymentEntry, models.PROTECT, null=True, blank=True, related_name="cheques",
+                                editable=False, verbose_name="سند الاستلام / الصرف")
+    clearance_entry = models.ForeignKey(JournalEntry, models.PROTECT, null=True, blank=True, related_name="+",
+                                        editable=False, verbose_name="قيد التحصيل")
+    cleared_on = models.DateField("تاريخ التحصيل / الصرف", null=True, blank=True, editable=False)
+    bounced_on = models.DateField("تاريخ الارتداد", null=True, blank=True, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "شيك"
+        verbose_name_plural = "حافظة الشيكات"
+        ordering = ["cheque_date", "id"]
+
+    @property
+    def party(self):
+        return self.customer or self.supplier
+
+    @property
+    def document_title(self):
+        return self.get_direction_display()
+
+    @property
+    def linked_documents(self):
+        return [doc for doc in (self.payment, self.clearance_entry) if doc is not None]
+
+    @property
+    def is_overdue(self):
+        from django.utils import timezone
+
+        return self.status in (ChequeStatus.IN_HAND, ChequeStatus.DEPOSITED, ChequeStatus.ISSUED) and \
+            self.cheque_date < timezone.localdate()
+
+    def validate_for_submit(self):
+        if flt(self.amount) <= 0:
+            raise ValidationError("مبلغ الشيك يجب أن يكون أكبر من صفر.")
+        if self.direction == ChequeDirection.RECEIVED and (not self.customer_id or self.supplier_id):
+            raise ValidationError("الشيك الوارد يُحدد له عميل فقط.")
+        if self.direction == ChequeDirection.ISSUED and (not self.supplier_id or self.customer_id):
+            raise ValidationError("الشيك الصادر يُحدد له مورد فقط.")
+        if self.direction == ChequeDirection.RECEIVED and self.purchase_invoice_id or \
+                self.direction == ChequeDirection.ISSUED and self.sales_invoice_id:
+            raise ValidationError("الفاتورة لا تتوافق مع نوع الشيك.")
+        duplicate = Cheque.objects.filter(direction=self.direction, cheque_no=self.cheque_no, docstatus=1,
+                                          drawer_bank=self.drawer_bank).exclude(pk=self.pk)
+        if duplicate.exists():
+            raise ValidationError(f"الشيك رقم {self.cheque_no} مسجل مسبقاً ({duplicate.first()}).")
+
+    def on_submit(self):
+        received = self.direction == ChequeDirection.RECEIVED
+        payment = PaymentEntry.objects.create(
+            company=self.company, payment_type=PaymentType.RECEIVE if received else PaymentType.PAY,
+            customer=self.customer, supplier=self.supplier, account=cheque_account(self.company, self.direction),
+            amount=self.amount, posting_date=self.posting_date, reference_no=self.cheque_no[:50],
+            sales_invoice=self.sales_invoice, purchase_invoice=self.purchase_invoice, created_by=self.created_by,
+            remarks=f"شيك رقم {self.cheque_no} يستحق {self.cheque_date:%Y-%m-%d}" + (f" — {self.drawer_bank}" if self.drawer_bank else ""))
+        payment.calculate_totals()
+        payment.save()
+        payment.submit()
+        self.payment = payment
+        self.status = ChequeStatus.IN_HAND if received else ChequeStatus.ISSUED
+        self.save(update_fields=["payment", "status"])
+
+    @property
+    def available_actions(self):
+        if not self.is_submitted:
+            return []
+        actions = []
+        if self.status == ChequeStatus.IN_HAND:
+            actions.append(("mark_deposited", "إيداع في البنك"))
+        if self.status in (ChequeStatus.IN_HAND, ChequeStatus.DEPOSITED):
+            actions += [("clear", "تحصيل الشيك"), ("bounce", "ارتداد الشيك")]
+        if self.status == ChequeStatus.ISSUED:
+            actions += [("clear", "صرف الشيك من البنك"), ("bounce", "ارتداد / إلغاء الشيك")]
+        if self.status == ChequeStatus.CLEARED:
+            actions.append(("bounce", "ارتداد بعد التحصيل"))
+        return actions
+
+    def _bank(self):
+        bank = self.bank_account or Account.objects.filter(account_type=AccountType.BANK, is_group=False,
+                                                           disabled=False).first()
+        if bank is None:
+            raise ValidationError("أضف حساب بنك في دليل الحسابات أو حدده في الشيك.")
+        return bank
+
+    def mark_deposited(self, user=None):
+        if self.status != ChequeStatus.IN_HAND:
+            raise ValidationError("الشيك ليس في الحافظة.")
+        self._bank()
+        self.status = ChequeStatus.DEPOSITED
+        self.save(update_fields=["status"])
+
+    def clear(self, user=None):
+        from django.utils import timezone
+
+        if self.status not in (ChequeStatus.IN_HAND, ChequeStatus.DEPOSITED, ChequeStatus.ISSUED):
+            raise ValidationError("لا يمكن تحصيل الشيك في حالته الحالية.")
+        today = timezone.localdate()
+        holding, bank = cheque_account(self.company, self.direction), self._bank()
+        je = JournalEntry.objects.create(company=self.company, posting_date=max(today, self.posting_date),
+                                         created_by=user, remarks=f"تحصيل الشيك رقم {self.cheque_no} — {self.party}")
+        debit, credit = (bank, holding) if self.direction == ChequeDirection.RECEIVED else (holding, bank)
+        je.accounts.create(account=debit, debit=self.amount, description=f"شيك {self.cheque_no}")
+        je.accounts.create(account=credit, credit=self.amount, description=f"شيك {self.cheque_no}")
+        je.submit()
+        self.clearance_entry, self.status, self.cleared_on = je, ChequeStatus.CLEARED, je.posting_date
+        self.save(update_fields=["clearance_entry", "status", "cleared_on"])
+
+    def bounce(self, user=None):
+        """الارتداد: يُلغى سند الشيك فتعود الذمة على الطرف وتعود الفاتورة غير مسددة (وقيد التحصيل إن وُجد)."""
+        from django.utils import timezone
+
+        from core.notify import notify_managers
+
+        if self.status not in (ChequeStatus.IN_HAND, ChequeStatus.DEPOSITED, ChequeStatus.ISSUED, ChequeStatus.CLEARED):
+            raise ValidationError("لا يمكن ارتداد الشيك في حالته الحالية.")
+        if self.clearance_entry_id and self.clearance_entry.is_submitted:
+            self.clearance_entry.cancel()
+        if self.payment_id and self.payment.is_submitted:
+            self.payment.cancel()
+        self.status, self.bounced_on = ChequeStatus.BOUNCED, timezone.localdate()
+        self.save(update_fields=["status", "bounced_on"])
+        notify_managers(self.company, f"ارتد الشيك رقم {self.cheque_no} ({self.amount:,.2f}) — {self.party}",
+                        self.get_absolute_url())
+
+    def before_cancel(self):
+        if self.status == ChequeStatus.CLEARED:
+            raise ValidationError("الشيك محصّل؛ استخدم «ارتداد بعد التحصيل» بدلاً من الإلغاء.")
+
+    def on_cancel(self):
+        if self.payment_id and self.payment.is_submitted:
+            self.payment.cancel()
+        self.status = ChequeStatus.CANCELLED
+        self.save(update_fields=["status"])
+

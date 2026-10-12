@@ -20,6 +20,7 @@ PATH_MODULES = [
     ("/reports/accounts/aging/customer/", {"selling", "accounts"}),
     ("/reports/accounts/aging/supplier/", {"buying", "accounts"}),
     ("/reports/accounts/reconcile/", {"selling", "buying", "accounts"}),
+    ("/reports/accounts/cheques/", {"selling", "buying", "accounts"}),
     ("/reports/accounts/", "accounts"),
     ("/assets/", "accounts"),
     ("/reports/stock/gross-profit/", {"selling", "accounts", "stock", "manufacturing"}),
@@ -39,7 +40,8 @@ SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
                    "payment-reconciliation": {"selling", "buying", "accounts"},
                    "price-list": {"selling", "buying", "stock"}, "item-price": {"selling", "buying", "stock"},
                    "pricing-rule": {"selling", "buying", "stock"},
-                   "payment-terms": {"selling", "buying", "accounts"}}
+                   "payment-terms": {"selling", "buying", "accounts"},
+                   "cheque": {"selling", "buying", "accounts"}}
 
 
 def modules_for_path(path):

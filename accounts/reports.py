@@ -357,3 +357,35 @@ def aging_report(request, party):
         "basis": basis, "only": only,
         "grand": sum(totals, flt(0)), "messaging_active": bool(cfg and cfg.active),
     })
+
+
+@login_required
+def cheques_due(request):
+    """الشيكات المفتوحة حسب الاستحقاق: المتأخرة، هذا الأسبوع، هذا الشهر، لاحقاً — للوارد والصادر."""
+    from accounts.models import Cheque, ChequeDirection, ChequeStatus
+
+    today = timezone.localdate()
+    open_statuses = [ChequeStatus.IN_HAND, ChequeStatus.DEPOSITED, ChequeStatus.ISSUED]
+    groups = [("متأخرة", None, today - datetime.timedelta(days=1)),
+              ("خلال 7 أيام", today, today + datetime.timedelta(days=7)),
+              ("خلال 30 يوماً", today + datetime.timedelta(days=8), today + datetime.timedelta(days=30)),
+              ("لاحقاً", today + datetime.timedelta(days=31), None)]
+    result = []
+    for direction, label in ChequeDirection.choices:
+        cheques = Cheque.objects.filter(docstatus=1, direction=direction, status__in=open_statuses).select_related(
+            "customer", "supplier")
+        sections = []
+        for title, start, end in groups:
+            qs = cheques
+            if start:
+                qs = qs.filter(cheque_date__gte=start)
+            if end:
+                qs = qs.filter(cheque_date__lte=end)
+            rows = list(qs.order_by("cheque_date"))
+            sections.append({"title": title, "rows": rows, "total": sum((c.amount for c in rows), flt(0))})
+        result.append({"direction": direction, "label": label, "sections": sections,
+                       "total": sum((s["total"] for s in sections), flt(0))})
+    bounced = Cheque.objects.filter(status=ChequeStatus.BOUNCED, bounced_on__gte=today - datetime.timedelta(days=90))
+    return render(request, "reports/cheques_due.html", {"title": "الشيكات المستحقة", "groups": result,
+                                                        "bounced": bounced.select_related("customer", "supplier"),
+                                                        "today": today})

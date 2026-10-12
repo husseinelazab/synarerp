@@ -42,7 +42,8 @@ def build_menu(request):
             {"items": [doc("عروض الأسعار", "quotation"), doc("أوامر البيع", "sales-order"), doc("أذون التسليم", "delivery-note"),
                        doc("فواتير المبيعات", "sales-invoice"), doc("العملاء", "customer"),
                        _item("سندات القبض", "doc_list", "payment-entry", query="?payment_type=receive"),
-                       _item("تسوية دفعات العملاء", "payment_reconcile", query="?party_type=customer")]},
+                       _item("تسوية دفعات العملاء", "payment_reconcile", query="?party_type=customer"),
+                       _item("شيكات العملاء", "doc_list", "cheque", query="?direction=received")]},
             {"title": "التسعير والعروض", "items": [doc("قوائم الأسعار", "price-list"), doc("العروض وقواعد التسعير", "pricing-rule"),
                                                   doc("فئات العملاء", "customer-group"), doc("برامج الولاء", "loyalty-program"),
                                                   doc("حركات نقاط الولاء", "loyalty-point-entry")]},
@@ -55,7 +56,8 @@ def build_menu(request):
                        doc("تحميل تكاليف الشحن والجمارك", "landed-cost"),
                        doc("الموردون", "supplier"),
                        _item("سندات الصرف", "doc_list", "payment-entry", query="?payment_type=pay"),
-                       _item("تسوية دفعات الموردين", "payment_reconcile", query="?party_type=supplier")]
+                       _item("تسوية دفعات الموردين", "payment_reconcile", query="?party_type=supplier"),
+                       _item("شيكات الموردين", "doc_list", "cheque", query="?direction=issued")]
                       + ([_item("قراءة فاتورة مورد بالذكاء الاصطناعي", "ai_invoice_upload")] if includes_ai else [])},
             {"title": "تقارير", "items": [_item("أرصدة الموردين", "party_balances", "supplier"),
                                           _item("أعمار ديون الموردين", "aging_report", "supplier"),
@@ -68,6 +70,9 @@ def build_menu(request):
                                         doc("مستندات تسوية الدفعات", "payment-reconciliation")]},
             {"title": "الأصول الثابتة", "items": [doc("الأصول", "asset"), _item("ترحيل الإهلاك", "asset_depreciation"),
                                                  _item("سجل الأصول", "asset_register"), doc("فئات الأصول", "asset-category")]},
+            {"title": "الشيكات", "items": [_item("الشيكات المستحقة", "cheques_due"), doc("حافظة الشيكات", "cheque"),
+                                          _item("شيك وارد جديد", "doc_new", "cheque", query="?direction=received"),
+                                          _item("شيك صادر جديد", "doc_new", "cheque", query="?direction=issued")]},
             {"title": "البنوك", "items": [_item("التسوية البنكية", "bank_reconciliation"),
                                          doc("حركات كشف البنك", "bank-transaction")]},
             {"title": "تقارير", "items": [

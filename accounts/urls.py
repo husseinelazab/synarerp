@@ -13,6 +13,7 @@ urlpatterns = [
     path("balance-sheet/", reports.balance_sheet, name="balance_sheet"),
     path("vat/", reports.vat_report, name="vat_report"),
     path("cash-flow/", statements.cash_flow, name="cash_flow"),
+    path("cheques/", reports.cheques_due, name="cheques_due"),
     path("profit-and-loss/compare/", statements.comparative_pnl, name="comparative_pnl"),
     path("balance-sheet/compare/", statements.comparative_balance_sheet, name="comparative_balance_sheet"),
     path("chart-of-accounts/", reports.chart_of_accounts, name="chart_of_accounts"),

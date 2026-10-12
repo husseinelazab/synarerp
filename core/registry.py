@@ -7,6 +7,7 @@ from django.http import Http404
 MODULES = {
     "accounts": "المحاسبة",
     "selling": "المبيعات",
+    "crm": "إدارة العملاء (CRM)",
     "buying": "المشتريات",
     "stock": "المخزون",
     "hr": "الموارد البشرية",

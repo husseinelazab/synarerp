@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'activity' %}">+ متابعة</a>
+  {% if show_all %}<a class="btn" href="?">متابعاتي فقط</a>{% else %}<a class="btn" href="?all=1">متابعات الجميع</a>{% endif %}</div></div>
+<div class="card"><h3 class="neg">متأخرة ({{ overdue|length }})</h3>{% include "crm/_activity_table.html" with rows=overdue %}</div>
+<div class="card"><h3>اليوم ({{ today|length }})</h3>{% include "crm/_activity_table.html" with rows=today %}</div>
+<div class="card"><h3>القادمة</h3>{% include "crm/_activity_table.html" with rows=upcoming %}</div>
+{% endblock %}

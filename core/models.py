@@ -142,6 +142,10 @@ class TenantModel(models.Model):
             self.company = company
         super().save(*args, **kwargs)
 
+    def get_absolute_url(self):
+        slug = getattr(type(self), "doctype_slug", None)
+        return reverse("doc_detail", args=[slug, self.pk]) if slug else ""
+
     def validate_constraints(self, exclude=None):
         # حقل الشركة لا يظهر في النماذج، لكن قيود التفرد داخل الشركة يجب أن تُفحص
         if exclude and "company" in exclude:

@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>المندوب <select name="sales_person" class="form-select" onchange="this.form.submit()"><option value="">الكل</option>{% for p in people %}<option value="{{ p.pk }}" {% if p.pk|stringformat:"s" == person %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
+  <a class="btn btn-primary" href="{% url 'doc_new' 'opportunity' %}">+ فرصة بيع</a>
+  <a class="btn" href="{% url 'doc_new' 'lead' %}">+ عميل محتمل</a>
+</form>
+<div class="kpis">
+  <div class="kpi"><span>قيمة الفرص المفتوحة</span><b>{{ open_total|money }}</b></div>
+  <div class="kpi kpi-good"><span>التوقع المرجح بالاحتمال</span><b>{{ forecast|money }}</b></div>
+  <div class="kpi"><span>نسبة الفوز هذا العام</span><b>{% if win_rate is not None %}{{ win_rate|floatformat:0 }}%{% else %}—{% endif %}</b></div>
+  {% for l in leads %}<div class="kpi"><span>عملاء محتملون: {{ lead_statuses|get_item:l.status }}</span><b>{{ l.n }}</b></div>{% endfor %}
+</div>
+<div class="pipeline">
+  {% for col in columns %}
+  <div class="card pipeline-col">
+    <div class="card-head"><h3>{{ col.label }} ({{ col.items|length }})</h3><span class="muted small">{{ col.total|money }}</span></div>
+    {% for o in col.items %}
+    <a class="pipeline-card" href="{% url 'doc_detail' 'opportunity' o.pk %}">
+      <strong>{{ o.title }}</strong>
+      <span class="muted small">{{ o.customer|default:o.lead|default:"" }}</span>
+      <span>{{ o.expected_amount|money }} · {{ o.probability }}%{% if o.expected_close %} · {{ o.expected_close|date:"Y-m-d" }}{% endif %}</span>
+    </a>
+    {% empty %}<p class="muted small">لا توجد فرص</p>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

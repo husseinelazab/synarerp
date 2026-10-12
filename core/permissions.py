@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 PERMISSION_MODULES = [
     ("selling", "المبيعات"),
+    ("crm", "إدارة العملاء (CRM)"),
     ("buying", "المشتريات"),
     ("accounts", "المحاسبة والأصول الثابتة"),
     ("stock", "المخزون"),
@@ -31,6 +32,7 @@ PATH_MODULES = [
     ("/messaging/", "selling"),
     ("/buying/", "buying"),
     ("/selling/", "selling"),
+    ("/crm/", "crm"),
     ("/manufacturing/", "manufacturing"),
     ("/pos/", "pos"),
     ("/einvoice/", "einvoice"),

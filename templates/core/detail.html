@@ -53,6 +53,9 @@
         {% endif %}{% endif %}
       {% endif %}
     {% endif %}
+    {% if not dt.is_submittable %}{% for key, label in obj.available_actions %}
+      <form method="post" action="{% url 'doc_action' dt.slug obj.pk key %}">{% csrf_token %}<button class="btn {% if forloop.first %}btn-primary{% endif %}">{{ label }}</button></form>
+    {% endfor %}{% endif %}
     {% for key, label in obj.draft_actions %}
       <form method="post" action="{% url 'doc_action' dt.slug obj.pk key %}" class="inline-form" onsubmit="return confirm('{{ label }}؟')">{% csrf_token %}
         {% if key == 'reject' %}<input name="reason" class="form-control" placeholder="سبب الرفض (يظهر للموظف)" style="max-width:220px">{% endif %}

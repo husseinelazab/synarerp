@@ -1,4 +1,4 @@
-<div class="field {% if field.field.widget.input_type == 'checkbox' %}field-check{% endif %}">
+<div class="field {% if field.field.widget.allow_multiple_selected and field.field.widget.input_type == 'checkbox' %}field-multi{% elif field.field.widget.input_type == 'checkbox' %}field-check{% endif %}">
   <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="req">*</span>{% endif %}</label>
   {{ field }}
   {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}

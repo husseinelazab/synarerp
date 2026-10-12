@@ -102,7 +102,12 @@ class TenantMiddleware:
                     messages.warning(request, "انتهى اشتراك الشركة أو تم إيقافه. يرجى التجديد لمتابعة استخدام النظام.")
                     return redirect("billing")
                 return render(request, "saas/expired.html", status=402)
-        elif path.startswith("/pos/") and not subscription.plan.includes_pos:
-            messages.warning(request, "نقاط البيع غير متاحة في باقتك الحالية. يمكنك الترقية من صفحة الاشتراك.")
-            return redirect("billing" if membership.can_manage else "dashboard")
+        else:
+            from core.permissions import plan_allows_path
+
+            if not plan_allows_path(subscription.plan, path):
+                if membership.role == Role.CASHIER:  # الكاشير لا يصل لغير نقطة البيع، فلا نحوّله في حلقة
+                    return render(request, "saas/module_closed.html", status=402)
+                messages.warning(request, "هذه الوحدة غير متاحة في باقتك الحالية. يمكنك الترقية من صفحة الاشتراك.")
+                return redirect("billing" if membership.can_manage else "dashboard")
         return None

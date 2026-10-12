@@ -23,13 +23,27 @@
         <summary class="{% if module.open %}current{% endif %}"><svg viewBox="0 0 24 24">{{ module.icon|safe }}</svg><span>{{ module.label }}</span><i class="chev"></i></summary>
         <div class="nav-children">
           {% for section in module.sections %}
-            {% if section.title %}<div class="nav-subtitle">{{ section.title }}</div>{% endif %}
+            {% if section.title and module.sections|length > 1 %}
+            <details class="nav-group" {% if section.open %}open{% endif %}>
+              <summary class="nav-subtitle">{{ section.title }}<i class="chev"></i></summary>
+              {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}">{{ item.label }}</a>{% endfor %}
+            </details>
+            {% else %}
             {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}">{{ item.label }}</a>{% endfor %}
+            {% endif %}
           {% endfor %}
         </div>
       </details>
       {% endfor %}
     </nav>
+    <script>
+      // وحدة واحدة مفتوحة في كل مرة حتى لا تطول القائمة
+      document.querySelectorAll('.side-nav > .nav-module').forEach(function (d) {
+        d.addEventListener('toggle', function () {
+          if (d.open) document.querySelectorAll('.side-nav > .nav-module[open]').forEach(function (o) { if (o !== d) o.open = false; });
+        });
+      });
+    </script>
   </aside>
   <div class="main">
     <header class="topbar">

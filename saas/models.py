@@ -14,6 +14,8 @@ class Plan(models.Model):
     max_users = models.PositiveIntegerField("الحد الأقصى للمستخدمين", default=3)
     includes_pos = models.BooleanField("تشمل نقاط البيع", default=False)
     includes_ai = models.BooleanField("تشمل قراءة الفواتير بالذكاء الاصطناعي", default=False)
+    # الوحدات المغلقة في هذه الباقة؛ أي وحدة غير مذكورة مفتوحة (نقاط البيع يتحكم بها includes_pos)
+    closed_modules = models.JSONField("الوحدات المغلقة", default=list, blank=True)
     trial_days = models.PositiveIntegerField("أيام التجربة المجانية", default=14)
     is_public = models.BooleanField("تظهر في صفحة الأسعار", default=True)
     sort_order = models.PositiveIntegerField("الترتيب", default=0)
@@ -25,6 +27,17 @@ class Plan(models.Model):
 
     def __str__(self):
         return self.name
+
+    def allows_module(self, key):
+        if key == "pos":
+            return self.includes_pos
+        return key not in (self.closed_modules or [])
+
+    def module_labels(self):
+        """أسماء الوحدات المتاحة في الباقة لعرضها في صفحات الأسعار والاشتراك."""
+        from core.permissions import PLAN_MODULES
+
+        return [label for key, label in PLAN_MODULES if self.allows_module(key)]
 
 
 class SubscriptionStatus(models.TextChoices):

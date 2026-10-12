@@ -22,7 +22,7 @@
 {% endif %}
 <div class="toolbar">
   <form method="get" class="filters"><input type="search" name="q" value="{{ query }}" class="form-control" placeholder="بحث بالاسم أو الرقم الضريبي أو الجوال"><button class="btn">بحث</button></form>
-  <a class="btn" href="{% url 'admin:saas_plan_changelist' %}">إدارة الباقات</a>
+  <a class="btn" href="{% url 'platform_plans' %}">الباقات والوحدات</a>
 </div>
 <div class="card">
   <div class="table-wrap"><table class="table table-hover">

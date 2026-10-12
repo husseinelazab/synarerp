@@ -60,8 +60,7 @@
           <div class="muted">أو {{ plan.price_yearly|floatformat:0 }}<span class="cur">⃁</span> سنوياً</div>
           <ul>
             <li>حتى {{ plan.max_users }} مستخدمين</li>
-            <li>المحاسبة والمبيعات والمشتريات والمخزون</li>
-            <li>{% if plan.includes_pos %}نقاط البيع ✓{% else %}بدون نقاط البيع{% endif %}</li>
+            <li>المحاسبة، {{ plan.module_labels|join:"، " }}</li>
             {% if plan.includes_ai %}<li>قراءة فواتير الموردين بالذكاء الاصطناعي ✓</li>{% endif %}
             <li>تجربة مجانية {{ plan.trial_days }} يوماً</li>
           </ul>

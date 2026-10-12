@@ -244,3 +244,62 @@ class PlatformTests(TestCase):
         self.assertRedirects(self.client.get("/"), "/platform/", fetch_redirect_response=False)
         self.client.post(f"/platform/companies/{self.company.pk}/", {"action": "enter"})
         self.assertEqual(self.client.get("/app/customer/").status_code, 200)
+
+
+class PlanModulesTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.owner = make_company("شركة الوحدات", "mod_owner", plan_code="basic")
+        cls.admin = User.objects.create_superuser("plans_admin", "", "pass12345")
+        cls.plan = Plan.objects.get(code="basic")
+
+    def close(self, *keys):
+        self.plan.closed_modules = list(keys)
+        self.plan.save()
+
+    def menu_keys(self):
+        return [m["key"] for m in self.client.get("/").context["nav_modules"]]
+
+    def test_closed_module_hidden_and_blocked_even_for_owner(self):
+        self.close("hr", "manufacturing")
+        self.client.force_login(self.owner)
+        keys = self.menu_keys()
+        self.assertNotIn("hr", keys)
+        self.assertNotIn("manufacturing", keys)
+        self.assertIn("selling", keys)
+        self.assertRedirects(self.client.get("/app/employee/"), "/billing/", fetch_redirect_response=False)
+        self.assertRedirects(self.client.get("/app/bom/"), "/billing/", fetch_redirect_response=False)
+        self.assertEqual(self.client.get("/app/customer/").status_code, 200)
+
+    def test_shared_paths_open_while_any_module_is_open(self):
+        self.close("selling")
+        self.client.force_login(self.owner)
+        self.assertRedirects(self.client.get("/app/sales-invoice/"), "/billing/", fetch_redirect_response=False)
+        # سندات القبض مشتركة مع المحاسبة، والمحاسبة لا تُغلق
+        self.assertEqual(self.client.get("/app/payment-entry/").status_code, 200)
+
+    def test_closed_module_items_removed_from_other_menus(self):
+        self.close("stock")
+        self.client.force_login(self.owner)
+        urls = [i["url"] for m in self.client.get("/").context["nav_modules"] for s in m["sections"] for i in s["items"]]
+        self.assertFalse(any(u.startswith(("/app/item/", "/app/stock-entry/", "/reports/stock/balance")) for u in urls))
+        self.assertTrue(any(u.startswith("/reports/stock/gross-profit/") for u in urls))  # مشترك مع المبيعات
+
+    def test_platform_edits_plan_modules(self):
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get("/platform/plans/"), "الأساسية")
+        form = self.client.get(f"/platform/plans/{self.plan.pk}/").context["form"]
+        data = {k: v for k, v in form.initial.items() if v is not None and k not in ("modules", "includes_ai", "is_public")}
+        data["modules"] = ["selling", "buying", "stock", "pos"]
+        self.assertRedirects(self.client.post(f"/platform/plans/{self.plan.pk}/", data), "/platform/plans/")
+        self.plan.refresh_from_db()
+        self.assertTrue(self.plan.includes_pos)
+        self.assertFalse(self.plan.is_public)
+        self.assertIn("hr", self.plan.closed_modules)
+        self.assertNotIn("selling", self.plan.closed_modules)
+        self.assertTrue(self.plan.allows_module("accounts"))
+
+    def test_plan_pages_require_superuser(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get("/platform/plans/").status_code, 302)
+        self.assertTrue(self.client.get("/platform/plans/").url.startswith("/login/"))

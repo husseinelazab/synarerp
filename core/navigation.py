@@ -118,6 +118,7 @@ def build_menu(request):
                        doc("التشغيلات", "batch"), doc("الأرقام التسلسلية والضمان", "serial-no"),
                        doc("المستودعات", "warehouse"),
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
+            {"title": "الجودة", "items": [doc("فحوصات الجودة", "quality-inspection"), doc("نماذج الفحص", "quality-template")]},
             {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),
                                           _item("الموازين", "stock_scales")]},
             {"title": "التسعير", "items": [doc("قوائم الأسعار", "price-list"), doc("أسعار الأصناف في القوائم", "item-price"),

@@ -414,11 +414,28 @@ class PurchaseInvoice(InvoiceDocument):
     def document_title(self):
         return "إشعار مدين (مرتجع مشتريات)" if self.is_return else "فاتورة مشتريات"
 
+    @property
+    def draft_actions(self):
+        from quality.models import InspectionStage, pending_items
+
+        if self.is_draft and self.pk and self.update_stock and not self.is_return and pending_items(
+                self, {r.item for r in self.items.select_related("item")}, InspectionStage.RECEIPT):
+            return [("make_quality_inspection", "إنشاء فحص جودة")]
+        return []
+
+    def make_quality_inspection(self, user=None):
+        from quality.models import InspectionStage, make_inspection
+
+        return make_inspection(self, {r.item for r in self.items.select_related("item")}, InspectionStage.RECEIPT, user)
+
     def validate_for_submit(self):
         super().validate_for_submit()
         if self.discount_amount:
             raise ValidationError("الخصم في فاتورة المشتريات غير مدعوم حالياً؛ أدخل الأسعار بعد الخصم.")
         if self.update_stock and not self.is_return:
+            from quality.models import InspectionStage, require_inspections
+
+            require_inspections(self, {r.item for r in self.items.select_related("item")}, InspectionStage.RECEIPT)
             rows = list(self.items.select_related("order_item", "receipt_item"))
             if any(r.receipt_item_id for r in rows):
                 raise ValidationError("البضاعة استُلمت بإذن الاستلام؛ ألغِ «تحديث المخزون» في هذه الفاتورة.")
@@ -520,6 +537,26 @@ class PurchaseReceipt(FulfillmentDocument):
 
     def invoice_model(self):
         return PurchaseInvoice
+
+    def validate_for_submit(self):
+        super().validate_for_submit()
+        from quality.models import InspectionStage, require_inspections
+
+        require_inspections(self, {r.item for r in self.items.select_related("item")}, InspectionStage.RECEIPT)
+
+    @property
+    def draft_actions(self):
+        from quality.models import InspectionStage, pending_items
+
+        if self.is_draft and self.pk and pending_items(self, {r.item for r in self.items.select_related("item")},
+                                                       InspectionStage.RECEIPT):
+            return [("make_quality_inspection", "إنشاء فحص جودة")]
+        return []
+
+    def make_quality_inspection(self, user=None):
+        from quality.models import InspectionStage, make_inspection
+
+        return make_inspection(self, {r.item for r in self.items.select_related("item")}, InspectionStage.RECEIPT, user)
 
     @property
     def linked_documents(self):

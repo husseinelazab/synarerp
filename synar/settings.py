@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "crm",
     "projects",
     "support",
+    "quality",
 ]
 
 MIDDLEWARE = [

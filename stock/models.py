@@ -79,6 +79,10 @@ class Item(TenantModel):
     valuation_method = models.CharField(
         "طريقة التقييم", max_length=10, choices=[("average", "المتوسط المرجح المتحرك"), ("fifo", "الوارد أولاً صادر أولاً (FIFO)")],
         default="average", help_text="FIFO: تُصرف التكلفة من أقدم دفعات الشراء أولاً (مناسب للأصناف متقلبة السعر)")
+    quality_template = models.ForeignKey("quality.QualityTemplate", models.SET_NULL, null=True, blank=True,
+                                         related_name="+", verbose_name="نموذج فحص الجودة")
+    inspection_on_receipt = models.BooleanField("فحص جودة إلزامي عند الاستلام", default=False)
+    inspection_on_production = models.BooleanField("فحص جودة إلزامي عند الإنتاج", default=False)
     has_serial_no = models.BooleanField("تتبع الأرقام التسلسلية", default=False,
                                         help_text="رقم لكل قطعة (أجهزة، جوالات…): يُدخل عند الشراء والبيع ويُتابع ضمانه")
     warranty_days = models.PositiveIntegerField("مدة الضمان بالأيام", default=0, help_text="تُحسب من تاريخ البيع")

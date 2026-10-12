@@ -353,6 +353,9 @@ class Production(SubmittableDocument):
     def validate_for_submit(self):
         if not self.bom.is_active:
             raise ValidationError("قائمة المواد غير فعّالة.")
+        from quality.models import InspectionStage, require_inspections
+
+        require_inspections(self, [self.item], InspectionStage.PRODUCTION)
         if self.qty <= 0:
             raise ValidationError("الكمية المطلوب إنتاجها يجب أن تكون أكبر من صفر.")
         if self.additional_cost < 0:
@@ -417,9 +420,19 @@ class Production(SubmittableDocument):
 
     @property
     def draft_actions(self):
+        from quality.models import InspectionStage, pending_items
+
+        actions = []
         if self.is_draft and any(a["short"] > 0 and default_bom(a["row"].item) for a in self.availability):
-            return [("make_sub_productions", "إنشاء أوامر إنتاج للمكونات الناقصة")]
-        return []
+            actions.append(("make_sub_productions", "إنشاء أوامر إنتاج للمكونات الناقصة"))
+        if self.is_draft and self.pk and pending_items(self, [self.item], InspectionStage.PRODUCTION):
+            actions.append(("make_quality_inspection", "إنشاء فحص جودة للمنتج"))
+        return actions
+
+    def make_quality_inspection(self, user=None):
+        from quality.models import InspectionStage, make_inspection
+
+        return make_inspection(self, [self.item], InspectionStage.PRODUCTION, user)
 
     def make_sub_productions(self, user=None):
         """أوامر إنتاج (مسودات) للمكونات نصف المصنعة الناقصة بكمية العجز."""

@@ -1,4 +1,4 @@
-from accounts.models import (Account, Budget, CashCustody, CustodyExpense, CustodySettlement, DeferralSchedule, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, Budget, ZakatDeclaration, CashCustody, CustodyExpense, CustodySettlement, DeferralSchedule, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -15,7 +15,7 @@ register(DocType(
 register(DocType(
     slug="payment-entry", model=PaymentEntry, module="accounts",
     list_fields=["name", "posting_date", "payment_type", "customer", "supplier", "amount"],
-    form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount", "currency", "exchange_rate",
+    form_fields=["payment_type", "posting_date", "customer", "supplier", "account", "amount", "withholding_rate", "currency", "exchange_rate",
                  "sales_invoice", "purchase_invoice", "reference_no", "remarks"],
     search_fields=["name", "customer__name", "supplier__name", "reference_no"],
     child=ChildTable(PaymentReference, ["sales_invoice", "purchase_invoice", "allocated_amount"],
@@ -37,7 +37,8 @@ register(DocType(
 register(DocType(
     slug="account", model=Account, module="accounts",
     list_fields=["number", "name", "parent", "root_type", "account_type", "is_group"],
-    form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "cash_flow_category", "disabled"],
+    form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "cash_flow_category",
+                 "zakat_treatment", "disabled"],
     search_fields=["number", "name"],
 ))
 register(DocType(
@@ -119,4 +120,10 @@ register(DocType(
     child=ChildTable(CustodyExpense, ["account", "description", "bill_no", "amount", "tax_amount", "cost_center", "project"],
                      label="المصروفات", min_rows=0),
     totals=["total_expenses", "returned_amount"],
+))
+register(DocType(
+    slug="zakat", model=ZakatDeclaration, module="accounts",
+    list_fields=["name", "fiscal_year", "zakat_base", "zakat_amount"],
+    form_fields=["fiscal_year", "rate", "profit_adjustments", "other_additions", "other_deductions", "remarks"],
+    search_fields=["name"], totals=["equity", "long_term", "net_profit", "fixed_assets", "zakat_base", "zakat_amount"],
 ))

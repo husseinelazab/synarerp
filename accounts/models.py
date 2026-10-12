@@ -52,6 +52,10 @@ class Account(TenantModel):
     cash_flow_category = models.CharField(
         "تصنيف التدفق النقدي", max_length=10, choices=CashFlowCategory.choices, blank=True,
         help_text="فارغ = تلقائي: الأصول الثابتة استثمارية، وحقوق الملكية والقروض تمويلية، والباقي تشغيلي")
+    zakat_treatment = models.CharField(
+        "المعاملة الزكوية", max_length=10, blank=True,
+        choices=[("add", "يُضاف للوعاء"), ("deduct", "يُحسم من الوعاء"), ("ignore", "لا يدخل الوعاء")],
+        help_text="فارغ = تلقائي: حقوق الملكية والخصوم طويلة الأجل تُضاف، والأصول الثابتة تُحسم")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -361,6 +365,11 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
         "buying.PurchaseInvoice", models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="فاتورة المشتريات"
     )
     reference_no = models.CharField("رقم المرجع (شيك / حوالة)", max_length=50, blank=True)
+    withholding_rate = models.DecimalField("ضريبة الاستقطاع %", max_digits=5, decimal_places=2, default=0,
+                                           help_text="للدفع لمورد غير مقيم: يُخصم من المدفوع ويُستحق للهيئة. "
+                                                     "المبلغ أعلاه = الإجمالي المسدد للمورد قبل الاستقطاع")
+    withholding_amount = models.DecimalField("ضريبة الاستقطاع", max_digits=18, decimal_places=2, default=0,
+                                             editable=False)
     allocated_amount = models.DecimalField("المخصص على الفواتير", max_digits=18, decimal_places=2, default=0,
                                            editable=False)
     unallocated_amount = models.DecimalField("غير مخصص (دفعة مقدمة)", max_digits=18, decimal_places=2, default=0,
@@ -407,6 +416,11 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
     def calculate_totals(self):
         self.ensure_currency()
         self.base_amount = self.to_base(self.amount)
+        if self.is_draft and self.supplier_id and self.payment_type == PaymentType.PAY and not flt(self.withholding_rate):
+            self.withholding_rate = self.supplier.withholding_rate
+        if not (self.supplier_id and self.payment_type == PaymentType.PAY):
+            self.withholding_rate = 0
+        self.withholding_amount = flt(flt(self.amount) * flt(self.withholding_rate) / 100)
         if self.pk:
             self.allocated_amount = sum((amount for _inv, amount in self.allocations()), flt(0))
             self.unallocated_amount = flt(flt(self.amount) - self.allocated_amount)
@@ -460,7 +474,9 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
         allocations = self.allocations()
         # النقدية بسعر صرف السند، والذمة بسعر صرف كل فاتورة نشأت بها (والجزء غير المخصص بسعر السند)؛
         # الفرق ربح أو خسارة صرف
-        cash_base = self.to_base(amount)
+        wht = flt(self.withholding_amount) if self.payment_type == PaymentType.PAY and self.supplier_id else flt(0)
+        wht_base = self.to_base(wht)
+        cash_base = self.to_base(amount - wht)
         allocated = sum((a for _inv, a in allocations), flt(0))
         party_base = sum((flt(a * inv.exchange_rate) for inv, a in allocations), flt(0)) + self.to_base(amount - allocated)
         if self.payment_type == PaymentType.RECEIVE:
@@ -474,7 +490,10 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
                 {"account": party_account, "debit": party_base, "base": True, **party},
                 {"account": self.account, "credit": cash_base, "base": True},
             ]
-            gain = party_base - cash_base
+            if wht:
+                entries.append({"account": withholding_account(self.company), "credit": wht_base, "base": True,
+                                "remarks": f"ضريبة استقطاع {self.withholding_rate}% — {self.supplier}"})
+            gain = party_base - cash_base - wht_base
         if gain:
             fx_account = self.company.require_account("default_exchange_account")
             entries.append({"account": fx_account, "credit": gain if gain > 0 else 0, "debit": -gain if gain < 0 else 0,
@@ -531,6 +550,18 @@ class PaymentEntry(CurrencyMixin, SubmittableDocument):
             raise ValidationError("لا توجد فواتير مستحقة لهذا الطرف بنفس عملة السند.")
         self.calculate_totals()
         self.save()
+
+
+def withholding_account(company):
+    """حساب ضريبة الاستقطاع المستحقة (يُنشأ تحت الخصوم المتداولة إن لم يوجد)."""
+    account = Account.all_objects.filter(company=company, number="2108", is_group=False).first()
+    if account is None:
+        parent = (Account.all_objects.filter(company=company, number="21", is_group=True).first() or
+                  Account.all_objects.filter(company=company, root_type=RootType.LIABILITY, is_group=True,
+                                             parent__isnull=True).first())
+        account = Account.all_objects.create(company=company, number="2108", name="ضريبة الاستقطاع المستحقة",
+                                             parent=parent, root_type=RootType.LIABILITY, account_type=AccountType.TAX)
+    return account
 
 
 def _update_outstanding(invoice, delta):
@@ -1573,3 +1604,131 @@ class CustodyExpense(models.Model):
     class Meta:
         verbose_name = "مصروف من العهدة"
         verbose_name_plural = "المصروفات"
+
+
+
+# ---------- الزكاة ----------
+
+def zakat_accounts(company):
+    """(مصروف الزكاة، الزكاة المستحقة) — يُنشآن إن لم يوجدا."""
+    def ensure(number, name, root, parent_number):
+        account = Account.all_objects.filter(company=company, number=number, is_group=False).first()
+        if account is None:
+            parent = (Account.all_objects.filter(company=company, number=parent_number, is_group=True).first() or
+                      Account.all_objects.filter(company=company, root_type=root, is_group=True,
+                                                 parent__isnull=True).first())
+            account = Account.all_objects.create(company=company, number=number, name=name, parent=parent,
+                                                 root_type=root)
+        return account
+
+    return (ensure("5211", "الزكاة الشرعية", RootType.EXPENSE, "52"),
+            ensure("2109", "الزكاة المستحقة", RootType.LIABILITY, "21"))
+
+
+class ZakatDeclaration(SubmittableDocument):
+    """حساب الوعاء الزكوي لسنة مالية من الأرصدة، مع تعديلات يدوية، وترحيل مخصص الزكاة.
+
+    الوعاء = (حقوق الملكية + الخصوم طويلة الأجل والمخصصات + صافي الربح المعدّل + إضافات أخرى)
+             − (صافي الأصول الثابتة + الاستثمارات طويلة الأجل + حسميات أخرى)، ولا يقل عن صافي الربح المعدّل.
+    """
+
+    naming_prefix = "ZKT"
+
+    fiscal_year = models.ForeignKey("core.FiscalYear", models.PROTECT, verbose_name="السنة المالية")
+    rate = models.DecimalField("نسبة الزكاة %", max_digits=6, decimal_places=4, default="2.5776",
+                               help_text="2.5776% للسنة الميلادية، و2.5% للسنة الهجرية")
+    equity = models.DecimalField("حقوق الملكية أول السنة", max_digits=18, decimal_places=2, default=0, editable=False)
+    long_term = models.DecimalField("الخصوم طويلة الأجل والمخصصات", max_digits=18, decimal_places=2, default=0,
+                                    editable=False)
+    net_profit = models.DecimalField("صافي ربح السنة", max_digits=18, decimal_places=2, default=0, editable=False)
+    fixed_assets = models.DecimalField("صافي الأصول الثابتة (حسم)", max_digits=18, decimal_places=2, default=0,
+                                       editable=False)
+    other_additions = models.DecimalField("إضافات أخرى", max_digits=18, decimal_places=2, default=0,
+                                          help_text="مثل: مخصصات غير مقبولة، تبرعات")
+    other_deductions = models.DecimalField("حسميات أخرى", max_digits=18, decimal_places=2, default=0,
+                                           help_text="مثل: استثمارات في منشآت محلية خاضعة للزكاة، خسائر مرحلة")
+    profit_adjustments = models.DecimalField("تعديلات صافي الربح", max_digits=18, decimal_places=2, default=0,
+                                             help_text="مصروفات غير جائزة الحسم (+) أو إيرادات معفاة (−)")
+    zakat_base = models.DecimalField("الوعاء الزكوي", max_digits=18, decimal_places=2, default=0, editable=False)
+    zakat_amount = models.DecimalField("الزكاة المستحقة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "إقرار زكوي"
+        verbose_name_plural = "الإقرارات الزكوية"
+
+    def save(self, *args, **kwargs):
+        if self.fiscal_year_id:
+            self.posting_date = self.fiscal_year.end_date
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def _treatment(account, ancestors):
+        if account.zakat_treatment:
+            return account.zakat_treatment
+        if account.root_type == RootType.EQUITY:
+            return "add"
+        if account.root_type == RootType.LIABILITY and "22" in ancestors:
+            return "add"
+        if account.account_type in (AccountType.FIXED_ASSET, AccountType.ACCUMULATED_DEPRECIATION):
+            return "deduct"
+        return "ignore"
+
+    def calculate_totals(self):
+        if not self.fiscal_year_id:
+            return
+        year = self.fiscal_year
+        accounts = {a.pk: a for a in Account.objects.all()}
+
+        def ancestors(account):
+            numbers, node = set(), account
+            while node is not None:
+                numbers.add(node.number)
+                node = accounts.get(node.parent_id)
+            return numbers
+
+        def sums(**filters):
+            rows = (GLEntry.objects.filter(is_cancelled=False, **filters).exclude(voucher_type="period-closing")
+                    .values("account_id").annotate(d=models.Sum("debit"), c=models.Sum("credit")))
+            return {r["account_id"]: flt(r["d"]) - flt(r["c"]) for r in rows}
+
+        equity = long_term = fixed = flt(0)
+        opening = sums(posting_date__lt=year.start_date)
+        closing = sums(posting_date__lte=year.end_date)
+        for account_id, balance in opening.items():
+            account = accounts[account_id]
+            treatment = self._treatment(account, ancestors(account))
+            if treatment == "add" and account.root_type == RootType.EQUITY:
+                equity += -balance
+        for account_id, balance in closing.items():
+            account = accounts[account_id]
+            treatment = self._treatment(account, ancestors(account))
+            if treatment == "add" and account.root_type == RootType.LIABILITY:
+                long_term += -balance
+            elif treatment == "deduct":
+                fixed += balance
+        period = sums(posting_date__gte=year.start_date, posting_date__lte=year.end_date,
+                      account__root_type__in=[RootType.INCOME, RootType.EXPENSE])
+        profit = -sum(period.values(), flt(0))
+        self.equity, self.long_term, self.fixed_assets, self.net_profit = equity, long_term, fixed, profit
+        adjusted_profit = flt(profit + flt(self.profit_adjustments))
+        base = (equity + long_term + max(adjusted_profit, flt(0)) + flt(self.other_additions)
+                - fixed - flt(self.other_deductions))
+        self.zakat_base = max(base, adjusted_profit, flt(0))
+        from decimal import Decimal
+
+        self.zakat_amount = flt(self.zakat_base * Decimal(str(self.rate)) / 100)
+
+    def validate_for_submit(self):
+        if ZakatDeclaration.objects.filter(fiscal_year=self.fiscal_year, docstatus=1).exclude(pk=self.pk).exists():
+            raise ValidationError(f"يوجد إقرار زكوي معتمد للسنة {self.fiscal_year}.")
+        if self.zakat_amount <= 0:
+            raise ValidationError("لا زكاة مستحقة على الوعاء المحسوب.")
+
+    def on_submit(self):
+        expense, payable = zakat_accounts(self.company)
+        make_gl_entries(self, [{"account": expense, "debit": self.zakat_amount},
+                               {"account": payable, "credit": self.zakat_amount}],
+                        remarks=f"مخصص الزكاة للسنة {self.fiscal_year}")
+
+    def on_cancel(self):
+        cancel_gl_entries(self)

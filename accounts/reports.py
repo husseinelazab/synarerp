@@ -389,3 +389,25 @@ def cheques_due(request):
     return render(request, "reports/cheques_due.html", {"title": "الشيكات المستحقة", "groups": result,
                                                         "bounced": bounced.select_related("customer", "supplier"),
                                                         "today": today})
+
+
+@login_required
+def withholding_report(request):
+    """ضريبة الاستقطاع المستحقة على المدفوعات لغير المقيمين حسب الشهر (لإقرار الاستقطاع قبل اليوم العاشر من الشهر التالي)."""
+    from accounts.models import PaymentEntry
+
+    from_date, to_date = _period(request)
+    payments = (PaymentEntry.objects.filter(docstatus=1, withholding_amount__gt=0, posting_date__gte=from_date,
+                                            posting_date__lte=to_date).select_related("supplier", "currency")
+                .order_by("posting_date"))
+    groups = {}
+    for p in payments:
+        key = (p.supplier.withholding_type or "غير محدد", p.withholding_rate)
+        g = groups.setdefault(key, {"type": key[0], "rate": key[1], "gross": flt(0), "tax": flt(0), "count": 0})
+        g["gross"] += p.to_base(p.amount)
+        g["tax"] += p.to_base(p.withholding_amount)
+        g["count"] += 1
+    return render(request, "reports/withholding.html", {
+        "title": "إقرار ضريبة الاستقطاع", "from_date": from_date, "to_date": to_date, "payments": payments,
+        "groups": list(groups.values()), "total_tax": sum((g["tax"] for g in groups.values()), flt(0)),
+    })

@@ -26,6 +26,11 @@ class Supplier(TenantModel):
                                    verbose_name="قائمة أسعار المورد")
     payment_terms = models.ForeignKey("accounts.PaymentTermsTemplate", models.SET_NULL, null=True, blank=True,
                                       related_name="+", verbose_name="شروط الدفع الافتراضية")
+    is_non_resident = models.BooleanField("مورد غير مقيم (خارج المملكة)", default=False)
+    withholding_rate = models.DecimalField("نسبة ضريبة الاستقطاع %", max_digits=5, decimal_places=2, default=0,
+                                           help_text="لغير المقيم: 5% (خدمات فنية من جهة مرتبطة… حسب النوع)، 15%، 20% (إدارية)")
+    withholding_type = models.CharField("نوع الدفعة للاستقطاع", max_length=100, blank=True,
+                                        help_text="مثل: خدمات فنية واستشارية، إيجار، أتاوات، تذاكر طيران")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:

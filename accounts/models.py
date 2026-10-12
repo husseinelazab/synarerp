@@ -1122,3 +1122,73 @@ class Cheque(SubmittableDocument):
         self.status = ChequeStatus.CANCELLED
         self.save(update_fields=["status"])
 
+
+
+# ---------- الموازنات التقديرية ----------
+
+class BudgetAction(models.TextChoices):
+    WARN = "warn", "تنبيه المدير فقط"
+    STOP = "stop", "منع الترحيل"
+
+
+class BudgetPeriod(models.TextChoices):
+    ANNUAL = "annual", "سنوية (إجمالي السنة)"
+    MONTHLY = "monthly", "شهرية تراكمية (جزء السنة المنقضي)"
+
+
+class Budget(TenantModel):
+    """موازنة سنة مالية لحسابات المصروفات (أو الإيرادات) لكل فرع/مركز تكلفة، مع رقابة عند الترحيل."""
+
+    name = models.CharField("اسم الموازنة", max_length=100)
+    fiscal_year = models.ForeignKey("core.FiscalYear", models.PROTECT, verbose_name="السنة المالية")
+    cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة / الفرع",
+                                    help_text="فارغ = الشركة كلها. المركز الرئيسي يشمل فروعه")
+    control_period = models.CharField("أساس الرقابة", max_length=10, choices=BudgetPeriod.choices,
+                                      default=BudgetPeriod.ANNUAL,
+                                      help_text="الشهرية: المسموح حتى الشهر الحالي = الموازنة × الأشهر المنقضية ÷ 12")
+    action = models.CharField("عند التجاوز", max_length=10, choices=BudgetAction.choices, default=BudgetAction.WARN)
+    disabled = models.BooleanField("موقوفة", default=False)
+
+    class Meta:
+        verbose_name = "موازنة"
+        verbose_name_plural = "الموازنات التقديرية"
+        ordering = ["-fiscal_year__start_date", "name"]
+        constraints = [tenant_unique("name", model_label="budget")]
+
+    def __str__(self):
+        return self.name
+
+    def center_ids(self):
+        return self.cost_center.descendant_ids() if self.cost_center_id else None
+
+    def allowed(self, amount, on_date):
+        if self.control_period == BudgetPeriod.ANNUAL:
+            return flt(amount)
+        start = self.fiscal_year.start_date
+        months = (on_date.year - start.year) * 12 + on_date.month - start.month + 1
+        total = (self.fiscal_year.end_date.year - start.year) * 12 + self.fiscal_year.end_date.month - start.month + 1
+        return flt(flt(amount) * min(months, total) / total)
+
+    def actual(self, account, until=None):
+        """الفعلي على الحساب (وفروعه) ضمن السنة ومراكز الموازنة: مصروف = مدين − دائن، إيراد = دائن − مدين."""
+        qs = GLEntry.objects.filter(is_cancelled=False, account_id__in=account.descendant_ids(),
+                                    posting_date__gte=self.fiscal_year.start_date,
+                                    posting_date__lte=until or self.fiscal_year.end_date)
+        centers = self.center_ids()
+        if centers is not None:
+            qs = qs.filter(cost_center_id__in=centers)
+        agg = qs.aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
+        value = flt(agg["d"]) - flt(agg["c"])
+        return value if account.root_type == RootType.EXPENSE else -value
+
+
+class BudgetLine(models.Model):
+    parent = models.ForeignKey(Budget, models.CASCADE, related_name="lines")
+    account = models.ForeignKey(Account, models.PROTECT, verbose_name="الحساب",
+                                limit_choices_to={"root_type__in": [RootType.EXPENSE, RootType.INCOME]},
+                                help_text="حساب فرعي أو رئيسي (يشمل حساباته الفرعية)")
+    amount = models.DecimalField("الموازنة السنوية", max_digits=18, decimal_places=2)
+
+    class Meta:
+        verbose_name = "بند موازنة"
+        verbose_name_plural = "بنود الموازنة"

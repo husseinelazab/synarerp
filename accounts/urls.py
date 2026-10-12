@@ -1,6 +1,6 @@
 from django.urls import path
 
-from accounts import bank, opening_views, reconcile, reports, statements
+from accounts import bank, budget, opening_views, reconcile, reports, statements
 
 urlpatterns = [
     path("bank-reconciliation/", bank.bank_reconciliation, name="bank_reconciliation"),
@@ -13,6 +13,7 @@ urlpatterns = [
     path("balance-sheet/", reports.balance_sheet, name="balance_sheet"),
     path("vat/", reports.vat_report, name="vat_report"),
     path("cash-flow/", statements.cash_flow, name="cash_flow"),
+    path("budget/", budget.budget_report, name="budget_report"),
     path("cheques/", reports.cheques_due, name="cheques_due"),
     path("profit-and-loss/compare/", statements.comparative_pnl, name="comparative_pnl"),
     path("balance-sheet/compare/", statements.comparative_balance_sheet, name="comparative_balance_sheet"),

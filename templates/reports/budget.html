@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>الموازنة <select name="budget" class="form-select">{% for b in budgets %}<option value="{{ b.pk }}" {% if b == budget %}selected{% endif %}>{{ b }} — {{ b.fiscal_year }}{% if b.cost_center %} — {{ b.cost_center }}{% endif %}</option>{% endfor %}</select></label>
+  <button class="btn btn-primary">عرض</button>
+  <a class="btn" href="{% url 'doc_new' 'budget' %}">+ موازنة جديدة</a>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+{% if budget %}
+<div class="kpis">
+  <div class="kpi"><span>الموازنة السنوية</span><b>{{ totals.budget|money }}</b></div>
+  <div class="kpi"><span>المسموح حتى الآن</span><b>{{ totals.allowed|money }}</b></div>
+  <div class="kpi {% if totals.actual > totals.allowed %}kpi-bad{% else %}kpi-good{% endif %}"><span>الفعلي</span><b>{{ totals.actual|money }}</b></div>
+  <div class="kpi"><span>المتبقي من السنة</span><b>{{ totals.remaining|money }}</b></div>
+</div>
+<div class="card"><div class="table-wrap">
+<table class="table report">
+  <thead><tr><th>الحساب</th><th class="num">الموازنة</th><th class="num">المسموح حتى الآن</th><th class="num">الفعلي</th><th class="num">المتبقي</th><th class="num">نسبة الاستخدام</th></tr></thead>
+  <tbody>{% for r in rows %}<tr class="{% if r.over %}row-loss{% endif %}">
+    <td><a href="{% url 'general_ledger' %}?account={{ r.account.pk }}">{{ r.account }}</a></td><td class="num">{{ r.budget|money }}</td>
+    <td class="num">{{ r.allowed|money }}</td><td class="num">{{ r.actual|money }}</td><td class="num {% if r.remaining < 0 %}neg{% endif %}">{{ r.remaining|money }}</td>
+    <td class="num">{% if r.used is not None %}{{ r.used|floatformat:0 }}%{% endif %}{% if r.over %} <span class="badge pr-loss">متجاوز</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا توجد بنود</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted small">{{ budget.get_control_period_display }} · عند التجاوز: {{ budget.get_action_display }}. حسابات الإيرادات تُقارن كمستهدف (دائن − مدين).</p>
+</div>
+{% else %}<div class="card muted">لا توجد موازنات بعد.</div>{% endif %}
+{% endblock %}

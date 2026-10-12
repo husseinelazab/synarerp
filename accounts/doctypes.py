@@ -1,4 +1,4 @@
-from accounts.models import (Account, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, Budget, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -79,4 +79,11 @@ register(DocType(
                  "amount", "bank_account", "sales_invoice", "purchase_invoice", "remarks"],
     search_fields=["name", "cheque_no", "customer__name", "supplier__name", "drawer_bank"],
     totals=["amount"],
+))
+register(DocType(
+    slug="budget", model=Budget, module="accounts",
+    list_fields=["name", "fiscal_year", "cost_center", "control_period", "action", "disabled"],
+    form_fields=["name", "fiscal_year", "cost_center", "control_period", "action", "disabled"],
+    search_fields=["name"],
+    child=ChildTable(BudgetLine, ["account", "amount"], label="بنود الموازنة"),
 ))

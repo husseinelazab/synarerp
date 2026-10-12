@@ -8,8 +8,8 @@
 
   function norm(text) {
     return (text || "").toString().toLowerCase()
-      .replace(/[ً-ْـ]/g, "")
-      .replace(/[أإآٱ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/[ً-ْٰـ]/g, "")
+      .replace(/[أإآٱ]/g, "ا").replace(/ة/g, "ه").replace(/[ىئ]/g, "ي").replace(/ؤ/g, "و")
       .replace(/[٠-٩]/g, function (d) { return "٠١٢٣٤٥٦٧٨٩".indexOf(d); })
       .replace(/\s+/g, " ").trim();
   }

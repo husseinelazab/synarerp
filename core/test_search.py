@@ -29,6 +29,22 @@ class GlobalSearchTests(TestCase):
         self.assertContains(self.client.get("/search/", {"q": "0550001122"}), "النخبة")
         self.assertContains(self.client.get("/search/", {"q": "ن"}), "حرفين على الأقل")
 
+    def test_ignores_hamza_diacritics_and_word_order(self):
+        with tenant_context(self.company):
+            Customer.objects.create(name="شَرِكَةُ أحمد الإبراهيمي", phone="٠٥٥٩٨٧")
+        self.client.force_login(self.owner)
+        for query in ("شركه احمد", "الابراهيمي احمد", "شركة إبراهيمي", "شَركة", "5598"):
+            self.assertContains(self.client.get("/search/", {"q": query}), "الإبراهيمي", msg_prefix=query)
+        self.assertNotContains(self.client.get("/search/", {"q": "احمد سالم"}), "الإبراهيمي")
+        self.assertContains(self.client.get("/search/", {"q": "موسسه"}), "النخبة")  # مؤسسة
+        self.assertContains(self.client.get("/app/customer/", {"q": "مؤسسه النخبه"}), "النخبة")
+
+    def test_special_characters_are_literal(self):
+        self.client.force_login(self.owner)
+        for query in ("(.*", "a+b", "[x", "\\d"):
+            self.assertEqual(self.client.get("/search/", {"q": query}).status_code, 200)
+        self.assertNotContains(self.client.get("/search/", {"q": ".*"}), "النخبة")
+
     def test_respects_permissions(self):
         user = User.objects.create_user("search_user", password="x")
         Membership.objects.create(user=user, company=self.company, role=Role.USER, denied_doctypes=["customer"])

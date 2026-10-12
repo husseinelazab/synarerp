@@ -52,10 +52,9 @@ def filtered_queryset(request, dt):
     qs = scope_queryset(request, dt.model, dt.model.objects.all())
     query = request.GET.get("q", "").strip()
     if query and dt.search_fields:
-        cond = Q()
-        for f in dt.search_fields:
-            cond |= Q(**{f"{f}__icontains": query})
-        qs = qs.filter(cond)
+        from core.search import text_query
+
+        qs = qs.filter(text_query(dt.search_fields, query)).distinct()
     choice_filters = {}
     for field in dt.model._meta.concrete_fields:
         value = request.GET.get(field.name)

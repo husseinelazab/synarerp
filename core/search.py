@@ -1,4 +1,6 @@
 """البحث العام: كلمة واحدة تبحث في كل المستندات والبيانات الأساسية التي يملك المستخدم صلاحية رؤيتها."""
+import re
+
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import render
@@ -10,6 +12,37 @@ from core.registry import MODULES, REGISTRY
 PER_TYPE = 8
 MIN_LENGTH = 2
 
+# التشكيل والتطويل يُتجاهلان، وصور الحرف الواحد تتطابق (أحمد = احمد، مؤسسة = موسسه، ٥٥ = 55)
+MARKS = "ًٌٍَُِّْٰـ"
+VARIANTS = ["اأإآٱ", "هة", "يىئ", "وؤ"] + [d + "٠١٢٣٤٥٦٧٨٩"[int(d)] for d in "0123456789"]
+CANONICAL = {ch: group for group in VARIANTS for ch in group}
+OPTIONAL_MARKS = f"[{MARKS}]*"
+
+
+def _word_pattern(word):
+    """تعبير نمطي يطابق الكلمة مهما كان تشكيلها أو صورة همزتها في النص المخزن."""
+    parts = []
+    for ch in word:
+        if ch in MARKS:
+            continue
+        group = CANONICAL.get(ch)
+        parts.append(f"[{group}]" if group else re.escape(ch))
+    return OPTIONAL_MARKS.join(parts)
+
+
+def text_query(fields, query):
+    """كل كلمة من البحث يجب أن توجد في أحد الحقول (بغض النظر عن التشكيل والهمزات وحالة الأحرف)."""
+    cond = Q()
+    for word in query.split():
+        pattern = _word_pattern(word)
+        if not pattern:
+            continue
+        any_field = Q()
+        for name in fields:
+            any_field |= Q(**{f"{name}__iregex": pattern})
+        cond &= any_field
+    return cond
+
 
 def search_doctypes(request, query):
     """[(نوع المستند، النتائج، هل توجد نتائج أكثر)] لكل نوع فيه تطابق ويملك المستخدم الاطلاع عليه."""
@@ -20,10 +53,7 @@ def search_doctypes(request, query):
             continue
         if membership is not None and not path_allowed(membership, f"/app/{dt.slug}/"):
             continue
-        cond = Q()
-        for name in dt.search_fields:
-            cond |= Q(**{f"{name}__icontains": query})
-        qs = scope_queryset(request, dt.model, dt.model.objects.filter(cond)).distinct()
+        qs = scope_queryset(request, dt.model, dt.model.objects.filter(text_query(dt.search_fields, query))).distinct()
         found = list(qs[:PER_TYPE + 1])
         if found:
             rows = [{"obj": obj, "cells": [display_value(obj, f) for f in dt.list_fields[:4]]} for obj in found[:PER_TYPE]]

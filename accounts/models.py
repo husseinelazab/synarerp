@@ -1192,3 +1192,114 @@ class BudgetLine(models.Model):
     class Meta:
         verbose_name = "بند موازنة"
         verbose_name_plural = "بنود الموازنة"
+
+
+# ---------- إعادة تقييم الأرصدة بالعملات الأجنبية ----------
+
+class ExchangeRevaluation(SubmittableDocument):
+    """إعادة تقييم الذمم المفتوحة بالعملات الأجنبية بسعر صرف نهاية الفترة (أرباح/خسائر غير محققة).
+
+    يُرحّل الفرق في تاريخ المستند ويُعكس آلياً في اليوم التالي، فيبقى الربح المحقق عند السداد صحيحاً.
+    """
+
+    naming_prefix = "FXR"
+
+    total_gain = models.DecimalField("صافي الربح / (الخسارة) غير المحقق", max_digits=18, decimal_places=2, default=0,
+                                     editable=False)
+    reversal_entry = models.ForeignKey(JournalEntry, models.PROTECT, null=True, blank=True, related_name="+",
+                                       editable=False, verbose_name="قيد العكس")
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "إعادة تقييم العملات"
+        verbose_name_plural = "إعادة تقييم أرصدة العملات الأجنبية"
+
+    @property
+    def linked_documents(self):
+        return [self.reversal_entry] if self.reversal_entry_id else []
+
+    def fetch_lines(self):
+        from buying.models import PurchaseInvoice
+        from core.models import ExchangeRate
+        from selling.models import SalesInvoice
+
+        self.lines.all().delete()
+        for model, field in ((SalesInvoice, "sales_invoice"), (PurchaseInvoice, "purchase_invoice")):
+            qs = (model.objects.filter(docstatus=1, posting_date__lte=self.posting_date).exclude(outstanding_amount=0)
+                  .exclude(currency=self.company.currency).select_related("currency"))
+            for inv in qs:
+                rate = ExchangeRate.lookup(self.company, inv.currency, self.posting_date)
+                if rate is None:
+                    raise ValidationError(f"أضف سعر صرف {inv.currency} حتى {self.posting_date:%Y-%m-%d}.")
+                self.lines.create(**{field: inv}, currency=inv.currency, outstanding=inv.outstanding_amount,
+                                  invoice_rate=inv.exchange_rate, new_rate=rate)
+
+    def calculate_totals(self):
+        if self.is_draft and self.pk and not self.lines.exists():
+            self.fetch_lines()
+        total = flt(0)
+        for line in self.lines.all():
+            line.difference = flt(flt(line.outstanding) * (flt(line.new_rate, 6) - flt(line.invoice_rate, 6)))
+            line.save(update_fields=["difference"])
+            # الذمم المدينة: ارتفاع السعر ربح؛ الدائنة: ارتفاعه خسارة
+            total += line.difference if line.sales_invoice_id else -line.difference
+        self.total_gain = total
+
+    def validate_for_submit(self):
+        if not self.lines.exists():
+            raise ValidationError("لا توجد أرصدة مفتوحة بعملات أجنبية لإعادة تقييمها.")
+
+    def _entries(self):
+        receivable = self.company.require_account("default_receivable_account")
+        payable = self.company.require_account("default_payable_account")
+        fx = self.company.require_account("default_exchange_account")
+        entries = []
+        for line in self.lines.select_related("sales_invoice__customer", "purchase_invoice__supplier"):
+            diff = flt(line.difference)
+            if not diff:
+                continue
+            if line.sales_invoice_id:
+                entries += [{"account": receivable, "debit": diff, "customer": line.sales_invoice.customer},
+                            {"account": fx, "credit": diff}]
+            else:
+                entries += [{"account": payable, "credit": diff, "supplier": line.purchase_invoice.supplier},
+                            {"account": fx, "debit": diff}]
+        return entries
+
+    def on_submit(self):
+        import datetime
+
+        entries = self._entries()
+        if entries:
+            make_gl_entries(self, entries, remarks=self.remarks or "إعادة تقييم العملات الأجنبية (غير محققة)")
+            je = JournalEntry.objects.create(company=self.company, posting_date=self.posting_date + datetime.timedelta(days=1),
+                                             entry_type=JournalEntryType.ADJUSTMENT,
+                                             remarks=f"عكس إعادة تقييم العملات {self.name}")
+            for e in entries:
+                net = flt(e.get("debit")) - flt(e.get("credit"))
+                je.accounts.create(account=e["account"], customer=e.get("customer"), supplier=e.get("supplier"),
+                                   debit=-net if net < 0 else 0, credit=net if net > 0 else 0)
+            je.submit()
+            self.reversal_entry = je
+            self.save(update_fields=["reversal_entry"])
+
+    def on_cancel(self):
+        cancel_gl_entries(self)
+        if self.reversal_entry_id and self.reversal_entry.is_submitted:
+            self.reversal_entry.cancel()
+
+
+class ExchangeRevaluationLine(models.Model):
+    parent = models.ForeignKey(ExchangeRevaluation, models.CASCADE, related_name="lines")
+    sales_invoice = models.ForeignKey("selling.SalesInvoice", models.PROTECT, null=True, blank=True, related_name="+",
+                                      verbose_name="فاتورة مبيعات")
+    purchase_invoice = models.ForeignKey("buying.PurchaseInvoice", models.PROTECT, null=True, blank=True,
+                                         related_name="+", verbose_name="فاتورة مشتريات")
+    currency = models.ForeignKey("core.Currency", models.PROTECT, related_name="+", verbose_name="العملة")
+    outstanding = models.DecimalField("المتبقي بالعملة", max_digits=18, decimal_places=2)
+    invoice_rate = models.DecimalField("سعر الفاتورة", max_digits=18, decimal_places=6)
+    new_rate = models.DecimalField("سعر نهاية الفترة", max_digits=18, decimal_places=6)
+    difference = models.DecimalField("الفرق بعملة الشركة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name = "سطر إعادة تقييم"
+        verbose_name_plural = "الأرصدة المعاد تقييمها"

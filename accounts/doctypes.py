@@ -1,4 +1,4 @@
-from accounts.models import (Account, Budget, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, Budget, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -86,4 +86,14 @@ register(DocType(
     form_fields=["name", "fiscal_year", "cost_center", "control_period", "action", "disabled"],
     search_fields=["name"],
     child=ChildTable(BudgetLine, ["account", "amount"], label="بنود الموازنة"),
+))
+register(DocType(
+    slug="exchange-revaluation", model=ExchangeRevaluation, module="accounts",
+    list_fields=["name", "posting_date", "total_gain"], form_fields=["posting_date", "remarks"],
+    search_fields=["name", "remarks"],
+    child=ChildTable(ExchangeRevaluationLine, ["new_rate"], label="الأرصدة المعاد تقييمها", min_rows=0,
+                     display_fields=["sales_invoice", "purchase_invoice", "currency", "outstanding", "invoice_rate",
+                                     "new_rate", "difference"],
+                     help="احفظ المستند فارغاً لتُجلب الفواتير المفتوحة بالعملات الأجنبية بسعر صرف تاريخه من جدول أسعار الصرف."),
+    totals=["total_gain"],
 ))

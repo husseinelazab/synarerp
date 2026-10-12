@@ -90,7 +90,8 @@ def build_menu(request):
                 doc("أرصدة العملاء والموردين", "opening-party"), doc("المخزون الافتتاحي", "opening-stock"),
             ]},
             {"title": "الموازنات", "items": [_item("الموازنة مقابل الفعلي", "budget_report"), doc("الموازنات التقديرية", "budget")]},
-            {"title": "نهاية السنة", "items": [doc("إقفال السنة المالية", "period-closing")]},
+            {"title": "نهاية الفترة", "items": [doc("إعادة تقييم العملات الأجنبية", "exchange-revaluation"),
+                                               doc("إقفال السنة المالية", "period-closing")]},
         ]},
         {"key": "stock", "label": "المخزون", "sections": [
             {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("طلبات المواد", "material-request"), doc("الجرد", "stock-count"),

@@ -27,6 +27,8 @@ class Supplier(TenantModel):
     payment_terms = models.ForeignKey("accounts.PaymentTermsTemplate", models.SET_NULL, null=True, blank=True,
                                       related_name="+", verbose_name="شروط الدفع الافتراضية")
     is_non_resident = models.BooleanField("مورد غير مقيم (خارج المملكة)", default=False)
+    represents_company = models.ForeignKey("core.Company", models.SET_NULL, null=True, blank=True, related_name="+",
+                                           verbose_name="شركة شقيقة (معاملات بين الشركات)")
     withholding_rate = models.DecimalField("نسبة ضريبة الاستقطاع %", max_digits=5, decimal_places=2, default=0,
                                            help_text="لغير المقيم: 5% (خدمات فنية من جهة مرتبطة… حسب النوع)، 15%، 20% (إدارية)")
     withholding_type = models.CharField("نوع الدفعة للاستقطاع", max_length=100, blank=True,
@@ -405,6 +407,8 @@ class PurchaseInvoice(InvoiceDocument):
     bill_no = models.CharField("رقم فاتورة المورد", max_length=50, blank=True)
     order = models.ForeignKey(PurchaseOrder, models.PROTECT, null=True, blank=True, related_name="invoices",
                               editable=False, verbose_name="أمر الشراء")
+    intercompany_reference = models.CharField("مرجع فاتورة الشركة الشقيقة", max_length=60, blank=True,
+                                              editable=False)
 
     class Meta(InvoiceDocument.Meta):
         verbose_name = "فاتورة مشتريات"

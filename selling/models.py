@@ -115,6 +115,10 @@ class Customer(TenantModel):
                                      verbose_name="المندوب المسؤول")
     territory = models.ForeignKey(Territory, models.SET_NULL, null=True, blank=True, related_name="customers",
                                   verbose_name="المنطقة")
+    represents_company = models.ForeignKey("core.Company", models.SET_NULL, null=True, blank=True, related_name="+",
+                                           verbose_name="شركة شقيقة (معاملات بين الشركات)",
+                                           help_text="فواتير هذا العميل تُنشئ فاتورة مشتريات مسودة في الشركة الشقيقة، "
+                                                     "وتُستبعد في القوائم الموحدة")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -514,6 +518,10 @@ class SalesInvoice(InvoiceDocument):
         from einvoice.services import on_invoice_submitted
 
         on_invoice_submitted(self)
+        if self.customer.represents_company_id and not self.is_pos:
+            from core.intercompany import mirror_sales_invoice
+
+            mirror_sales_invoice(self)
 
     def _original_cost(self, item):
         """تكلفة الصنف كما خرج في الفاتورة الأصلية، ليعود المخزون بنفس التكلفة."""

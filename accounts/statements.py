@@ -214,3 +214,28 @@ def comparative_balance_sheet(request):
         "result_variance": _variance(right), "balanced": all(a == r for a, r in zip(assets["totals"], right)),
         "level": level or 0, "levels": range(2, max_tree_depth() + 1),
     })
+
+
+@login_required
+def consolidated(request):
+    """القوائم الموحدة للشركات التي يديرها المستخدم."""
+    from core.intercompany import consolidated_statement, managed_companies
+
+    from_date, to_date = _period(request)
+    available = list(managed_companies(request.user))
+    chosen_ids = {int(i) for i in request.GET.getlist("company") if i.isdigit()}
+    companies = [c for c in available if c.pk in chosen_ids] or available
+    kind = "bs" if request.GET.get("kind") == "bs" else "pl"
+    currencies = {c.currency_id for c in companies}
+    sections = consolidated_statement(companies, kind, from_date, to_date) if len(currencies) == 1 else []
+    result = None
+    if sections and kind == "pl":
+        income, expense = sections
+        result = {"values": [i - e for i, e in zip(income["totals"], expense["totals"])],
+                  "elimination": income["elimination"] - expense["elimination"],
+                  "total": income["total"] - expense["total"]}
+    return render(request, "reports/consolidated.html", {
+        "title": "القوائم المالية الموحدة", "from_date": from_date, "to_date": to_date, "available": available,
+        "companies": companies, "kind": kind, "sections": sections, "result": result,
+        "currency_mismatch": len(currencies) > 1, "chosen_ids": {c.pk for c in companies},
+    })

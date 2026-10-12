@@ -99,6 +99,7 @@ def build_menu(request):
                 _item("ميزان المراجعة", "trial_balance"), _item("قائمة الدخل", "profit_and_loss"),
                 _item("الميزانية العمومية", "balance_sheet"), _item("قائمة التدفقات النقدية", "cash_flow"),
                 _item("قائمة الدخل المقارنة", "comparative_pnl"), _item("الميزانية المقارنة", "comparative_balance_sheet"),
+                _item("القوائم الموحدة للشركات", "consolidated"),
                 _item("إقرار ضريبة القيمة المضافة", "vat_report"), _item("إقرار ضريبة الاستقطاع", "withholding_report"),
                 doc("الإقرارات الزكوية", "zakat"),
             ]},

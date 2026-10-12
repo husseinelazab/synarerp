@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>القائمة <select name="kind" class="form-select"><option value="pl" {% if kind == 'pl' %}selected{% endif %}>قائمة الدخل</option><option value="bs" {% if kind == 'bs' %}selected{% endif %}>الميزانية العمومية</option></select></label>
+  {% if kind == 'pl' %}<label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>{% endif %}
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <div>{% for c in available %}<label style="display:inline-block;margin-inline-end:12px"><input type="checkbox" name="company" value="{{ c.pk }}" {% if c.pk in chosen_ids %}checked{% endif %}> {{ c }}</label>{% endfor %}</div>
+  <button class="btn btn-primary">عرض</button>
+</form>
+{% if currency_mismatch %}<div class="alert alert-warning">الشركات المختارة بعملات مختلفة؛ اختر شركات بنفس العملة للتوحيد.</div>{% endif %}
+{% if sections %}
+<div class="card"><div class="table-wrap"><table class="table report">
+  <thead><tr><th>الحساب</th>{% for c in companies %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">الاستبعادات</th><th class="num">الموحد</th></tr></thead>
+  <tbody>{% for s in sections %}
+    <tr class="group depth-0"><td colspan="{{ companies|length|add:3 }}"><strong>{{ s.label }}</strong></td></tr>
+    {% for r in s.rows %}<tr class="leaf"><td>{{ r.key }} - {{ r.name }}</td>{% for v in r.values %}<td class="num">{{ v|money }}</td>{% endfor %}<td class="num">{% if r.elimination %}{{ r.elimination|money }}{% endif %}</td><td class="num strong">{{ r.total|money }}</td></tr>{% endfor %}
+    <tr class="subtotal"><th>إجمالي {{ s.label }}</th>{% for t in s.totals %}<th class="num">{{ t|money }}</th>{% endfor %}<th class="num">{{ s.elimination|money }}</th><th class="num">{{ s.total|money }}</th></tr>
+  {% endfor %}</tbody>
+  {% if result %}<tfoot><tr><th>صافي الربح / (الخسارة)</th>{% for v in result.values %}<th class="num">{{ v|money }}</th>{% endfor %}<th class="num">{{ result.elimination|money }}</th><th class="num">{{ result.total|cur }}</th></tr></tfoot>{% endif %}
+</table></div>
+<p class="muted small">تُطابق الحسابات بين الشركات برقمها في الدليل. الاستبعادات: ذمم الشركات الشقيقة فيما بينها (في الميزانية)، والمبيعات بينها
+  ومقابلها من مصروفات الشركة المشترية (في قائمة الدخل). العميل/المورد يُعرّف كشركة شقيقة من بطاقته.</p></div>
+{% endif %}
+{% endblock %}

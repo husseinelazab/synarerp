@@ -14,6 +14,7 @@ urlpatterns = [
     path("vat/", reports.vat_report, name="vat_report"),
     path("withholding/", reports.withholding_report, name="withholding_report"),
     path("cash-flow/", statements.cash_flow, name="cash_flow"),
+    path("consolidated/", statements.consolidated, name="consolidated"),
     path("budget/", budget.budget_report, name="budget_report"),
     path("cheques/", reports.cheques_due, name="cheques_due"),
     path("profit-and-loss/compare/", statements.comparative_pnl, name="comparative_pnl"),

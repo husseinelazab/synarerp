@@ -135,6 +135,11 @@ def doc_form(request, slug, pk=None):
     if centers is not None and "cost_center" in FormClass.base_fields:
         initial.setdefault("cost_center", sorted(centers)[0])
     form = FormClass(request.POST or None, instance=instance, initial=initial)
+    if "represents_company" in form.fields:
+        # الشركات الشقيقة: فقط ما يديره المستخدم نفسه (لا تُعرض شركات المشتركين الآخرين)
+        from core.intercompany import managed_companies
+
+        form.fields["represents_company"].queryset = managed_companies(request.user).exclude(pk=company.pk if company else None)
     if centers is not None and "cost_center" in form.fields:
         form.fields["cost_center"].queryset = form.fields["cost_center"].queryset.filter(id__in=centers)
         form.fields["cost_center"].required = True

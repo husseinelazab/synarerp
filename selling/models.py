@@ -376,6 +376,9 @@ class SalesInvoice(InvoiceDocument):
             check_credit(self, self.to_base(max(self.amount_due - paid, flt(0))))
         self._validate_loyalty()
         if self.update_stock and not self.is_return:
+            from stock.reservation import check_reserved
+
+            check_reserved(self, list(self.items.select_related("item")), self.warehouse)
             rows = list(self.items.select_related("order_item", "delivery_note_item"))
             if any(r.delivery_note_item_id for r in rows):
                 raise ValidationError("البضاعة سُلّمت بإذن التسليم؛ ألغِ «تحديث المخزون» في هذه الفاتورة.")
@@ -590,6 +593,12 @@ class DeliveryNote(FulfillmentDocument):
 
     def invoice_model(self):
         return SalesInvoice
+
+    def validate_for_submit(self):
+        super().validate_for_submit()
+        from stock.reservation import check_reserved
+
+        check_reserved(self, list(self.items.select_related("item")), self.warehouse)
 
     @property
     def linked_documents(self):

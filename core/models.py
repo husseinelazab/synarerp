@@ -45,6 +45,9 @@ class Company(models.Model):
     block_overdue_days = models.PositiveSmallIntegerField(
         "منع البيع الآجل لمن لديه فواتير متأخرة أكثر من (يوم)", default=0,
         help_text="صفر = لا منع. مثلاً 30: يُمنع البيع الآجل لعميل لديه فاتورة متأخرة عن استحقاقها أكثر من 30 يوماً")
+    protect_reserved_stock = models.BooleanField(
+        "حماية المخزون المحجوز لأوامر البيع", default=False,
+        help_text="يمنع بيع أو تسليم كمية محجوزة لأوامر بيع مفتوحة إلا من الأمر نفسه")
     update_buying_rate_on_purchase = models.BooleanField(
         "تحديث سعر الشراء في بطاقة الصنف من آخر شراء", default=True,
         help_text="عند اعتماد فاتورة مشتريات أو إذن استلام يصبح سعر الشراء = آخر سعر شراء، مع تنبيه إن تجاوز سعر البيع")

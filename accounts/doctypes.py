@@ -1,4 +1,4 @@
-from accounts.models import (Account, Budget, DeferralSchedule, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, Budget, CashCustody, CustodyExpense, CustodySettlement, DeferralSchedule, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -104,4 +104,19 @@ register(DocType(
                  "remarks"],
     search_fields=["name", "remarks"], totals=["amount", "posted_amount"],
     detail_template="accounts/_deferral_entries.html",
+))
+register(DocType(
+    slug="cash-custody", model=CashCustody, module="accounts",
+    list_fields=["name", "posting_date", "employee", "purpose", "amount", "settled_amount", "status"],
+    form_fields=["employee", "posting_date", "amount", "paid_from", "purpose", "remarks"],
+    search_fields=["name", "employee__full_name", "purpose"], totals=["amount", "settled_amount"],
+))
+register(DocType(
+    slug="custody-settlement", model=CustodySettlement, module="accounts",
+    list_fields=["name", "posting_date", "custody", "total_expenses", "returned_amount"],
+    form_fields=["custody", "posting_date", "returned_amount", "return_account", "remarks"],
+    search_fields=["name", "custody__name", "custody__employee__full_name"],
+    child=ChildTable(CustodyExpense, ["account", "description", "bill_no", "amount", "tax_amount", "cost_center"],
+                     label="المصروفات", min_rows=0),
+    totals=["total_expenses", "returned_amount"],
 ))

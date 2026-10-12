@@ -1407,3 +1407,162 @@ class DeferralEntry(models.Model):
         verbose_name = "قسط توزيع"
         verbose_name_plural = "أقساط التوزيع"
         ordering = ["posting_date"]
+
+
+# ---------- العهد النقدية ----------
+
+def custody_account(company):
+    """حساب العهد النقدية، ويُنشأ تحت الأصول المتداولة إن لم يوجد."""
+    account = Account.all_objects.filter(company=company, number="1109", is_group=False).first() or \
+        Account.all_objects.filter(company=company, name="العهد النقدية لدى الموظفين").first()
+    if account is not None:
+        return account
+    parent = (Account.all_objects.filter(company=company, number="11", is_group=True).first() or
+              Account.all_objects.filter(company=company, root_type=RootType.ASSET, is_group=True,
+                                         parent__isnull=True).first())
+    return Account.all_objects.create(company=company, number="1109", name="العهد النقدية لدى الموظفين",
+                                      parent=parent, root_type=RootType.ASSET)
+
+
+class CustodyStatus(models.TextChoices):
+    DRAFT = "draft", "مسودة"
+    OPEN = "open", "مفتوحة"
+    SETTLED = "settled", "مسواة"
+    CANCELLED = "cancelled", "ملغاة"
+
+
+class CashCustody(SubmittableDocument):
+    """عهدة نقدية لموظف (مشتريات نثرية، مصاريف سفر…) تُسوّى لاحقاً بالفواتير وردّ الباقي."""
+
+    naming_prefix = "CUS"
+
+    employee = models.ForeignKey("hr.Employee", models.PROTECT, related_name="custodies", verbose_name="الموظف")
+    amount = models.DecimalField("مبلغ العهدة", max_digits=18, decimal_places=2)
+    paid_from = models.ForeignKey(Account, models.PROTECT, related_name="+", verbose_name="صُرفت من",
+                                  limit_choices_to={"is_group": False, "account_type__in": [AccountType.CASH,
+                                                                                            AccountType.BANK]})
+    purpose = models.CharField("الغرض", max_length=200)
+    settled_amount = models.DecimalField("المسوّى", max_digits=18, decimal_places=2, default=0, editable=False)
+    status = models.CharField("الحالة", max_length=10, choices=CustodyStatus.choices, default=CustodyStatus.DRAFT,
+                              editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "عهدة نقدية"
+        verbose_name_plural = "العهد النقدية"
+
+    @property
+    def remaining(self):
+        return flt(self.amount - self.settled_amount)
+
+    @property
+    def available_actions(self):
+        if self.is_submitted and self.status == CustodyStatus.OPEN:
+            return [("make_settlement", "تسوية العهدة")]
+        return []
+
+    @property
+    def linked_documents(self):
+        return list(self.settlements.all()) if self.pk else []
+
+    def validate_for_submit(self):
+        if flt(self.amount) <= 0:
+            raise ValidationError("مبلغ العهدة يجب أن يكون أكبر من صفر.")
+
+    def on_submit(self):
+        make_gl_entries(self, [{"account": custody_account(self.company), "debit": self.amount},
+                               {"account": self.paid_from, "credit": self.amount}],
+                        remarks=f"عهدة {self.employee}: {self.purpose}")
+        self.status = CustodyStatus.OPEN
+        self.save(update_fields=["status"])
+
+    def before_cancel(self):
+        if self.settlements.filter(docstatus=1).exists():
+            raise ValidationError("ألغِ تسويات العهدة أولاً.")
+
+    def on_cancel(self):
+        cancel_gl_entries(self)
+        self.status = CustodyStatus.CANCELLED
+        self.save(update_fields=["status"])
+
+    def refresh_settled(self):
+        total = self.settlements.filter(docstatus=1).aggregate(
+            t=models.Sum("total_expenses"), r=models.Sum("returned_amount"))
+        self.settled_amount = flt(flt(total["t"]) + flt(total["r"]))
+        self.status = CustodyStatus.SETTLED if self.settled_amount >= self.amount else CustodyStatus.OPEN
+        self.save(update_fields=["settled_amount", "status"])
+
+    def make_settlement(self, user=None):
+        if self.status != CustodyStatus.OPEN:
+            raise ValidationError("العهدة غير مفتوحة.")
+        return CustodySettlement.objects.create(company=self.company, custody=self, created_by=user,
+                                                return_account=self.paid_from)
+
+
+class CustodySettlement(SubmittableDocument):
+    """تسوية عهدة: المصروفات بفواتيرها (مع ضريبة المدخلات) والمبلغ المردود نقداً."""
+
+    naming_prefix = "CST"
+
+    custody = models.ForeignKey(CashCustody, models.PROTECT, related_name="settlements", verbose_name="العهدة",
+                                limit_choices_to={"status": CustodyStatus.OPEN})
+    returned_amount = models.DecimalField("المبلغ المردود نقداً", max_digits=18, decimal_places=2, default=0)
+    return_account = models.ForeignKey(Account, models.PROTECT, null=True, blank=True, related_name="+",
+                                       verbose_name="رُد إلى",
+                                       limit_choices_to={"is_group": False, "account_type__in": [AccountType.CASH,
+                                                                                                 AccountType.BANK]})
+    total_expenses = models.DecimalField("إجمالي المصروفات", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "تسوية عهدة"
+        verbose_name_plural = "تسويات العهد"
+
+    def calculate_totals(self):
+        self.total_expenses = sum((flt(line.amount) + flt(line.tax_amount) for line in self.lines.all()), flt(0))
+
+    def validate_for_submit(self):
+        custody = self.custody
+        if custody.status != CustodyStatus.OPEN:
+            raise ValidationError("العهدة غير مفتوحة.")
+        total = flt(self.total_expenses + flt(self.returned_amount))
+        if total <= 0:
+            raise ValidationError("أدخل المصروفات أو المبلغ المردود.")
+        if total > custody.remaining:
+            raise ValidationError(f"إجمالي التسوية ({total}) أكبر من المتبقي في العهدة ({custody.remaining}). "
+                                  "الزيادة يدفعها الصندوق للموظف بسند صرف مستقل.")
+        if self.returned_amount and not self.return_account_id:
+            raise ValidationError("حدد الحساب الذي رُد إليه المبلغ.")
+
+    def on_submit(self):
+        entries = []
+        for line in self.lines.select_related("account"):
+            entries.append({"account": line.account, "debit": line.amount, "cost_center": line.cost_center,
+                            "remarks": line.description or self.custody.purpose})
+            if line.tax_amount:
+                entries.append({"account": self.company.require_account("default_input_tax_account"),
+                                "debit": line.tax_amount, "remarks": f"ضريبة مدخلات {line.bill_no}".strip()})
+        if self.returned_amount:
+            entries.append({"account": self.return_account, "debit": self.returned_amount, "remarks": "رد باقي العهدة"})
+        entries.append({"account": custody_account(self.company),
+                        "credit": flt(self.total_expenses + flt(self.returned_amount))})
+        make_gl_entries(self, entries, remarks=self.remarks or f"تسوية عهدة {self.custody}")
+        self.custody.refresh_settled()
+
+    def on_cancel(self):
+        cancel_gl_entries(self)
+        self.custody.refresh_settled()
+
+
+class CustodyExpense(models.Model):
+    parent = models.ForeignKey(CustodySettlement, models.CASCADE, related_name="lines")
+    account = models.ForeignKey(Account, models.PROTECT, related_name="+", verbose_name="حساب المصروف",
+                                limit_choices_to={"is_group": False, "root_type": RootType.EXPENSE})
+    description = models.CharField("البيان", max_length=150, blank=True)
+    bill_no = models.CharField("رقم الفاتورة / الإيصال", max_length=50, blank=True)
+    amount = models.DecimalField("المبلغ قبل الضريبة", max_digits=18, decimal_places=2, default=0)
+    tax_amount = models.DecimalField("ضريبة القيمة المضافة", max_digits=18, decimal_places=2, default=0)
+    cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, related_name="+",
+                                    limit_choices_to={"is_group": False, "disabled": False}, verbose_name="مركز التكلفة")
+
+    class Meta:
+        verbose_name = "مصروف من العهدة"
+        verbose_name_plural = "المصروفات"

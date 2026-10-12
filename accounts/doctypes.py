@@ -1,6 +1,7 @@
 from accounts.models import (Account, Budget, ZakatDeclaration, CashCustody, CustodyExpense, CustodySettlement, DeferralSchedule, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
+from accounts.forms import AccountForm
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -39,8 +40,7 @@ register(DocType(
 register(DocType(
     slug="account", model=Account, module="accounts",
     list_fields=["number", "name", "parent", "root_type", "account_type", "is_group"],
-    form_fields=["number", "name", "parent", "is_group", "root_type", "account_type", "cash_flow_category",
-                 "zakat_treatment", "disabled"],
+    form_class=AccountForm,
     search_fields=["number", "name"],
 ))
 register(DocType(

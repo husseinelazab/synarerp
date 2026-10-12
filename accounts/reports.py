@@ -271,6 +271,21 @@ def party_balances(request, party):
 
 @login_required
 def chart_of_accounts(request):
+    if request.method == "POST" and request.POST.get("action") == "unify":
+        from django.contrib import messages
+        from django.shortcuts import redirect
+
+        from accounts.chart import apply_unified_chart
+
+        if not request.membership.can_manage:
+            messages.error(request, "تحديث الدليل لمالك الحساب والمدير فقط.")
+            return redirect("chart_of_accounts")
+        created, skipped = apply_unified_chart(request.company)
+        messages.success(request, f"أُضيف {created} حساباً من دليل الحسابات الموحد؛ حساباتك القائمة لم تتغير." if created
+                         else "دليل حساباتك يحتوي كل حسابات الدليل الموحد.")
+        if skipped:
+            messages.warning(request, "لم تُضف: " + "؛ ".join(skipped[:10]))
+        return redirect("chart_of_accounts")
     sums = _sums(_active_gl())
     nodes = list(Account.objects.all())
     children = {}
@@ -292,7 +307,19 @@ def chart_of_accounts(request):
     rows = []
     for root in children.get(None, []):
         flatten(walk(root, 0), rows)
-    return render(request, "reports/chart_of_accounts.html", {"title": "شجرة الحسابات", "rows": rows})
+    from core.setup_data import CHART_OF_ACCOUNTS
+
+    def count(nodes):
+        return sum(1 + count(n[3] or []) for n in nodes)
+
+    numbers = set(Account.objects.exclude(number="").values_list("number", flat=True))
+
+    def missing(nodes):
+        return sum((0 if n[0] in numbers else 1) + missing(n[3] or []) for n in nodes)
+
+    return render(request, "reports/chart_of_accounts.html", {
+        "title": "شجرة الحسابات", "rows": rows, "unified_total": count(CHART_OF_ACCOUNTS),
+        "unified_missing": missing(CHART_OF_ACCOUNTS)})
 
 
 @login_required

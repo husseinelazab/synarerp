@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.models import Company, Currency, FiscalYear, Membership, Role
-from core.setup_data import CHART_OF_ACCOUNTS, DEFAULT_ACCOUNTS, DEPARTMENTS, DESIGNATIONS, ITEM_GROUPS, UOMS
+from core.setup_data import DEFAULT_ACCOUNTS, DEPARTMENTS, DESIGNATIONS, ITEM_GROUPS, UOMS
 from core.tenancy import tenant_context
 
 
@@ -26,20 +26,6 @@ def default_currency():
     return Currency.objects.get(code="SAR")
 
 
-def _create_accounts(nodes, parent, root_type):
-    from accounts.models import Account
-
-    for number, name, kind, children in nodes:
-        is_root = parent is None
-        node_root = kind if is_root else root_type
-        account = Account.objects.create(
-            number=number, name=name, parent=parent, is_group=children is not None, root_type=node_root,
-            account_type="" if (is_root or children is not None) else (kind or ""),
-        )
-        if children:
-            _create_accounts(children, account, node_root)
-
-
 @transaction.atomic
 def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None, demo=False):
     """ينشئ الشركة ودليل حساباتها ومستودعاتها وإعدادات نقطة البيع، ويربط المالك بها ويبدأ اشتراكها."""
@@ -52,9 +38,10 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
     company = Company.objects.create(name=name, abbr=abbr or name[:10], tax_id=tax_id, phone=phone,
                                      currency=default_currency())
     with tenant_context(company):
-        _create_accounts(CHART_OF_ACCOUNTS, None, None)
+        from accounts.chart import apply_unified_chart
+
+        apply_unified_chart(company)
         accounts = {a.number: a for a in Account.objects.all()}
-        Account.objects.filter(number="2201").update(cash_flow_category="financing")
         for field, number in DEFAULT_ACCOUNTS.items():
             setattr(company, field, accounts[number])
         company.save()

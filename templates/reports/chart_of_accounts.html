@@ -1,19 +1,29 @@
 {% extends "base.html" %}{% load erp %}
 {% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
 {% block content %}
-<div class="toolbar"><span></span><div class="actions">
+<div class="toolbar"><span class="muted small">دليل الحسابات السعودي الموحد · {{ rows|length }} حساباً</span><div class="actions">
   <a class="btn" href="{% url 'doc_import' 'account' %}">استيراد</a>
   <a class="btn" href="{% url 'doc_export' 'account' %}">تصدير Excel</a>
   <a class="btn btn-primary" href="{% url 'doc_new' 'account' %}">+ حساب جديد</a></div></div>
+{% if unified_missing and current_membership.can_manage %}
+<div class="posting-banner draft"><div><strong>ينقص دليلك {{ unified_missing }} حساباً من دليل الحسابات الموحد ({{ unified_total }} حساباً).</strong><br>
+  <span>التحديث يضيف الحسابات الناقصة فقط بأرقامها في الدليل، ولا يعدّل أو يحذف أي حساب قائم أو أرصدته.</span></div>
+  <form method="post">{% csrf_token %}<button class="btn btn-success" name="action" value="unify" onclick="return confirm('إضافة الحسابات الناقصة من الدليل الموحد؟')">تحديث إلى الدليل الموحد</button></form></div>
+{% endif %}
 <div class="card">
+<p class="muted small">لإضافة حساب فرعي (بنك جديد، صندوق فرع، بند مصروف…) اضغط «+ فرعي» بجوار الحساب الرئيسي؛ يُقترح الرقم التالي
+  ويُؤخذ النوع من الأب. الحسابات الفرعية التي عليها قيود لا تتحول إلى رئيسية — أضف الحساب الجديد بجوارها تحت نفس الأب.
+  ولفروع الشركة (جدة، الدمام…) استخدم <a href="{% url 'doc_list' 'cost-center' %}">مراكز التكلفة والفروع</a>.</p>
 <div class="table-wrap"><table class="table report tree">
-  <thead><tr><th>الحساب</th><th>النوع</th><th>الرصيد (مدين + / دائن −)</th></tr></thead>
+  <thead><tr><th>الحساب</th><th>النوع</th><th class="num">الرصيد (مدين + / دائن −)</th><th></th></tr></thead>
   <tbody>
   {% for node in rows %}
-    <tr class="{% if node.account.is_group %}group{% endif %}">
-      <td style="padding-inline-start: {{ node.depth|add:1 }}em"><a href="{% url 'doc_detail' 'account' node.account.id %}">{{ node.account }}</a></td>
+    <tr class="{% if node.account.is_group %}group{% endif %}{% if node.account.disabled %} cancelled{% endif %}">
+      <td style="padding-inline-start: {{ node.depth|add:1 }}em"><a href="{% url 'doc_detail' 'account' node.account.id %}">{{ node.account }}</a>{% if node.account.disabled %} <span class="muted small">(موقوف)</span>{% endif %}</td>
       <td>{{ node.account.get_account_type_display|default:node.account.get_root_type_display }}</td>
       <td class="num">{{ node.balance|money }}</td>
+      <td class="nowrap">{% if node.account.is_group %}<a class="btn btn-sm" href="{% url 'doc_new' 'account' %}?parent={{ node.account.id }}">+ فرعي</a>{% endif %}
+        <a class="btn btn-sm" href="{% url 'doc_edit' 'account' node.account.id %}">تعديل</a></td>
     </tr>
   {% endfor %}
   </tbody>

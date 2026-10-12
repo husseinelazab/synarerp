@@ -67,6 +67,11 @@ class Account(TenantModel):
     def __str__(self):
         return f"{self.number} - {self.name}" if self.number else self.name
 
+    def save(self, *args, **kwargs):
+        if self.parent_id:
+            self.root_type = self.parent.root_type  # الحساب الفرعي يتبع نوع أبيه دائماً
+        super().save(*args, **kwargs)
+
     @property
     def balance_must_be_debit(self):
         return self.root_type in (RootType.ASSET, RootType.EXPENSE)

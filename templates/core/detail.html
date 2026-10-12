@@ -42,6 +42,9 @@
         {% elif dt.slug == 'purchase-invoice' and obj.outstanding_amount < 0 %}
           <a class="btn btn-primary" href="{% url 'doc_new' 'payment-entry' %}?payment_type=receive&supplier={{ obj.supplier_id }}&purchase_invoice={{ obj.pk }}&amount={{ obj.outstanding_amount|abs }}">استلام المبلغ من المورد</a>
         {% endif %}
+        {% if dt.slug == 'sales-invoice' and not obj.is_return and not obj.is_pos or dt.slug == 'purchase-invoice' and not obj.is_return or dt.slug == 'journal-entry' %}
+          <a class="btn" href="{% url 'make_recurring' dt.slug obj.pk %}">جعله متكرراً</a>
+        {% endif %}
         {% for key, label in obj.available_actions %}
           <form method="post" action="{% url 'doc_action' dt.slug obj.pk key %}">{% csrf_token %}<button class="btn {% if forloop.first %}btn-primary{% endif %}">{{ label }}</button></form>
         {% endfor %}

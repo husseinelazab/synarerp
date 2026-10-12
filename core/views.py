@@ -437,6 +437,31 @@ def _priced(request, item, kind):
 
 
 @login_required
+def make_recurring(request, slug, pk):
+    """تحويل مستند معتمد إلى مستند متكرر."""
+    from core.models import Frequency, add_period
+    from core.recurring import make_recurring as create
+
+    dt = get_doctype(slug)
+    obj = get_object_or_404(_scoped(request, dt), pk=pk)
+    frequency = request.POST.get("frequency") if request.POST.get("frequency") in Frequency.values else Frequency.MONTHLY
+    if request.method == "POST":
+        from django.utils.dateparse import parse_date
+
+        try:
+            rec = create(obj, frequency, parse_date(request.POST.get("next_date") or ""),
+                         parse_date(request.POST.get("end_date") or ""), bool(request.POST.get("submit_automatically")))
+        except ValidationError as exc:
+            messages.error(request, _error_text(exc))
+            return redirect(obj.get_absolute_url())
+        messages.success(request, f"سيُنشأ {dt.label} تلقائياً ({rec.get_frequency_display()}) بدءاً من {rec.next_date:%Y-%m-%d}.")
+        return redirect("doc_detail", slug="recurring-document", pk=rec.pk)
+    return render(request, "core/make_recurring.html", {
+        "dt": dt, "obj": obj, "frequencies": Frequency.choices,
+        "next_date": add_period(obj.posting_date, Frequency.MONTHLY)})
+
+
+@login_required
 def notifications(request):
     from core.models import Notification
 

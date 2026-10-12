@@ -17,7 +17,7 @@ register(DocType(
 from django import forms  # noqa: E402
 
 from core.forms import formfield_callback  # noqa: E402
-from core.models import ApprovalRule  # noqa: E402
+from core.models import ApprovalRule, RecurringDocument  # noqa: E402
 
 
 class ApprovalRuleForm(forms.ModelForm):
@@ -46,4 +46,11 @@ register(DocType(
     slug="approval-rule", model=ApprovalRule, module="setup", form_class=ApprovalRuleForm,
     list_fields=["doctype", "level", "min_amount", "approver_role", "approver", "disabled"],
     search_fields=["doctype"], show_in_menu=False,
+))
+
+register(DocType(
+    slug="recurring-document", model=RecurringDocument, module="setup",
+    list_fields=["title", "doctype", "frequency", "next_date", "end_date", "generated_count", "last_generated", "disabled"],
+    form_fields=["title", "frequency", "next_date", "end_date", "submit_automatically", "disabled"],
+    search_fields=["title"], show_in_menu=False,
 ))

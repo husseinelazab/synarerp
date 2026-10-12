@@ -1,4 +1,4 @@
-from accounts.models import (Account, Budget, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
+from accounts.models import (Account, Budget, DeferralSchedule, ExchangeRevaluation, ExchangeRevaluationLine, BudgetLine, Cheque, BankTransaction, CostCenter, JournalEntry, JournalEntryAccount, OpeningAccountBalance, OpeningAccountLine,
                              OpeningPartyBalance, OpeningPartyLine, PaymentEntry, PaymentTermLine, PaymentTermsTemplate, PaymentReconciliation,
                              PaymentReconciliationLine, PaymentReference, PeriodClosingVoucher)
 from core.registry import ChildTable, DocType, register
@@ -96,4 +96,12 @@ register(DocType(
                                      "new_rate", "difference"],
                      help="احفظ المستند فارغاً لتُجلب الفواتير المفتوحة بالعملات الأجنبية بسعر صرف تاريخه من جدول أسعار الصرف."),
     totals=["total_gain"],
+))
+register(DocType(
+    slug="deferral", model=DeferralSchedule, module="accounts",
+    list_fields=["name", "kind", "pl_account", "amount", "start_date", "months", "posted_amount"],
+    form_fields=["kind", "posting_date", "balance_account", "pl_account", "cost_center", "amount", "start_date", "months",
+                 "remarks"],
+    search_fields=["name", "remarks"], totals=["amount", "posted_amount"],
+    detail_template="accounts/_deferral_entries.html",
 ))

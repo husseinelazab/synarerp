@@ -1303,3 +1303,107 @@ class ExchangeRevaluationLine(models.Model):
     class Meta:
         verbose_name = "سطر إعادة تقييم"
         verbose_name_plural = "الأرصدة المعاد تقييمها"
+
+
+# ---------- المصروفات المدفوعة مقدماً والإيرادات المؤجلة ----------
+
+class DeferralKind(models.TextChoices):
+    PREPAID = "prepaid", "مصروف مدفوع مقدماً (إيجار سنوي، تأمين…)"
+    DEFERRED_REVENUE = "deferred_revenue", "إيراد مؤجل (اشتراك/عقد محصّل مقدماً)"
+
+
+class DeferralSchedule(SubmittableDocument):
+    """توزيع مبلغ مدفوع/محصّل مقدماً على أشهر الاستفادة بقيود شهرية تُرحّل آلياً عند حلول كل شهر."""
+
+    naming_prefix = "DEF"
+
+    kind = models.CharField("النوع", max_length=20, choices=DeferralKind.choices, default=DeferralKind.PREPAID)
+    balance_account = models.ForeignKey(
+        Account, models.PROTECT, related_name="+", verbose_name="حساب الميزانية",
+        limit_choices_to={"is_group": False, "root_type__in": [RootType.ASSET, RootType.LIABILITY]},
+        help_text="المدفوع مقدماً: مصروفات مدفوعة مقدماً (أصل). الإيراد المؤجل: إيرادات مقدمة (خصم)")
+    pl_account = models.ForeignKey(
+        Account, models.PROTECT, related_name="+", verbose_name="حساب المصروف / الإيراد",
+        limit_choices_to={"is_group": False, "root_type__in": [RootType.EXPENSE, RootType.INCOME]})
+    cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, related_name="+",
+                                    limit_choices_to={"is_group": False, "disabled": False}, verbose_name="مركز التكلفة")
+    amount = models.DecimalField("المبلغ الإجمالي", max_digits=18, decimal_places=2)
+    start_date = models.DateField("بداية الاستفادة")
+    months = models.PositiveSmallIntegerField("عدد الأشهر", default=12)
+    posted_amount = models.DecimalField("المرحّل حتى الآن", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "جدول توزيع (مقدم / مؤجل)"
+        verbose_name_plural = "المصروفات المقدمة والإيرادات المؤجلة"
+
+    posting_note = "الاعتماد يُنشئ جدول الأقساط؛ يُرحّل كل قسط بقيد عند حلول تاريخه (يومياً من المجدول أو بزر «ترحيل المستحق»)."
+    posts_to_ledger = True
+
+    def validate_for_submit(self):
+        if flt(self.amount) <= 0 or not self.months:
+            raise ValidationError("أدخل المبلغ وعدد الأشهر.")
+        expected = (RootType.ASSET, RootType.EXPENSE) if self.kind == DeferralKind.PREPAID else \
+            (RootType.LIABILITY, RootType.INCOME)
+        if (self.balance_account.root_type, self.pl_account.root_type) != expected:
+            raise ValidationError("المدفوع مقدماً: حساب أصل وحساب مصروف. الإيراد المؤجل: حساب خصوم وحساب إيراد.")
+
+    def on_submit(self):
+        from core.models import Frequency, add_period
+        from core.utils import allocate
+
+        shares = allocate(self.amount, {i: 1 for i in range(self.months)})
+        self.entries.all().delete()
+        for i in range(self.months):
+            self.entries.create(posting_date=add_period(self.start_date, Frequency.MONTHLY, i), amount=shares[i])
+
+    @property
+    def available_actions(self):
+        from django.utils import timezone
+
+        if self.is_submitted and self.entries.filter(journal_entry__isnull=True,
+                                                     posting_date__lte=timezone.localdate()).exists():
+            return [("post_due", "ترحيل الأقساط المستحقة")]
+        return []
+
+    def post_due(self, user=None, until=None):
+        from django.utils import timezone
+
+        until = until or timezone.localdate()
+        posted = 0
+        for entry in self.entries.filter(journal_entry__isnull=True, posting_date__lte=until).order_by("posting_date"):
+            je = JournalEntry.objects.create(company=self.company, posting_date=entry.posting_date,
+                                             entry_type=JournalEntryType.ADJUSTMENT, created_by=user,
+                                             remarks=f"{self.get_kind_display().split(' (')[0]} {self.name} — {entry.posting_date:%Y-%m}")
+            if self.kind == DeferralKind.PREPAID:
+                je.accounts.create(account=self.pl_account, debit=entry.amount, cost_center=self.cost_center)
+                je.accounts.create(account=self.balance_account, credit=entry.amount)
+            else:
+                je.accounts.create(account=self.balance_account, debit=entry.amount)
+                je.accounts.create(account=self.pl_account, credit=entry.amount, cost_center=self.cost_center)
+            je.submit()
+            entry.journal_entry = je
+            entry.save(update_fields=["journal_entry"])
+            self.posted_amount = flt(self.posted_amount + entry.amount)
+            posted += 1
+        self.save(update_fields=["posted_amount"])
+        return posted
+
+    def on_cancel(self):
+        for entry in self.entries.filter(journal_entry__isnull=False).select_related("journal_entry"):
+            if entry.journal_entry.is_submitted:
+                entry.journal_entry.cancel()
+        self.posted_amount = 0
+        self.save(update_fields=["posted_amount"])
+
+
+class DeferralEntry(models.Model):
+    parent = models.ForeignKey(DeferralSchedule, models.CASCADE, related_name="entries")
+    posting_date = models.DateField("التاريخ")
+    amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2)
+    journal_entry = models.ForeignKey(JournalEntry, models.SET_NULL, null=True, blank=True, related_name="+",
+                                      verbose_name="القيد")
+
+    class Meta:
+        verbose_name = "قسط توزيع"
+        verbose_name_plural = "أقساط التوزيع"
+        ordering = ["posting_date"]

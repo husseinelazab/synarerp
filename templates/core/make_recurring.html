@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}مستند متكرر{% endblock %}{% block heading %}جعل {{ dt.label }} {{ obj }} متكرراً{% endblock %}
+{% block content %}
+<form method="post" class="card">{% csrf_token %}
+  <p class="muted">يُنسخ المستند ببنوده وأطرافه في كل فترة بتاريخ جديد (يُنشأ يومياً من المجدول عند حلول التاريخ).</p>
+  <div class="form-grid">
+    <label>التكرار <select name="frequency" class="form-select">{% for v, l in frequencies %}<option value="{{ v }}" {% if v == 'monthly' %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label>أول إصدار <input type="date" name="next_date" value="{{ next_date|date:'Y-m-d' }}" class="form-control"></label>
+    <label>حتى تاريخ (اختياري) <input type="date" name="end_date" class="form-control"></label>
+    <label><input type="checkbox" name="submit_automatically" class="form-check"> اعتماد المستندات المنشأة تلقائياً</label>
+  </div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg">حفظ</button> <a class="btn" href="{{ obj.get_absolute_url }}">إلغاء</a></div>
+</form>
+{% endblock %}

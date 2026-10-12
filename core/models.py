@@ -700,3 +700,78 @@ class ApprovalRecord(TenantModel):
         verbose_name = "اعتماد مستوى"
         verbose_name_plural = "سجل الاعتمادات"
         ordering = ["level", "approved_at"]
+
+
+class Frequency(models.TextChoices):
+    WEEKLY = "weekly", "أسبوعي"
+    MONTHLY = "monthly", "شهري"
+    QUARTERLY = "quarterly", "ربع سنوي"
+    YEARLY = "yearly", "سنوي"
+
+
+def add_period(date, frequency, count=1):
+    import calendar
+    import datetime
+
+    if frequency == Frequency.WEEKLY:
+        return date + datetime.timedelta(weeks=count)
+    months = {Frequency.MONTHLY: 1, Frequency.QUARTERLY: 3, Frequency.YEARLY: 12}[frequency] * count
+    month = date.month - 1 + months
+    year, month = date.year + month // 12, month % 12 + 1
+    return date.replace(year=year, month=month, day=min(date.day, calendar.monthrange(year, month)[1]))
+
+
+class RecurringDocument(TenantModel):
+    """تكرار مستند معتمد (فاتورة إيجار، اشتراك، قيد شهري) آلياً بنفس بنوده في كل فترة."""
+
+    title = models.CharField("الاسم", max_length=150, help_text="مثل: فاتورة إيجار المحل للعميل س")
+    doctype = models.CharField("نوع المستند", max_length=50, editable=False)
+    source_id = models.PositiveBigIntegerField("المستند الأصلي", editable=False)
+    frequency = models.CharField("التكرار", max_length=10, choices=Frequency.choices, default=Frequency.MONTHLY)
+    next_date = models.DateField("تاريخ الإصدار التالي")
+    end_date = models.DateField("حتى تاريخ", null=True, blank=True)
+    submit_automatically = models.BooleanField("اعتماد المستندات المنشأة تلقائياً", default=False,
+                                               help_text="وإلا تُنشأ مسودات ويُنبه المدير لمراجعتها")
+    last_generated = models.CharField("آخر مستند منشأ", max_length=40, blank=True, editable=False)
+    generated_count = models.PositiveIntegerField("عدد المستندات المنشأة", default=0, editable=False)
+    disabled = models.BooleanField("موقوف", default=False)
+
+    class Meta:
+        verbose_name = "مستند متكرر"
+        verbose_name_plural = "المستندات المتكررة"
+        ordering = ["next_date"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def source(self):
+        from core.registry import REGISTRY
+
+        dt = REGISTRY.get(self.doctype)
+        return dt.model.all_objects.filter(pk=self.source_id, company_id=self.company_id).first() if dt else None
+
+    @property
+    def doctype_label(self):
+        from core.registry import voucher_label
+
+        return voucher_label(self.doctype)
+
+    def generate(self, on_date=None):
+        """ينشئ نسخة من المستند الأصلي بتاريخ الإصدار التالي، ويقدّم التاريخ فترة."""
+        from core.recurring import clone_document
+
+        source = self.source
+        if source is None:
+            raise ValidationError("المستند الأصلي محذوف.")
+        with transaction.atomic():
+            doc = clone_document(source, self.next_date)
+            if self.submit_automatically:
+                doc.submit()
+            self.last_generated = doc.name
+            self.generated_count += 1
+            self.next_date = add_period(self.next_date, self.frequency)
+            if self.end_date and self.next_date > self.end_date:
+                self.disabled = True
+            self.save()
+        return doc

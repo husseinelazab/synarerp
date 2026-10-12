@@ -89,6 +89,8 @@ def build_menu(request):
                 _item("معالج الأرصدة الافتتاحية", "opening_wizard"), doc("أرصدة الحسابات", "opening-account"),
                 doc("أرصدة العملاء والموردين", "opening-party"), doc("المخزون الافتتاحي", "opening-stock"),
             ]},
+            {"title": "التكرار والتوزيع", "items": [doc("المستندات المتكررة", "recurring-document"),
+                                                   doc("المصروفات المقدمة والإيرادات المؤجلة", "deferral")]},
             {"title": "الموازنات", "items": [_item("الموازنة مقابل الفعلي", "budget_report"), doc("الموازنات التقديرية", "budget")]},
             {"title": "نهاية الفترة", "items": [doc("إعادة تقييم العملات الأجنبية", "exchange-revaluation"),
                                                doc("إقفال السنة المالية", "period-closing")]},

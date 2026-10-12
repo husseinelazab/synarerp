@@ -76,6 +76,9 @@ class Item(TenantModel):
                                       help_text="الكمية المقترح شراؤها (بالوحدة الأساسية). صفر = ما يكفي للوصول للحد")
     has_batch_no = models.BooleanField("تتبع التشغيلات والصلاحية", default=False,
                                        help_text="يُتابَع رصيد كل تشغيلة بتاريخ انتهائها، ويُصرف الأقرب انتهاءً أولاً، ويُمنع بيع المنتهي")
+    has_serial_no = models.BooleanField("تتبع الأرقام التسلسلية", default=False,
+                                        help_text="رقم لكل قطعة (أجهزة، جوالات…): يُدخل عند الشراء والبيع ويُتابع ضمانه")
+    warranty_days = models.PositiveIntegerField("مدة الضمان بالأيام", default=0, help_text="تُحسب من تاريخ البيع")
     disabled = models.BooleanField("موقوف", default=False)
 
     class Meta:
@@ -105,6 +108,8 @@ class Item(TenantModel):
 
     def clean(self):
         super().clean()
+        if self.has_serial_no and (self.has_batch_no or not self.is_stock_item or self.is_weighed):
+            raise ValidationError({"has_serial_no": "الأرقام التسلسلية لصنف مخزني لا يُتتبع بالتشغيلات ولا يُباع بالوزن."})
         if self.barcode and self.company_id and ItemUOM.all_objects.filter(
                 company_id=self.company_id, barcode=self.barcode).exists():
             raise ValidationError({"barcode": "هذا الباركود مستخدم لوحدة تحويل صنف آخر."})
@@ -464,6 +469,9 @@ class StockLedgerEntry(TenantModel):
     is_cancelled = models.BooleanField("ملغى", default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    serials = models.ManyToManyField("stock.SerialNo", blank=True, related_name="ledger_entries",
+                                     verbose_name="الأرقام التسلسلية")
+
     class Meta:
         verbose_name = "حركة مخزون"
         verbose_name_plural = "دفتر حركة المخزون"
@@ -527,18 +535,19 @@ class StockEntry(SubmittableDocument):
             if self.purpose == StockEntryPurpose.RECEIPT:
                 value_change += make_stock_ledger_entry(self, row.item, self.to_warehouse, row.qty,
                                                         row.rate or row.item.buying_rate,
-                                                        batch_no=row.batch_no, expiry_date=row.expiry_date)
+                                                        batch_no=row.batch_no, expiry_date=row.expiry_date,
+                                                        serial_nos=row.serial_nos)
             elif self.purpose == StockEntryPurpose.ISSUE:
                 value_change += make_stock_ledger_entry(self, row.item, self.from_warehouse, -row.qty,
-                                                        batch_no=row.batch_no)
+                                                        batch_no=row.batch_no, serial_nos=row.serial_nos)
             else:
                 # التحويل ينقل نفس التشغيلات بنفس التكلفة إلى المستودع الهدف
                 parts = []
                 make_stock_ledger_entry(self, row.item, self.from_warehouse, -row.qty, batch_no=row.batch_no,
-                                        allocations=parts)
+                                        allocations=parts, serial_nos=row.serial_nos)
                 for batch, part, diff in parts:
                     make_stock_ledger_entry(self, row.item, self.to_warehouse, -part, -diff / -part if part else 0,
-                                            batch_no=batch.batch_no if batch else "")
+                                            batch_no=batch.batch_no if batch else "", serial_nos=row.serial_nos)
         if value_change:
             stock = self.company.require_account("default_stock_account")
             adjustment = self.company.require_account("default_stock_adjustment_account")
@@ -606,7 +615,7 @@ class OpeningStock(SubmittableDocument):
         value = flt(0)
         for row in self.items.select_related("item"):
             value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate,
-                                             batch_no=row.batch_no, expiry_date=row.expiry_date)
+                                             batch_no=row.batch_no, expiry_date=row.expiry_date, serial_nos=row.serial_nos)
         if value:
             make_gl_entries(self, [
                 {"account": self.company.require_account("default_stock_account"), "debit": value},
@@ -623,6 +632,8 @@ class OpeningStockItem(models.Model):
     item = models.ForeignKey(Item, models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
                              verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    serial_nos = models.TextField("الأرقام التسلسلية", blank=True,
+                                  help_text="للأصناف المتسلسلة: رقم لكل قطعة، مفصولة بسطر أو فاصلة")
     rate = models.DecimalField("تكلفة الوحدة", max_digits=18, decimal_places=2, default=0)
     amount = models.DecimalField("القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
 
@@ -639,6 +650,8 @@ class StockEntryItem(models.Model):
     parent = models.ForeignKey(StockEntry, models.CASCADE, related_name="items")
     item = models.ForeignKey(Item, models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    serial_nos = models.TextField("الأرقام التسلسلية", blank=True,
+                                  help_text="للأصناف المتسلسلة: رقم لكل قطعة، مفصولة بسطر أو فاصلة")
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0, help_text="يُستخدم في إذن الاستلام فقط")
     amount = models.DecimalField("القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
 
@@ -827,3 +840,41 @@ class StockCountItem(models.Model):
     class Meta:
         verbose_name = "صنف جرد"
         verbose_name_plural = "أصناف الجرد"
+
+
+class SerialStatus(models.TextChoices):
+    IN_STOCK = "in_stock", "في المخزون"
+    DELIVERED = "delivered", "مُسلّم / خارج المخزون"
+    INACTIVE = "inactive", "غير نشط"
+
+
+class SerialNo(TenantModel):
+    """رقم تسلسلي لقطعة واحدة: أين هي الآن، ومن اشتُريت، ولمن بيعت، وحتى متى ضمانها."""
+
+    serial_no = models.CharField("الرقم التسلسلي", max_length=80)
+    item = models.ForeignKey(Item, models.PROTECT, related_name="serials", verbose_name="الصنف")
+    status = models.CharField("الحالة", max_length=10, choices=SerialStatus.choices, default=SerialStatus.INACTIVE)
+    warehouse = models.ForeignKey(Warehouse, models.PROTECT, null=True, blank=True, related_name="+",
+                                  verbose_name="المستودع الحالي")
+    purchase_document = models.CharField("مستند الإدخال", max_length=60, blank=True)
+    purchase_date = models.DateField("تاريخ الإدخال", null=True, blank=True)
+    delivery_document = models.CharField("مستند البيع / الصرف", max_length=60, blank=True)
+    delivery_date = models.DateField("تاريخ البيع", null=True, blank=True)
+    customer = models.ForeignKey("selling.Customer", models.SET_NULL, null=True, blank=True, related_name="serials",
+                                 verbose_name="العميل")
+    warranty_expiry = models.DateField("انتهاء الضمان", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "رقم تسلسلي"
+        verbose_name_plural = "الأرقام التسلسلية"
+        ordering = ["item", "serial_no"]
+        constraints = [tenant_unique("item", "serial_no", model_label="serialno")]
+
+    def __str__(self):
+        return self.serial_no
+
+    @property
+    def under_warranty(self):
+        from django.utils import timezone
+
+        return bool(self.warranty_expiry and self.warranty_expiry >= timezone.localdate())

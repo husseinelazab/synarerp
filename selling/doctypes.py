@@ -9,7 +9,7 @@ register(DocType(
                  "price_list", "coupon_code", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
                  "prices_include_tax", "discount_amount", "loyalty_points", "remarks"],
     search_fields=["name", "customer__name"],
-    child=ChildTable(SalesInvoiceItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
+    child=ChildTable(SalesInvoiceItem, ["item", "uom", "qty", "rate", "serial_nos"], rate_type="selling"),
     totals=["total", "discount_amount", "net_total", "tax_amount", "grand_total", "outstanding_amount"],
     detail_template="accounts/_payment_schedule.html",
 ))
@@ -43,7 +43,7 @@ register(DocType(
     list_fields=["name", "posting_date", "customer", "warehouse", "total_amount", "status"],
     form_fields=["customer", "posting_date", "warehouse", "cost_center", "currency", "exchange_rate", "tax_rate", "remarks"],
     search_fields=["name", "customer__name"],
-    child=ChildTable(DeliveryNoteItem, ["item", "uom", "qty", "rate"], rate_type="selling"),
+    child=ChildTable(DeliveryNoteItem, ["item", "uom", "qty", "rate", "serial_nos"], rate_type="selling"),
     totals=["total_amount"],
 ))
 register(DocType(

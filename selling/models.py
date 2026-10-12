@@ -413,7 +413,8 @@ class SalesInvoice(InvoiceDocument):
             income_by_account[income] = income_by_account.get(income, flt(0)) + row.amount
             if self.update_stock and row.item.is_stock_item:
                 rate = self._original_cost(row.item) if self.is_return else None
-                cogs_total += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.stock_qty, rate)
+                cogs_total += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.stock_qty, rate,
+                                                       serial_nos=row.serial_nos)
         # الإيراد = الصافي قبل الضريبة + الخصم (قبل الضريبة)، موزعاً على حسابات الإيراد
         discount = self.discount_excluding_tax
         for account, amount in allocate(self.net_total + discount, income_by_account).items():
@@ -531,7 +532,7 @@ class DeliveryNote(FulfillmentDocument):
     def on_submit(self):
         cost = flt(0)
         for row in self.items.select_related("item"):
-            cost += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.stock_qty)
+            cost += -make_stock_ledger_entry(self, row.item, self.warehouse, -row.stock_qty, serial_nos=row.serial_nos)
         if cost:
             company = self.company
             make_gl_entries(self, [

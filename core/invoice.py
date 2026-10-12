@@ -191,7 +191,8 @@ class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
                 if item_id not in summary:
                     raise ValidationError("لا يمكن إرجاع صنف غير موجود في الفاتورة الأصلية.")
                 data = summary[item_id]
-                ret.items.create(item_id=item_id, qty=-qty, rate=flt(data["amount"] / data["qty"]))
+                serials = " ".join(r.serial_nos for r in self.items.filter(item_id=item_id) if r.serial_nos)
+                ret.items.create(item_id=item_id, qty=-qty, rate=flt(data["amount"] / data["qty"]), serial_nos=serials)
             if not ret.items.exists():
                 raise ValidationError("لا توجد كميات قابلة للإرجاع في هذه الفاتورة.")
             ret.calculate_totals()
@@ -405,6 +406,8 @@ class InvoiceDocument(CurrencyMixin, PricedDocument, SubmittableDocument):
 class InvoiceItem(UOMLine, PricedLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False}, verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    serial_nos = models.TextField("الأرقام التسلسلية", blank=True,
+                                  help_text="للأصناف المتسلسلة: رقم لكل قطعة، مفصولة بسطر أو فاصلة")
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0)
     amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2, default=0, editable=False)
 

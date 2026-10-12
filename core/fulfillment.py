@@ -168,6 +168,8 @@ class FulfillmentItem(UOMLine):
     item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
                              verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    serial_nos = models.TextField("الأرقام التسلسلية", blank=True,
+                                  help_text="للأصناف المتسلسلة: رقم لكل قطعة، مفصولة بسطر أو فاصلة")
     rate = models.DecimalField("السعر", max_digits=18, decimal_places=2, default=0)
     amount = models.DecimalField("المبلغ", max_digits=18, decimal_places=2, default=0, editable=False)
     billed_qty = models.DecimalField("الكمية المفوترة", max_digits=18, decimal_places=3, default=0, editable=False)

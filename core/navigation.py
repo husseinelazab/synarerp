@@ -92,7 +92,7 @@ def build_menu(request):
         ]},
         {"key": "stock", "label": "المخزون", "sections": [
             {"items": [doc("الأصناف", "item"), doc("الحركات المخزنية", "stock-entry"), doc("طلبات المواد", "material-request"), doc("الجرد", "stock-count"),
-                       doc("التشغيلات", "batch"),
+                       doc("التشغيلات", "batch"), doc("الأرقام التسلسلية والضمان", "serial-no"),
                        doc("المستودعات", "warehouse"),
                        doc("مجموعات الأصناف", "item-group"), doc("وحدات القياس", "uom")]},
             {"title": "الباركود", "items": [_item("طباعة الملصقات", "stock_labels"), _item("فاحص الأسعار", "stock_price_checker"),

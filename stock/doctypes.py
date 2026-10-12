@@ -1,5 +1,5 @@
 from core.registry import ChildTable, DocType, register
-from stock.models import (UOM, Batch, Item, ItemUOM, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
+from stock.models import (UOM, Batch, SerialNo, Item, ItemUOM, ItemGroup, OpeningStock, OpeningStockItem, Scale, StockCount, StockCountItem,
                           StockEntry, StockEntryItem, Warehouse)
 
 register(DocType(
@@ -18,7 +18,7 @@ register(DocType(
     list_fields=["name", "posting_date", "purpose", "from_warehouse", "to_warehouse", "total_amount"],
     form_fields=["purpose", "posting_date", "from_warehouse", "to_warehouse", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(StockEntryItem, ["item", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
+    child=ChildTable(StockEntryItem, ["item", "qty", "rate", "batch_no", "expiry_date", "serial_nos"], rate_type="buying"),
     totals=["total_amount"],
 ))
 register(DocType(
@@ -36,7 +36,8 @@ register(DocType(
     slug="opening-stock", model=OpeningStock, module="stock",
     list_fields=["name", "posting_date", "warehouse", "total_amount"], form_fields=["warehouse", "posting_date", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(OpeningStockItem, ["item", "qty", "rate", "batch_no", "expiry_date"], label="الأصناف", rate_type="buying"),
+    child=ChildTable(OpeningStockItem, ["item", "qty", "rate", "batch_no", "expiry_date", "serial_nos"], label="الأصناف",
+                     rate_type="buying"),
     totals=["total_amount"],
 ))
 register(DocType(
@@ -60,4 +61,10 @@ register(DocType(
     slug="batch", model=Batch, module="stock",
     list_fields=["batch_no", "item", "manufacturing_date", "expiry_date", "reference"],
     search_fields=["batch_no", "item__name", "item__code"],
+))
+register(DocType(
+    slug="serial-no", model=SerialNo, module="stock",
+    list_fields=["serial_no", "item", "status", "warehouse", "customer", "delivery_date", "warranty_expiry"],
+    search_fields=["serial_no", "item__name", "item__code", "customer__name"],
+    detail_template="stock/_serial_history.html",
 ))

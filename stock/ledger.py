@@ -14,7 +14,7 @@ def _locked_bin(item, warehouse):
 
 
 def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None, batch_no="", expiry_date=None,
-                            manufacturing_date=None, allocations=None):
+                            manufacturing_date=None, allocations=None, serial_nos=None):
     """تسجيل حركة مخزون: الكمية الموجبة وارد والسالبة صادر. تعيد فرق قيمة المخزون.
 
     للأصناف المتتبعة بالتشغيلات تُوزَّع الكمية على تشغيلة أو أكثر (سطر حركة لكل تشغيلة).
@@ -25,6 +25,10 @@ def make_stock_ledger_entry(doc, item, warehouse, qty, incoming_rate=None, batch
     qty = flt(qty, 3)
     if not item.has_batch_no or not qty:
         diff = _post(doc, item, warehouse, qty, incoming_rate, None)
+        if qty:
+            from stock import serials
+
+            serials.apply(doc, item, warehouse, qty, serial_nos, doc._last_sle)
         if allocations is not None:
             allocations.append((None, qty, diff))
         return diff
@@ -72,7 +76,7 @@ def _post(doc, item, warehouse, qty, incoming_rate, batch):
     b.actual_qty, b.stock_value = new_qty, new_value
     b.save()
 
-    StockLedgerEntry.objects.create(
+    doc._last_sle = StockLedgerEntry.objects.create(
         company=doc.company,
         posting_date=doc.posting_date,
         item=item,
@@ -141,4 +145,8 @@ def cancel_stock_ledger_entries(doc):
         if b.actual_qty:
             b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
         b.save()
+    ids = list(entries.values_list("id", flat=True))
     entries.update(is_cancelled=True)
+    from stock import serials
+
+    serials.restore(StockLedgerEntry.all_objects.filter(id__in=ids))

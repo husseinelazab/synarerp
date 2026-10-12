@@ -10,7 +10,8 @@ register(DocType(
                  "cost_center", "price_list", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
                  "remarks"],
     search_fields=["name", "supplier__name", "bill_no"],
-    child=ChildTable(PurchaseInvoiceItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
+    child=ChildTable(PurchaseInvoiceItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date", "serial_nos"],
+                     rate_type="buying"),
     totals=["total", "net_total", "tax_amount", "grand_total", "outstanding_amount"],
     detail_template="accounts/_payment_schedule.html",
 ))
@@ -34,7 +35,8 @@ register(DocType(
     form_fields=["supplier", "supplier_delivery_no", "posting_date", "warehouse", "cost_center", "currency",
                  "exchange_rate", "tax_rate", "remarks"],
     search_fields=["name", "supplier__name", "supplier_delivery_no"],
-    child=ChildTable(PurchaseReceiptItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date"], rate_type="buying"),
+    child=ChildTable(PurchaseReceiptItem, ["item", "uom", "qty", "rate", "batch_no", "expiry_date", "serial_nos"],
+                     rate_type="buying"),
     totals=["total_amount"],
 ))
 register(DocType(

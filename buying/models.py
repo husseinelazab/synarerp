@@ -445,7 +445,8 @@ class PurchaseInvoice(InvoiceDocument):
                 base_amount = self.to_base(row.amount)
                 value = make_stock_ledger_entry(self, row.item, self.warehouse, row.stock_qty,
                                                 row.stock_rate * self.exchange_rate,
-                                                batch_no=row.batch_no, expiry_date=row.expiry_date)
+                                                batch_no=row.batch_no, expiry_date=row.expiry_date,
+                                                serial_nos=row.serial_nos)
                 entries.append({"account": company.require_account("default_stock_account"), "debit": value, "base": True})
                 if base_amount != value:
                     entries.append({
@@ -525,7 +526,8 @@ class PurchaseReceipt(FulfillmentDocument):
         for row in self.items.select_related("item"):
             value += make_stock_ledger_entry(self, row.item, self.warehouse, row.stock_qty,
                                              row.stock_rate * self.exchange_rate,
-                                             batch_no=row.batch_no, expiry_date=row.expiry_date)
+                                             batch_no=row.batch_no, expiry_date=row.expiry_date,
+                                             serial_nos=row.serial_nos)
         if value:
             make_gl_entries(self, [
                 {"account": self.company.require_account("default_stock_account"), "debit": value, "base": True},

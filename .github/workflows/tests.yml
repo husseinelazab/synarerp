@@ -1,0 +1,24 @@
+name: الاختبارات
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: تثبيت المتطلبات
+        run: pip install -r requirements.txt
+      - name: فحص الترحيلات
+        run: python manage.py makemigrations --check --dry-run
+      - name: فحص النظام
+        run: python manage.py check
+      - name: الاختبارات
+        run: python manage.py test --parallel 4

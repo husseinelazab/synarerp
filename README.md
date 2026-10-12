@@ -645,6 +645,8 @@ python manage.py runserver
 python manage.py test
 ```
 
+تعمل الاختبارات وفحص الترحيلات تلقائياً على GitHub Actions مع كل دفع وطلب دمج (`.github/workflows/tests.yml`).
+
 ## هيكل المشروع
 
 ```

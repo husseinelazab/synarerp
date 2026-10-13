@@ -252,6 +252,9 @@ def nonprofit_modules(modules, doc):
     if buying:
         titles = {"التقارير": "تقارير الموردين"}
         accounts["sections"][1:1] = [{**s, "title": titles.get(s["title"], s["title"])} for s in buying["sections"]]
+    for section in accounts["sections"]:
+        if section.get("title") == "القوائم المالية":
+            section["items"].insert(0, _item("حزمة القوائم المالية للجمعية (للمراجع)", "statements_package"))
     accounts["sections"].insert(1, {"title": "الأموال المقيدة", "items": [
         doc("الصناديق والأموال المقيدة", "fund"),
         _item("أرصدة الصناديق", "fund_balances"), _item("قائمة الأنشطة", "statement_of_activities")]})

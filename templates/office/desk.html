@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div><h2>أهلاً {{ user.first_name|default:user.username }}</h2><span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }}</span></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'admin-request' %}">+ طلب إداري</a>
+  {% if employee %}<a class="btn" href="{% url 'portal_leave' %}">طلب إجازة</a><a class="btn" href="{% url 'portal_attendance' %}">حضوري</a>{% endif %}
+</div></div>
+<div class="kpis">
+  <div class="kpi {% if correspondence %}kpi-bad{% endif %}"><span>معاملات لدي</span><b>{{ correspondence|length }}</b></div>
+  <div class="kpi"><span>مهامي المفتوحة</span><b>{{ tasks|length }}</b></div>
+  <div class="kpi"><span>قرارات أتابع تنفيذها</span><b>{{ decisions|length }}</b></div>
+  <div class="kpi {% if pending_circulars %}kpi-bad{% endif %}"><span>تعاميم بانتظار اطلاعي</span><b>{{ pending_circulars }}</b></div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>معاملات أُحيلت إلي</h3><div class="table-wrap"><table class="table"><tbody>
+{% for c in correspondence %}<tr class="{% if c.is_overdue %}row-loss{% endif %}"><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td>{{ c.get_priority_display }}</td><td>{{ c.due_date|date:"Y-m-d" }}</td></tr>
+{% empty %}<tr><td class="muted">لا شيء</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>مهامي</h3><div class="table-wrap"><table class="table"><tbody>
+{% for t in tasks %}<tr class="{% if t.is_overdue %}row-loss{% endif %}"><td><a href="{{ t.get_absolute_url }}">{{ t }}</a></td><td>{{ t.project }}</td><td>{{ t.due_date|date:"Y-m-d" }}</td></tr>{% endfor %}
+{% for d in decisions %}<tr class="{% if d.is_overdue %}row-loss{% endif %}"><td><a href="{{ d.get_absolute_url }}">{{ d.text|truncatechars:60 }}</a></td><td>{{ d.meeting.title }}</td><td>{{ d.due_date|date:"Y-m-d" }}</td></tr>{% endfor %}
+{% if not tasks and not decisions %}<tr><td class="muted">لا مهام مفتوحة</td></tr>{% endif %}</tbody></table></div></div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>التعاميم</h3><div class="table-wrap"><table class="table"><tbody>
+{% for c, acked in circulars %}<tr><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td>{{ c.date|date:"Y-m-d" }}</td>
+<td>{% if acked %}<span class="badge status-1">اطلعت</span>{% elif c.requires_ack %}<form method="post" action="{% url 'acknowledge_circular' c.pk %}">{% csrf_token %}<button class="btn btn-sm btn-primary">اطلعت</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td class="muted">لا تعاميم</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>طلباتي</h3><div class="table-wrap"><table class="table"><tbody>
+{% for r in requests %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r }}</a></td><td>{{ r.request_type }}</td><td>{% if r.done %}<span class="badge status-1">نُفذ</span>{% else %}<span class="badge status-{{ r.docstatus }}">{% if r.is_draft %}بانتظار الاعتماد{% else %}{{ r.get_docstatus_display }}{% endif %}</span>{% endif %}</td></tr>
+{% empty %}<tr><td class="muted">لا طلبات</td></tr>{% endfor %}</tbody></table></div>
+<h3>تنبيهات غير مقروءة</h3><ul>{% for n in notifications %}<li><a href="{% url 'notification_open' n.pk %}">{{ n.title }}</a></li>{% empty %}<li class="muted">لا شيء</li>{% endfor %}</ul></div>
+</div>
+{% endblock %}

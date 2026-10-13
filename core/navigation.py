@@ -20,6 +20,8 @@ ICONS = {
     "governance": '<path d="M12 3l9 4H3zM5 10v7M10 10v7M14 10v7M19 10v7M3 21h18"/>',
     "awqaf": '<path d="M4 21V10l8-6 8 6v11M9 21v-5a3 3 0 0 1 6 0v5M2 21h20"/>',
     "volunteering": '<path d="M7 11V7a2 2 0 0 1 4 0v4M11 9a2 2 0 0 1 4 0v2M15 10a2 2 0 0 1 4 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a2 2 0 0 1 3-2l2 2"/>',
+    "office": '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/>',
+    "documents": '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
     "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
@@ -235,7 +237,7 @@ def _keys(module):
 
 
 # ترتيب وحدات الجهة غير الربحية
-NONPROFIT_ORDER = ["members", "hr", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
+NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
                    "volunteering", "stock", "settings"]
 
 
@@ -289,6 +291,18 @@ def nonprofit_modules(modules, doc):
     by_key["volunteering"] = {"key": "volunteering", "label": "إدارة التطوع", "sections": [
         {"items": [_item("لوحة التطوع", "volunteering_dashboard"), doc("الفرص التطوعية", "volunteer-opportunity"),
                    doc("المتطوعون", "volunteer"), doc("المشاركات", "volunteer-participation")]},
+    ]}
+    by_key["office"] = {"key": "office", "label": "المكتب الإلكتروني", "sections": [
+        {"items": [_item("مكتبي", "my_desk"), doc("الطلبات الإدارية", "admin-request"), doc("التعاميم", "circular"),
+                   doc("أنواع الطلبات الإدارية", "admin-request-type")]},
+    ]}
+    by_key["documents"] = {"key": "documents", "label": "إدارة التوثيق والمستندات", "sections": [
+        {"title": "الصادر والوارد", "items": [
+            _item("لوحة المعاملات", "documents_dashboard"),
+            _item("الوارد", "doc_list", "correspondence", query="?direction=incoming"),
+            _item("الصادر", "doc_list", "correspondence", query="?direction=outgoing"),
+            _item("المعاملات الداخلية", "doc_list", "correspondence", query="?direction=internal")]},
+        {"title": "الأرشيف", "items": [doc("الأرشيف", "archive-document"), doc("تصنيفات الأرشيف", "archive-category")]},
     ]}
     by_key["entities"] = {"key": "entities", "label": "إدارة الجهات المستفيدة", "sections": [
         {"items": [_item("لوحة الطلبات", "entities_dashboard"), doc("الجهات", "beneficiary-entity"),

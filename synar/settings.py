@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "governance",
     "awqaf",
     "volunteering",
+    "office",
 ]
 
 MIDDLEWARE = [

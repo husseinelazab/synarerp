@@ -19,12 +19,15 @@ PERMISSION_MODULES = [
     ("governance", "إدارة الحوكمة"),
     ("awqaf", "إدارة الأوقاف"),
     ("volunteering", "إدارة التطوع"),
+    ("office", "المكتب الإلكتروني (الطلبات الإدارية والتعاميم)"),
+    ("documents", "إدارة التوثيق والمستندات (الصادر والوارد والأرشيف)"),
     ("beneficiaries", "إدارة التقييم والمتابعة (المستفيدون)"),
     ("entities", "إدارة الجهات المستفيدة"),
 ]
 
 # وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
-NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "volunteering", "beneficiaries",
+NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "volunteering", "office", "documents",
+                     "beneficiaries",
                      "entities"}
 # الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
 COMMERCIAL_MODULES = {"selling", "crm", "support", "manufacturing", "pos"}
@@ -88,6 +91,8 @@ PATH_MODULES = [
     ("/governance/", "governance"),
     ("/awqaf/", "awqaf"),
     ("/volunteering/", "volunteering"),
+    ("/office/documents/", "documents"),
+    ("/office/", "office"),
     ("/beneficiaries/entities/", "entities"),
     ("/beneficiaries/", "beneficiaries"),
 ]
@@ -140,7 +145,7 @@ def path_allowed(membership, path):
         if access == "none":
             return False
         if access == "read" and len(parts) > 3 and (parts[3] in ("new", "import") or
-                                                     (len(parts) > 4 and parts[4] not in ("", "print"))):
+                                                     (len(parts) > 4 and parts[4] not in ("", "print", "attachments"))):
             return False  # الاطلاع فقط: لا إنشاء ولا تعديل ولا إجراءات
         if len(parts) > 3 and parts[3] == "export" and not membership.may("export"):
             return False
@@ -177,4 +182,6 @@ def scope_queryset(request, model, qs):
     ids = allowed_centers(request)
     if ids is not None and has_cost_center(model):
         qs = qs.filter(cost_center_id__in=ids)
+    if hasattr(model, "scope_for_user"):  # قيود خاصة بالنوع (مثل المعاملات السرية)
+        qs = model.scope_for_user(qs, request)
     return qs

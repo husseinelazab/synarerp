@@ -111,6 +111,7 @@
 {% endif %}
 
 {% if dt.detail_template %}{% include dt.detail_template %}{% endif %}
+{% if attachments is not None %}{% include "core/_attachments.html" %}{% endif %}
 {% if audit_entries is not None %}
 <details class="card audit-card">
   <summary><h3 style="display:inline">سجل التعديلات ({{ audit_entries|length }})</h3></summary>

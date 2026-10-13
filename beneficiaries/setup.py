@@ -66,6 +66,9 @@ def ensure_nonprofit_setup(company):
     from governance.setup import ensure_governance_setup
 
     ensure_governance_setup(company)
+    from office.setup import ensure_office_setup
+
+    ensure_office_setup(company)
     if BeneficiaryCategory.all_objects.filter(company=company).exists():
         return
     for name, fund_type, purpose in DEFAULT_FUNDS:

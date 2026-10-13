@@ -39,6 +39,7 @@ class Command(BaseCommand):
             self.run("support_alerts")
             self.run("sponsorship_dues")
             self.run("waqf_alerts")
+            self.run("office_alerts")
             self.run("zatca_submit")
             from core.jobs import run_pending
 
@@ -71,4 +72,5 @@ class Command(BaseCommand):
                 self.run("support_alerts")
                 self.run("sponsorship_dues")
                 self.run("waqf_alerts")
+                self.run("office_alerts")
             time.sleep(int(os.environ.get("SYNAR_SCHEDULER_TICK", "5")))

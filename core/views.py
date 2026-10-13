@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from core.display import detail_fields, display_value, field_label
 from core.forms import build_form_class, build_formset_class, style_form
-from core.models import DocStatus
+from core.models import Attachment, DocStatus
 from core.registry import get_doctype
 from core.utils import client_ip, flt
 
@@ -264,6 +264,7 @@ def doc_detail(request, slug, pk):
         "fields": detail_fields(obj, exclude=exclude),
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals],
         "child_headers": child_headers, "child_rows": child_rows,
+        "attachments": list(Attachment.for_object(obj)) if hasattr(obj, "company_id") else None,
     }
     if dt.is_submittable and not obj.is_draft:
         context["gl_entries"], context["stock_entries"] = _linked_entries(obj)
@@ -391,7 +392,10 @@ def doc_action(request, slug, pk, action):
             messages.error(request, "يمكن حذف المسودات فقط. ألغِ المستند بدلاً من ذلك.")
             return redirect(obj.get_absolute_url())
         try:
-            obj.delete()
+            with transaction.atomic():
+                object_id = obj.pk
+                obj.delete()
+                Attachment.objects.filter(doctype=slug, object_id=object_id).delete()
         except ProtectedError:
             messages.error(request, "لا يمكن الحذف لارتباط السجل بمستندات أخرى.")
             return redirect("doc_detail", slug=slug, pk=pk)

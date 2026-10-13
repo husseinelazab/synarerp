@@ -857,3 +857,34 @@ class BackgroundJob(models.Model):
 
     def __str__(self):
         return f"{self.task} #{self.pk} ({self.get_status_display()})"
+
+
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+
+class Attachment(TenantModel):
+    """مرفق على أي مستند أو سجل (يُعرف بنوع المستند ومعرّفه)، يُحفظ في قاعدة البيانات ويُنزّل بصلاحيات المستند نفسه."""
+
+    doctype = models.CharField("نوع المستند", max_length=50, db_index=True)
+    object_id = models.PositiveBigIntegerField("معرّف المستند", db_index=True)
+    file_name = models.CharField("اسم الملف", max_length=255)
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveIntegerField("الحجم", default=0)
+    content = models.BinaryField()
+    description = models.CharField("الوصف", max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True,
+                                    related_name="+", verbose_name="رفعه")
+    uploaded_at = models.DateTimeField("تاريخ الرفع", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "مرفق"
+        verbose_name_plural = "المرفقات"
+        ordering = ["-id"]
+
+    def __str__(self):
+        return self.file_name
+
+    @classmethod
+    def for_object(cls, obj):
+        return cls.objects.filter(doctype=obj.doctype_slug, object_id=obj.pk).defer("content").select_related(
+            "uploaded_by")

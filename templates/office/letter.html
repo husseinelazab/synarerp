@@ -1,0 +1,36 @@
+{% load erp static %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ item.number }} — {{ item.subject }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/print.css' %}">
+<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; } .letter-body { white-space: pre-line; line-height: 2.1; font-size: 15px; margin: 2em 0; min-height: 40vh; } .letter-meta div { margin: .2em 0; } .sign { margin-top: 3em; text-align: left; }</style>
+</head>
+<body>
+<div class="toolbar no-print">
+  <a class="tb-btn" href="{{ item.get_absolute_url }}">→ رجوع للمعاملة</a>
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+</div>
+<main class="sheet">
+  <header class="doc-header">
+    <div class="brand">
+      {% if ps.logo %}<img class="logo" src="{{ ps.logo }}" alt="{{ company.name }}">{% endif %}
+      <div><div class="company-name">{{ company.name }}</div>
+      {% if company.license_number %}<div class="company-name-en">ترخيص رقم {{ company.license_number }}</div>{% endif %}</div>
+    </div>
+    <div class="seller letter-meta">
+      <div><span class="k">الرقم</span> <b dir="ltr">{{ item.number }}</b></div>
+      <div><span class="k">التاريخ</span> <b>{{ item.date|hijri }} — {{ item.date|date:"Y-m-d" }}</b></div>
+      <div><span class="k">المرفقات</span> <b>{{ attachments_count|default:"—" }}</b></div>
+    </div>
+  </header>
+  {% if item.party %}<p style="margin-top:2em"><strong>المكرم / {{ item.party }}</strong> المحترم</p>{% endif %}
+  <p>السلام عليكم ورحمة الله وبركاته، وبعد:</p>
+  <p><strong>الموضوع: {{ item.subject }}</strong></p>
+  <div class="letter-body">{{ item.body }}</div>
+  <p>وتقبلوا خالص التحية والتقدير،،،</p>
+  <div class="sign">{% if item.signatory %}<strong>{{ item.signatory.get_full_name|default:item.signatory }}</strong><br>{% endif %}{{ company.name }}</div>
+  <footer class="doc-footer">{% if company.address %}{{ company.address }}{% endif %}{% if company.phone %} · <span dir="ltr">{{ company.phone }}</span>{% endif %}{% if company.email %} · {{ company.email }}{% endif %}</footer>
+</main>
+</body></html>

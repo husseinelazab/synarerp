@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}شهادة تطوع{% endblock %}{% block heading %}شهادة تطوع{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions"><button class="btn btn-primary" onclick="window.print()">طباعة</button></div></div>
+<div class="card" style="max-width:780px;margin:auto;text-align:center;padding:3em 2em;border:3px double var(--border, #c9b37e)">
+  <h2>{{ company.name }}</h2>
+  {% if company.license_number %}<p class="muted small">ترخيص رقم {{ company.license_number }}</p>{% endif %}
+  <h1 style="margin:1em 0">شهادة شكر وتقدير</h1>
+  <p style="font-size:1.2em;line-height:2">تشهد {{ company.name }} بأن المتطوع/ة<br><strong style="font-size:1.4em">{{ p.volunteer.full_name }}</strong><br>
+  قد شارك/ت في الفرصة التطوعية «<strong>{{ p.opportunity.title }}</strong>»<br>
+  خلال الفترة من {{ p.opportunity.start_date|date:"Y-m-d" }} إلى {{ p.opportunity.end_date|date:"Y-m-d" }}
+  بعدد ساعات <strong>{{ p.hours }}</strong> ساعة.</p>
+  <p>شاكرين له/لها عطاءه، وجزاه الله خيراً.</p>
+  <p class="muted small" style="margin-top:2em">رمز التحقق: <strong>{{ p.certificate_code }}</strong> — {{ verify_url }}</p>
+</div>
+{% endblock %}

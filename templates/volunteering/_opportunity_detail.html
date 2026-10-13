@@ -1,0 +1,18 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi"><span>المقبولون</span><b>{{ obj.accepted_count }} / {{ obj.required_count }}</b></div>
+  <div class="kpi kpi-good"><span>الساعات المنفذة</span><b>{{ obj.completed_hours }}</b></div>
+  {% if obj.value_entry %}<div class="kpi"><span>قيد قيمة التطوع</span><b><a href="{{ obj.value_entry.get_absolute_url }}">{{ obj.value_entry }}</a></b></div>{% endif %}
+</div>
+{% if obj.status == "open" %}
+<div class="card"><h3>رابط التسجيل العام</h3>
+  <p class="muted small">انشره في الموقع أو واتساب؛ يسجل المتطوع نفسه دون حساب، ويظهر طلبه هنا للقبول.</p>
+  <input class="form-control" readonly value="{{ request.scheme }}://{{ request.get_host }}{% url 'volunteer_register' obj.public_token %}" onclick="this.select()">
+</div>
+{% endif %}
+<div class="card"><h3>المشاركون</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>المتطوع</th><th>الجوال</th><th>الحالة</th><th class="num">الساعات</th><th>التقييم</th><th></th></tr></thead><tbody>
+{% for p in obj.participations.all %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.volunteer }}</a></td><td>{{ p.volunteer.phone }}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.hours }}</td><td>{{ p.rating|default:"" }}</td>
+<td class="actions">{% for key, label in p.available_actions %}<form method="post" action="{% url 'doc_action' 'volunteer-participation' p.pk key %}">{% csrf_token %}<button class="btn btn-sm">{{ label }}</button></form>{% endfor %}
+{% if p.certificate_code %}<a class="btn btn-sm" href="{% url 'volunteer_certificate' p.pk %}">الشهادة</a>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا مشاركين بعد</td></tr>{% endfor %}</tbody></table></div></div>

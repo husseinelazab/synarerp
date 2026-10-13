@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="card">
+  <p class="muted small">قائمة الأنشطة للجهات غير الربحية: الإيرادات والمصروفات موزعة حسب القيود على صافي الأصول (غير مقيدة، مقيدة، أوقاف) وفق الصندوق المسجل على كل قيد.</p>
+  <div class="table-wrap"><table class="table report">
+    <thead><tr><th>البند</th>{% for c in columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead>
+    <tbody>{% for s in sections %}
+      <tr class="group depth-0"><td colspan="{{ columns|length|add:2 }}"><strong>{{ s.title }}</strong></td></tr>
+      {% for l in s.lines %}<tr class="leaf"><td style="padding-inline-start:1.5em"><a href="{% url 'general_ledger' %}?account={{ l.account.pk }}&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}">{{ l.account }}</a></td>
+        {% for v in l.values %}<td class="num">{{ v|money }}</td>{% endfor %}<td class="num">{{ l.total|money }}</td></tr>
+      {% empty %}<tr><td colspan="{{ columns|length|add:2 }}" class="muted" style="padding-inline-start:1.5em">لا توجد حركات</td></tr>{% endfor %}
+      <tr class="subtotal"><th>إجمالي {{ s.title }}</th>{% for v in s.totals %}<th class="num">{{ v|cur }}</th>{% endfor %}<th class="num">{{ s.total|cur }}</th></tr>
+    {% endfor %}</tbody>
+    <tfoot><tr><th>التغير في صافي الأصول</th>{% for v in net %}<th class="num {% if v < 0 %}neg{% endif %}">{{ v|cur }}</th>{% endfor %}<th class="num">{{ net_total|cur }}</th></tr></tfoot>
+  </table></div>
+</div>
+{% endblock %}

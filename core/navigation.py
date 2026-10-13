@@ -239,11 +239,14 @@ def nonprofit_modules(modules, doc):
 
     by_key = {m["key"]: m for m in modules}
     accounts = by_key["accounts"]
-    accounts["keys"] = ("accounts", "buying", "einvoice")
+    accounts["keys"] = ("accounts", "funds", "buying", "einvoice")
     buying = by_key.pop("buying", None)
     if buying:
         titles = {"التقارير": "تقارير الموردين"}
         accounts["sections"][1:1] = [{**s, "title": titles.get(s["title"], s["title"])} for s in buying["sections"]]
+    accounts["sections"].insert(1, {"title": "الأموال المقيدة والتبرعات", "items": [
+        doc("سندات التبرعات", "donation-receipt"), doc("الصناديق والأموال المقيدة", "fund"),
+        _item("أرصدة الصناديق", "fund_balances"), _item("قائمة الأنشطة", "statement_of_activities")]})
     einvoice = by_key.pop("einvoice", None)
     if einvoice:
         accounts["sections"].append({"title": "الفوترة الإلكترونية", "items": einvoice["sections"][0]["items"]})

@@ -9,7 +9,7 @@ register(DocType(
     list_fields=["name", "posting_date", "entry_type", "total_debit", "remarks"],
     form_fields=["posting_date", "entry_type", "remarks"],
     search_fields=["name", "remarks"],
-    child=ChildTable(JournalEntryAccount, ["account", "customer", "supplier", "debit", "credit", "cost_center", "project", "description"],
+    child=ChildTable(JournalEntryAccount, ["account", "customer", "supplier", "debit", "credit", "cost_center", "project", "fund", "description"],
                      label="الحسابات"),
     totals=["total_debit", "total_credit"],
 ))
@@ -119,7 +119,7 @@ register(DocType(
     list_fields=["name", "posting_date", "custody", "total_expenses", "returned_amount"],
     form_fields=["custody", "posting_date", "returned_amount", "return_account", "remarks"],
     search_fields=["name", "custody__name", "custody__employee__full_name"],
-    child=ChildTable(CustodyExpense, ["account", "description", "bill_no", "amount", "tax_amount", "cost_center", "project"],
+    child=ChildTable(CustodyExpense, ["account", "description", "bill_no", "amount", "tax_amount", "cost_center", "project", "fund"],
                      label="المصروفات", min_rows=0),
     totals=["total_expenses", "returned_amount"],
 ))
@@ -128,4 +128,12 @@ register(DocType(
     list_fields=["name", "fiscal_year", "zakat_base", "zakat_amount"],
     form_fields=["fiscal_year", "rate", "profit_adjustments", "other_additions", "other_deductions", "remarks"],
     search_fields=["name"], totals=["equity", "long_term", "net_profit", "fixed_assets", "zakat_base", "zakat_amount"],
+))
+
+from accounts.models import Fund  # noqa: E402
+
+register(DocType(
+    slug="fund", model=Fund, module="funds",
+    list_fields=["name", "fund_type", "donor", "target_amount", "end_date", "is_active"],
+    search_fields=["name", "donor"], detail_template="accounts/_fund_detail.html",
 ))

@@ -1,0 +1,15 @@
+{% load erp %}{% with t=obj.totals %}
+<div class="kpis">
+  <div class="kpi"><span>نوع القيد</span><b>{{ obj.get_fund_type_display }}</b></div>
+  <div class="kpi kpi-good"><span>الوارد</span><b>{{ t.received|money }}</b></div>
+  <div class="kpi"><span>المصروف</span><b>{{ t.spent|money }}</b></div>
+  <div class="kpi {% if t.balance < 0 %}kpi-bad{% endif %}"><span>الرصيد المتاح</span><b>{{ t.balance|money }}</b></div>
+  {% if obj.target_amount %}<div class="kpi"><span>المستهدف</span><b>{{ obj.target_amount|money }}</b></div>{% endif %}
+</div>{% endwith %}
+<div class="card">
+  <div class="card-head"><h3>آخر الحركات</h3><a class="btn btn-sm" href="{% url 'doc_new' 'donation-receipt' %}?fund={{ obj.pk }}">+ سند تبرع</a></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>التاريخ</th><th>المستند</th><th>الحساب</th><th class="num">وارد</th><th class="num">مصروف</th><th>البيان</th></tr></thead>
+  <tbody>{% for r in obj.recent_entries %}<tr><td>{{ r.entry.posting_date|date:"Y-m-d" }}</td><td>{{ r.entry.voucher_no }}</td><td>{{ r.entry.account }}</td>
+  <td class="num">{% if r.received is not None %}{{ r.received|money }}{% endif %}</td><td class="num">{% if r.spent is not None %}{{ r.spent|money }}{% endif %}</td><td>{{ r.entry.remarks }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا توجد حركات بعد</td></tr>{% endfor %}</tbody></table></div>
+</div>

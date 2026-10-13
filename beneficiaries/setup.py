@@ -13,12 +13,26 @@ DEFAULT_CRITERIA = [
 ]
 
 
+DEFAULT_FUNDS = [("صندوق الزكاة", "restricted", "تُصرف الزكاة في مصارفها الشرعية فقط")]
+
+
 def ensure_nonprofit_setup(company):
-    """تُنشأ مرة واحدة: لا تعدّل ولا تكرر ما أضافته الجهة أو حذفته بعد ذلك."""
+    """تُنشأ مرة واحدة: لا تعدّل ولا تكرر ما أضافته الجهة أو حذفته بعد ذلك.
+
+    حسابات الجمعيات تُضاف لما ينقص منها كلما استُدعيت (بعد تأسيس دليل الحسابات).
+    """
+    from accounts.models import Account, Fund
     from beneficiaries.models import AssessmentCriterion, BeneficiaryCategory
 
+    if Account.all_objects.filter(company=company).exists():
+        from accounts.chart import apply_nonprofit_chart
+
+        apply_nonprofit_chart(company)
     if BeneficiaryCategory.all_objects.filter(company=company).exists():
         return
+    for name, fund_type, purpose in DEFAULT_FUNDS:
+        Fund.all_objects.get_or_create(company=company, name=name,
+                                       defaults={"fund_type": fund_type, "purpose": purpose})
     BeneficiaryCategory.all_objects.bulk_create(
         [BeneficiaryCategory(company=company, name=name) for name in DEFAULT_CATEGORIES])
     AssessmentCriterion.all_objects.bulk_create([

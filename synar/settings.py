@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "support",
     "quality",
     "beneficiaries",
+    "funds",
 ]
 
 MIDDLEWARE = [

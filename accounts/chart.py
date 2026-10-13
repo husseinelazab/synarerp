@@ -1,11 +1,11 @@
 """تطبيق دليل الحسابات السعودي الموحد: يُنشئ ما ينقص من حسابات الدليل دون تعديل أو حذف أي حساب قائم."""
 from django.db import transaction
 
-from core.setup_data import ACCOUNT_ATTRIBUTES, CHART_OF_ACCOUNTS
+from core.setup_data import ACCOUNT_ATTRIBUTES, CHART_OF_ACCOUNTS, NONPROFIT_CHART
 
 
 @transaction.atomic
-def apply_unified_chart(company):
+def apply_unified_chart(company, chart=None):
     """يعيد (عدد الحسابات المضافة، [حسابات تعذرت إضافتها مع السبب])."""
     from accounts.models import Account
 
@@ -40,5 +40,10 @@ def apply_unified_chart(company):
                     continue
                 walk(children, account, node_root)
 
-    walk(CHART_OF_ACCOUNTS, None, None)
+    walk(chart or CHART_OF_ACCOUNTS, None, None)
     return created, skipped
+
+
+def apply_nonprofit_chart(company):
+    """حسابات الجمعيات: صافي الأصول، إيرادات التبرعات والزكاة والمنح، ومصروفات البرامج."""
+    return apply_unified_chart(company, chart=NONPROFIT_CHART)

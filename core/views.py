@@ -155,12 +155,17 @@ def doc_form(request, slug, pk=None):
         from django.forms import HiddenInput
 
         form.fields[dt.type_field].widget = HiddenInput()
+    hidden_fields = nonprofit_only_fields(company)
+    for name in hidden_fields:
+        form.fields.pop(name, None)
     style_form(form)
     empty_form = None
     if formset is not None:
         # empty_form يُبنى من جديد عند كل استدعاء، لذا نحتفظ بنسخة واحدة منسقة للقالب
         empty_form = formset.empty_form
         for f in formset.forms + [empty_form]:
+            for name in hidden_fields:
+                f.fields.pop(name, None)
             style_form(f)
 
     if request.method == "POST" and request.POST.get("_submit") and dt.is_submittable:
@@ -223,10 +228,16 @@ def _linked_entries(obj):
     return gl, sle
 
 
+def nonprofit_only_fields(company):
+    """حقول الجهات غير الربحية (الصندوق) لا تظهر للمنشأة التجارية."""
+    return set() if company is not None and company.is_nonprofit else {"fund"}
+
+
 def _child_table(dt, obj):
     if not dt.child:
         return [], []
-    fields = list(dt.child.display_fields or dt.child.fields)
+    hidden = nonprofit_only_fields(obj.company if hasattr(obj, "company_id") else None)
+    fields = [f for f in (dt.child.display_fields or dt.child.fields) if f not in hidden]
     if any(f.name == "amount" for f in dt.child.model._meta.fields) and "amount" not in fields:
         fields.append("amount")
     headers = [field_label(dt.child.model, f) for f in fields]
@@ -240,7 +251,7 @@ def doc_detail(request, slug, pk):
     dt = get_doctype(slug)
     obj = get_object_or_404(_scoped(request, dt), pk=pk)
     child_headers, child_rows = _child_table(dt, obj)
-    exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus"}
+    exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus"} | nonprofit_only_fields(request.company)
     membership = getattr(request, "membership", None)
     if membership is not None and not membership.may("costs"):
         exclude |= {"buying_rate", "valuation_rate", "stock_value", "price_list_rate"}

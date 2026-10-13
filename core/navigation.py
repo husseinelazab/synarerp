@@ -18,6 +18,7 @@ ICONS = {
     "resources": '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
     "members": '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/>',
     "governance": '<path d="M12 3l9 4H3zM5 10v7M10 10v7M14 10v7M19 10v7M3 21h18"/>',
+    "awqaf": '<path d="M4 21V10l8-6 8 6v11M9 21v-5a3 3 0 0 1 6 0v5M2 21h20"/>',
     "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
@@ -233,7 +234,7 @@ def _keys(module):
 
 
 # ترتيب وحدات الجهة غير الربحية
-NONPROFIT_ORDER = ["members", "hr", "accounts", "resources", "projects", "entities", "beneficiaries", "governance",
+NONPROFIT_ORDER = ["members", "hr", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
                    "stock", "settings"]
 
 
@@ -278,6 +279,11 @@ def nonprofit_modules(modules, doc):
     by_key["governance"] = {"key": "governance", "label": "إدارة الحوكمة", "sections": [
         {"items": [_item("لوحة الحوكمة", "governance_dashboard"), doc("التقييم الذاتي", "governance-assessment"),
                    doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard")]},
+    ]}
+    by_key["awqaf"] = {"key": "awqaf", "label": "إدارة الأوقاف", "sections": [
+        {"items": [_item("لوحة الأوقاف", "awqaf_dashboard"), doc("الأوقاف", "waqf"), doc("عقود الإيجار", "waqf-lease"),
+                   doc("أقساط الإيجار", "rent-installment"), doc("سندات قبض الريع", "rent-receipt"),
+                   doc("توزيع الغلة", "waqf-distribution")]},
     ]}
     by_key["entities"] = {"key": "entities", "label": "إدارة الجهات المستفيدة", "sections": [
         {"items": [_item("لوحة الطلبات", "entities_dashboard"), doc("الجهات", "beneficiary-entity"),

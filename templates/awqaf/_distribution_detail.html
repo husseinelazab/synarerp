@@ -1,0 +1,5 @@
+{% load erp %}
+<div class="card"><h3>أنصبة المصارف</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>المصرف</th><th class="num">النسبة</th><th>الصندوق</th><th class="num">المبلغ</th></tr></thead><tbody>
+{% for l in obj.lines.all %}<tr><td>{{ l.share_name }}</td><td class="num">{{ l.percent }}%</td><td>{{ l.target_fund|default:"الأموال العامة (غير مقيدة)" }}</td><td class="num">{{ l.amount|money }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">تُحسب عند الحفظ من مصارف الوقف</td></tr>{% endfor %}</tbody></table></div></div>

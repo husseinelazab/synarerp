@@ -1,0 +1,15 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi"><span>رصيد أصل الوقف</span><b>{{ obj.principal_balance|money }}</b></div>
+  <div class="kpi kpi-good"><span>الغلة المتاحة للتوزيع</span><b>{{ obj.revenue_available|money }}</b></div>
+  <div class="kpi"><span>الإيجارات السارية سنوياً</span><b>{{ obj.contracted_rent|money }}</b></div>
+  <div class="kpi {% if obj.shares_total != 100 %}kpi-bad{% endif %}"><span>مجموع نسب المصارف</span><b>{{ obj.shares_total }}%</b>{% if obj.shares_total != 100 %}<span>يجب أن يساوي 100% قبل التوزيع</span>{% endif %}</div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>عقود الإيجار</h3><span><a class="btn btn-sm" href="{% url 'doc_new' 'waqf-lease' %}?waqf={{ obj.pk }}">+ عقد</a>
+    <a class="btn btn-sm" href="{% url 'doc_new' 'waqf-distribution' %}?waqf={{ obj.pk }}">+ توزيع الغلة</a></span></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الوحدة</th><th>المستأجر</th><th>من</th><th>إلى</th><th class="num">سنوياً</th><th>الحالة</th><th class="num">المتأخر</th></tr></thead>
+  <tbody>{% for l in obj.leases.all %}<tr><td><a href="{{ l.get_absolute_url }}">{{ l.unit }}</a></td><td>{{ l.tenant_name }}</td><td>{{ l.start_date|date:"Y-m-d" }}</td><td>{{ l.end_date|date:"Y-m-d" }}</td>
+  <td class="num">{{ l.annual_rent|money }}</td><td>{{ l.get_status_display }}</td><td class="num">{{ l.outstanding|money }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لا عقود</td></tr>{% endfor %}</tbody></table></div>
+</div>

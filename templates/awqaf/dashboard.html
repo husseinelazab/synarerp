@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'waqf-lease' %}">+ عقد إيجار</a>
+  <a class="btn" href="{% url 'doc_new' 'waqf' %}">+ وقف</a>
+  <a class="btn" href="{% url 'doc_new' 'waqf-distribution' %}">+ توزيع غلة</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>الأوقاف القائمة</span><b>{{ waqfs|length }}</b><span>أصول {{ asset_total|money }}</span></div>
+  <div class="kpi"><span>الإيجارات المتعاقد عليها سنوياً</span><b>{{ contracted|money }}</b></div>
+  <div class="kpi kpi-good"><span>الريع المحصّل في {{ today.year }}</span><b>{{ collected_year|money }}</b></div>
+  <div class="kpi {% if overdue %}kpi-bad{% endif %}"><span>أقساط متأخرة</span><b>{{ overdue_total|money }}</b><span>{{ overdue|length }} قسط</span></div>
+</div>
+<div class="card"><h3>الأوقاف</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الوقف</th><th>النوع</th><th class="num">قيمة الأصل</th><th class="num">رصيد الأصل</th><th class="num">الغلة المتاحة للتوزيع</th><th class="num">مجموع المصارف</th></tr></thead><tbody>
+{% for w in waqfs %}<tr><td><a href="{{ w.get_absolute_url }}">{{ w }}</a></td><td>{{ w.get_waqf_type_display }}</td><td class="num">{{ w.asset_value|money }}</td>
+<td class="num">{{ w.principal_balance|money }}</td><td class="num">{{ w.revenue_available|money }}</td>
+<td class="num {% if w.shares_total != 100 %}neg{% endif %}">{{ w.shares_total }}%</td></tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا أوقاف بعد</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="grid-2">
+<div class="card"><h3>أقساط متأخرة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for i in overdue %}<tr class="row-loss"><td><a href="{{ i.get_absolute_url }}">{{ i }}</a></td><td>{{ i.lease.tenant_name }}</td><td>{{ i.lease.tenant_phone }}</td><td class="num">{{ i.outstanding|money }}</td></tr>
+{% empty %}<tr><td class="muted">لا متأخرات</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>عقود تنتهي خلال 60 يوماً</h3><div class="table-wrap"><table class="table"><tbody>
+{% for l in expiring %}<tr><td><a href="{{ l.get_absolute_url }}">{{ l }}</a></td><td>{{ l.end_date|date:"Y-m-d" }}</td></tr>
+{% empty %}<tr><td class="muted">لا شيء</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endblock %}

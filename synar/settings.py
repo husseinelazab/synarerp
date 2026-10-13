@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "beneficiaries",
     "funds",
     "governance",
+    "awqaf",
 ]
 
 MIDDLEWARE = [

@@ -13,15 +13,19 @@ DEFAULT_CRITERIA = [
 ]
 
 
-DEFAULT_FUNDS = [("صندوق الزكاة", "restricted", "تُصرف الزكاة في مصارفها الشرعية فقط")]
+DEFAULT_FUNDS = [("صندوق الزكاة", "restricted", "تُصرف الزكاة في مصارفها الشرعية فقط"),
+                 ("صندوق الكفالات", "restricted", "مبالغ الكافلين تُصرف لمكفوليهم")]
 
 
-# برامج المساعدات: (الاسم، النوع، حساب المصروف من الدليل الموحد، صندوق الزكاة؟)
+# برامج المساعدات: (الاسم، النوع، حساب المصروف من الدليل الموحد، الصندوق)
 DEFAULT_PROGRAMS = [
-    ("مساعدة نقدية", "cash", "42102002", False),
-    ("صرف الزكاة", "cash", "42101001", True),
-    ("السلة الغذائية", "in_kind", "42103003", False),
+    ("مساعدة نقدية", "cash", "42102002", None),
+    ("صرف الزكاة", "cash", "42101001", "صندوق الزكاة"),
+    ("السلة الغذائية", "in_kind", "42103003", None),
+    ("الكفالات", "cash", "42102001", "صندوق الكفالات"),
 ]
+# أنواع الكفالات: (الاسم، فئة المكفولين أو None)
+DEFAULT_SPONSORSHIP_TYPES = [("كفالة يتيم", "أيتام"), ("كفالة أسرة", None), ("كفالة طالب علم", None)]
 
 
 def ensure_aid_programs(company):
@@ -34,11 +38,20 @@ def ensure_aid_programs(company):
         return
     accounts = {a.number: a for a in Account.all_objects.filter(company=company, number__in=[
         number for _, _, number, _ in DEFAULT_PROGRAMS])}
-    zakat = Fund.all_objects.filter(company=company, name="صندوق الزكاة").first()
-    for name, aid_type, number, uses_zakat in DEFAULT_PROGRAMS:
+    funds = {f.name: f for f in Fund.all_objects.filter(company=company)}
+    programs = {}
+    for name, aid_type, number, fund in DEFAULT_PROGRAMS:
         if number in accounts:
-            AidProgram.all_objects.create(company=company, name=name, aid_type=aid_type,
-                                          expense_account=accounts[number], fund=zakat if uses_zakat else None)
+            programs[name] = AidProgram.all_objects.create(company=company, name=name, aid_type=aid_type,
+                                                           expense_account=accounts[number], fund=funds.get(fund))
+    if "الكفالات" in programs:
+        from beneficiaries.models import BeneficiaryCategory
+        from funds.models import SponsorshipType
+
+        for name, category in DEFAULT_SPONSORSHIP_TYPES:
+            kind = SponsorshipType.all_objects.create(company=company, name=name, aid_program=programs["الكفالات"])
+            if category:
+                kind.categories.set(BeneficiaryCategory.all_objects.filter(company=company, name=category))
 
 
 def ensure_nonprofit_setup(company):

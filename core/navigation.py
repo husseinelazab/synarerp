@@ -15,6 +15,7 @@ ICONS = {
     "projects": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h6M7 13h10M7 17h4"/>',
     "support": '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
     "beneficiaries": '<path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0"/><path d="M16 11l2 2 4-4"/>',
+    "resources": '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
     "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
@@ -230,7 +231,7 @@ def _keys(module):
 
 
 # ترتيب وحدات الجهة غير الربحية
-NONPROFIT_ORDER = ["hr", "accounts", "projects", "entities", "beneficiaries", "stock", "settings"]
+NONPROFIT_ORDER = ["hr", "accounts", "resources", "projects", "entities", "beneficiaries", "stock", "settings"]
 
 
 def nonprofit_modules(modules, doc):
@@ -244,8 +245,8 @@ def nonprofit_modules(modules, doc):
     if buying:
         titles = {"التقارير": "تقارير الموردين"}
         accounts["sections"][1:1] = [{**s, "title": titles.get(s["title"], s["title"])} for s in buying["sections"]]
-    accounts["sections"].insert(1, {"title": "الأموال المقيدة والتبرعات", "items": [
-        doc("سندات التبرعات", "donation-receipt"), doc("الصناديق والأموال المقيدة", "fund"),
+    accounts["sections"].insert(1, {"title": "الأموال المقيدة", "items": [
+        doc("الصناديق والأموال المقيدة", "fund"),
         _item("أرصدة الصناديق", "fund_balances"), _item("قائمة الأنشطة", "statement_of_activities")]})
     einvoice = by_key.pop("einvoice", None)
     if einvoice:
@@ -256,6 +257,12 @@ def nonprofit_modules(modules, doc):
         {"title": "المساعدات", "items": [doc("صرف المساعدات", "aid-disbursement"), doc("برامج المساعدات", "aid-program")]},
         {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"),
                                       doc("معايير دراسة الحالة", "assessment-criterion")]},
+    ]}
+    by_key["resources"] = {"key": "resources", "label": "إدارة الموارد المالية", "sections": [
+        {"title": "التبرعات", "items": [_item("لوحة الموارد المالية", "resources_dashboard"),
+                                       doc("سندات التبرعات", "donation-receipt"), doc("الداعمون", "donor")]},
+        {"title": "الكفالات", "items": [doc("الكفالات", "sponsorship"), doc("استحقاقات الكفالات", "sponsorship-due"),
+                                       doc("أنواع الكفالات", "sponsorship-type")]},
     ]}
     by_key["entities"] = {"key": "entities", "label": "إدارة الجهات المستفيدة", "sections": [
         {"items": [_item("لوحة الطلبات", "entities_dashboard"), doc("الجهات", "beneficiary-entity"),

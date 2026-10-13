@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load erp l10n %}
+{% block title %}لوحة التحكم{% endblock %}
+{% block heading %}لوحة التحكم{% endblock %}
+{% block content %}
+<div class="dash-head">
+  <div>
+    <h2>أهلاً {{ user.first_name|default:user.username }}</h2>
+    <span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }} · {{ current_company }}</span>
+  </div>
+  <details class="dropdown">
+    <summary class="btn btn-primary">+ إنشاء جديد</summary>
+    <div class="dropdown-menu">
+      <a href="{% url 'doc_new' 'donation-receipt' %}">سند تبرع</a>
+      <a href="{% url 'doc_new' 'aid-disbursement' %}">صرف مساعدة</a>
+      <a href="{% url 'doc_new' 'beneficiary' %}">ملف مستفيد</a>
+      <a href="{% url 'doc_new' 'case-assessment' %}">دراسة حالة</a>
+      <a href="{% url 'doc_new' 'sponsorship' %}">كفالة</a>
+      <a href="{% url 'doc_new' 'entity-request' %}">طلب جهة</a>
+      <hr>
+      <a href="{% url 'doc_new' 'journal-entry' %}">قيد يومية</a>
+      <a href="{% url 'doc_new' 'purchase-invoice' %}">فاتورة مشتريات</a>
+      <a href="{% url 'doc_new' 'payment-entry' %}?payment_type=pay">سند صرف</a>
+      <a href="{% url 'doc_new' 'donor' %}">داعم</a>
+    </div>
+  </details>
+</div>
+
+{% if alerts %}
+<div class="attention">
+  <strong>يحتاج انتباهك:</strong>
+  {% for level, label, url in alerts %}<a href="{{ url }}" class="chip-alert {{ level }}">{{ label }}</a>{% endfor %}
+</div>
+{% endif %}
+
+<div class="kpi-row">
+  {% for k in kpis %}
+  <a class="card kpi-card" href="{{ k.url }}">
+    <div class="kpi-label">{{ k.label }}</div>
+    <div class="kpi-value {% if k.value < 0 %}neg{% endif %}">{{ k.value|cur }}</div>
+    <div class="kpi-foot">
+      {% if k.change is not None %}<span class="trend {% if k.change >= 0 %}up{% else %}down{% endif %}">{% if k.change >= 0 %}▲{% else %}▼{% endif %} {{ k.change|abs }}%</span> عن الشهر الماضي
+      {% else %}<span class="muted">{{ k.hint }}</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="dash-grid">
+  <div class="card chart-card">
+    <div class="card-head">
+      <h3>الإيرادات والتبرعات مقابل المصروفات — آخر 6 أشهر</h3>
+      <div class="legend"><span><i class="sw sw-1"></i>الإيرادات والتبرعات</span><span><i class="sw sw-2"></i>المصروفات</span></div>
+    </div>
+    {% localize off %}
+    <svg class="bar-chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-label="مخطط الإيرادات والمصروفات الشهرية">
+      {% for t in chart.ticks %}
+        <line x1="{{ chart.plot_left }}" x2="{{ chart.plot_right }}" y1="{{ t.y }}" y2="{{ t.y }}" class="grid{% if forloop.first %} base{% endif %}"/>
+        <text x="{{ chart.axis_x }}" y="{{ t.y }}" class="tick" dominant-baseline="middle">{{ t.value|floatformat:"0" }}</text>
+      {% endfor %}
+      {% for m in chart.data %}
+        {% for b in m.bars %}{% if b.d %}<path d="{{ b.d }}" class="bar bar-{{ b.key }}"><title>{{ m.label }} — {% if b.key == 'sales' %}الإيرادات والتبرعات{% else %}المصروفات{% endif %}: {{ b.value|money }}</title></path>{% endif %}{% endfor %}
+        <text x="{{ m.x_label }}" y="{{ chart.height|add:'-8' }}" class="month" text-anchor="middle">{{ m.label }}</text>
+      {% endfor %}
+    </svg>
+    {% endlocalize %}
+    <details class="table-view">
+      <summary>عرض كجدول</summary>
+      <div class="table-wrap"><table class="table"><thead><tr><th>الشهر</th><th>الإيرادات والتبرعات</th><th>المصروفات</th></tr></thead>
+      <tbody>{% for m in chart.data %}<tr><td>{{ m.label }}</td><td>{{ m.sales|money }}</td><td>{{ m.purchases|money }}</td></tr>{% endfor %}</tbody></table></div>
+    </details>
+  </div>
+  <div class="card">
+    <h3>الأرصدة</h3>
+    {% for label, value, url in balances %}
+    <a class="balance-line" href="{{ url }}"><span>{{ label }}</span><strong>{{ value|cur }}</strong></a>
+    {% endfor %}
+    <p class="muted small">دراسات حالة معتمدة هذا العام: {{ cases_this_year }}</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>آخر الحركات</h3><span><a href="{% url 'doc_list' 'donation-receipt' %}">التبرعات</a> · <a href="{% url 'doc_list' 'aid-disbursement' %}">المساعدات</a></span></div>
+  <div class="table-wrap"><table class="table table-hover">
+    <thead><tr><th>الرقم</th><th>النوع</th><th>الطرف</th><th>البيان</th><th>التاريخ</th><th class="num">المبلغ</th><th>الحالة</th></tr></thead>
+    <tbody>
+    {% for row in recent %}
+      <tr class="clickable" data-href="{{ row.doc.get_absolute_url }}">
+        <td><a href="{{ row.doc.get_absolute_url }}">{{ row.doc.name }}</a></td>
+        <td>{{ row.kind }}</td><td>{{ row.party }}</td><td>{{ row.detail }}</td>
+        <td>{{ row.doc.posting_date|date:"Y-m-d" }}</td>
+        <td class="num">{{ row.doc.amount|cur }}</td>
+        <td><span class="badge status-{{ row.doc.docstatus }}">{{ row.doc.get_docstatus_display }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="muted center">لا توجد حركات بعد — ابدأ من «إنشاء جديد».</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

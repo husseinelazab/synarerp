@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<div class="kpis">{% for label, amount in by_type.items %}<div class="kpi"><span>أموال {{ label }}</span><b>{{ amount|money }}</b></div>{% endfor %}</div>
+<div class="card">
+  <p class="muted small">الوارد = إيرادات الصندوق، والمصروف = مصروفاته، من القيود المعتمدة. الإيرادات والمصروفات التي لا تحمل صندوقاً تظهر في «الأموال العامة».</p>
+  <div class="table-wrap"><table class="table report">
+    <thead><tr><th>الصندوق</th><th>نوع القيد</th><th class="num">رصيد أول الفترة</th><th class="num">الوارد</th><th class="num">المصروف</th><th class="num">الرصيد</th></tr></thead>
+    <tbody>{% for r in rows %}<tr><td>{% if r.fund %}<a href="{{ r.fund.get_absolute_url }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}</td><td>{{ r.fund_type }}</td>
+      <td class="num">{{ r.opening|money }}</td><td class="num">{{ r.received|money }}</td><td class="num">{{ r.spent|money }}</td>
+      <td class="num {% if r.closing < 0 %}neg{% endif %}">{{ r.closing|money }}</td></tr>{% endfor %}</tbody>
+    <tfoot><tr><th colspan="2">الإجمالي</th><th class="num">{{ totals.opening|cur }}</th><th class="num">{{ totals.received|cur }}</th><th class="num">{{ totals.spent|cur }}</th><th class="num">{{ totals.closing|cur }}</th></tr></tfoot>
+  </table></div>
+</div>
+{% endblock %}

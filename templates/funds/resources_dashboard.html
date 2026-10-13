@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'donation-receipt' %}">+ سند تبرع</a>
+  <a class="btn" href="{% url 'doc_new' 'sponsorship' %}">+ كفالة</a>
+  <a class="btn" href="{% url 'doc_new' 'donor' %}">+ داعم</a>
+  <form method="post" action="{% url 'generate_month_dues' %}">{% csrf_token %}<button class="btn {% if not month_generated %}btn-success{% endif %}">توليد استحقاقات {{ month|date:"Y-m" }}</button></form>
+</div></div>
+<div class="kpis">
+  <div class="kpi kpi-good"><span>تبرعات هذا الشهر</span><b>{{ donations_month.t|default:0|money }}</b><span>{{ donations_month.n }} سند</span></div>
+  <div class="kpi"><span>الكفالات السارية</span><b>{{ active_count }}</b><span>{{ expected|money }} شهرياً</span></div>
+  <div class="kpi"><span>محصّل كفالات الشهر</span><b>{{ month_collected|money }}</b>{% if not month_generated %}<span>لم تُولّد استحقاقات الشهر</span>{% endif %}</div>
+  <div class="kpi {% if overdue %}kpi-bad{% endif %}"><span>متأخرات الكفالات</span><b>{{ overdue_total|money }}</b><span>{{ overdue|length }} استحقاق</span></div>
+  <div class="kpi {% if awaiting_count %}kpi-bad{% endif %}"><span>أيتام معتمدون بلا كافل</span><b>{{ awaiting_count }}</b></div>
+</div>
+<div class="card"><h3>استحقاقات متأخرة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الكفالة</th><th>الكافل</th><th>الجوال</th><th>المكفول</th><th>الشهر</th><th class="num">المتبقي</th></tr></thead><tbody>
+{% for d in overdue %}<tr class="row-loss"><td><a href="{{ d.get_absolute_url }}">{{ d }}</a></td><td>{{ d.sponsorship.donor }}</td><td>{{ d.sponsorship.donor.phone }}</td><td>{{ d.sponsorship.beneficiary.full_name }}</td><td>{{ d.period|date:"Y-m" }}</td><td class="num">{{ d.outstanding|money }}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا توجد متأخرات</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="grid-2">
+<div class="card"><h3>أيتام معتمدون بانتظار كافل</h3><div class="table-wrap"><table class="table"><tbody>
+{% for b in awaiting %}<tr><td><a href="{{ b.get_absolute_url }}">{{ b }}</a></td><td>{{ b.city }}</td><td><a class="btn btn-sm" href="{% url 'doc_new' 'sponsorship' %}?beneficiary={{ b.pk }}">كفالة</a></td></tr>
+{% empty %}<tr><td class="muted">لا يوجد</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>التبرعات هذا العام حسب النوع</h3><div class="table-wrap"><table class="table"><tbody>
+{% for t in by_type %}<tr><td>{{ donation_types|get_item:t.donation_type }}</td><td class="num">{{ t.t|money }}</td></tr>
+{% empty %}<tr><td class="muted">لا تبرعات بعد</td></tr>{% endfor %}</tbody></table></div>
+<h3>أكبر الداعمين هذا العام</h3><div class="table-wrap"><table class="table"><tbody>
+{% for d in top_donors %}<tr><td><a href="{{ d.get_absolute_url }}">{{ d }}</a></td><td class="num">{{ d.t|money }}</td></tr>
+{% empty %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endblock %}

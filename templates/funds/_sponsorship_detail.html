@@ -1,0 +1,12 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi"><span>الحالة</span><b>{{ obj.get_status_display }}</b></div>
+  <div class="kpi"><span>المبلغ الشهري</span><b>{{ obj.monthly_amount|money }}</b></div>
+  <div class="kpi {% if obj.outstanding %}kpi-bad{% endif %}"><span>غير المحصّل</span><b>{{ obj.outstanding|money }}</b></div>
+</div>
+<div class="card"><h3>الاستحقاقات الشهرية</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الشهر</th><th class="num">المبلغ</th><th class="num">المحصّل</th><th>الحالة</th><th>الصرف للمكفول</th><th></th></tr></thead><tbody>
+{% for d in obj.dues.all %}<tr class="{% if d.is_overdue %}row-loss{% endif %}"><td><a href="{{ d.get_absolute_url }}">{{ d.period|date:"Y-m" }}</a></td><td class="num">{{ d.amount|money }}</td><td class="num">{{ d.collected_amount|money }}</td>
+<td>{{ d.get_status_display }}</td><td>{% if d.disbursement %}<a href="{{ d.disbursement.get_absolute_url }}">{{ d.disbursement }}</a> ({{ d.disbursement.get_docstatus_display }}){% endif %}</td>
+<td class="actions">{% for key, label in d.available_actions %}<form method="post" action="{% url 'doc_action' 'sponsorship-due' d.pk key %}">{% csrf_token %}<button class="btn btn-sm">{{ label }}</button></form>{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا توجد استحقاقات بعد — تُولّد شهرياً تلقائياً أو من لوحة الموارد المالية</td></tr>{% endfor %}</tbody></table></div></div>

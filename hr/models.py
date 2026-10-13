@@ -619,6 +619,14 @@ def default_accounts(company):
             if children:
                 walk(children)
 
+    from accounts.chart import uses_nonprofit_chart
+
+    if uses_nonprofit_chart(company):
+        from accounts.nonprofit_chart import PAYROLL_ACCOUNTS
+
+        accounts = {a.number: a for a in Account.all_objects.filter(company=company, is_group=False,
+                                                                    number__in=PAYROLL_ACCOUNTS.values())}
+        return {key: accounts.get(number) for key, number in PAYROLL_ACCOUNTS.items()}
     walk(CHART_OF_ACCOUNTS)
     result = {}
     for number in ("5201", "5209", "5210", "2202", "2103", "2105", "1102", "1107"):

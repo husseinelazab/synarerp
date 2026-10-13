@@ -14,6 +14,15 @@ ICONS = {
     "crm": '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/><path d="M18 4l2 2-4 4"/>',
     "projects": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h6M7 13h10M7 17h4"/>',
     "support": '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
+    "beneficiaries": '<path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0"/><path d="M16 11l2 2 4-4"/>',
+    "resources": '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
+    "members": '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/>',
+    "governance": '<path d="M12 3l9 4H3zM5 10v7M10 10v7M14 10v7M19 10v7M3 21h18"/>',
+    "awqaf": '<path d="M4 21V10l8-6 8 6v11M9 21v-5a3 3 0 0 1 6 0v5M2 21h20"/>',
+    "volunteering": '<path d="M7 11V7a2 2 0 0 1 4 0v4M11 9a2 2 0 0 1 4 0v2M15 10a2 2 0 0 1 4 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a2 2 0 0 1 3-2l2 2"/>',
+    "office": '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/>',
+    "documents": '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+    "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
     "einvoice": '<path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h2v2H9zM13 13h2v2h-2zM9 17h2v2H9z"/>',
@@ -192,6 +201,8 @@ def build_menu(request):
     else:
         settings_sections = [{"items": [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]}]
     modules.append({"key": "settings", "label": "الإعدادات", "sections": settings_sections})
+    if request.company.is_nonprofit:
+        modules = nonprofit_modules(modules, doc)
     if request.user.is_superuser:
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [{"items": platform_items()}]})
 
@@ -200,7 +211,7 @@ def build_menu(request):
     if plan is not None:
         from core.permissions import plan_allows_path
 
-        modules = [m for m in modules if m["key"] in ("settings", "platform") or plan.allows_module(m["key"])]
+        modules = [m for m in modules if m["key"] in ("settings", "platform") or any(map(plan.allows_module, _keys(m)))]
         for module in modules:
             for section in module["sections"]:
                 section["items"] = [i for i in section["items"] if plan_allows_path(plan, i["url"].split("?")[0])]
@@ -208,7 +219,7 @@ def build_menu(request):
         modules = [m for m in modules if m["sections"]]
 
     # المستخدم العادي يرى الوحدات المسموحة له فقط، وداخلها ما يحق له فتحه
-    modules = [m for m in modules if m["key"] in ("settings", "platform") or membership.allows_module(m["key"])]
+    modules = [m for m in modules if m["key"] in ("settings", "platform") or any(map(membership.allows_module, _keys(m)))]
     if not membership.can_manage:
         from core.permissions import path_allowed
 
@@ -218,6 +229,89 @@ def build_menu(request):
             module["sections"] = [s for s in module["sections"] if s["items"]]
         modules = [m for m in modules if m["sections"]]
     return _mark_active(request, modules)
+
+
+def _keys(module):
+    # الوحدة المدمجة (كالشؤون المالية للجمعية) تظهر لمن يملك صلاحية أي وحدة من مكوناتها
+    return module.get("keys", (module["key"],))
+
+
+# ترتيب وحدات الجهة غير الربحية
+NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
+                   "volunteering", "stock", "settings"]
+
+
+def nonprofit_modules(modules, doc):
+    """قائمة الجهة غير الربحية: الوحدات بمسميات أنظمة الجمعيات، دون الوحدات التجارية، مع وحدات المستفيدين."""
+    from core.permissions import COMMERCIAL_MODULES, NONPROFIT_LABELS
+
+    by_key = {m["key"]: m for m in modules}
+    accounts = by_key["accounts"]
+    accounts["keys"] = ("accounts", "funds", "buying", "einvoice")
+    buying = by_key.pop("buying", None)
+    if buying:
+        titles = {"التقارير": "تقارير الموردين"}
+        accounts["sections"][1:1] = [{**s, "title": titles.get(s["title"], s["title"])} for s in buying["sections"]]
+    accounts["sections"].insert(1, {"title": "الأموال المقيدة", "items": [
+        doc("الصناديق والأموال المقيدة", "fund"),
+        _item("أرصدة الصناديق", "fund_balances"), _item("قائمة الأنشطة", "statement_of_activities")]})
+    einvoice = by_key.pop("einvoice", None)
+    if einvoice:
+        accounts["sections"].append({"title": "الفوترة الإلكترونية", "items": einvoice["sections"][0]["items"]})
+    by_key["beneficiaries"] = {"key": "beneficiaries", "label": "إدارة التقييم والمتابعة", "sections": [
+        {"title": "المستفيدون", "items": [_item("لوحة المتابعة", "beneficiaries_dashboard"),
+                                         doc("ملفات المستفيدين", "beneficiary"), doc("دراسات الحالة", "case-assessment")]},
+        {"title": "المساعدات", "items": [doc("صرف المساعدات", "aid-disbursement"), doc("برامج المساعدات", "aid-program")]},
+        {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"),
+                                      doc("معايير دراسة الحالة", "assessment-criterion")]},
+    ]}
+    by_key["resources"] = {"key": "resources", "label": "إدارة الموارد المالية", "sections": [
+        {"title": "التبرعات", "items": [_item("لوحة الموارد المالية", "resources_dashboard"),
+                                       doc("سندات التبرعات", "donation-receipt"), doc("الداعمون", "donor")]},
+        {"title": "الكفالات", "items": [doc("الكفالات", "sponsorship"), doc("استحقاقات الكفالات", "sponsorship-due"),
+                                       doc("أنواع الكفالات", "sponsorship-type")]},
+    ]}
+    by_key["members"] = {"key": "members", "label": "إدارة الأعضاء المشاركين", "sections": [
+        {"title": "الجمعية العمومية", "items": [_item("لوحة الأعضاء", "members_dashboard"), doc("الأعضاء", "member"),
+                                               doc("اشتراكات الأعضاء", "membership-fee"),
+                                               doc("فئات العضوية", "membership-category")]},
+        {"title": "المجلس والاجتماعات", "items": [doc("دورات مجلس الإدارة", "board-term"),
+                                                 doc("الاجتماعات والمحاضر", "meeting"),
+                                                 doc("القرارات ومتابعة تنفيذها", "meeting-decision")]},
+    ]}
+    by_key["governance"] = {"key": "governance", "label": "إدارة الحوكمة", "sections": [
+        {"items": [_item("لوحة الحوكمة", "governance_dashboard"), doc("التقييم الذاتي", "governance-assessment"),
+                   doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard")]},
+    ]}
+    by_key["awqaf"] = {"key": "awqaf", "label": "إدارة الأوقاف", "sections": [
+        {"items": [_item("لوحة الأوقاف", "awqaf_dashboard"), doc("الأوقاف", "waqf"), doc("عقود الإيجار", "waqf-lease"),
+                   doc("أقساط الإيجار", "rent-installment"), doc("سندات قبض الريع", "rent-receipt"),
+                   doc("توزيع الغلة", "waqf-distribution")]},
+    ]}
+    by_key["volunteering"] = {"key": "volunteering", "label": "إدارة التطوع", "sections": [
+        {"items": [_item("لوحة التطوع", "volunteering_dashboard"), doc("الفرص التطوعية", "volunteer-opportunity"),
+                   doc("المتطوعون", "volunteer"), doc("المشاركات", "volunteer-participation")]},
+    ]}
+    by_key["office"] = {"key": "office", "label": "المكتب الإلكتروني", "sections": [
+        {"items": [_item("مكتبي", "my_desk"), doc("الطلبات الإدارية", "admin-request"), doc("التعاميم", "circular"),
+                   doc("أنواع الطلبات الإدارية", "admin-request-type")]},
+    ]}
+    by_key["documents"] = {"key": "documents", "label": "إدارة التوثيق والمستندات", "sections": [
+        {"title": "الصادر والوارد", "items": [
+            _item("لوحة المعاملات", "documents_dashboard"),
+            _item("الوارد", "doc_list", "correspondence", query="?direction=incoming"),
+            _item("الصادر", "doc_list", "correspondence", query="?direction=outgoing"),
+            _item("المعاملات الداخلية", "doc_list", "correspondence", query="?direction=internal")]},
+        {"title": "الأرشيف", "items": [doc("الأرشيف", "archive-document"), doc("تصنيفات الأرشيف", "archive-category")]},
+    ]}
+    by_key["entities"] = {"key": "entities", "label": "إدارة الجهات المستفيدة", "sections": [
+        {"items": [_item("لوحة الطلبات", "entities_dashboard"), doc("الجهات", "beneficiary-entity"),
+                   doc("طلبات الجهات", "entity-request")]},
+    ]}
+    for key, label in NONPROFIT_LABELS.items():
+        if key in by_key:
+            by_key[key]["label"] = label
+    return [by_key[key] for key in NONPROFIT_ORDER if key in by_key and key not in COMMERCIAL_MODULES]
 
 
 def _mark_active(request, modules):

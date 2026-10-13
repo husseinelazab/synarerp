@@ -5,7 +5,7 @@ from selling.models import (Customer, CustomerGroup, SalesPerson, Territory, Del
 register(DocType(
     slug="sales-invoice", model=SalesInvoice, module="selling",
     list_fields=["name", "posting_date", "customer", "is_return", "grand_total", "outstanding_amount"],
-    form_fields=["customer", "posting_date", "payment_terms", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center", "project", "sales_person",
+    form_fields=["customer", "posting_date", "payment_terms", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center", "project", "fund", "sales_person",
                  "price_list", "coupon_code", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
                  "prices_include_tax", "discount_amount", "loyalty_points", "remarks"],
     search_fields=["name", "customer__name"],

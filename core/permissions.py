@@ -13,7 +13,47 @@ PERMISSION_MODULES = [
     ("hr", "الموارد البشرية"),
     ("pos", "نقاط البيع"),
     ("einvoice", "الفوترة الإلكترونية"),
+    ("funds", "الأموال المقيدة (الصناديق وتقاريرها)"),
+    ("resources", "إدارة الموارد المالية (التبرعات والداعمون والكفالات)"),
+    ("members", "إدارة الأعضاء المشاركين (الجمعية العمومية والمجلس والاجتماعات)"),
+    ("governance", "إدارة الحوكمة"),
+    ("awqaf", "إدارة الأوقاف"),
+    ("volunteering", "إدارة التطوع"),
+    ("office", "المكتب الإلكتروني (الطلبات الإدارية والتعاميم)"),
+    ("documents", "إدارة التوثيق والمستندات (الصادر والوارد والأرشيف)"),
+    ("beneficiaries", "إدارة التقييم والمتابعة (المستفيدون)"),
+    ("entities", "إدارة الجهات المستفيدة"),
 ]
+
+# وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
+NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "volunteering", "office", "documents",
+                     "beneficiaries",
+                     "entities"}
+# الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
+COMMERCIAL_MODULES = {"selling", "crm", "support", "manufacturing", "pos"}
+# مسميات الوحدات للجهة غير الربحية (بمسميات «مكونات النظام» المعتادة في أنظمة الجمعيات)
+NONPROFIT_LABELS = {
+    "accounts": "إدارة الشؤون المالية",
+    "buying": "المشتريات والموردون",
+    "hr": "إدارة الموارد البشرية",
+    "stock": "إدارة المخازن والمستودعات",
+    "projects": "إدارة المشاريع",
+    "settings": "إدارة التمكين التقني",
+}
+
+
+def company_modules(company):
+    """الوحدات التي تخص نوع المنشأة لاختيار صلاحيات المستخدمين، بمسمياتها لدى هذا النوع."""
+    if company is not None and company.is_nonprofit:
+        return [(key, NONPROFIT_LABELS.get(key, label)) for key, label in PERMISSION_MODULES
+                if key not in COMMERCIAL_MODULES]
+    return [(key, label) for key, label in PERMISSION_MODULES if key not in NONPROFIT_MODULES]
+
+
+def company_allows_path(company, path):
+    """وحدات الجمعيات لا تُفتح للمنشأة التجارية."""
+    modules = modules_for_path(path)
+    return not modules or not modules <= NONPROFIT_MODULES or company.is_nonprofit
 
 # الوحدات التي يمكن فتحها أو إغلاقها في الباقات (المحاسبة أساس النظام فلا تُغلق)
 CORE_MODULES = {"accounts"}
@@ -45,6 +85,16 @@ PATH_MODULES = [
     ("/pos/", "pos"),
     ("/einvoice/", "einvoice"),
     ("/hr/", "hr"),
+    ("/funds/", "funds"),
+    ("/resources/", "resources"),
+    ("/governance/members/", "members"),
+    ("/governance/", "governance"),
+    ("/awqaf/", "awqaf"),
+    ("/volunteering/", "volunteering"),
+    ("/office/documents/", "documents"),
+    ("/office/", "office"),
+    ("/beneficiaries/entities/", "entities"),
+    ("/beneficiaries/", "beneficiaries"),
 ]
 # مستندات مشتركة بين أكثر من وحدة
 SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
@@ -86,6 +136,8 @@ COST_PATHS = ("/reports/stock/gross-profit/", "/reports/stock/pricing/", "/repor
 
 
 def path_allowed(membership, path):
+    if not company_allows_path(membership.company, path):
+        return False
     if path.startswith("/app/"):
         parts = path.split("/")
         slug = parts[2]
@@ -93,7 +145,7 @@ def path_allowed(membership, path):
         if access == "none":
             return False
         if access == "read" and len(parts) > 3 and (parts[3] in ("new", "import") or
-                                                     (len(parts) > 4 and parts[4] not in ("", "print"))):
+                                                     (len(parts) > 4 and parts[4] not in ("", "print", "attachments"))):
             return False  # الاطلاع فقط: لا إنشاء ولا تعديل ولا إجراءات
         if len(parts) > 3 and parts[3] == "export" and not membership.may("export"):
             return False
@@ -130,4 +182,6 @@ def scope_queryset(request, model, qs):
     ids = allowed_centers(request)
     if ids is not None and has_cost_center(model):
         qs = qs.filter(cost_center_id__in=ids)
+    if hasattr(model, "scope_for_user"):  # قيود خاصة بالنوع (مثل المعاملات السرية)
+        qs = model.scope_for_user(qs, request)
     return qs

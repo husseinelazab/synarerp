@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'governance-assessment' %}">+ تقييم ذاتي</a>
+  <a class="btn" href="{% url 'doc_new' 'governance-indicator' %}">+ مؤشر</a>
+  <a class="btn" href="{% url 'doc_import' 'governance-indicator' %}">استيراد المؤشرات من Excel</a>
+</div></div>
+<div class="kpis">
+  <div class="kpi"><span>المؤشرات المفعّلة</span><b>{{ indicators|length }}</b></div>
+  <div class="kpi {% if without_evidence %}kpi-bad{% endif %}"><span>مؤشرات بلا شواهد</span><b>{{ without_evidence }}</b></div>
+  {% for a in assessments|slice:":1" %}<div class="kpi kpi-good"><span>آخر تقييم ذاتي ({{ a.year }})</span><b>{{ a.score_percent }}%</b></div>{% endfor %}
+</div>
+<div class="card"><h3>المؤشرات وحالتها الآن ({{ year }})</h3>
+<p class="muted small">المؤشرات الآلية تُقاس من بيانات النظام مباشرة؛ أضف مؤشرات نموذج المركز الوطني المعتمد لديك وارفق شواهد كل مؤشر.</p>
+<div class="table-wrap"><table class="table"><thead><tr><th>الرمز</th><th>المعيار</th><th>المؤشر</th><th>الحالة الآلية</th><th class="num">الشواهد</th></tr></thead><tbody>
+{% for i in indicators %}<tr class="{% if i.result and not i.result.0 %}row-loss{% endif %}"><td><a href="{{ i.get_absolute_url }}">{{ i.code }}</a></td><td>{{ i.standard.name }}</td><td>{{ i.text }}</td>
+<td>{% if i.result %}{% if i.result.0 %}<span class="badge status-1">محقق</span>{% else %}<span class="badge status-2">غير محقق</span>{% endif %} <span class="muted small">{{ i.result.1 }}</span>{% else %}<span class="muted">يدوي</span>{% endif %}</td>
+<td class="num">{{ i.evidence_count }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted center">لا مؤشرات</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

@@ -1,0 +1,17 @@
+<div class="card">
+  <h3>المرفقات ({{ attachments|length }})</h3>
+  {% if attachments %}
+  <div class="table-wrap"><table class="table"><thead><tr><th>الملف</th><th>الوصف</th><th>الحجم</th><th>رفعه</th><th></th></tr></thead><tbody>
+  {% for a in attachments %}<tr>
+    <td><a href="{% url 'attachment_download' dt.slug obj.pk a.pk %}">{{ a.file_name }}</a>{% if a.content_type == "application/pdf" or a.content_type == "image/png" or a.content_type == "image/jpeg" %} · <a href="{% url 'attachment_download' dt.slug obj.pk a.pk %}?inline=1" target="_blank" rel="noopener">عرض</a>{% endif %}</td>
+    <td>{{ a.description }}</td><td>{{ a.size|filesizeformat }}</td><td>{{ a.uploaded_by|default:"" }} {{ a.uploaded_at|date:"Y-m-d H:i" }}</td>
+    <td><form method="post" action="{% url 'attachment_delete' dt.slug obj.pk a.pk %}" onsubmit="return confirm('حذف المرفق؟')">{% csrf_token %}<button class="btn btn-sm btn-danger-outline">حذف</button></form></td>
+  </tr>{% endfor %}</tbody></table></div>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" action="{% url 'attachment_upload' dt.slug obj.pk %}" class="inline-form">{% csrf_token %}
+    <input type="file" name="files" multiple class="form-control">
+    <input name="description" class="form-control" placeholder="وصف (اختياري)">
+    <button class="btn">إرفاق</button>
+  </form>
+  <p class="muted small">حتى 10 ميجابايت للملف. تُنزّل المرفقات لمن يملك صلاحية الاطلاع على المستند فقط.</p>
+</div>

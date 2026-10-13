@@ -1,0 +1,11 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi"><span>الحاضرون</span><b>{{ obj.present_count }} / {{ obj.eligible_count }}</b></div>
+  <div class="kpi {% if obj.eligible_count and not obj.quorum_met %}kpi-bad{% else %}kpi-good{% endif %}"><span>النصاب ({{ obj.quorum_percent }}%)</span><b>{% if not obj.eligible_count %}—{% elif obj.quorum_met %}مكتمل{% else %}غير مكتمل{% endif %}</b></div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>القرارات</h3><a class="btn btn-sm" href="{% url 'doc_new' 'meeting-decision' %}?meeting={{ obj.pk }}">+ قرار</a></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>القرار</th><th>المسؤول</th><th>الموعد</th><th>الحالة</th></tr></thead><tbody>
+  {% for d in obj.decisions.all %}<tr class="{% if d.is_overdue %}row-loss{% endif %}"><td><a href="{{ d.get_absolute_url }}">{{ d.text }}</a></td><td>{{ d.responsible|default:"" }}</td><td>{{ d.due_date|date:"Y-m-d" }}</td><td>{{ d.get_status_display }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted center">لا قرارات</td></tr>{% endfor %}</tbody></table></div>
+</div>

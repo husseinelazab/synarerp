@@ -5,7 +5,7 @@ from core.setup_data import ACCOUNT_ATTRIBUTES, CHART_OF_ACCOUNTS
 
 
 @transaction.atomic
-def apply_unified_chart(company):
+def apply_unified_chart(company, chart=None):
     """يعيد (عدد الحسابات المضافة، [حسابات تعذرت إضافتها مع السبب])."""
     from accounts.models import Account
 
@@ -40,5 +40,22 @@ def apply_unified_chart(company):
                     continue
                 walk(children, account, node_root)
 
-    walk(CHART_OF_ACCOUNTS, None, None)
+    walk(chart or CHART_OF_ACCOUNTS, None, None)
     return created, skipped
+
+
+
+def uses_nonprofit_chart(company):
+    """الجمعية المؤسسة بالدليل الموحد للجهات غير الربحية (الجمعية التي تحولت من منشأة تجارية تبقى على دليلها)."""
+    from accounts.models import Account
+
+    return company.is_nonprofit and Account.all_objects.filter(company=company, number="231").exists()
+
+
+def apply_company_chart(company):
+    """إضافة الحسابات الناقصة من الدليل المناسب لنوع الشركة."""
+    if uses_nonprofit_chart(company):
+        from accounts.nonprofit_chart import apply_nonprofit_chart
+
+        return apply_nonprofit_chart(company)
+    return apply_unified_chart(company)

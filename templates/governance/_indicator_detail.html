@@ -1,0 +1,19 @@
+{% load erp %}
+<div class="card">
+  <h3>الشواهد</h3>
+  {% if obj.evidence_hint %}<p class="muted small">المطلوب: {{ obj.evidence_hint }}</p>{% endif %}
+  <div class="table-wrap"><table class="table"><thead><tr><th>السنة</th><th>الشاهد</th><th>الملف / الرابط</th><th>رفعه</th><th></th></tr></thead><tbody>
+  {% for e in obj.evidence.all %}<tr><td>{{ e.year }}</td><td>{{ e.title }}</td>
+  <td>{% if e.file_name %}<a href="{% url 'download_evidence' e.pk %}">{{ e.file_name }}</a>{% endif %}{% if e.link %} <a href="{{ e.link }}" target="_blank" rel="noopener noreferrer">رابط</a>{% endif %}</td>
+  <td>{{ e.uploaded_by|default:"" }} {{ e.uploaded_at|date:"Y-m-d" }}</td>
+  <td><form method="post" action="{% url 'delete_evidence' e.pk %}" onsubmit="return confirm('حذف الشاهد؟')">{% csrf_token %}<button class="btn btn-sm btn-danger-outline">حذف</button></form></td></tr>
+  {% empty %}<tr><td colspan="5" class="muted center">لا شواهد بعد</td></tr>{% endfor %}</tbody></table></div>
+  <form method="post" enctype="multipart/form-data" action="{% url 'upload_evidence' obj.pk %}" class="inline-form" style="margin-top:1em">{% csrf_token %}
+    <input name="title" class="form-control" placeholder="عنوان الشاهد" required>
+    <input name="year" type="number" class="form-control" value="{% now 'Y' %}" style="max-width:100px">
+    <input name="file" type="file" class="form-control">
+    <input name="link" type="url" class="form-control" placeholder="أو رابط">
+    <button class="btn btn-primary">إضافة شاهد</button>
+  </form>
+  <p class="muted small">الملف حتى 5 ميجابايت.</p>
+</div>

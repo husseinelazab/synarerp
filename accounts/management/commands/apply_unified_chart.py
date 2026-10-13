@@ -15,10 +15,10 @@ class Command(BaseCommand):
         parser.add_argument("--company", type=int)
 
     def handle(self, *args, **options):
-        from accounts.chart import apply_unified_chart
+        from accounts.chart import apply_company_chart
 
         companies = Company.objects.filter(pk=options["company"]) if options["company"] else Company.objects.all()
         for company in companies:
             with tenant_context(company):
-                created, skipped = apply_unified_chart(company)
+                created, skipped = apply_company_chart(company)
             self.stdout.write(f"{company}: أُضيف {created}" + (f"، تعذر {len(skipped)}" if skipped else ""))

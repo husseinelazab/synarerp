@@ -46,6 +46,12 @@ INSTALLED_APPS = [
     "projects",
     "support",
     "quality",
+    "beneficiaries",
+    "funds",
+    "governance",
+    "awqaf",
+    "volunteering",
+    "office",
 ]
 
 MIDDLEWARE = [

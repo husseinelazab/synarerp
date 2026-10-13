@@ -1,0 +1,28 @@
+{% if obj.is_draft %}
+<div class="card">
+  <h3>تأكيد استلام المستفيد</h3>
+  {% if obj.received_at %}
+    <p class="ok">✓ تم تأكيد الاستلام {{ obj.received_at|date:"Y-m-d H:i" }} — {{ obj.get_receipt_method_display }}{% if obj.confirmed_by %} ({{ obj.confirmed_by }}){% endif %}{% if obj.receipt_note %}: {{ obj.receipt_note }}{% endif %}.
+      اعتمد الصرف الآن. أي تعديل على المستند بعد التأكيد يتطلب تأكيداً جديداً.</p>
+  {% else %}
+    <p class="muted small">يُرسل رمز من 6 أرقام إلى جوال المستفيد ({{ obj.beneficiary.phone }})، ويُدخله الموظف عند التسليم. صالح 10 دقائق.</p>
+    <div class="actions">
+      <form method="post" action="{% url 'aid_send_otp' obj.pk %}">{% csrf_token %}<button class="btn btn-primary">{% if obj.otp_sent_at %}إعادة إرسال الرمز{% else %}إرسال رمز التحقق{% endif %}</button></form>
+      {% if obj.otp_sent_at %}
+      <form method="post" action="{% url 'aid_confirm' obj.pk %}" class="inline-form">{% csrf_token %}
+        <input name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="الرمز" style="max-width:120px" required>
+        <button class="btn btn-success">تأكيد الاستلام</button></form>
+      {% endif %}
+    </div>
+    {% if request.membership.can_manage %}
+    <details style="margin-top:1em"><summary class="muted small">تأكيد يدوي (للمدير)</summary>
+      <form method="post" action="{% url 'aid_confirm' obj.pk %}" class="inline-form">{% csrf_token %}<input type="hidden" name="manual" value="1">
+        <input name="note" class="form-control" placeholder="السبب: مثل المستفيد بلا جوال وتم التحقق من هويته" style="min-width:320px" required>
+        <button class="btn">تأكيد يدوي</button></form>
+    </details>
+    {% endif %}
+  {% endif %}
+</div>
+{% elif obj.received_at %}
+<div class="card"><p class="muted small">تأكيد الاستلام: {{ obj.received_at|date:"Y-m-d H:i" }} — {{ obj.get_receipt_method_display }}{% if obj.confirmed_by %} ({{ obj.confirmed_by }}){% endif %}{% if obj.receipt_note %}: {{ obj.receipt_note }}{% endif %}</p></div>
+{% endif %}

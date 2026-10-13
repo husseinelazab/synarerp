@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'volunteer-opportunity' %}">+ فرصة تطوعية</a>
+  <a class="btn" href="{% url 'doc_new' 'volunteer' %}">+ متطوع</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>المتطوعون المسجلون</span><b>{{ volunteers }}</b></div>
+  <div class="kpi kpi-good"><span>ساعات التطوع في {{ year }}</span><b>{{ hours }}</b><span>{{ participations }} مشاركة</span></div>
+  <div class="kpi"><span>فرص مفتوحة</span><b>{{ open|length }}</b></div>
+  <div class="kpi {% if pending %}kpi-bad{% endif %}"><span>طلبات تسجيل بانتظار الرد</span><b>{{ pending|length }}</b></div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>طلبات التسجيل</h3><div class="table-wrap"><table class="table"><tbody>
+{% for p in pending %}<tr><td><a href="{{ p.volunteer.get_absolute_url }}">{{ p.volunteer }}</a></td><td>{{ p.volunteer.phone }}</td><td><a href="{{ p.opportunity.get_absolute_url }}">{{ p.opportunity }}</a></td>
+<td class="actions">{% for key, label in p.available_actions %}<form method="post" action="{% url 'doc_action' 'volunteer-participation' p.pk key %}">{% csrf_token %}<button class="btn btn-sm">{{ label }}</button></form>{% endfor %}</td></tr>
+{% empty %}<tr><td class="muted">لا طلبات</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>أكثر المتطوعين ساعات هذا العام</h3><div class="table-wrap"><table class="table"><tbody>
+{% for v in top %}<tr><td><a href="{{ v.get_absolute_url }}">{{ v }}</a></td><td class="num">{{ v.h }} ساعة</td><td class="num">{{ v.n }} مشاركة</td></tr>
+{% empty %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endblock %}

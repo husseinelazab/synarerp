@@ -1,0 +1,21 @@
+{% load erp %}
+<div class="toolbar"><div></div><div class="actions">
+  {% if obj.direction == "outgoing" or obj.direction == "internal" %}<a class="btn btn-primary" href="{% url 'correspondence_letter' obj.pk %}" target="_blank">طباعة الخطاب بهوية الجمعية</a>{% endif %}
+  <a class="btn" href="{% url 'doc_new' 'correspondence' %}?direction=outgoing&reply_to={{ obj.pk }}&party={{ obj.party|urlencode }}&subject={{ obj.subject|urlencode }}">رد صادر</a>
+</div></div>
+{% if obj.status != "closed" %}
+<div class="card"><h3>إحالة المعاملة</h3>
+  <form method="post" action="{% url 'route_correspondence' obj.pk %}" class="inline-form">{% csrf_token %}
+    <select name="to_user" class="form-select" required><option value="">— إلى —</option>
+      {% for u in obj.route_candidates %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select>
+    <input name="note" class="form-control" placeholder="التوجيه: للاطلاع، للإفادة، للرد…" style="min-width:260px">
+    <input name="due_date" type="date" class="form-control" title="موعد الإنجاز">
+    <button class="btn btn-primary">إحالة</button>
+  </form>
+</div>
+{% endif %}
+<div class="card"><h3>مسار المعاملة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الوقت</th><th>من</th><th>إلى</th><th>التوجيه / الإجراء</th></tr></thead><tbody>
+{% for r in obj.routes.all %}<tr><td>{{ r.created_at|date:"Y-m-d H:i" }}</td><td>{{ r.from_user.get_full_name|default:r.from_user }}</td><td>{{ r.to_user.get_full_name|default:r.to_user|default:"" }}</td><td>{{ r.note }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لم تُحل بعد</td></tr>{% endfor %}</tbody></table></div></div>
+{% if obj.replies.exists %}<div class="card"><h3>الردود</h3><ul>{% for r in obj.replies.all %}<li><a href="{{ r.get_absolute_url }}">{{ r }}</a> ({{ r.get_direction_display }} {{ r.date|date:"Y-m-d" }})</li>{% endfor %}</ul></div>{% endif %}

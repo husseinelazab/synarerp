@@ -26,16 +26,18 @@ def make_gl_entries(doc, entries, remarks="", exchange_rate=None):
             raise ValidationError(f"لا يمكن الترحيل على الحساب الرئيسي {account}.")
         customer, supplier = entry.get("customer"), entry.get("supplier")
         # مركز التكلفة يُسجل على حسابات قائمة الدخل فقط (الإيرادات والمصروفات)
-        center = None
+        center = fund = None
         if account.root_type in (RootType.INCOME, RootType.EXPENSE):
+            # الصندوق (القيد على الأموال) يُتتبع على الإيرادات والمصروفات فقط
+            fund = entry.get("fund") or getattr(doc, "fund", None)
             center = entry.get("cost_center") or default_center
             if center is not None and center.is_group:
                 raise ValidationError(f"لا يمكن الترحيل على مركز التكلفة الرئيسي {center}.")
         project = entry.get("project") or getattr(doc, "project", None)
         key = (account.id, getattr(customer, "id", None), getattr(supplier, "id", None), getattr(center, "id", None),
-               getattr(project, "id", None))
+               getattr(project, "id", None), getattr(fund, "id", None))
         row = merged.setdefault(key, {
-            "account": account, "customer": customer, "supplier": supplier, "cost_center": center, "project": project,
+            "account": account, "customer": customer, "supplier": supplier, "cost_center": center, "project": project, "fund": fund,
             "debit": flt(0), "credit": flt(0), "remarks": entry.get("remarks") or remarks or doc.remarks,
         })
         rate = exchange_rate if exchange_rate and not entry.get("base") else 1
@@ -64,6 +66,9 @@ def make_gl_entries(doc, entries, remarks="", exchange_rate=None):
     from accounts.budget import check_budgets
 
     check_budgets(doc, rows)
+    from accounts.funds import check_funds
+
+    check_funds(doc, rows)
 
     GLEntry.objects.bulk_create([
         GLEntry(
@@ -76,6 +81,7 @@ def make_gl_entries(doc, entries, remarks="", exchange_rate=None):
             supplier=r["supplier"],
             cost_center=r["cost_center"],
             project=r["project"],
+            fund=r["fund"],
             voucher_type=doc.doctype_slug,
             voucher_no=doc.name,
             voucher_id=doc.pk,

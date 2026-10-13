@@ -137,6 +137,71 @@ class CostCenter(TenantModel):
         return ids
 
 
+class FundType(models.TextChoices):
+    UNRESTRICTED = "unrestricted", "غير مقيد"
+    RESTRICTED = "restricted", "مقيد"
+    ENDOWMENT = "endowment", "وقف (مقيد بشكل دائم)"
+
+
+class Fund(TenantModel):
+    """صندوق تبرعات للجهة غير الربحية: يتتبع ما ورد إليه من إيرادات وما صُرف منه من مصروفات عبر قيود الأستاذ.
+
+    المقيد لا يُصرف منه أكثر من رصيده، والوقف لا يُصرف من أصله (تُصرف غلته من صندوق آخر).
+    الإيرادات والمصروفات التي لا تحمل صندوقاً تُعد غير مقيدة (الصندوق العام).
+    """
+
+    name = models.CharField("اسم الصندوق", max_length=150)
+    fund_type = models.CharField("نوع القيد", max_length=12, choices=FundType.choices, default=FundType.RESTRICTED)
+    donor = models.CharField("المانح / المتبرع", max_length=150, blank=True,
+                             help_text="لمنحة أو تبرع مقيد من جهة محددة")
+    purpose = models.TextField("الغرض الذي قُيّد له", blank=True)
+    start_date = models.DateField("تاريخ البداية", null=True, blank=True)
+    end_date = models.DateField("تاريخ الانتهاء", null=True, blank=True,
+                                help_text="آخر موعد لصرف المنحة إن اشترط المانح ذلك")
+    target_amount = models.DecimalField("المبلغ المستهدف / قيمة المنحة", max_digits=18, decimal_places=2, default=0)
+    allow_overspend = models.BooleanField("السماح بالصرف بأكثر من الرصيد", default=False,
+                                          help_text="للصناديق المقيدة فقط: يسمح بصرف مسبق قبل ورود التبرع")
+    is_active = models.BooleanField("نشط", default=True)
+
+    class Meta:
+        verbose_name = "صندوق"
+        verbose_name_plural = "الصناديق والأموال المقيدة"
+        ordering = ["fund_type", "name"]
+        constraints = [tenant_unique("name", model_label="fund")]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError({"end_date": "تاريخ الانتهاء يجب أن يكون بعد البداية."})
+
+    def totals(self, to_date=None, exclude_voucher=None):
+        """الوارد (إيرادات) والمصروف (مصروفات) والرصيد من قيود الأستاذ المعتمدة."""
+        rows = GLEntry.objects.filter(fund=self, is_cancelled=False,
+                                      account__root_type__in=[RootType.INCOME, RootType.EXPENSE])
+        if to_date:
+            rows = rows.filter(posting_date__lte=to_date)
+        if exclude_voucher:
+            rows = rows.exclude(voucher_type=exclude_voucher[0], voucher_id=exclude_voucher[1])
+        sums = {r["account__root_type"]: (flt(r["d"]), flt(r["c"])) for r in
+                rows.values("account__root_type").annotate(d=models.Sum("debit"), c=models.Sum("credit"))}
+        income = sums.get(RootType.INCOME, (0, 0))
+        expense = sums.get(RootType.EXPENSE, (0, 0))
+        received, spent = flt(income[1] - income[0]), flt(expense[0] - expense[1])
+        return {"received": received, "spent": spent, "balance": received - spent}
+
+    @property
+    def balance(self):
+        return self.totals()["balance"]
+
+    def recent_entries(self, limit=50):
+        rows = (GLEntry.objects.filter(fund=self, is_cancelled=False).select_related("account")
+                .order_by("-posting_date", "-id")[:limit])
+        return [{"entry": g, "received": flt(g.credit - g.debit) if g.account.root_type == RootType.INCOME else None,
+                 "spent": flt(g.debit - g.credit) if g.account.root_type == RootType.EXPENSE else None} for g in rows]
+
+
 class PartyType(models.TextChoices):
     CUSTOMER = "customer", "عميل"
     SUPPLIER = "supplier", "مورد"
@@ -154,6 +219,8 @@ class GLEntry(TenantModel):
     cost_center = models.ForeignKey(CostCenter, models.PROTECT, null=True, blank=True, verbose_name="مركز التكلفة")
     project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
                                 verbose_name="المشروع")
+    fund = models.ForeignKey(Fund, models.PROTECT, null=True, blank=True, related_name="gl_entries",
+                             verbose_name="الصندوق")
     voucher_type = models.CharField("نوع المستند", max_length=50)
     voucher_no = models.CharField("رقم المستند", max_length=40)
     voucher_id = models.PositiveBigIntegerField("معرّف المستند")
@@ -222,6 +289,7 @@ class JournalEntry(SubmittableDocument):
                 "supplier": line.supplier,
                 "cost_center": line.cost_center,
                 "project": line.project,
+                "fund": line.fund,
                 "remarks": line.description or self.remarks,
             }
             for line in self.accounts.select_related("account", "customer", "supplier")
@@ -252,6 +320,8 @@ class JournalEntryAccount(models.Model):
                                     limit_choices_to={"is_group": False, "disabled": False})
     project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
                                 verbose_name="المشروع")
+    fund = models.ForeignKey("accounts.Fund", models.PROTECT, null=True, blank=True, related_name="+",
+                             limit_choices_to={"is_active": True}, verbose_name="الصندوق / القيد")
     description = models.CharField("البيان", max_length=255, blank=True)
 
     class Meta:
@@ -1584,7 +1654,8 @@ class CustodySettlement(SubmittableDocument):
         entries = []
         for line in self.lines.select_related("account"):
             entries.append({"account": line.account, "debit": line.amount, "cost_center": line.cost_center,
-                            "project": line.project, "remarks": line.description or self.custody.purpose})
+                            "project": line.project, "fund": line.fund,
+                            "remarks": line.description or self.custody.purpose})
             if line.tax_amount:
                 entries.append({"account": self.company.require_account("default_input_tax_account"),
                                 "debit": line.tax_amount, "remarks": f"ضريبة مدخلات {line.bill_no}".strip()})
@@ -1612,6 +1683,8 @@ class CustodyExpense(models.Model):
                                     limit_choices_to={"is_group": False, "disabled": False}, verbose_name="مركز التكلفة")
     project = models.ForeignKey("projects.Project", models.PROTECT, null=True, blank=True, related_name="+",
                                 verbose_name="المشروع")
+    fund = models.ForeignKey("accounts.Fund", models.PROTECT, null=True, blank=True, related_name="+",
+                             limit_choices_to={"is_active": True}, verbose_name="الصندوق / القيد")
 
     class Meta:
         verbose_name = "مصروف من العهدة"

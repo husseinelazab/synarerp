@@ -1,0 +1,9 @@
+<div class="login-page"><div class="card login-card">
+  <h1>التحقق من شهادة تطوع</h1>
+  {% if p %}
+    <div class="alert alert-success">شهادة صحيحة ✓</div>
+    <p><strong>{{ p.volunteer.full_name }}</strong><br>{{ p.opportunity.title }}<br>{{ p.hours }} ساعة — {{ p.opportunity.start_date|date:"Y-m-d" }}<br>{{ p.company.name }}</p>
+  {% else %}
+    <div class="alert alert-error">لا توجد شهادة بالرمز {{ code }}.</div>
+  {% endif %}
+</div></div>

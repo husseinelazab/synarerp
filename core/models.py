@@ -26,8 +26,26 @@ class Currency(models.Model):
         return f"{self.name} ({self.code})"
 
 
+class OrganizationType(models.TextChoices):
+    BUSINESS = "business", "منشأة تجارية"
+    NONPROFIT = "nonprofit", "جهة غير ربحية (جمعية / مؤسسة أهلية / وقف)"
+
+
 class Company(models.Model):
     name = models.CharField("اسم الشركة", max_length=150, unique=True)
+    organization_type = models.CharField(
+        "نوع المنشأة", max_length=10, choices=OrganizationType.choices, default=OrganizationType.BUSINESS,
+        help_text="الجهة غير الربحية تظهر لها وحدات الجمعيات (المستفيدون، الجهات المستفيدة…) بمسمياتها بدل الوحدات التجارية")
+    license_number = models.CharField("رقم الترخيص", max_length=30, blank=True,
+                                      help_text="رقم ترخيص الجمعية من المركز الوطني لتنمية القطاع غير الربحي")
+    eligibility_threshold = models.PositiveSmallIntegerField(
+        "الحد الأدنى لدرجة الاستحقاق %", default=60,
+        help_text="دراسة الحالة التي تبلغ هذه الدرجة تعتمد المستفيد، وما دونها يُرفض")
+    review_period_months = models.PositiveSmallIntegerField(
+        "مدة إعادة دراسة الحالة (شهر)", default=12, help_text="بعدها يظهر المستفيد في قائمة المستحقين لإعادة الدراسة")
+    require_aid_otp = models.BooleanField(
+        "تأكيد استلام المساعدات برمز تحقق", default=True,
+        help_text="لا تُعتمد المساعدة حتى يُدخل رمز يصل إلى جوال المستفيد (أو يؤكدها المدير يدوياً مع ذكر السبب)")
     abbr = models.CharField("الاختصار", max_length=10)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, verbose_name="العملة الافتراضية")
     tax_id = models.CharField("الرقم الضريبي", max_length=20, blank=True)
@@ -114,6 +132,10 @@ class Company(models.Model):
             return company
         companies = list(cls.objects.all()[:2])
         return companies[0] if len(companies) == 1 else None
+
+    @property
+    def is_nonprofit(self):
+        return self.organization_type == OrganizationType.NONPROFIT
 
     def require_account(self, field):
         account = getattr(self, field)
@@ -835,3 +857,34 @@ class BackgroundJob(models.Model):
 
     def __str__(self):
         return f"{self.task} #{self.pk} ({self.get_status_display()})"
+
+
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+
+class Attachment(TenantModel):
+    """مرفق على أي مستند أو سجل (يُعرف بنوع المستند ومعرّفه)، يُحفظ في قاعدة البيانات ويُنزّل بصلاحيات المستند نفسه."""
+
+    doctype = models.CharField("نوع المستند", max_length=50, db_index=True)
+    object_id = models.PositiveBigIntegerField("معرّف المستند", db_index=True)
+    file_name = models.CharField("اسم الملف", max_length=255)
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveIntegerField("الحجم", default=0)
+    content = models.BinaryField()
+    description = models.CharField("الوصف", max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True,
+                                    related_name="+", verbose_name="رفعه")
+    uploaded_at = models.DateTimeField("تاريخ الرفع", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "مرفق"
+        verbose_name_plural = "المرفقات"
+        ordering = ["-id"]
+
+    def __str__(self):
+        return self.file_name
+
+    @classmethod
+    def for_object(cls, obj):
+        return cls.objects.filter(doctype=obj.doctype_slug, object_id=obj.pk).defer("content").select_related(
+            "uploaded_by")

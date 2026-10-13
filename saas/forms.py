@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model, password_validation
 
 from core.forms import style_form
-from core.models import Company, Role
+from core.models import Company, OrganizationType, Role
 from saas.models import PaymentMethod, Plan
 
 User = get_user_model()
@@ -10,6 +10,8 @@ User = get_user_model()
 
 class SignupForm(forms.Form):
     company_name = forms.CharField(label="اسم المنشأة", max_length=150)
+    organization_type = forms.ChoiceField(label="نوع المنشأة", choices=OrganizationType.choices,
+                                          initial=OrganizationType.BUSINESS, required=False)
     tax_id = forms.CharField(label="الرقم الضريبي (اختياري)", max_length=20, required=False)
     phone = forms.CharField(label="رقم الجوال", max_length=30)
     full_name = forms.CharField(label="الاسم الكامل", max_length=150)
@@ -37,6 +39,9 @@ class SignupForm(forms.Form):
             raise forms.ValidationError("يوجد حساب مسجل بهذا البريد الإلكتروني.")
         return email
 
+    def clean_organization_type(self):
+        return self.cleaned_data["organization_type"] or OrganizationType.BUSINESS
+
     def clean_company_name(self):
         name = self.cleaned_data["company_name"].strip()
         if Company.objects.filter(name__iexact=name).exists():
@@ -60,8 +65,13 @@ class CompanySettingsForm(forms.ModelForm):
         model = Company
         fields = "__all__"
 
+    NONPROFIT_FIELDS = ("license_number", "eligibility_threshold", "review_period_months", "require_aid_otp")
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if not self.instance.is_nonprofit:
+            for name in self.NONPROFIT_FIELDS:
+                self.fields.pop(name)
         style_form(self)
 
     def clean_currency(self):
@@ -117,14 +127,18 @@ class MemberRoleForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         from accounts.models import CostCenter
-        from core.permissions import PERMISSION_MODULES
+        from core.permissions import company_modules
 
         super().__init__(*args, **kwargs)
-        self.fields["modules"].choices = PERMISSION_MODULES
+        modules = company_modules(Company.current())
+        self.fields["modules"].choices = modules
+        from core.permissions import PERMISSION_MODULES
         from core.registry import MODULES, REGISTRY
 
-        doctypes = sorted(((slug, f"{MODULES.get(dt.module, '')}: {dt.label_plural}") for slug, dt in REGISTRY.items()
-                           if dt.module != "setup"), key=lambda c: c[1])
+        labels = {**MODULES, **dict(modules)}
+        hidden = {key for key, _ in PERMISSION_MODULES} - set(dict(modules))
+        doctypes = sorted(((slug, f"{labels.get(dt.module, '')}: {dt.label_plural}") for slug, dt in REGISTRY.items()
+                           if dt.module != "setup" and dt.module not in hidden), key=lambda c: c[1])
         self.fields["denied_doctypes"].choices = doctypes
         self.fields["read_only_doctypes"].choices = doctypes
         self.fields["cost_centers"].queryset = CostCenter.objects.filter(is_group=False, disabled=False)

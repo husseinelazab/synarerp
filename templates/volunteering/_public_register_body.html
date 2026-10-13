@@ -1,0 +1,19 @@
+<div class="login-page">
+  <form method="post" class="card login-card signup-card" novalidate>
+    {% csrf_token %}
+    <h1>{{ opportunity.company.name }}</h1>
+    <h3>{{ opportunity.title }}</h3>
+    <p class="muted">{{ opportunity.start_date|date:"Y-m-d" }} — {{ opportunity.end_date|date:"Y-m-d" }}{% if opportunity.location %} · {{ opportunity.location }}{% endif %}</p>
+    {% if opportunity.description %}<p>{{ opportunity.description|linebreaksbr }}</p>{% endif %}
+    {% if done %}
+      <div class="alert alert-success">تم استلام طلبك، شكراً لمبادرتك. سنتواصل معك على جوالك.</div>
+    {% elif closed %}
+      <div class="alert alert-error">التسجيل في هذه الفرصة مغلق.</div>
+    {% else %}
+      {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="form-grid">{% for field in form.visible_fields %}{% include "core/_field.html" %}{% endfor %}</div>
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      <button class="btn btn-primary btn-lg">سجّلني متطوعاً</button>
+    {% endif %}
+  </form>
+</div>

@@ -1,0 +1,4 @@
+<div class="card"><h3>نص التعميم</h3><p style="white-space:pre-line">{{ obj.body }}</p>
+  <form method="post" action="{% url 'acknowledge_circular' obj.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ obj.get_absolute_url }}"><button class="btn btn-primary">اطلعت على التعميم</button></form></div>
+{% if request.membership.can_manage %}<div class="card"><h3>من اطلع ({{ obj.ack_count }})</h3><ul>
+{% for a in obj.acks.all %}<li>{{ a.user.get_full_name|default:a.user }} — {{ a.acknowledged_at|date:"Y-m-d H:i" }}</li>{% empty %}<li class="muted">لا أحد بعد</li>{% endfor %}</ul></div>{% endif %}

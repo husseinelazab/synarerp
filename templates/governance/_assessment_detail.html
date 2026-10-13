@@ -1,0 +1,5 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi kpi-good"><span>النتيجة</span><b>{{ obj.score_percent }}%</b><span>{{ obj.total_score }} من {{ obj.total_weight }}</span></div>
+  {% for s in obj.by_standard %}<div class="kpi"><span>{{ s.standard.name }}</span><b>{% if s.percent is not None %}{{ s.percent }}%{% else %}—{% endif %}</b></div>{% endfor %}
+</div>

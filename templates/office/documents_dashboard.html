@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'correspondence' %}?direction=incoming">+ وارد</a>
+  <a class="btn" href="{% url 'doc_new' 'correspondence' %}?direction=outgoing">+ صادر</a>
+  <a class="btn" href="{% url 'doc_new' 'correspondence' %}?direction=internal">+ داخلي</a>
+  <a class="btn" href="{% url 'doc_new' 'archive-document' %}">+ وثيقة للأرشيف</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>وارد مفتوح</span><b>{{ incoming_open }}</b></div>
+  <div class="kpi"><span>صادر في {{ today.year }}</span><b>{{ outgoing_year }}</b></div>
+  <div class="kpi {% if overdue %}kpi-bad{% endif %}"><span>معاملات متأخرة</span><b>{{ overdue|length }}</b></div>
+  <div class="kpi {% if expiring %}kpi-bad{% endif %}"><span>وثائق تنتهي خلال شهر</span><b>{{ expiring|length }}</b></div>
+</div>
+<div class="card"><h3>المعاملات المفتوحة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الرقم</th><th>النوع</th><th>الموضوع</th><th>الجهة</th><th>لدى</th><th>الموعد</th><th>الأولوية</th></tr></thead><tbody>
+{% for c in open_items %}<tr class="{% if c.is_overdue %}row-loss{% endif %}"><td><a href="{{ c.get_absolute_url }}">{{ c.number }}</a></td><td>{{ c.get_direction_display }}</td><td>{{ c.subject }}</td><td>{{ c.party }}</td><td>{{ c.assigned_to|default:"" }}</td><td>{{ c.due_date|date:"Y-m-d" }}</td><td>{{ c.get_priority_display }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted center">لا معاملات مفتوحة</td></tr>{% endfor %}</tbody></table></div></div>
+{% if expiring %}<div class="card"><h3>وثائق تنتهي قريباً</h3><div class="table-wrap"><table class="table"><tbody>
+{% for d in expiring %}<tr class="row-loss"><td><a href="{{ d.get_absolute_url }}">{{ d }}</a></td><td>{{ d.category }}</td><td>{{ d.expiry_date|date:"Y-m-d" }}</td></tr>{% endfor %}
+</tbody></table></div></div>{% endif %}
+{% endblock %}

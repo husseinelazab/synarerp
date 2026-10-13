@@ -30,6 +30,10 @@ def dashboard(request):
     if membership is not None and (not membership.allows_module("accounts") or not membership.may("costs")):
         # من لا يملك صلاحية المحاسبة لا يرى أرقام الأرباح والنقدية
         return render(request, "core/dashboard_limited.html", {"today": timezone.localdate()})
+    if request.company.is_nonprofit:
+        from core.dashboard import nonprofit_dashboard_context
+
+        return render(request, "core/dashboard_nonprofit.html", nonprofit_dashboard_context(request))
     from core.dashboard import dashboard_context
 
     return render(request, "core/dashboard.html", dashboard_context(request))

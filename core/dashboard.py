@@ -58,11 +58,17 @@ def sales_purchases_chart(today, months=6):
     from buying.models import PurchaseInvoice
     from selling.models import SalesInvoice
 
+    return monthly_chart(today, lambda start, end: (_net(SalesInvoice, start, end), _net(PurchaseInvoice, start, end)),
+                         months)
+
+
+def monthly_chart(today, series, months=6):
+    """مخطط أعمدة مزدوج لآخر الأشهر؛ series(بداية، نهاية) تعيد (القيمة الأولى، الثانية) وتُعرض بلوني المبيعات والمشتريات."""
     data = []
     for back in range(months - 1, -1, -1):
         start, end = _month_start(today, back), _month_start(today, back - 1)
-        data.append({"label": MONTHS[start.month - 1], "sales": _net(SalesInvoice, start, end),
-                     "purchases": _net(PurchaseInvoice, start, end)})
+        first, second = series(start, end)
+        data.append({"label": MONTHS[start.month - 1], "sales": first, "purchases": second})
 
     width, height, top, bottom, axis = 640, 230, 16, 28, 56
     plot_w, plot_h = width - axis - 8, height - top - bottom
@@ -156,4 +162,83 @@ def dashboard_context(request):
         "today": today, "kpis": kpis, "balances": balances, "drafts": drafts,
         "overdue_count": overdue.count(), "overdue_amount": flt(overdue_info["v"]),
         "chart": sales_purchases_chart(today), "recent": recent, "orders_to_bill": orders_to_bill,
+    }
+
+
+def nonprofit_dashboard_context(request):
+    """الصفحة الرئيسية للجهة غير الربحية: التبرعات والمساعدات والصناديق وما يحتاج متابعة."""
+    from accounts.models import AccountType, Fund, FundType, GLEntry, RootType
+    from beneficiaries.models import (AidDisbursement, Beneficiary, BeneficiaryStatus, CaseAssessment, EntityRequest,
+                                      RequestStatus)
+    from core.registry import REGISTRY
+    from funds.models import DonationReceipt, DueStatus, SponsorshipDue
+    from stock.models import Bin
+
+    today = timezone.localdate()
+    this_month, last_month, next_month = _month_start(today), _month_start(today, 1), _month_start(today, -1)
+
+    def total(model, start, end):
+        return flt(model.objects.filter(docstatus=DocStatus.SUBMITTED, posting_date__gte=start,
+                                        posting_date__lt=end).aggregate(t=Sum("amount"))["t"])
+
+    def income_expense(start, end):
+        rows = {r["account__root_type"]: flt(r["c"]) - flt(r["d"]) for r in GLEntry.objects.filter(
+            is_cancelled=False, posting_date__gte=start, posting_date__lt=end,
+            account__root_type__in=[RootType.INCOME, RootType.EXPENSE]).exclude(voucher_type="period-closing")
+            .values("account__root_type").annotate(d=Sum("debit"), c=Sum("credit"))}
+        return rows.get(RootType.INCOME, flt(0)), -rows.get(RootType.EXPENSE, flt(0))
+
+    donations, donations_prev = total(DonationReceipt, this_month, next_month), total(DonationReceipt, last_month,
+                                                                                      this_month)
+    aid, aid_prev = total(AidDisbursement, this_month, next_month), total(AidDisbursement, last_month, this_month)
+    income, expense = income_expense(this_month, next_month)
+    kpis = [
+        {"label": "التبرعات هذا الشهر", "value": donations, "change": _change(donations, donations_prev),
+         "url": reverse("doc_list", args=["donation-receipt"])},
+        {"label": "المساعدات المصروفة هذا الشهر", "value": aid, "change": _change(aid, aid_prev),
+         "url": reverse("doc_list", args=["aid-disbursement"])},
+        {"label": "فائض (عجز) الشهر", "value": income - expense, "hint": "الإيرادات والتبرعات − المصروفات",
+         "url": reverse("statement_of_activities") + f"?from_date={this_month:%Y-%m-%d}"},
+        {"label": "النقدية والبنوك", "value": _gl_balance(account__account_type__in=[AccountType.CASH,
+                                                                                   AccountType.BANK]),
+         "hint": "الرصيد الحالي", "url": reverse("chart_of_accounts")},
+    ]
+    funds = list(Fund.objects.filter(is_active=True))
+    restricted = sum((f.balance for f in funds if f.fund_type == FundType.RESTRICTED), flt(0))
+    zakat = next((f.balance for f in funds if f.name == "صندوق الزكاة"), None)
+    open_dues = SponsorshipDue.objects.filter(status__in=[DueStatus.PENDING, DueStatus.PARTIAL], period__lt=this_month)
+    balances = [("أرصدة الأموال المقيدة", restricted, reverse("fund_balances"))]
+    if zakat is not None:
+        balances.append(("رصيد صندوق الزكاة", zakat, reverse("fund_balances")))
+    balances += [
+        ("متأخرات الكفالات", flt(sum((d.outstanding for d in open_dues), flt(0))), reverse("resources_dashboard")),
+        ("قيمة المخزون", flt(Bin.objects.aggregate(v=Sum("stock_value"))["v"]), reverse("stock_balance")),
+    ]
+
+    alerts = []
+    for slug, dt in REGISTRY.items():
+        if dt.is_submittable:
+            count = dt.model.objects.filter(docstatus=DocStatus.DRAFT).count()
+            if count:
+                alerts.append(("warn", f"{count} {dt.label_plural} مسودة", reverse("doc_list", args=[slug]) + "?status=0"))
+    checks = [
+        ("danger", "ملف مستفيد حان موعد إعادة دراسته", Beneficiary.objects.filter(
+            status=BeneficiaryStatus.APPROVED, next_review_date__lte=today).count(), reverse("beneficiaries_dashboard")),
+        ("info", "ملف مستفيد بانتظار دراسة الحالة", Beneficiary.objects.filter(
+            status__in=[BeneficiaryStatus.NEW, BeneficiaryStatus.UNDER_STUDY]).count(), reverse("beneficiaries_dashboard")),
+        ("danger", "استحقاق كفالة متأخر", open_dues.count(), reverse("resources_dashboard")),
+        ("info", "طلب جهة مفتوح", EntityRequest.objects.filter(
+            status__in=[RequestStatus.NEW, RequestStatus.UNDER_REVIEW]).count(), reverse("entities_dashboard")),
+    ]
+    alerts += [(level, f"{count} {label}", url) for level, label, count, url in checks if count]
+
+    recent = [{"doc": r, "kind": "سند تبرع", "party": r.donor_display, "detail": r.get_donation_type_display()}
+              for r in DonationReceipt.objects.all()[:6]]
+    recent += [{"doc": a, "kind": "صرف مساعدة", "party": a.beneficiary.full_name, "detail": str(a.program)}
+               for a in AidDisbursement.objects.select_related("beneficiary", "program")[:6]]
+    recent = sorted(recent, key=lambda row: row["doc"].created_at, reverse=True)[:8]
+    return {
+        "today": today, "kpis": kpis, "balances": balances, "alerts": alerts, "recent": recent,
+        "chart": monthly_chart(today, income_expense), "cases_this_year": CaseAssessment.objects.filter(
+            docstatus=DocStatus.SUBMITTED, posting_date__year=today.year).count(),
     }

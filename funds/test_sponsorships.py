@@ -127,6 +127,10 @@ class SponsorshipTests(TestCase):
         self.assertIn("يتيم بلا كافل", html)
         self.assertIn(sponsorship.number, html)  # المتأخر
         self.assertIn("إدارة الموارد المالية", html)
+        home = self.client.get("/").content.decode()
+        self.assertIn("التبرعات هذا الشهر", home)
+        self.assertIn("استحقاق كفالة متأخر", home)
+        self.assertNotIn("صافي المبيعات", home)
         statement = self.client.get(f"/resources/donor/{self.donor.pk}/statement/?year={last_month.year}")
         self.assertContains(statement, "يتيم")
         due = sponsorship.dues.get(period=MONTH)

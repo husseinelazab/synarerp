@@ -1,7 +1,7 @@
 """تطبيق دليل الحسابات السعودي الموحد: يُنشئ ما ينقص من حسابات الدليل دون تعديل أو حذف أي حساب قائم."""
 from django.db import transaction
 
-from core.setup_data import ACCOUNT_ATTRIBUTES, CHART_OF_ACCOUNTS, NONPROFIT_CHART
+from core.setup_data import ACCOUNT_ATTRIBUTES, CHART_OF_ACCOUNTS
 
 
 @transaction.atomic
@@ -44,6 +44,18 @@ def apply_unified_chart(company, chart=None):
     return created, skipped
 
 
-def apply_nonprofit_chart(company):
-    """حسابات الجمعيات: صافي الأصول، إيرادات التبرعات والزكاة والمنح، ومصروفات البرامج."""
-    return apply_unified_chart(company, chart=NONPROFIT_CHART)
+
+def uses_nonprofit_chart(company):
+    """الجمعية المؤسسة بالدليل الموحد للجهات غير الربحية (الجمعية التي تحولت من منشأة تجارية تبقى على دليلها)."""
+    from accounts.models import Account
+
+    return company.is_nonprofit and Account.all_objects.filter(company=company, number="231").exists()
+
+
+def apply_company_chart(company):
+    """إضافة الحسابات الناقصة من الدليل المناسب لنوع الشركة."""
+    if uses_nonprofit_chart(company):
+        from accounts.nonprofit_chart import apply_nonprofit_chart
+
+        return apply_nonprofit_chart(company)
+    return apply_unified_chart(company)

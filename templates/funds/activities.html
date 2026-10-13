@@ -3,7 +3,7 @@
 {% block content %}
 {% include "reports/_period.html" %}
 <div class="card">
-  <p class="muted small">قائمة الأنشطة للجهات غير الربحية: الإيرادات والمصروفات موزعة حسب القيود على صافي الأصول (غير مقيدة، مقيدة، أوقاف) وفق الصندوق المسجل على كل قيد.</p>
+  <p class="muted small">قائمة الأنشطة للجهات غير الربحية: الإيرادات والمصروفات موزعة حسب القيود على صافي الأصول (غير مقيدة، مقيدة، أوقاف) وفق الصندوق المسجل على كل قيد، وما لا يحمل صندوقاً يُصنف حسب فرع حسابه في الدليل الموحد (311 و421 مقيدة، 313 و43 أوقاف، والباقي غير مقيد).</p>
   <div class="table-wrap"><table class="table report">
     <thead><tr><th>البند</th>{% for c in columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead>
     <tbody>{% for s in sections %}

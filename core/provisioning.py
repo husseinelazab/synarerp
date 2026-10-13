@@ -39,19 +39,26 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
     company = Company.objects.create(name=name, abbr=abbr or name[:10], tax_id=tax_id, phone=phone,
                                      currency=default_currency(), organization_type=organization_type)
     with tenant_context(company):
-        from accounts.chart import apply_unified_chart
+        if company.is_nonprofit:
+            from accounts.nonprofit_chart import BANK_ACCOUNT, setup_company_accounts
 
-        apply_unified_chart(company)
-        accounts = {a.number: a for a in Account.objects.all()}
-        for field, number in DEFAULT_ACCOUNTS.items():
-            setattr(company, field, accounts[number])
-        company.save()
+            accounts = setup_company_accounts(company)  # الدليل المحاسبي الموحد للجهات غير الربحية
+            card_account = accounts[BANK_ACCOUNT]
+        else:
+            from accounts.chart import apply_unified_chart
+
+            apply_unified_chart(company)
+            accounts = {a.number: a for a in Account.objects.all()}
+            for field, number in DEFAULT_ACCOUNTS.items():
+                setattr(company, field, accounts[number])
+            company.save()
+            card_account = accounts["1102"]
 
         from accounts.models import CostCenter
 
         root = CostCenter.objects.create(name="جميع المراكز", is_group=True)
         company.default_cost_center = CostCenter.objects.create(name="الفرع الرئيسي", parent=root)
-        company.save(update_fields=["default_cost_center"])  # يضيف حسابات الجمعيات إن كانت جهة غير ربحية
+        company.save(update_fields=["default_cost_center"])
 
         year = timezone.localdate().year
         FiscalYear.objects.create(name=str(year), start_date=datetime.date(year, 1, 1), end_date=datetime.date(year, 12, 31))
@@ -70,7 +77,7 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
         add_official_holidays(year)
         from assets.models import DEFAULT_CATEGORIES, AssetCategory
 
-        for category, number, months in DEFAULT_CATEGORIES:
+        for category, number, months in ([] if company.is_nonprofit else DEFAULT_CATEGORIES):
             AssetCategory.objects.create(name=category, asset_account=accounts[number], useful_life_months=months,
                                          accumulated_depreciation_account=accounts["1204"],
                                          depreciation_expense_account=accounts["5208"])
@@ -87,7 +94,7 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
         walk_in = Customer.objects.create(name="عميل نقدي", customer_type="individual")
         POSProfile.objects.create(
             name="الكاشير الرئيسي", warehouse=main, default_customer=walk_in,
-            cash_account=company.default_cash_account, card_account=accounts["1102"],
+            cash_account=company.default_cash_account, card_account=card_account,
             tax_rate=company.default_tax_rate,
         )
         if demo:

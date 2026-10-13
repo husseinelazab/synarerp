@@ -180,15 +180,19 @@ def balance_sheet(request):
                                                     level=level)
     income, expense = _grouped_balances([RootType.INCOME, RootType.EXPENSE], to_date)
     profit = income["total"] - expense["total"]
+    nonprofit = request.company.is_nonprofit
+    if nonprofit:  # قائمة المركز المالي للجهة غير الربحية: الالتزامات وصافي الأصول
+        liabilities["label"], equity["label"] = "الالتزامات", "صافي الأصول"
     if profit:
-        equity["rows"].append({"account": "أرباح (خسائر) الفترة غير المرحلة", "amount": profit, "depth": 1,
-                               "is_group": False})
+        label = "فائض (عجز) الفترة غير المرحل" if nonprofit else "أرباح (خسائر) الفترة غير المرحلة"
+        equity["rows"].append({"account": label, "amount": profit, "depth": 1, "is_group": False})
         equity["total"] += profit
     return render(request, "reports/statement.html", {
         "title": "الميزانية العمومية (قائمة المركز المالي)", "to_date": to_date, "as_of": True,
         "level": level or 0, "levels": range(2, max_tree_depth() + 1),
         "sections": [assets, liabilities, equity],
-        "result_label": "الخصوم + حقوق الملكية", "result": liabilities["total"] + equity["total"],
+        "result_label": "الالتزامات + صافي الأصول" if nonprofit else "الخصوم + حقوق الملكية",
+        "result": liabilities["total"] + equity["total"],
         "balanced": assets["total"] == liabilities["total"] + equity["total"],
     })
 
@@ -275,12 +279,12 @@ def chart_of_accounts(request):
         from django.contrib import messages
         from django.shortcuts import redirect
 
-        from accounts.chart import apply_unified_chart
+        from accounts.chart import apply_company_chart
 
         if not request.membership.can_manage:
             messages.error(request, "تحديث الدليل لمالك الحساب والمدير فقط.")
             return redirect("chart_of_accounts")
-        created, skipped = apply_unified_chart(request.company)
+        created, skipped = apply_company_chart(request.company)
         messages.success(request, f"أُضيف {created} حساباً من دليل الحسابات الموحد؛ حساباتك القائمة لم تتغير." if created
                          else "دليل حساباتك يحتوي كل حسابات الدليل الموحد.")
         if skipped:

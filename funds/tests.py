@@ -24,7 +24,7 @@ class FundTests(TestCase):
         self.ctx.__enter__()
         self.addCleanup(self.ctx.__exit__, None, None, None)
         self.cash = self.company.default_cash_account
-        self.aid = Account.objects.get(number="5501")
+        self.aid = Account.objects.get(number="42102001")  # مصاريف برامج وأنشطة - كفالات
         self.orphans = Fund.objects.create(name="كفالة الأيتام", fund_type="restricted", donor="مؤسسة خيرية")
 
     def donate(self, amount, donation_type="general", fund=None):
@@ -44,15 +44,78 @@ class FundTests(TestCase):
         entry.submit()
         return entry
 
-    def test_nonprofit_chart_and_zakat_fund(self):
-        for number in ("3201", "4201", "4203", "4209", "5501", "5505"):
-            self.assertTrue(Account.objects.filter(number=number, is_group=False).exists(), number)
+    def test_official_nonprofit_chart(self):
+        from accounts.nonprofit_chart import SUPPLEMENTARY
+        from assets.models import AssetCategory
+        from hr.models import PayrollSettings
+
+        accounts = Account.objects.all()
+        self.assertEqual(accounts.count(), 927 + len(SUPPLEMENTARY))
+        self.assertEqual(len(set(accounts.values_list("name", flat=True))), accounts.count())
+        by_number = {a.number: a for a in accounts}
+        self.assertEqual((by_number["231"].root_type, by_number["23"].parent), ("equity", None))
+        self.assertEqual(by_number["23101001"].root_type, "equity")
+        self.assertEqual(by_number["21302001"].root_type, "liability")
+        self.assertEqual((by_number["31101001"].root_type, by_number["31101001"].account_type), ("income",
+                                                                                                "income_account"))
+        self.assertEqual(by_number["42101001"].root_type, "expense")
+        self.assertEqual(by_number["11101002"].account_type, "bank")
+        self.assertEqual(by_number["11103001"].account_type, "cash")
+        self.assertTrue(by_number["11101"].is_group)
+        self.assertEqual(self.company.default_cash_account.number, "11103001")
+        self.assertEqual(self.company.default_retained_earnings_account.number, "23101001")
+        self.assertIn("(", by_number["21402001"].name)  # اسم مكرر في الدليل يُميز باسم أبيه
+        payroll = PayrollSettings.all_objects.get(company=self.company)
+        self.assertEqual((payroll.salary_expense_account.number, payroll.gosi_payable_account.number),
+                         ("41101001", "21304004"))
+        self.assertEqual(AssetCategory.objects.get(name="السيارات").accumulated_depreciation_account.number,
+                         "2250100401")
+        self.assertFalse(Account.objects.filter(number__in=["4101", "5201"]).exists())  # لا دليل المنشآت التجارية
         self.assertTrue(Fund.objects.filter(name="صندوق الزكاة", fund_type="restricted").exists())
+        from accounts.chart import apply_company_chart
+
+        self.assertEqual(apply_company_chart(self.company), (0, []))
+
+    def test_income_account_must_match_donation_branch(self):
+        restricted = Account.objects.get(number="31102001")
+        with self.assertRaises(ValidationError):
+            DonationReceipt(donation_type="general", income_account=restricted, amount=10, account=self.cash,
+                            company=self.company).full_clean()
+
+    def test_restricted_branch_without_fund_counts_as_restricted(self):
+        self.donate(1000)
+        self.spend(300, None)  # 42102001 من فرع البرامج المقيدة
+        data = activities_data(datetime.date(TODAY.year, 1, 1), TODAY)
+        self.assertEqual(data["sections"][1]["totals"], [Decimal("0"), Decimal("300"), Decimal("0")])
+
+    def test_payroll_posts_to_official_chart(self):
+        from hr.models import Employee, PayrollRun
+
+        Employee.objects.create(employee_number="E1", full_name="باحث اجتماعي", gender="male", is_saudi=True,
+                                date_of_joining=datetime.date(TODAY.year, 1, 1), basic_salary=6000,
+                                housing_allowance=1500)
+        run = PayrollRun.objects.create(year=TODAY.year, month=1, posting_date=datetime.date(TODAY.year, 1, 28))
+        run.calculate_totals()
+        run.save()
+        run.submit()
+        numbers = set(GLEntry.objects.filter(voucher_type="payroll-run", voucher_id=run.pk)
+                      .values_list("account__number", flat=True))
+        self.assertTrue({"41101001", "41101008", "21401001", "21304004"} <= numbers, numbers)
+
+    def test_nonprofit_balance_sheet_labels(self):
+        self.donate(1000)
+        self.client.force_login(self.user)
+        html = self.client.get("/reports/accounts/balance-sheet/").content.decode()
+        self.assertIn("صافي الأصول", html)
+        self.assertIn("فائض (عجز) الفترة", html)
+        for url in ("/reports/accounts/chart-of-accounts/", "/reports/accounts/trial-balance/",
+                    "/reports/accounts/profit-and-loss/"):
+            self.assertEqual(self.client.get(url).status_code, 200, url)
 
     def test_donations_post_to_income_and_fund(self):
         general = self.donate(1000)
         line = GLEntry.objects.get(voucher_type="donation-receipt", voucher_id=general.pk, credit__gt=0)
-        self.assertEqual((line.account.number, line.fund), ("4201", None))
+        self.assertEqual((line.account.number, line.fund), ("31201001", None))  # التبرع العام
         self.donate(5000, "restricted", self.orphans)
         zakat = self.donate(2000, "zakat")
         self.assertEqual(zakat.fund.name, "صندوق الزكاة")
@@ -104,7 +167,7 @@ class FundTests(TestCase):
         self.donate(4000, "restricted", self.orphans)
         self.donate(9000, "endowment", waqf)
         self.spend(1500, self.orphans)
-        self.spend(200, None, account=Account.objects.get(number="5505"))
+        self.spend(200, None, account=Account.objects.get(number="44103"))  # مصاريف جمع الأموال - المستهلكات
         start = datetime.date(TODAY.year, 1, 1)
         data = activities_data(start, TODAY)
         income, expense = data["sections"]
@@ -141,4 +204,4 @@ class BusinessHidesFundsTests(TestCase):
         self.assertRedirects(self.client.get("/funds/balances/"), "/", fetch_redirect_response=False)
         self.assertRedirects(self.client.get("/app/fund/"), "/", fetch_redirect_response=False)
         with tenant_context(self.company):
-            self.assertFalse(Account.objects.filter(number="4201").exists())
+            self.assertFalse(Account.objects.filter(number="31201001").exists())

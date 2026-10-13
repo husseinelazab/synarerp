@@ -16,9 +16,12 @@ class DonationType(models.TextChoices):
     ENDOWMENT = "endowment", "وقف"
 
 
-# حساب الإيراد الافتراضي لكل نوع (من دليل حسابات الجمعيات)
-INCOME_ACCOUNTS = {"general": "4201", "restricted": "4202", "zakat": "4203", "grant": "4204", "sponsorship": "4207",
-                   "endowment": "4209"}
+# حساب الإيراد الافتراضي لكل نوع من الدليل المحاسبي الموحد للجهات غير الربحية
+INCOME_ACCOUNTS = {"general": "31201001", "restricted": "31102002", "zakat": "31101001", "grant": "31105002",
+                   "sponsorship": "31102001", "endowment": "31301003"}
+# فرع الإيرادات الذي يجب أن يُقيد فيه كل نوع: 311 مقيدة، 312 غير مقيدة، 313 أوقاف
+INCOME_BRANCHES = {"general": "312", "restricted": "311", "zakat": "311", "grant": "311", "sponsorship": "311",
+                   "endowment": "313"}
 # نوع الصندوق المطلوب لكل نوع تبرع (None = لا صندوق أو صندوق غير مقيد)
 REQUIRED_FUND_TYPE = {"restricted": FundType.RESTRICTED, "zakat": FundType.RESTRICTED, "grant": FundType.RESTRICTED,
                       "sponsorship": FundType.RESTRICTED, "endowment": FundType.ENDOWMENT}
@@ -75,6 +78,13 @@ class DonationReceipt(SubmittableDocument):
                                            f"{FundType(required).label}، و«{fund}» {fund.get_fund_type_display()}."})
         if not required and fund is not None and fund.fund_type != FundType.UNRESTRICTED:
             raise ValidationError({"fund": "التبرع العام لا يُقيد في صندوق مقيد. اختر «تبرع مقيد بغرض» أو اترك الصندوق."})
+        if self.income_account_id and self.company_id:
+            from accounts.chart import uses_nonprofit_chart
+
+            branch = INCOME_BRANCHES[self.donation_type]
+            if uses_nonprofit_chart(self.company) and not self.income_account.number.startswith(branch):
+                raise ValidationError({"income_account": f"«{self.get_donation_type_display()}» يُقيد في حسابات الفرع "
+                                                         f"{branch} من الدليل المحاسبي الموحد."})
 
     def calculate_totals(self):
         if not self.income_account_id:

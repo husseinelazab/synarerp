@@ -19,15 +19,11 @@ DEFAULT_FUNDS = [("صندوق الزكاة", "restricted", "تُصرف الزك�
 def ensure_nonprofit_setup(company):
     """تُنشأ مرة واحدة: لا تعدّل ولا تكرر ما أضافته الجهة أو حذفته بعد ذلك.
 
-    حسابات الجمعيات تُضاف لما ينقص منها كلما استُدعيت (بعد تأسيس دليل الحسابات).
+    دليل الحسابات الموحد للجهات غير الربحية يُؤسس عند إنشاء الجمعية (core.provisioning).
     """
-    from accounts.models import Account, Fund
+    from accounts.models import Fund
     from beneficiaries.models import AssessmentCriterion, BeneficiaryCategory
 
-    if Account.all_objects.filter(company=company).exists():
-        from accounts.chart import apply_nonprofit_chart
-
-        apply_nonprofit_chart(company)
     if BeneficiaryCategory.all_objects.filter(company=company).exists():
         return
     for name, fund_type, purpose in DEFAULT_FUNDS:

@@ -13,6 +13,15 @@ from core.utils import flt
 CLASSES = [(FundType.UNRESTRICTED, "غير مقيدة"), (FundType.RESTRICTED, "مقيدة"), (FundType.ENDOWMENT, "أوقاف")]
 
 
+# فروع الدليل المحاسبي الموحد للجهات غير الربحية التي تحدد القيد عند عدم تحديد صندوق
+BRANCH_CLASSES = [("311", FundType.RESTRICTED), ("421", FundType.RESTRICTED),
+                  ("313", FundType.ENDOWMENT), ("43", FundType.ENDOWMENT)]
+
+
+def branch_class(number):
+    return next((cls for prefix, cls in BRANCH_CLASSES if (number or "").startswith(prefix)), FundType.UNRESTRICTED)
+
+
 def _income_expense():
     return GLEntry.objects.filter(is_cancelled=False, account__root_type__in=[RootType.INCOME, RootType.EXPENSE])
 
@@ -51,9 +60,9 @@ def fund_balances_data(from_date, to_date):
 def activities_data(from_date, to_date):
     period = _income_expense().filter(posting_date__gte=from_date, posting_date__lte=to_date)
     sums = {}
-    for r in period.values("account_id", "account__root_type", "fund__fund_type").annotate(d=Sum("debit"),
-                                                                                             c=Sum("credit")):
-        cls = r["fund__fund_type"] or FundType.UNRESTRICTED
+    for r in period.values("account_id", "account__number", "account__root_type", "fund__fund_type").annotate(
+            d=Sum("debit"), c=Sum("credit")):
+        cls = r["fund__fund_type"] or branch_class(r["account__number"])
         sign = 1 if r["account__root_type"] == RootType.INCOME else -1
         amount = flt((flt(r["c"]) - flt(r["d"])) * sign)
         sums.setdefault(r["account_id"], {}).setdefault(cls, flt(0))

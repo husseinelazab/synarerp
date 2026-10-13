@@ -5,6 +5,7 @@ from io import StringIO
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import Fund, GLEntry
 from awqaf.models import InstallmentStatus, LeaseStatus, RentInstallment, Waqf, WaqfDistribution, WaqfLease
@@ -14,7 +15,7 @@ from core.tenancy import tenant_context
 from funds.models import DonationReceipt
 from funds.reports import activities_data
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 
 
 class WaqfTests(TestCase):

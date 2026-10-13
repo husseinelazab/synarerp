@@ -3,13 +3,14 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from beneficiaries.tests import make_nonprofit
 from core.tenancy import tenant_context
 from volunteering.models import (OpportunityStatus, ParticipationStatus, Volunteer, VolunteerOpportunity,
                                  VolunteerParticipation)
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 
 
 class VolunteeringTests(TestCase):

@@ -5,6 +5,7 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import GLEntry
 from beneficiaries.models import AidDisbursement, AidProgram, Beneficiary, BeneficiaryCategory, BeneficiaryStatus
@@ -14,7 +15,7 @@ from core.tenancy import tenant_context
 from funds.models import DonationReceipt
 from stock.models import UOM, Bin, Item, ItemGroup, StockEntry, Warehouse
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 
 
 class AidTests(TestCase):

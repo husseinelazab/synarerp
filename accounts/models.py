@@ -179,7 +179,8 @@ class Fund(TenantModel):
     def totals(self, to_date=None, exclude_voucher=None):
         """الوارد (إيرادات) والمصروف (مصروفات) والرصيد من قيود الأستاذ المعتمدة."""
         rows = GLEntry.objects.filter(fund=self, is_cancelled=False,
-                                      account__root_type__in=[RootType.INCOME, RootType.EXPENSE])
+                                      account__root_type__in=[RootType.INCOME, RootType.EXPENSE]).exclude(
+            voucher_type="period-closing")  # رصيد الصندوق تراكمي لا يتصفّر بإقفال السنة
         if to_date:
             rows = rows.filter(posting_date__lte=to_date)
         if exclude_voucher:
@@ -196,7 +197,8 @@ class Fund(TenantModel):
         return self.totals()["balance"]
 
     def recent_entries(self, limit=50):
-        rows = (GLEntry.objects.filter(fund=self, is_cancelled=False).select_related("account")
+        rows = (GLEntry.objects.filter(fund=self, is_cancelled=False).exclude(voucher_type="period-closing")
+                .select_related("account")
                 .order_by("-posting_date", "-id")[:limit])
         return [{"entry": g, "received": flt(g.credit - g.debit) if g.account.root_type == RootType.INCOME else None,
                  "spent": flt(g.debit - g.credit) if g.account.root_type == RootType.EXPENSE else None} for g in rows]
@@ -965,9 +967,9 @@ class PeriodClosingVoucher(SubmittableDocument):
             GLEntry.objects.filter(
                 company=self.company, is_cancelled=False, account__root_type__in=[RootType.INCOME, RootType.EXPENSE],
                 posting_date__gte=self.fiscal_year.start_date, posting_date__lte=self.fiscal_year.end_date,
-            ).values("account", "cost_center").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
+            ).values("account", "cost_center", "fund").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
         )
-        return {(row["account"], row["cost_center"]): flt(row["d"]) - flt(row["c"]) for row in rows}
+        return {(row["account"], row["cost_center"], row["fund"]): flt(row["d"]) - flt(row["c"]) for row in rows}
 
     def validate_for_submit(self):
         if self.fiscal_year.company_id != self.company_id:
@@ -980,22 +982,34 @@ class PeriodClosingVoucher(SubmittableDocument):
             self.save(update_fields=["closing_account"])
 
     def on_submit(self):
+        from accounts.chart import uses_nonprofit_chart
+        from accounts.funds import CLASS_NET_ASSETS, row_class
+
         balances = self._balances()
         accounts = Account.objects.in_bulk([key[0] for key in balances])
         centers = CostCenter.objects.in_bulk([key[1] for key in balances if key[1]])
-        entries = []
-        for (account_id, center_id), amount in balances.items():
+        funds = Fund.all_objects.in_bulk([key[2] for key in balances if key[2]])
+        by_class = uses_nonprofit_chart(self.company)
+        entries, results = [], {}
+        for (account_id, center_id, fund_id), amount in balances.items():
             if amount:
-                # عكس رصيد كل حساب إيراد/مصروف (لكل مركز تكلفة) ليصبح صفراً
+                # عكس رصيد كل حساب إيراد/مصروف (لكل مركز تكلفة وصندوق) ليصبح صفراً
+                fund = funds.get(fund_id)
                 entries.append({"account": accounts[account_id], "debit": -amount if amount < 0 else 0,
                                 "credit": amount if amount > 0 else 0, "cost_center": centers.get(center_id),
-                                "remarks": f"إقفال {self.fiscal_year}"})
-        self.net_profit = -sum(balances.values(), flt(0))
+                                "fund": fund, "remarks": f"إقفال {self.fiscal_year}"})
+                cls = row_class(accounts[account_id].number, fund.fund_type if fund else None) if by_class else ""
+                results[cls] = results.get(cls, flt(0)) - amount
+        self.net_profit = sum(results.values(), flt(0))
         if entries:
-            entries.append({"account": self.closing_account,
-                            "debit": -self.net_profit if self.net_profit < 0 else 0,
-                            "credit": self.net_profit if self.net_profit > 0 else 0,
-                            "remarks": f"صافي نتيجة {self.fiscal_year}"})
+            # الجمعية: فائض أو عجز كل فئة إلى حساب صافي أصولها؛ المنشأة: الصافي إلى الأرباح المبقاة
+            for cls, result in results.items():
+                account = (Account.objects.get(number=CLASS_NET_ASSETS[cls], is_group=False) if by_class
+                           else self.closing_account)
+                if result:
+                    entries.append({"account": account, "debit": -result if result < 0 else 0,
+                                    "credit": result if result > 0 else 0,
+                                    "remarks": f"صافي نتيجة {self.fiscal_year}"})
             make_gl_entries(self, entries, remarks=f"قيد إقفال السنة المالية {self.fiscal_year}")
         self.save(update_fields=["net_profit"])
         self.fiscal_year.is_closed = True

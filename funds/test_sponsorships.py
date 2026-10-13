@@ -5,6 +5,7 @@ from io import StringIO
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import Fund, GLEntry
 from beneficiaries.models import AidProgram, Beneficiary, BeneficiaryCategory, BeneficiaryStatus
@@ -13,7 +14,7 @@ from core.tenancy import tenant_context
 from funds.models import (DonationReceipt, Donor, DueStatus, Sponsorship, SponsorshipDue, SponsorshipStatus,
                           SponsorshipType, generate_dues)
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 MONTH = TODAY.replace(day=1)
 
 

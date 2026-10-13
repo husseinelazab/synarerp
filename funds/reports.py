@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.shortcuts import render
 
+from accounts.funds import CLOSING_VOUCHER, branch_class
 from accounts.models import Account, Fund, FundType, GLEntry, RootType
 from accounts.reports import _period
 from core.utils import flt
@@ -13,17 +14,10 @@ from core.utils import flt
 CLASSES = [(FundType.UNRESTRICTED, "غير مقيدة"), (FundType.RESTRICTED, "مقيدة"), (FundType.ENDOWMENT, "أوقاف")]
 
 
-# فروع الدليل المحاسبي الموحد للجهات غير الربحية التي تحدد القيد عند عدم تحديد صندوق
-BRANCH_CLASSES = [("311", FundType.RESTRICTED), ("421", FundType.RESTRICTED),
-                  ("313", FundType.ENDOWMENT), ("43", FundType.ENDOWMENT)]
-
-
-def branch_class(number):
-    return next((cls for prefix, cls in BRANCH_CLASSES if (number or "").startswith(prefix)), FundType.UNRESTRICTED)
-
-
 def _income_expense():
-    return GLEntry.objects.filter(is_cancelled=False, account__root_type__in=[RootType.INCOME, RootType.EXPENSE])
+    """إيرادات ومصروفات السنوات دون قيود الإقفال (الإقفال ينقل الصافي لصافي الأصول ولا يُعد نشاطاً)."""
+    return GLEntry.objects.filter(is_cancelled=False, account__root_type__in=[RootType.INCOME, RootType.EXPENSE]
+                                  ).exclude(voucher_type=CLOSING_VOUCHER)
 
 
 def _movement(rows):

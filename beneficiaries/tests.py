@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from beneficiaries.models import (AssessmentCriterion, Beneficiary, BeneficiaryCategory, BeneficiaryEntity,
                                   BeneficiaryStatus, CaseAssessment, EntityRequest, FamilyMember, RequestStatus)
@@ -220,7 +221,7 @@ class NonprofitDemoTests(TestCase):
             self.assertEqual(AidDisbursement.objects.filter(docstatus=1).count(), 3)
             self.assertTrue(WaqfDistribution.objects.filter(docstatus=1).exists())
             self.assertEqual(Fund.objects.get(name="صندوق الزكاة").balance, Decimal("27500"))
-            today = datetime.date.today()
+            today = timezone.localdate()
             data = activities_data(today.replace(month=1, day=1), today)
             self.assertTrue(all(v >= 0 for section in data["sections"] for v in section["totals"]))
         self.client.force_login(User.objects.get(username="demo_admin"))

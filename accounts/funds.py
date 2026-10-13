@@ -4,8 +4,29 @@ from django.core.exceptions import ValidationError
 from core.utils import flt
 
 
+CLOSING_VOUCHER = "period-closing"
+
+# فروع الدليل المحاسبي الموحد للجهات غير الربحية التي تحدد فئة صافي الأصول عند عدم تحديد صندوق
+BRANCH_CLASSES = [("311", "restricted"), ("421", "restricted"), ("23102", "restricted"),
+                  ("313", "endowment"), ("43", "endowment"), ("13", "endowment"), ("23103", "endowment")]
+# حساب صافي الأصول الذي يُقفل فيه فائض كل فئة
+CLASS_NET_ASSETS = {"unrestricted": "23101001", "restricted": "23102001", "endowment": "23103001"}
+
+
+def branch_class(number):
+    return next((cls for prefix, cls in BRANCH_CLASSES if (number or "").startswith(prefix)), "unrestricted")
+
+
+def row_class(number, fund_type=None):
+    """فئة صافي الأصول لسطر قيد: من نوع صندوقه إن وُجد، وإلا من فرع حسابه في الدليل الموحد."""
+    return fund_type or branch_class(number)
+
+
 def check_funds(doc, rows):
     from accounts.models import FundType, RootType
+
+    if getattr(doc, "doctype_slug", "") == CLOSING_VOUCHER:
+        return  # قيد الإقفال يعكس أرصدة السنة بصناديقها ولا يُعد صرفاً
 
     effects = {}
     for row in rows:

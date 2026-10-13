@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import GLEntry
 from beneficiaries.tests import make_nonprofit
@@ -14,7 +15,7 @@ from governance.models import (BoardTerm, FeeStatus, GovernanceAssessment, Gover
                                Meeting, MeetingDecision, Member, MembershipCategory, MembershipFee, generate_fees)
 from saas.tests import make_company
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 YEAR = TODAY.year
 
 

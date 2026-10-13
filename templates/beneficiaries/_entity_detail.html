@@ -1,0 +1,8 @@
+{% load erp %}
+<div class="card">
+  <div class="card-head"><h3>طلبات الجهة</h3><a class="btn btn-sm" href="{% url 'doc_new' 'entity-request' %}?entity={{ obj.pk }}">+ طلب</a></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الطلب</th><th>التاريخ</th><th>النوع</th><th class="num">المطلوب</th><th class="num">المعتمد</th><th>الحالة</th></tr></thead>
+  <tbody>{% for r in obj.requests.all %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r }}</a></td><td>{{ r.request_date|date:"Y-m-d" }}</td><td>{{ r.get_request_type_display }}</td>
+  <td class="num">{{ r.requested_amount|money }}</td><td class="num">{{ r.approved_amount|money }}</td><td>{{ r.get_status_display }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا توجد طلبات</td></tr>{% endfor %}</tbody></table></div>
+</div>

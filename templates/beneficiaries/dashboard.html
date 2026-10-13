@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'beneficiary' %}">+ ملف مستفيد</a>
+  <a class="btn" href="{% url 'doc_new' 'case-assessment' %}">+ دراسة حالة</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>الملفات النشطة</span><b>{{ total }}</b></div>
+  {% for s in by_status %}<div class="kpi"><span>{{ statuses|get_item:s.status }}</span><b>{{ s.n }}</b></div>{% endfor %}
+  <div class="kpi {% if review_due %}kpi-bad{% endif %}"><span>مستحقة لإعادة الدراسة</span><b>{{ review_due|length }}</b></div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>بانتظار دراسة الحالة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الملف</th><th>الحالة</th><th>الباحث</th><th>تاريخ التسجيل</th></tr></thead><tbody>
+{% for b in pending_study %}<tr><td><a href="{{ b.get_absolute_url }}">{{ b }}</a></td><td>{{ b.get_status_display }}</td><td>{{ b.researcher|default:"" }}</td><td>{{ b.registered_on|date:"Y-m-d" }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لا توجد ملفات بانتظار الدراسة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>مستحقة لإعادة الدراسة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الملف</th><th>الفئة</th><th>آخر درجة</th><th>الموعد</th></tr></thead><tbody>
+{% for b in review_due %}<tr class="row-loss"><td><a href="{{ b.get_absolute_url }}">{{ b }}</a></td><td>{{ b.category|default:"" }}</td><td>{{ b.last_score|default:"" }}%</td><td>{{ b.next_review_date|date:"Y-m-d" }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لا شيء</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>دراسات حالة بانتظار الاعتماد</h3><div class="table-wrap"><table class="table"><tbody>
+{% for a in draft_assessments %}<tr><td><a href="{{ a.get_absolute_url }}">{{ a }}</a></td><td>{{ a.beneficiary.full_name }}</td><td>{{ a.researcher|default:"" }}</td><td>{{ a.score_percent }}%</td></tr>
+{% empty %}<tr><td class="muted">لا شيء</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>المستفيدون المعتمدون حسب الفئة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for c in by_category %}<tr><td>{{ c.category__name|default:"بدون فئة" }}</td><td class="num">{{ c.n }}</td></tr>
+{% empty %}<tr><td class="muted">لا يوجد مستفيدون معتمدون بعد</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endblock %}

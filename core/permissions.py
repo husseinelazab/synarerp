@@ -13,7 +13,37 @@ PERMISSION_MODULES = [
     ("hr", "الموارد البشرية"),
     ("pos", "نقاط البيع"),
     ("einvoice", "الفوترة الإلكترونية"),
+    ("beneficiaries", "إدارة التقييم والمتابعة (المستفيدون)"),
+    ("entities", "إدارة الجهات المستفيدة"),
 ]
+
+# وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
+NONPROFIT_MODULES = {"beneficiaries", "entities"}
+# الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
+COMMERCIAL_MODULES = {"selling", "crm", "support", "manufacturing", "pos"}
+# مسميات الوحدات للجهة غير الربحية (بمسميات «مكونات النظام» المعتادة في أنظمة الجمعيات)
+NONPROFIT_LABELS = {
+    "accounts": "إدارة الشؤون المالية",
+    "buying": "المشتريات والموردون",
+    "hr": "إدارة الموارد البشرية",
+    "stock": "إدارة المخازن والمستودعات",
+    "projects": "إدارة المشاريع",
+    "settings": "إدارة التمكين التقني",
+}
+
+
+def company_modules(company):
+    """الوحدات التي تخص نوع المنشأة لاختيار صلاحيات المستخدمين، بمسمياتها لدى هذا النوع."""
+    if company is not None and company.is_nonprofit:
+        return [(key, NONPROFIT_LABELS.get(key, label)) for key, label in PERMISSION_MODULES
+                if key not in COMMERCIAL_MODULES]
+    return [(key, label) for key, label in PERMISSION_MODULES if key not in NONPROFIT_MODULES]
+
+
+def company_allows_path(company, path):
+    """وحدات الجمعيات لا تُفتح للمنشأة التجارية."""
+    modules = modules_for_path(path)
+    return not modules or not modules <= NONPROFIT_MODULES or company.is_nonprofit
 
 # الوحدات التي يمكن فتحها أو إغلاقها في الباقات (المحاسبة أساس النظام فلا تُغلق)
 CORE_MODULES = {"accounts"}
@@ -45,6 +75,8 @@ PATH_MODULES = [
     ("/pos/", "pos"),
     ("/einvoice/", "einvoice"),
     ("/hr/", "hr"),
+    ("/beneficiaries/entities/", "entities"),
+    ("/beneficiaries/", "beneficiaries"),
 ]
 # مستندات مشتركة بين أكثر من وحدة
 SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
@@ -86,6 +118,8 @@ COST_PATHS = ("/reports/stock/gross-profit/", "/reports/stock/pricing/", "/repor
 
 
 def path_allowed(membership, path):
+    if not company_allows_path(membership.company, path):
+        return False
     if path.startswith("/app/"):
         parts = path.split("/")
         slug = parts[2]

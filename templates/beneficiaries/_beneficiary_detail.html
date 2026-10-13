@@ -1,0 +1,17 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi"><span>الحالة</span><b>{{ obj.get_status_display }}</b></div>
+  <div class="kpi"><span>عدد أفراد الأسرة</span><b>{{ obj.family_size }}</b></div>
+  <div class="kpi"><span>دخل الأسرة الشهري</span><b>{{ obj.family_income|money }}</b></div>
+  <div class="kpi"><span>دخل الفرد الشهري</span><b>{{ obj.per_capita_income|money }}</b></div>
+  <div class="kpi"><span>آخر درجة استحقاق</span><b>{% if obj.last_score is not None %}{{ obj.last_score }}%{% else %}—{% endif %}</b></div>
+  <div class="kpi {% if obj.review_due %}kpi-bad{% endif %}"><span>موعد إعادة الدراسة</span><b>{{ obj.next_review_date|date:"Y-m-d"|default:"—" }}</b></div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>دراسات الحالة</h3><a class="btn btn-sm" href="{% url 'doc_new' 'case-assessment' %}?beneficiary={{ obj.pk }}">+ دراسة حالة</a></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الدراسة</th><th>التاريخ</th><th>الطريقة</th><th>الباحث</th><th class="num">الدرجة</th><th>النتيجة</th></tr></thead>
+  <tbody>{% for a in obj.assessments.all %}<tr><td><a href="{{ a.get_absolute_url }}">{{ a }}</a></td><td>{{ a.posting_date|date:"Y-m-d" }}</td><td>{{ a.get_visit_type_display }}</td>
+  <td>{{ a.researcher|default:"" }}</td><td class="num">{{ a.score_percent }}%</td>
+  <td>{% if a.is_draft %}<span class="badge status-0">مسودة</span>{% elif a.is_cancelled %}<span class="badge status-2">ملغاة</span>{% elif a.is_eligible %}<span class="badge status-1">مستحق</span>{% else %}<span class="badge status-2">غير مستحق</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لم تُجرَ دراسة حالة بعد</td></tr>{% endfor %}</tbody></table></div>
+</div>

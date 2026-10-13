@@ -47,7 +47,8 @@ def signup(request):
             user = User.objects.create_user(data["username"], data["email"], data["password"],
                                             first_name=first, last_name=last)
             company = provision_company(data["company_name"], owner=user, tax_id=data["tax_id"],
-                                        phone=data["phone"], plan=data["plan"])
+                                        phone=data["phone"], plan=data["plan"],
+                                        organization_type=data["organization_type"])
         login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
         request.session[SESSION_KEY] = company.pk
         messages.success(request, f"مرحباً بك في {settings.ERP_NAME}! تم تأسيس «{company}» وبدأت فترتك التجريبية "

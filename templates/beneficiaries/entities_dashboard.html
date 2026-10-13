@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'entity-request' %}">+ طلب جهة</a>
+  <a class="btn" href="{% url 'doc_new' 'beneficiary-entity' %}">+ جهة</a></div></div>
+<div class="kpis">
+  {% for s in by_status %}<div class="kpi"><span>{{ statuses|get_item:s.status }}</span><b>{{ s.n }}</b></div>{% endfor %}
+  <div class="kpi kpi-good"><span>المعتمد في {{ year }}</span><b>{{ approved_total|money }}</b><span>{{ approved_count }} طلب</span></div>
+</div>
+<div class="card"><h3>الطلبات المفتوحة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الطلب</th><th>الجهة</th><th>النوع</th><th>التاريخ</th><th class="num">المطلوب</th><th class="num">المعتمد</th><th>الحالة</th></tr></thead><tbody>
+{% for r in open_requests %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r }}</a></td><td>{{ r.entity }}</td><td>{{ r.get_request_type_display }}</td><td>{{ r.request_date|date:"Y-m-d" }}</td>
+<td class="num">{{ r.requested_amount|money }}</td><td class="num">{{ r.approved_amount|money }}</td><td>{{ r.get_status_display }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted center">لا توجد طلبات مفتوحة</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

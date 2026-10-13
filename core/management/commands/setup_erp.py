@@ -14,6 +14,7 @@ class Command(BaseCommand):
         parser.add_argument("--company", default="شركتي التجارية", help="اسم الشركة")
         parser.add_argument("--abbr", default="ش ت", help="اختصار الشركة")
         parser.add_argument("--tax-id", default="", help="الرقم الضريبي")
+        parser.add_argument("--nonprofit", action="store_true", help="تأسيس الشركة كجهة غير ربحية (جمعية)")
         parser.add_argument("--no-company", action="store_true", help="إعداد المنصة فقط دون إنشاء شركة")
         parser.add_argument("--demo", action="store_true", help="إضافة بيانات تجريبية (عملاء، موردون، أصناف، فواتير)")
         parser.add_argument("--admin", default="", help="إنشاء مستخدم مدير المنصة بهذا الاسم (ويكون مالك الشركة)")
@@ -35,6 +36,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"الشركة «{opts['company']}» موجودة مسبقاً.")
             else:
                 company = provision_company(opts["company"], owner=owner, abbr=opts["abbr"], tax_id=opts["tax_id"],
-                                            demo=opts["demo"])
+                                            demo=opts["demo"],
+                                            organization_type="nonprofit" if opts["nonprofit"] else "business")
                 self.stdout.write(self.style.SUCCESS(f"تم تأسيس الشركة «{company}»."))
         self.stdout.write(self.style.SUCCESS("اكتمل الإعداد."))

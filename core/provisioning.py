@@ -27,7 +27,8 @@ def default_currency():
 
 
 @transaction.atomic
-def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None, demo=False):
+def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None, demo=False,
+                      organization_type="business"):
     """ينشئ الشركة ودليل حساباتها ومستودعاتها وإعدادات نقطة البيع، ويربط المالك بها ويبدأ اشتراكها."""
     from accounts.models import Account
     from hr.models import Department, Designation
@@ -36,7 +37,7 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
     from stock.models import UOM, ItemGroup, Warehouse
 
     company = Company.objects.create(name=name, abbr=abbr or name[:10], tax_id=tax_id, phone=phone,
-                                     currency=default_currency())
+                                     currency=default_currency(), organization_type=organization_type)
     with tenant_context(company):
         from accounts.chart import apply_unified_chart
 

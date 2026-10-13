@@ -51,7 +51,11 @@ class ImportTests(TestCase):
         return job
 
     def test_every_doctype_has_downloadable_template(self):
-        for slug in REGISTRY:
+        from core.permissions import NONPROFIT_MODULES
+
+        for slug, dt in REGISTRY.items():
+            if dt.module in NONPROFIT_MODULES:  # وحدات الجمعيات مغلقة على المنشأة التجارية
+                continue
             response = self.client.get(f"/app/{slug}/template.xlsx")
             self.assertEqual(response.status_code, 200, slug)
             book = openpyxl.load_workbook(io.BytesIO(response.content))

@@ -253,6 +253,7 @@ def nonprofit_modules(modules, doc):
     by_key["beneficiaries"] = {"key": "beneficiaries", "label": "إدارة التقييم والمتابعة", "sections": [
         {"title": "المستفيدون", "items": [_item("لوحة المتابعة", "beneficiaries_dashboard"),
                                          doc("ملفات المستفيدين", "beneficiary"), doc("دراسات الحالة", "case-assessment")]},
+        {"title": "المساعدات", "items": [doc("صرف المساعدات", "aid-disbursement"), doc("برامج المساعدات", "aid-program")]},
         {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"),
                                       doc("معايير دراسة الحالة", "assessment-criterion")]},
     ]}

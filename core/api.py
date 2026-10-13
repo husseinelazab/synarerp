@@ -23,7 +23,8 @@ from core.registry import REGISTRY
 from core.tenancy import _current_user, reset_current_company, set_current_company, set_current_user
 
 RATE_LIMIT_PER_MINUTE = 120
-HIDDEN = {"company", "created_by", "password_encrypted", "secret_encrypted", "private_key"}
+HIDDEN = {"company", "created_by", "password_encrypted", "secret_encrypted", "private_key", "otp_hash",
+          "receipt_fingerprint"}
 
 
 def error(message, status=400, code="invalid", **extra):

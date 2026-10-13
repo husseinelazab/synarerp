@@ -16,6 +16,31 @@ DEFAULT_CRITERIA = [
 DEFAULT_FUNDS = [("صندوق الزكاة", "restricted", "تُصرف الزكاة في مصارفها الشرعية فقط")]
 
 
+# برامج المساعدات: (الاسم، النوع، حساب المصروف من الدليل الموحد، صندوق الزكاة؟)
+DEFAULT_PROGRAMS = [
+    ("مساعدة نقدية", "cash", "42102002", False),
+    ("صرف الزكاة", "cash", "42101001", True),
+    ("السلة الغذائية", "in_kind", "42103003", False),
+]
+
+
+def ensure_aid_programs(company):
+    """تُنشأ مرة واحدة بعد تأسيس الدليل الموحد للجهات غير الربحية."""
+    from accounts.chart import uses_nonprofit_chart
+    from accounts.models import Account, Fund
+    from beneficiaries.models import AidProgram
+
+    if AidProgram.all_objects.filter(company=company).exists() or not uses_nonprofit_chart(company):
+        return
+    accounts = {a.number: a for a in Account.all_objects.filter(company=company, number__in=[
+        number for _, _, number, _ in DEFAULT_PROGRAMS])}
+    zakat = Fund.all_objects.filter(company=company, name="صندوق الزكاة").first()
+    for name, aid_type, number, uses_zakat in DEFAULT_PROGRAMS:
+        if number in accounts:
+            AidProgram.all_objects.create(company=company, name=name, aid_type=aid_type,
+                                          expense_account=accounts[number], fund=zakat if uses_zakat else None)
+
+
 def ensure_nonprofit_setup(company):
     """تُنشأ مرة واحدة: لا تعدّل ولا تكرر ما أضافته الجهة أو حذفته بعد ذلك.
 
@@ -24,6 +49,7 @@ def ensure_nonprofit_setup(company):
     from accounts.models import Fund
     from beneficiaries.models import AssessmentCriterion, BeneficiaryCategory
 
+    ensure_aid_programs(company)
     if BeneficiaryCategory.all_objects.filter(company=company).exists():
         return
     for name, fund_type, purpose in DEFAULT_FUNDS:

@@ -15,3 +15,10 @@
   <td>{% if a.is_draft %}<span class="badge status-0">مسودة</span>{% elif a.is_cancelled %}<span class="badge status-2">ملغاة</span>{% elif a.is_eligible %}<span class="badge status-1">مستحق</span>{% else %}<span class="badge status-2">غير مستحق</span>{% endif %}</td></tr>
   {% empty %}<tr><td colspan="6" class="muted center">لم تُجرَ دراسة حالة بعد</td></tr>{% endfor %}</tbody></table></div>
 </div>
+<div class="card">
+  <div class="card-head"><h3>المساعدات المصروفة</h3>{% if obj.status == "approved" %}<a class="btn btn-sm" href="{% url 'doc_new' 'aid-disbursement' %}?beneficiary={{ obj.pk }}">+ صرف مساعدة</a>{% endif %}</div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المستند</th><th>التاريخ</th><th>البرنامج</th><th>النوع</th><th class="num">القيمة</th><th>الحالة</th></tr></thead>
+  <tbody>{% for a in obj.disbursements.all %}<tr><td><a href="{{ a.get_absolute_url }}">{{ a }}</a></td><td>{{ a.posting_date|date:"Y-m-d" }}</td><td>{{ a.program }}</td><td>{{ a.get_aid_type_display }}</td>
+  <td class="num">{{ a.amount|money }}</td><td>{{ a.get_docstatus_display }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لم تُصرف مساعدات بعد</td></tr>{% endfor %}</tbody></table></div>
+</div>

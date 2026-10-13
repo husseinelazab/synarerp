@@ -1,5 +1,6 @@
-from beneficiaries.models import (AssessmentCriterion, AssessmentScore, Beneficiary, BeneficiaryCategory,
-                                  BeneficiaryEntity, CaseAssessment, EntityRequest, FamilyMember)
+from beneficiaries.models import (AidDisbursement, AidDisbursementItem, AidProgram, AssessmentCriterion,
+                                  AssessmentScore, Beneficiary, BeneficiaryCategory, BeneficiaryEntity, CaseAssessment,
+                                  EntityRequest, FamilyMember)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -39,4 +40,21 @@ register(DocType(
     list_fields=["number", "entity", "request_date", "request_type", "subject", "requested_amount", "approved_amount",
                  "status"],
     search_fields=["number", "subject", "entity__name"],
+))
+register(DocType(
+    slug="aid-program", model=AidProgram, module="beneficiaries",
+    list_fields=["name", "aid_type", "expense_account", "fund", "default_amount", "max_per_year", "is_active"],
+    search_fields=["name"],
+))
+register(DocType(
+    slug="aid-disbursement", model=AidDisbursement, module="beneficiaries",
+    list_fields=["name", "posting_date", "beneficiary", "program", "aid_type", "amount", "received_at"],
+    form_fields=["beneficiary", "program", "posting_date", "amount", "payment_account", "warehouse", "fund", "remarks"],
+    search_fields=["name", "beneficiary__full_name", "beneficiary__national_id", "beneficiary__file_number"],
+    child=ChildTable(AidDisbursementItem, ["item", "qty"], label="أصناف المساعدة العينية", min_rows=0,
+                     display_fields=["item", "qty", "amount"],
+                     help="للمساعدة العينية فقط؛ تُصرف من المستودع المحدد بتكلفتها."),
+    detail_template="beneficiaries/_aid_detail.html",
+    detail_exclude=["otp_hash", "otp_attempts", "otp_sent_at", "receipt_fingerprint", "received_at", "receipt_method",
+                    "receipt_note", "confirmed_by"],
 ))

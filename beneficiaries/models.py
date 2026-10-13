@@ -478,3 +478,246 @@ class EntityRequest(TenantModel):
     def complete(self, user):
         self.status = RequestStatus.COMPLETED
         self.save(update_fields=["status"])
+
+
+# ───────────────────────────── صرف المساعدات ─────────────────────────────
+
+class AidType(models.TextChoices):
+    CASH = "cash", "نقدية"
+    IN_KIND = "in_kind", "عينية (من المستودع)"
+
+
+class AidProgram(TenantModel):
+    """برنامج مساعدات: حساب مصروفه من فرع البرامج والأنشطة، وصندوقه، وشروط الاستحقاق."""
+
+    name = models.CharField("اسم البرنامج", max_length=150)
+    aid_type = models.CharField("نوع المساعدة", max_length=10, choices=AidType.choices, default=AidType.CASH)
+    expense_account = models.ForeignKey(
+        "accounts.Account", models.PROTECT, related_name="+", verbose_name="حساب المصروف",
+        limit_choices_to={"is_group": False, "root_type": "expense"},
+        help_text="من مصاريف البرامج والأنشطة (421 المقيدة أو 422 غير المقيدة)")
+    fund = models.ForeignKey("accounts.Fund", models.PROTECT, null=True, blank=True, related_name="+",
+                             limit_choices_to={"is_active": True}, verbose_name="الصندوق",
+                             help_text="يُصرف منه افتراضياً (مثل صندوق الزكاة)")
+    default_amount = models.DecimalField("المبلغ الافتراضي", max_digits=14, decimal_places=2, default=0)
+    max_per_year = models.PositiveSmallIntegerField("الحد الأقصى للصرف للمستفيد في السنة", default=0,
+                                                    help_text="صفر = بلا حد")
+    categories = models.ManyToManyField(BeneficiaryCategory, blank=True, related_name="+",
+                                        verbose_name="الفئات المستحقة", help_text="فارغ = كل الفئات")
+    is_active = models.BooleanField("مفعّل", default=True)
+    description = models.TextField("الوصف والشروط", blank=True)
+
+    class Meta:
+        verbose_name = "برنامج مساعدات"
+        verbose_name_plural = "برامج المساعدات"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="aidprogram")]
+
+    def __str__(self):
+        return self.name
+
+
+class ReceiptMethod(models.TextChoices):
+    OTP = "otp", "رمز تحقق على جوال المستفيد"
+    MANUAL = "manual", "تأكيد يدوي من المدير"
+
+
+OTP_TTL_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
+
+
+class AidDisbursement(SubmittableDocument):
+    """صرف مساعدة نقدية أو عينية لمستفيد معتمد، تُقيد على مصروف البرنامج وصندوقه بعد تأكيد الاستلام."""
+
+    naming_prefix = "AID"
+
+    beneficiary = models.ForeignKey(Beneficiary, models.PROTECT, related_name="disbursements", verbose_name="المستفيد",
+                                    limit_choices_to={"status": BeneficiaryStatus.APPROVED})
+    program = models.ForeignKey(AidProgram, models.PROTECT, related_name="disbursements", verbose_name="البرنامج",
+                                limit_choices_to={"is_active": True})
+    aid_type = models.CharField("نوع المساعدة", max_length=10, choices=AidType.choices, editable=False,
+                                default=AidType.CASH)
+    amount = models.DecimalField("المبلغ", max_digits=14, decimal_places=2, default=0,
+                                 help_text="للمساعدة النقدية؛ قيمة العينية تُحسب من تكلفة الأصناف عند الاعتماد")
+    payment_account = models.ForeignKey(
+        "accounts.Account", models.PROTECT, null=True, blank=True, related_name="+",
+        verbose_name="الصرف من (صندوق / بنك)",
+        limit_choices_to={"is_group": False, "account_type__in": ["cash", "bank"]})
+    warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, null=True, blank=True, related_name="+",
+                                  verbose_name="المستودع", help_text="للمساعدة العينية")
+    fund = models.ForeignKey("accounts.Fund", models.PROTECT, null=True, blank=True, related_name="+",
+                             limit_choices_to={"is_active": True}, verbose_name="الصندوق",
+                             help_text="فارغ = صندوق البرنامج")
+    otp_hash = models.CharField(max_length=64, blank=True, editable=False)
+    otp_sent_at = models.DateTimeField("أُرسل رمز التحقق", null=True, blank=True, editable=False)
+    otp_attempts = models.PositiveSmallIntegerField(default=0, editable=False)
+    received_at = models.DateTimeField("تاريخ تأكيد الاستلام", null=True, blank=True, editable=False)
+    receipt_method = models.CharField("طريقة تأكيد الاستلام", max_length=10, choices=ReceiptMethod.choices,
+                                      blank=True, editable=False)
+    receipt_note = models.CharField("ملاحظة التأكيد", max_length=255, blank=True, editable=False)
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True,
+                                     related_name="+", editable=False, verbose_name="أكد الاستلام")
+    receipt_fingerprint = models.CharField(max_length=64, blank=True, editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "صرف مساعدة"
+        verbose_name_plural = "صرف المساعدات"
+
+    def calculate_totals(self):
+        if not self.program_id:
+            return
+        self.aid_type = self.program.aid_type
+        if not self.fund_id and self.program.fund_id:
+            self.fund = self.program.fund
+        if self.aid_type == AidType.CASH:
+            if not self.amount and self.program.default_amount:
+                self.amount = self.program.default_amount
+            if not self.payment_account_id:
+                self.payment_account = self.company.default_cash_account
+
+    def clean(self):
+        if self.amount is not None and self.amount < 0:
+            raise ValidationError({"amount": "المبلغ لا يكون سالباً."})
+
+    def check_eligibility(self):
+        beneficiary, program = self.beneficiary, self.program
+        if beneficiary.status != BeneficiaryStatus.APPROVED:
+            raise ValidationError(f"المستفيد {beneficiary} حالته «{beneficiary.get_status_display()}»؛ "
+                                  "الصرف للمستفيدين المعتمدين فقط.")
+        if beneficiary.next_review_date and beneficiary.next_review_date < self.posting_date:
+            raise ValidationError(f"انتهى موعد إعادة دراسة حالة {beneficiary} في {beneficiary.next_review_date:%Y-%m-%d}. "
+                                  "أجرِ دراسة حالة جديدة قبل الصرف.")
+        if not program.is_active:
+            raise ValidationError(f"البرنامج «{program}» موقوف.")
+        categories = list(program.categories.all())
+        if categories and beneficiary.category not in categories:
+            raise ValidationError(f"فئة المستفيد «{beneficiary.category or 'بدون فئة'}» ليست من فئات برنامج «{program}».")
+        if program.max_per_year:
+            count = AidDisbursement.objects.filter(beneficiary=beneficiary, program=program, docstatus=1,
+                                                   posting_date__year=self.posting_date.year).exclude(pk=self.pk).count()
+            if count >= program.max_per_year:
+                raise ValidationError(f"استنفد {beneficiary.full_name} الحد السنوي لبرنامج «{program}» "
+                                      f"({program.max_per_year} مرات في {self.posting_date.year}).")
+
+    def validate_for_submit(self):
+        self.calculate_totals()
+        self.check_eligibility()
+        if self.aid_type == AidType.CASH:
+            if not self.amount or self.amount <= 0:
+                raise ValidationError("أدخل مبلغ المساعدة النقدية.")
+            if not self.payment_account_id:
+                raise ValidationError("حدد الصندوق أو البنك الذي تُصرف منه المساعدة.")
+        else:
+            if not self.warehouse_id:
+                raise ValidationError("حدد المستودع الذي تُصرف منه المساعدة العينية.")
+            rows = list(self.items.select_related("item"))
+            if not rows:
+                raise ValidationError("أضف أصناف المساعدة العينية.")
+            for row in rows:
+                if not row.item.is_stock_item or row.qty <= 0:
+                    raise ValidationError(f"الصنف {row.item} يجب أن يكون مخزنياً بكمية أكبر من صفر.")
+        if self.company.require_aid_otp:
+            if not self.received_at:
+                raise ValidationError("أكّد استلام المستفيد برمز التحقق المرسل إلى جواله قبل الاعتماد.")
+            if self.receipt_fingerprint != self.content_fingerprint():
+                raise ValidationError("تغيّرت بيانات المساعدة بعد تأكيد الاستلام. أعد إرسال رمز التحقق وتأكيده.")
+
+    def on_submit(self):
+        from accounts.ledger import make_gl_entries
+
+        remarks = f"{self.program} — {self.beneficiary.full_name}"
+        if self.aid_type == AidType.CASH:
+            make_gl_entries(self, [{"account": self.program.expense_account, "debit": self.amount, "fund": self.fund},
+                                   {"account": self.payment_account, "credit": self.amount}], remarks=remarks)
+            return
+        from stock.ledger import make_stock_ledger_entry
+
+        total = flt(0)
+        for row in self.items.select_related("item"):
+            value = -make_stock_ledger_entry(self, row.item, self.warehouse, -row.qty)
+            row.amount = flt(value)
+            row.save(update_fields=["amount"])
+            total += row.amount
+        self.amount = total
+        self.save(update_fields=["amount"])
+        if total:
+            make_gl_entries(self, [
+                {"account": self.program.expense_account, "debit": total, "fund": self.fund},
+                {"account": self.company.require_account("default_stock_account"), "credit": total},
+            ], remarks=remarks)
+
+    def on_cancel(self):
+        from accounts.ledger import cancel_gl_entries
+        from stock.ledger import cancel_stock_ledger_entries
+
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+
+    # ── تأكيد الاستلام ──
+    def content_fingerprint(self):
+        """بصمة ما أكد المستفيد استلامه: أي تعديل بعد التأكيد يُبطله."""
+        import hashlib
+
+        items = sorted((row.item_id, str(flt(row.qty, 3))) for row in self.items.all())
+        content = [self.beneficiary_id, self.program_id, str(flt(self.amount)), self.warehouse_id, items]
+        return hashlib.sha256(repr(content).encode()).hexdigest()
+
+    def _hash(self, code):
+        import hashlib
+
+        return hashlib.sha256(f"{settings.SECRET_KEY}:{self.pk}:{code}".encode()).hexdigest()
+
+    def issue_otp(self):
+        """يولّد رمزاً من 6 أرقام ويحفظ بصمته فقط. يعيد الرمز لإرساله."""
+        import secrets
+
+        if not self.is_draft:
+            raise ValidationError("رمز التحقق للمسودات فقط.")
+        code = f"{secrets.randbelow(10 ** 6):06d}"
+        self.otp_hash, self.otp_sent_at, self.otp_attempts = self._hash(code), timezone.now(), 0
+        self.save(update_fields=["otp_hash", "otp_sent_at", "otp_attempts"])
+        return code
+
+    def verify_otp(self, code, user):
+        import hmac
+
+        if not self.is_draft or self.received_at:
+            raise ValidationError("تم تأكيد الاستلام مسبقاً.")
+        if not self.otp_hash:
+            raise ValidationError("أرسل رمز التحقق أولاً.")
+        if self.otp_attempts >= OTP_MAX_ATTEMPTS:
+            raise ValidationError("تجاوزت عدد المحاولات. أرسل رمزاً جديداً.")
+        if timezone.now() - self.otp_sent_at > timezone.timedelta(minutes=OTP_TTL_MINUTES):
+            raise ValidationError("انتهت صلاحية الرمز. أرسل رمزاً جديداً.")
+        if not hmac.compare_digest(self._hash((code or "").strip()), self.otp_hash):
+            self.otp_attempts += 1
+            self.save(update_fields=["otp_attempts"])
+            raise ValidationError("رمز التحقق غير صحيح.")
+        self._mark_received(ReceiptMethod.OTP, user)
+
+    def confirm_manually(self, user, note):
+        if not self.is_draft or self.received_at:
+            raise ValidationError("تم تأكيد الاستلام مسبقاً.")
+        if not (note or "").strip():
+            raise ValidationError("اذكر سبب التأكيد اليدوي (مثل: المستفيد بلا جوال، وتم التحقق من هويته).")
+        self.receipt_note = note.strip()[:255]
+        self._mark_received(ReceiptMethod.MANUAL, user)
+
+    def _mark_received(self, method, user):
+        self.calculate_totals()
+        self.received_at, self.receipt_method, self.confirmed_by, self.otp_hash = timezone.now(), method, user, ""
+        self.receipt_fingerprint = self.content_fingerprint()
+        self.save()
+
+
+class AidDisbursementItem(models.Model):
+    parent = models.ForeignKey(AidDisbursement, models.CASCADE, related_name="items")
+    item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
+                             verbose_name="الصنف")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    amount = models.DecimalField("التكلفة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name = "صنف مساعدة"
+        verbose_name_plural = "أصناف المساعدة"
+        ordering = ["id"]

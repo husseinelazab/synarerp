@@ -43,6 +43,9 @@ class Company(models.Model):
         help_text="دراسة الحالة التي تبلغ هذه الدرجة تعتمد المستفيد، وما دونها يُرفض")
     review_period_months = models.PositiveSmallIntegerField(
         "مدة إعادة دراسة الحالة (شهر)", default=12, help_text="بعدها يظهر المستفيد في قائمة المستحقين لإعادة الدراسة")
+    require_aid_otp = models.BooleanField(
+        "تأكيد استلام المساعدات برمز تحقق", default=True,
+        help_text="لا تُعتمد المساعدة حتى يُدخل رمز يصل إلى جوال المستفيد (أو يؤكدها المدير يدوياً مع ذكر السبب)")
     abbr = models.CharField("الاختصار", max_length=10)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, verbose_name="العملة الافتراضية")
     tax_id = models.CharField("الرقم الضريبي", max_length=20, blank=True)

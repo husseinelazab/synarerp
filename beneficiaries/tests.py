@@ -198,3 +198,30 @@ class EntityRequestTests(TestCase):
         self.client.post(f"/app/entity-request/{request.pk}/complete/")
         request.refresh_from_db()
         self.assertEqual(request.status, RequestStatus.COMPLETED)
+
+
+class NonprofitDemoTests(TestCase):
+    def test_setup_erp_creates_demo_association(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from accounts.models import Fund
+        from awqaf.models import WaqfDistribution
+        from beneficiaries.models import AidDisbursement
+        from core.models import Company
+        from funds.reports import activities_data
+
+        call_command("setup_erp", "--nonprofit", "--demo", "--admin", "demo_admin", stdout=StringIO())
+        company = Company.objects.get(name="جمعية البر التجريبية")
+        self.assertTrue(company.is_nonprofit)
+        with tenant_context(company):
+            self.assertEqual(Beneficiary.objects.filter(status="approved").count(), 3)
+            self.assertEqual(AidDisbursement.objects.filter(docstatus=1).count(), 3)
+            self.assertTrue(WaqfDistribution.objects.filter(docstatus=1).exists())
+            self.assertEqual(Fund.objects.get(name="صندوق الزكاة").balance, Decimal("27500"))
+            today = datetime.date.today()
+            data = activities_data(today.replace(month=1, day=1), today)
+            self.assertTrue(all(v >= 0 for section in data["sections"] for v in section["totals"]))
+        self.client.force_login(User.objects.get(username="demo_admin"))
+        self.assertContains(self.client.get("/"), "التبرعات هذا الشهر")

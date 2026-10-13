@@ -31,6 +31,12 @@ class Command(BaseCommand):
                 owner = User.objects.create_superuser(opts["admin"], "", opts["password"])
                 self.stdout.write(self.style.SUCCESS(f"تم إنشاء مدير المنصة «{owner}»."))
 
+        if opts["nonprofit"]:
+            # أسماء افتراضية للجمعية التجريبية (فلا يحتاج سطر الأوامر نصاً عربياً)
+            if opts["company"] == "شركتي التجارية":
+                opts["company"] = "جمعية البر التجريبية"
+            if opts["abbr"] == "ش ت":
+                opts["abbr"] = "جمعية"
         if not opts["no_company"]:
             if Company.objects.filter(name=opts["company"]).exists():
                 self.stdout.write(f"الشركة «{opts['company']}» موجودة مسبقاً.")

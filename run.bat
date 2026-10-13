@@ -27,6 +27,7 @@ python manage.py createcachetable
 if "%FIRST_RUN%"=="1" (
   echo == Creating a demo company with sample data...
   python manage.py setup_erp --demo --admin admin --password admin12345 --tax-id 310122393500003
+  python manage.py setup_erp --nonprofit --demo --admin admin
 )
 
 echo.

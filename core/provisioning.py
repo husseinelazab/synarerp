@@ -97,7 +97,11 @@ def provision_company(name, owner=None, abbr="", tax_id="", phone="", plan=None,
             cash_account=company.default_cash_account, card_account=card_account,
             tax_rate=company.default_tax_rate,
         )
-        if demo:
+        if demo and company.is_nonprofit:
+            from core.demo_nonprofit import create_nonprofit_demo
+
+            create_nonprofit_demo(company, owner)
+        elif demo:
             from core.demo import create_demo_data
 
             create_demo_data(company)

@@ -22,6 +22,7 @@ python manage.py createcachetable
 if [ "$FIRST_RUN" = "1" ]; then
   echo "== إنشاء شركة تجريبية ببيانات جاهزة..."
   python manage.py setup_erp --demo --admin admin --password admin12345 --tax-id 310122393500003
+  python manage.py setup_erp --nonprofit --demo --admin admin
 fi
 
 echo ""

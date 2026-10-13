@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "quality",
     "beneficiaries",
     "funds",
+    "governance",
 ]
 
 MIDDLEWARE = [

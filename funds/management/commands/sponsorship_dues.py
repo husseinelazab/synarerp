@@ -23,6 +23,9 @@ class Command(BaseCommand):
         for company in Company.objects.filter(organization_type=OrganizationType.NONPROFIT):
             with tenant_context(company):
                 created = generate_dues(today)
+                from governance.models import generate_fees
+
+                generate_fees(today.year)  # اشتراكات الأعضاء السنوية
                 overdue = SponsorshipDue.objects.filter(status__in=[DueStatus.PENDING, DueStatus.PARTIAL],
                                                         period__lt=today.replace(day=1)).count()
                 title = f"استحقاقات كفالات متأخرة: {overdue} حتى {today:%Y-%m}"

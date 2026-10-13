@@ -16,6 +16,8 @@ ICONS = {
     "support": '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
     "beneficiaries": '<path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0"/><path d="M16 11l2 2 4-4"/>',
     "resources": '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
+    "members": '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/>',
+    "governance": '<path d="M12 3l9 4H3zM5 10v7M10 10v7M14 10v7M19 10v7M3 21h18"/>',
     "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
@@ -231,7 +233,8 @@ def _keys(module):
 
 
 # ترتيب وحدات الجهة غير الربحية
-NONPROFIT_ORDER = ["hr", "accounts", "resources", "projects", "entities", "beneficiaries", "stock", "settings"]
+NONPROFIT_ORDER = ["members", "hr", "accounts", "resources", "projects", "entities", "beneficiaries", "governance",
+                   "stock", "settings"]
 
 
 def nonprofit_modules(modules, doc):
@@ -263,6 +266,18 @@ def nonprofit_modules(modules, doc):
                                        doc("سندات التبرعات", "donation-receipt"), doc("الداعمون", "donor")]},
         {"title": "الكفالات", "items": [doc("الكفالات", "sponsorship"), doc("استحقاقات الكفالات", "sponsorship-due"),
                                        doc("أنواع الكفالات", "sponsorship-type")]},
+    ]}
+    by_key["members"] = {"key": "members", "label": "إدارة الأعضاء المشاركين", "sections": [
+        {"title": "الجمعية العمومية", "items": [_item("لوحة الأعضاء", "members_dashboard"), doc("الأعضاء", "member"),
+                                               doc("اشتراكات الأعضاء", "membership-fee"),
+                                               doc("فئات العضوية", "membership-category")]},
+        {"title": "المجلس والاجتماعات", "items": [doc("دورات مجلس الإدارة", "board-term"),
+                                                 doc("الاجتماعات والمحاضر", "meeting"),
+                                                 doc("القرارات ومتابعة تنفيذها", "meeting-decision")]},
+    ]}
+    by_key["governance"] = {"key": "governance", "label": "إدارة الحوكمة", "sections": [
+        {"items": [_item("لوحة الحوكمة", "governance_dashboard"), doc("التقييم الذاتي", "governance-assessment"),
+                   doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard")]},
     ]}
     by_key["entities"] = {"key": "entities", "label": "إدارة الجهات المستفيدة", "sections": [
         {"items": [_item("لوحة الطلبات", "entities_dashboard"), doc("الجهات", "beneficiary-entity"),

@@ -47,6 +47,7 @@ urlpatterns = [
     path("beneficiaries/", include("beneficiaries.urls")),
     path("funds/", include("funds.urls")),
     path("resources/", include("funds.resource_urls")),
+    path("governance/", include("governance.urls")),
     path("me/", include("hr.portal_urls")),
     path("", include("buying.urls")),
     path("", include("saas.urls")),

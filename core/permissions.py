@@ -15,12 +15,14 @@ PERMISSION_MODULES = [
     ("einvoice", "الفوترة الإلكترونية"),
     ("funds", "الأموال المقيدة (الصناديق وتقاريرها)"),
     ("resources", "إدارة الموارد المالية (التبرعات والداعمون والكفالات)"),
+    ("members", "إدارة الأعضاء المشاركين (الجمعية العمومية والمجلس والاجتماعات)"),
+    ("governance", "إدارة الحوكمة"),
     ("beneficiaries", "إدارة التقييم والمتابعة (المستفيدون)"),
     ("entities", "إدارة الجهات المستفيدة"),
 ]
 
 # وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
-NONPROFIT_MODULES = {"funds", "resources", "beneficiaries", "entities"}
+NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "beneficiaries", "entities"}
 # الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
 COMMERCIAL_MODULES = {"selling", "crm", "support", "manufacturing", "pos"}
 # مسميات الوحدات للجهة غير الربحية (بمسميات «مكونات النظام» المعتادة في أنظمة الجمعيات)
@@ -79,6 +81,8 @@ PATH_MODULES = [
     ("/hr/", "hr"),
     ("/funds/", "funds"),
     ("/resources/", "resources"),
+    ("/governance/members/", "members"),
+    ("/governance/", "governance"),
     ("/beneficiaries/entities/", "entities"),
     ("/beneficiaries/", "beneficiaries"),
 ]

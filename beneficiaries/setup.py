@@ -63,6 +63,9 @@ def ensure_nonprofit_setup(company):
     from beneficiaries.models import AssessmentCriterion, BeneficiaryCategory
 
     ensure_aid_programs(company)
+    from governance.setup import ensure_governance_setup
+
+    ensure_governance_setup(company)
     if BeneficiaryCategory.all_objects.filter(company=company).exists():
         return
     for name, fund_type, purpose in DEFAULT_FUNDS:

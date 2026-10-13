@@ -17,14 +17,15 @@ class DonationType(models.TextChoices):
     GRANT = "grant", "منحة"
     SPONSORSHIP = "sponsorship", "كفالة"
     ENDOWMENT = "endowment", "وقف"
+    MEMBERSHIP = "membership", "اشتراك عضوية"
 
 
 # حساب الإيراد الافتراضي لكل نوع من الدليل المحاسبي الموحد للجهات غير الربحية
 INCOME_ACCOUNTS = {"general": "31201001", "restricted": "31102002", "zakat": "31101001", "grant": "31105002",
-                   "sponsorship": "31102001", "endowment": "31301003"}
+                   "sponsorship": "31102001", "endowment": "31301003", "membership": "31205001"}
 # فرع الإيرادات الذي يجب أن يُقيد فيه كل نوع: 311 مقيدة، 312 غير مقيدة، 313 أوقاف
 INCOME_BRANCHES = {"general": "312", "restricted": "311", "zakat": "311", "grant": "311", "sponsorship": "311",
-                   "endowment": "313"}
+                   "endowment": "313", "membership": "312"}
 # نوع الصندوق المطلوب لكل نوع تبرع (None = لا صندوق أو صندوق غير مقيد)
 REQUIRED_FUND_TYPE = {"restricted": FundType.RESTRICTED, "zakat": FundType.RESTRICTED, "grant": FundType.RESTRICTED,
                       "sponsorship": FundType.RESTRICTED, "endowment": FundType.ENDOWMENT}
@@ -96,6 +97,8 @@ class DonationReceipt(SubmittableDocument):
     reference_no = models.CharField("رقم المرجع (حوالة / عملية)", max_length=50, blank=True)
     sponsorship_due = models.ForeignKey("funds.SponsorshipDue", models.PROTECT, null=True, blank=True,
                                         related_name="receipts", editable=False, verbose_name="استحقاق الكفالة")
+    membership_fee = models.ForeignKey("governance.MembershipFee", models.PROTECT, null=True, blank=True,
+                                       related_name="receipts", editable=False, verbose_name="اشتراك العضوية")
 
     class Meta(SubmittableDocument.Meta):
         verbose_name = "سند تبرع"
@@ -146,13 +149,17 @@ class DonationReceipt(SubmittableDocument):
                                {"account": self.income_account, "credit": self.amount, "fund": self.fund}],
                         remarks=self.remarks or remarks)
 
-        if self.sponsorship_due_id:
-            self.sponsorship_due.refresh_collected()
+        self._refresh_links()
 
     def on_cancel(self):
         cancel_gl_entries(self)
-        if self.sponsorship_due_id:
-            self.sponsorship_due.refresh_collected()
+        self._refresh_links()
+
+    def _refresh_links(self):
+        """تحديث الاستحقاق المرتبط (كفالة أو اشتراك عضوية) بما حُصّل له."""
+        for link in ("sponsorship_due", "membership_fee"):
+            if getattr(self, f"{link}_id"):
+                getattr(self, link).refresh_collected()
 
 
 # ───────────────────────────── الكفالات ─────────────────────────────

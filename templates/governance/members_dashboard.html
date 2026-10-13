@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'meeting' %}">+ اجتماع</a>
+  <a class="btn" href="{% url 'doc_new' 'member' %}">+ عضو</a>
+  <a class="btn" href="{% url 'doc_new' 'board-term' %}">+ دورة مجلس</a>
+  <form method="post" action="{% url 'generate_year_fees' %}">{% csrf_token %}<button class="btn {% if not fees_generated %}btn-success{% endif %}">توليد اشتراكات {{ year }}</button></form>
+</div></div>
+<div class="kpis">
+  <div class="kpi"><span>الأعضاء النشطون</span><b>{{ active_count }}</b></div>
+  <div class="kpi kpi-good"><span>لهم حق التصويت في {{ year }}</span><b>{{ voters }}</b></div>
+  <div class="kpi {% if fees_unpaid %}kpi-bad{% endif %}"><span>اشتراكات غير مسددة</span><b>{{ fees_unpaid|length }}</b></div>
+  <div class="kpi {% if not term %}kpi-bad{% endif %}"><span>دورة المجلس</span><b>{% if term %}{{ term }}{% else %}لا توجد دورة سارية{% endif %}</b>{% if term %}<span>حتى {{ term.end_date|date:"Y-m-d" }}</span>{% endif %}</div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>اجتماعات {{ year }}</h3><div class="table-wrap"><table class="table"><tbody>
+{% for m in meetings %}<tr><td><a href="{{ m.get_absolute_url }}">{{ m }}</a></td><td>{{ m.get_meeting_type_display }}</td><td>{{ m.posting_date|date:"Y-m-d" }}</td><td>{{ m.present_count }}/{{ m.eligible_count }}</td><td><span class="badge status-{{ m.docstatus }}">{{ m.get_docstatus_display }}</span></td></tr>
+{% empty %}<tr><td class="muted">لا اجتماعات هذا العام</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>قرارات قيد التنفيذ</h3><div class="table-wrap"><table class="table"><tbody>
+{% for d in decisions %}<tr class="{% if d.is_overdue %}row-loss{% endif %}"><td><a href="{{ d.get_absolute_url }}">{{ d.text|truncatechars:70 }}</a></td><td>{{ d.responsible|default:"" }}</td><td>{{ d.due_date|date:"Y-m-d" }}</td></tr>
+{% empty %}<tr><td class="muted">لا قرارات مفتوحة</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<div class="grid-2">
+<div class="card"><h3>اشتراكات {{ year }} غير المسددة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for f in fees_unpaid %}<tr><td><a href="{{ f.get_absolute_url }}">{{ f.member }}</a></td><td>{{ f.member.phone }}</td><td class="num">{{ f.outstanding|money }}</td></tr>
+{% empty %}<tr><td class="muted">لا شيء</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>الأعضاء حسب الفئة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for c in by_category %}<tr><td>{{ c.category__name }}</td><td class="num">{{ c.n }}</td></tr>{% empty %}<tr><td class="muted">لا أعضاء بعد</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endblock %}

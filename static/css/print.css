@@ -1,5 +1,5 @@
 /* مطبوعات سِينار: ثلاثة قوالب (classic / modern / minimal) بنفس البنية، ولون رئيسي من إعدادات الطباعة */
-@page { size: A4; margin: 10mm 10mm 12mm; }
+@page { size: A4; margin: 8mm 8mm 10mm; }
 * { box-sizing: border-box; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; background: #e9edf2; color: #1d2733; font: 13px/1.55 "Tajawal", "Segoe UI", Tahoma, sans-serif; }
@@ -142,7 +142,7 @@ b, .strong { font-weight: 700; }
 @media print {
   body { background: #fff; }
   .no-print { display: none !important; }
-  .sheet { width: auto; min-height: calc(297mm - 22mm); margin: 0; padding: 0; box-shadow: none; overflow: visible; }
+  .sheet { width: auto; min-height: calc(297mm - 30mm); margin: 0; padding: 3mm 6mm; box-shadow: none; overflow: visible; }
   .sheet.landscape { min-height: auto; }
   .tpl-modern .sheet { padding-top: 0; }
   .tpl-modern .doc-header { margin: 0 0 0; padding: 8mm 8mm 6mm; border-radius: 0 0 10px 10px; }

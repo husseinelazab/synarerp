@@ -191,7 +191,7 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
   .card { border: 0; }
 }
 /* ===== الطباعة الرسمية للتقارير: ترويسة الجهة وبيانات التقرير والتوقيعات وأرقام الصفحات ===== */
-@page { size: A4; margin: 12mm 11mm 16mm;
+@page { size: A4; margin: 9mm 8mm 14mm;
   @bottom-left { content: "صفحة " counter(page) " من " counter(pages); font-family: "Tajawal", sans-serif; font-size: 9pt; color: #6b7785; } }
 @media print {
   body { background: #fff; font-size: 11pt; }
@@ -199,6 +199,16 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
   .main { display: block; }
   .layout { display: block; }
   .print-tools, .page-head .crumbs, .nav-filter, .alert, .btn, button, .table-search, .actions, .page-head + .toolbar, kbd { display: none !important; }
+  /* تباعد داخلي ثابت حتى لو تجاهل المتصفح هوامش الصفحة (مثل اختيار «بلا هوامش»)، ولا شيء يتجاوز عرض الورقة */
+  html, body, .layout, .main, .content { width: auto !important; max-width: 100% !important; overflow: visible !important; }
+  .content { padding: 3mm 6mm !important; box-sizing: border-box; }
+  .table-wrap { overflow: visible !important; }
+  .table { width: 100% !important; max-width: 100%; table-layout: auto; }
+  .table td, .table th { white-space: normal; overflow-wrap: break-word; }
+  .table td.num, .table th.num, .nowrap-print { white-space: nowrap !important; overflow-wrap: normal !important; }
+  .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dash-grid { grid-template-columns: minmax(0, 1fr); }
+  img, svg, canvas { max-width: 100%; }
   .letterhead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 2.5px solid var(--accent); padding-bottom: 10px; margin-bottom: 8px; }
   .lh-entity { display: flex; align-items: center; gap: 14px; }
   .lh-logo { max-height: 64px; max-width: 150px; object-fit: contain; }

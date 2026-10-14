@@ -375,10 +375,14 @@ def nonprofit_modules(modules, doc):
         {"title": "الصيانة", "items": [doc("طلبات الصيانة", "maintenance-request"), _item("تقرير الحركة والصيانة", "fleet_report")]},
     ]}
     by_key["website"] = {"key": "website", "label": "إدارة الموقع الإلكتروني", "sections": [
-        {"items": [_item("إعدادات الموقع", "website_settings")]},
+        {"items": [_item("لوحة الموقع", "website_dashboard"), doc("الأخبار", "news-post"), doc("ألبومات الصور", "album"),
+                   doc("وثائق الحوكمة والإفصاح", "published-document"), doc("شركاء النجاح", "partner"),
+                   _item("إعدادات الموقع", "website_settings")]},
     ]}
     by_key["store"] = {"key": "store", "label": "المتجر الإلكتروني", "sections": [
-        {"items": [_item("لوحة المتجر", "store_dashboard")]},
+        {"items": [_item("لوحة المتجر", "store_dashboard"), doc("فرص التبرع", "donation-opportunity"),
+                   doc("طلبات التبرع الإلكتروني", "donation-order"), doc("التبرعات الشهرية", "recurring-donation"),
+                   doc("المسوّقون والسفراء", "marketer"), _item("إعدادات المتجر وبوابة الدفع", "store_settings")]},
     ]}
     by_key["statistics"] = {"key": "statistics", "label": "إدارة التقارير والإحصائيات", "sections": [
         {"items": [_item("مركز التقارير والإحصائيات", "statistics_center")]},

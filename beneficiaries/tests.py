@@ -220,7 +220,7 @@ class NonprofitDemoTests(TestCase):
             self.assertEqual(Beneficiary.objects.filter(status="approved").count(), 3)
             self.assertEqual(AidDisbursement.objects.filter(docstatus=1).count(), 3)
             self.assertTrue(WaqfDistribution.objects.filter(docstatus=1).exists())
-            self.assertEqual(Fund.objects.get(name="صندوق الزكاة").balance, Decimal("27500"))
+            self.assertEqual(Fund.objects.get(name="صندوق الزكاة").balance, Decimal("30000"))  # 27,500 + زكاة المتجر 2,500
             today = timezone.localdate()
             data = activities_data(today.replace(month=1, day=1), today)
             self.assertTrue(all(v >= 0 for section in data["sections"] for v in section["totals"]))
@@ -250,3 +250,14 @@ class NonprofitDemoTests(TestCase):
         self.assertEqual(stats.context["stats"]["beneficiaries_approved"], 3)
         self.assertContains(stats, "تقرير الأداء المؤسسي")  # روابط تقارير كل الوحدات
         self.assertContains(self.client.get("/reports/accounts/trial-balance/"), 'class="print-tools"')
+        # الموقع والمتجر التجريبيان: طلبات مدفوعة بسندات تبرع معتمدة، وصفحات الموقع تعمل
+        with tenant_context(company):
+            from store.models import DonationOrder
+
+            self.assertEqual(DonationOrder.objects.filter(status="paid").count(), 3)
+            self.assertTrue(all(line.receipt.is_submitted for o in DonationOrder.objects.all() for line in o.lines.all()))
+        for url in ("/site/albirr/", "/site/albirr/about/", "/site/albirr/governance/", "/site/albirr/news/",
+                    "/site/albirr/donate/", "/site/albirr/programs/", "/site/albirr/contact/", "/site/albirr/apply/",
+                    "/store/", "/website/"):
+            self.assertEqual(self.client.get(url).status_code, 200, url)
+        self.assertContains(self.client.get("/site/albirr/"), "تبرع عام لدعم برامج الجمعية")

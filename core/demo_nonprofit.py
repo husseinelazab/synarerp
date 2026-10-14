@@ -324,3 +324,69 @@ def _demo_new_modules(company, user, today, day):
                                       description="مكيف المستودع لا يبرد", priority="urgent", created_by=user)
     FuelLog.objects.create(vehicle=van, date=day(3), liters=Decimal("60"), amount=Decimal("139.20"), odometer=48260,
                            station="محطة الدريس")
+    _demo_digital(company, today, day)
+
+
+DEMO_PDF = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj "
+            b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n")
+
+
+def _demo_digital(company, today, day):
+    """الموقع الإلكتروني (معاينة على /site/albirr/) والمتجر في وضع التجربة بطلبات مدفوعة."""
+    from accounts.models import Fund
+    from awqaf.models import Waqf
+    from funds.models import SponsorshipType
+    from store.models import DonationOpportunity, DonationOrder, Marketer, StoreSettings
+    from store.service import finalize
+    from website.models import Album, NewsPost, Partner, PublishedDocument, Website
+
+    Website.objects.create(
+        slug="albirr", is_published=True, tagline="معاً نصنع الأثر", hero_title="نمدّ يد العون للأسر المحتاجة في الرياض",
+        hero_subtitle="كفالة الأيتام، وتمكين الأسر، وبرامج الأوقاف — بشفافية وحوكمة", about=(
+            "جمعية خيرية مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي، تعمل على رعاية الأسر المحتاجة والأيتام "
+            "وتمكينهم اقتصادياً واجتماعياً عبر برامج نوعية وشراكات مستدامة."),
+        primary_color="#1e6e5a", whatsapp="966500000000", working_hours="الأحد – الخميس، 8 صباحاً – 4 مساءً",
+        bank_accounts="مصرف الراجحي - SA0380000000608010167519\nالبنك الأهلي - SA4410000000000000000000",
+        fundraising_license_number="FR-2026-1234", fundraising_license_expiry=today.replace(year=today.year + 1),
+        x_url="https://x.com/", instagram_url="https://instagram.com/")
+    for title, category, summary in (
+            ("توزيع 40 سلة غذائية على الأسر المستفيدة", "news", "ضمن برنامج السلة الغذائية بدعم مؤسسة الخير القابضة"),
+            ("ملتقى الأسر المنتجة بحضور 180 زائراً", "event", "عرض 30 مشروعاً منزلياً بالتعاون مع بنك التنمية الاجتماعية"),
+            ("فتح باب التسجيل في برنامج مهارات التطوع", "announcement", "ورشة عن بعد لتأهيل المتطوعين الجدد")):
+        NewsPost.objects.create(title=title, category=category, summary=summary, body=summary + ".", published_on=day(5))
+    Album.objects.create(title="ملتقى الأسر المنتجة", description="صور من الملتقى")
+    for title, category in (("اللائحة الأساسية للجمعية", "policies"), ("سياسة جمع التبرعات", "policies"),
+                            (f"التقرير السنوي {today.year - 1}", "annual"),
+                            (f"القوائم المالية المراجعة {today.year - 1}", "financials")):
+        PublishedDocument.objects.create(title=title, category=category, year=today.year - 1, file_name="document.pdf",
+                                         content_type="application/pdf", size=len(DEMO_PDF), content=DEMO_PDF)
+    Partner.objects.create(name="بنك التنمية الاجتماعية", url="https://www.sdb.gov.sa/")
+    Partner.objects.create(name="مؤسسة الخير القابضة")
+
+    # المتجر في وضع التجربة (مفاتيح ميسّر الحقيقية تُضاف من «إعدادات المتجر وبوابة الدفع»)
+    store = StoreSettings.for_company(company)
+    store.enabled, store.mode, store.publishable_key = True, "test", "pk_test_demo"
+    store.secret_key, store.webhook_secret = "sk_test_demo", "demo-webhook-secret"
+    store.save()
+    general = DonationOpportunity.objects.create(
+        title="تبرع عام لدعم برامج الجمعية", kind="general", target_amount=100000, is_featured=True,
+        description="يُصرف في أوجه البر والبرامج الأكثر احتياجاً")
+    zakat = DonationOpportunity.objects.create(title="زكاة المال", kind="zakat", is_featured=True,
+                                               description="تُصرف في مصارفها الشرعية للأسر المستحقة بعد دراسة حالتها")
+    DonationOpportunity.objects.create(title="سهم في عمارة الخير الوقفية", kind="waqf", fixed_amount=100, is_featured=True,
+                                       waqf=Waqf.objects.first(), description="أجر جارٍ يعود ريعه على الأيتام والأسر")
+    DonationOpportunity.objects.create(title="اكفل يتيماً", kind="sponsorship", fixed_amount=400,
+                                       sponsorship_type=SponsorshipType.objects.get(name="كفالة يتيم"),
+                                       description="400 ريال شهرياً تغطي احتياجات يتيم")
+    DonationOpportunity.objects.create(title="السلال الغذائية الرمضانية", kind="restricted", target_amount=50000,
+                                       fixed_amount=250, fund=Fund.objects.get(name="صندوق الزكاة"), is_featured=True,
+                                       description="سلة غذائية متكاملة تكفي أسرة لمدة شهر")
+    safeer = Marketer.objects.create(name="سفير الخير", code="safeer", phone="0555555555")
+    for n, (opportunity, amount, name, marketer) in enumerate(((general, 500, "خالد العتيبي", safeer),
+                                                              (zakat, 2500, "فاعل خير", None),
+                                                              (general, 300, "منى القحطاني", safeer)), start=1):
+        order = DonationOrder.objects.create(donor_name=name, donor_phone=f"05000000{n:02d}", marketer=marketer,
+                                             is_anonymous=name == "فاعل خير", total=amount)
+        order.lines.create(opportunity=opportunity, amount=amount)
+        finalize(order, {"id": f"demo-payment-{n}", "status": "paid", "amount": amount * 100, "currency": "SAR",
+                         "metadata": {"order": order.number}, "source": {"type": "creditcard", "company": "mada"}})

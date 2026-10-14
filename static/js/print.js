@@ -53,7 +53,7 @@
 
   function init() {
     var tools = document.querySelector(".print-tools");
-    if (tools && tables().length) {
+    if (tools && tables().length && location.pathname !== "/") {
       tools.hidden = false;
       mark(tools);
       tools.addEventListener("click", function (e) {

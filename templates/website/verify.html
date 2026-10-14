@@ -2,9 +2,8 @@
 {% block title %}التحقق من الشهادات — {{ request.site.company.name }}{% endblock %}
 {% block description %}تحقق من صحة شهادات التدريب والتطوع والتبرع الصادرة من {{ request.site.company.name }}{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="التحقق من الشهادات" parent="الخدمات الإلكترونية" intro="شهادات التطوع والتدريب والتبرع" %}
 <section class="wrap page narrow">
-  <nav class="crumbs"><a href="{% site_url 'site_services' %}">الخدمات الإلكترونية</a> / <span>التحقق من الشهادات</span></nav>
-  <h1>التحقق من الشهادات</h1>
   <p class="muted">أدخل رمز التحقق المطبوع على الشهادة للتأكد من صحتها: شهادات البرامج التدريبية، وشهادات العمل التطوعي، وشهادات التبرع.</p>
   {% if order %}<div class="notice ok" role="status">
     <strong>شهادة تبرع صحيحة.</strong>

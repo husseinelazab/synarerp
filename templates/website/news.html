@@ -2,8 +2,8 @@
 {% block title %}المركز الإعلامي — {{ request.site.company.name }}{% endblock %}
 {% block description %}أخبار {{ request.site.company.name }} وفعالياتها وإعلاناتها{% endblock %}
 {% block content %}{% site_url 'site_news' as news_url %}
+{% include "website/_page_hero.html" with heading="الأخبار والفعاليات" parent="المركز الإعلامي" intro="" %}
 <section class="wrap page">
-  <div class="section-head"><h1>المركز الإعلامي</h1><a href="{% site_url 'site_gallery' %}">معرض الصور ←</a></div>
   <nav class="filters" aria-label="تصنيف الأخبار">
     <a href="{{ news_url }}"{% if not category %} class="active" aria-current="page"{% endif %}>الكل</a>
     {% for value, label in categories %}<a href="{{ news_url }}?category={{ value }}"{% if category == value %} class="active" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}

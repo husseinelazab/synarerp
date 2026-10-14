@@ -13,9 +13,8 @@
   <meta name="twitter:card" content="summary">
 {% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading=post.title parent="المركز الإعلامي" intro="" %}
 <article class="wrap page article">
-  <nav class="crumbs"><a href="{% site_url 'site_news' %}">المركز الإعلامي</a> / <span>{{ post.get_category_display }}</span></nav>
-  <h1>{{ post.title }}</h1>
   <div class="meta"><span class="tag">{{ post.get_category_display }}</span><time datetime="{{ post.published_on|date:'Y-m-d' }}">{{ post.published_on|date:"Y-m-d" }}</time></div>
   {% if post.cover %}<img class="article-cover" src="{{ post.cover }}" alt="{{ post.title }}">{% endif %}
   {% if post.summary %}<p class="lead">{{ post.summary }}</p>{% endif %}

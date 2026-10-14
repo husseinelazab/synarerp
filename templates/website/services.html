@@ -2,9 +2,8 @@
 {% block title %}الخدمات الإلكترونية — {{ request.site.company.name }}{% endblock %}
 {% block description %}الخدمات الإلكترونية في {{ request.site.company.name }}: طلب المساعدة والتطوع والعضوية والتبرع والتحقق من الشهادات{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="الخدمات الإلكترونية" parent="" intro="خدماتنا الإلكترونية في مكان واحد" %}
 <section class="wrap page">
-  <nav class="crumbs"><a href="{% site_url 'site_home' %}">الرئيسية</a> / <span>الخدمات الإلكترونية</span></nav>
-  <h1>الخدمات الإلكترونية</h1>
   <p class="muted">اختر الخدمة التي تحتاجها، وأنجزها إلكترونياً دون الحاجة لزيارة مقر الجمعية.</p>
   <div class="services-grid">{% for service in services %}
     <a class="service-tile" href="{{ service.url }}" data-service="{{ service.icon }}">

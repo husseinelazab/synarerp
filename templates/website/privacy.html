@@ -2,9 +2,8 @@
 {% block title %}سياسة الخصوصية — {{ request.site.company.name }}{% endblock %}
 {% block description %}سياسة الخصوصية وحماية البيانات الشخصية في {{ request.site.company.name }}{% endblock %}
 {% block content %}{% with company=request.site.company %}
+{% include "website/_page_hero.html" with heading="سياسة الخصوصية" parent="" intro="" %}
 <article class="wrap page narrow article">
-  <nav class="crumbs"><a href="{% site_url 'site_home' %}">الرئيسية</a> / <span>سياسة الخصوصية</span></nav>
-  <h1>سياسة الخصوصية</h1>
   {% if policy %}<div class="prose">{{ policy|linebreaks }}</div>
   {% else %}<div class="prose">
     <p>تلتزم {{ company.name }} بحماية خصوصية زوار موقعها والمستفيدين والمتبرعين والمتطوعين والأعضاء، وتعالج بياناتهم الشخصية وفق نظام حماية البيانات الشخصية في المملكة العربية السعودية ولوائحه التنفيذية.</p>

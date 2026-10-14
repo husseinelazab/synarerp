@@ -2,9 +2,8 @@
 {% block title %}الشكاوى والمقترحات — {{ request.site.company.name }}{% endblock %}
 {% block description %}شاركنا شكواك أو اقتراحك أو شكرك لنطوّر خدمات {{ request.site.company.name }}{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="الشكاوى والمقترحات" parent="الخدمات الإلكترونية" intro="رأيك يهمنا ويساعدنا على التحسين" %}
 <section class="wrap page narrow">
-  <nav class="crumbs"><a href="{% site_url 'site_services' %}">الخدمات الإلكترونية</a> / <span>الشكاوى والمقترحات</span></nav>
-  <h1>الشكاوى والمقترحات</h1>
   {% if done %}<div class="notice ok" role="status">
     <strong>شكراً لك، وصلتنا رسالتك.</strong>
     {% if reference %}<p>رقم القيد: <bdi class="ref">{{ reference }}</bdi> — احتفظ به للمتابعة.</p>{% endif %}

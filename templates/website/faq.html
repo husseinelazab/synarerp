@@ -2,9 +2,8 @@
 {% block title %}الأسئلة الشائعة — {{ request.site.company.name }}{% endblock %}
 {% block description %}إجابات الأسئلة الشائعة عن {{ request.site.company.name }} وخدماتها وبرامجها{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="الأسئلة الشائعة" parent="" intro="" %}
 <section class="wrap page narrow">
-  <nav class="crumbs"><a href="{% site_url 'site_home' %}">الرئيسية</a> / <span>الأسئلة الشائعة</span></nav>
-  <h1>الأسئلة الشائعة</h1>
   {% for category, items in groups %}
   <section class="faq-group">
     {% if groups|length > 1 %}<h2 class="sub">{{ category }}</h2>{% endif %}

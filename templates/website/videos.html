@@ -8,9 +8,8 @@
   .video-intro .video-frame { border-radius: 12px; }
 </style>{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="الفيديوهات" parent="المركز الإعلامي" intro="" %}
 <section class="wrap page">
-  <nav class="crumbs"><a href="{% site_url 'site_news' %}">المركز الإعلامي</a> / <span>الفيديوهات</span></nav>
-  <h1>الفيديوهات</h1>
   {% if intro_embed %}<div class="video-intro"><div class="video-frame">
     <iframe src="{{ intro_embed }}" title="فيديو تعريفي عن {{ request.site.company.name }}" loading="lazy"
             allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>

@@ -2,9 +2,8 @@
 {% block title %}طلب العضوية — {{ request.site.company.name }}{% endblock %}
 {% block description %}قدّم طلب الانضمام لعضوية الجمعية العمومية في {{ request.site.company.name }}{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="طلب العضوية في الجمعية العمومية" parent="الخدمات الإلكترونية" intro="" %}
 <section class="wrap page narrow">
-  <nav class="crumbs"><a href="{% site_url 'site_services' %}">الخدمات الإلكترونية</a> / <span>طلب العضوية</span></nav>
-  <h1>طلب العضوية في الجمعية العمومية</h1>
   {% if done %}<div class="notice ok" role="status">
     <strong>شكراً لك، استلمنا طلب العضوية.</strong>
     {% if reference %}<p>رقم طلبك: <bdi class="ref">{{ reference }}</bdi> — احتفظ به للمتابعة.</p>{% endif %}

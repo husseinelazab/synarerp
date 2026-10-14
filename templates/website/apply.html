@@ -2,8 +2,8 @@
 {% block title %}طلب مساعدة — {{ request.site.company.name }}{% endblock %}
 {% block description %}قدّم طلب مساعدة أو سجّل مستفيداً لدى {{ request.site.company.name }}{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="طلب مساعدة / تسجيل مستفيد" parent="الخدمات الإلكترونية" intro="" %}
 <section class="wrap page narrow">
-  <h1>طلب مساعدة / تسجيل مستفيد</h1>
   {% if done %}<div class="notice ok" role="status">
     <strong>شكراً لك، استلمنا طلبك.</strong>
     {% if reference %}<p>رقم طلبك: <bdi class="ref">{{ reference }}</bdi> — احتفظ به للمتابعة.</p>{% endif %}

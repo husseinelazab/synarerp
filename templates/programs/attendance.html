@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div class="muted small">{{ program.get_status_display }} · {{ program.start_date|date:"Y-m-d" }} — {{ program.end_date|date:"Y-m-d" }} · الحد الأدنى للحضور {{ program.min_attendance }}% · درجة الاجتياز {{ program.pass_score }}</div>
+<div class="actions"><a class="btn" href="{{ program.get_absolute_url }}">العودة للبرنامج</a></div></div>
+{% if not sessions %}<div class="alert alert-info">لا جلسات مسجلة للبرنامج؛ أضفها من نموذج البرنامج لرصد الحضور (بلا جلسات يُعد الحضور مكتملاً).</div>{% endif %}
+<form method="post" class="card">{% csrf_token %}<div class="table-wrap"><table class="table">
+<thead><tr><th>المتدرب</th>{% for s in sessions %}<th class="center" title="{{ s.topic }}">{{ s.date|date:"m/d" }}{% if s.topic %}<div class="muted small">{{ s.topic|truncatechars:20 }}</div>{% endif %}</th>{% endfor %}
+<th class="num">الحضور</th><th>قبلي</th><th>بعدي</th><th>الرضا (1-5)</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><a href="{{ r.e.get_absolute_url }}">{{ r.e.full_name }}</a><div class="muted small">{{ r.e.get_status_display }}</div></td>
+{% for s, present in r.cells %}<td class="center"><input type="checkbox" name="att_{{ r.e.pk }}_{{ s.pk }}" {% if present %}checked{% endif %} aria-label="{{ r.e.full_name }} {{ s.date|date:'Y-m-d' }}"></td>{% endfor %}
+<td class="num">{{ r.e.attendance_percent }}%</td>
+<td><input type="number" class="form-control" style="width:6em" name="pre_{{ r.e.pk }}" min="0" max="100" step="0.5" value="{{ r.e.pre_score|default_if_none:''|stringformat:'s' }}"></td>
+<td><input type="number" class="form-control" style="width:6em" name="post_{{ r.e.pk }}" min="0" max="100" step="0.5" value="{{ r.e.post_score|default_if_none:''|stringformat:'s' }}"></td>
+<td><select class="form-select" name="sat_{{ r.e.pk }}"><option value=""></option>{% for i in "12345" %}<option value="{{ i }}" {% if r.e.satisfaction|stringformat:'s' == i %}selected{% endif %}>{{ i }}</option>{% endfor %}</select></td></tr>
+{% empty %}<tr><td colspan="{{ sessions|length|add:5 }}" class="muted center">لا متدربين مقبولين بعد</td></tr>{% endfor %}</tbody></table></div>
+{% if rows %}<div class="actions" style="margin-top:12px"><button class="btn btn-primary">حفظ الحضور والدرجات</button></div>{% endif %}
+</form>
+{% endblock %}

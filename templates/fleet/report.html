@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<p class="print-only">{{ company }} — من {{ from_date|date:"Y-m-d" }} إلى {{ to_date|date:"Y-m-d" }}</p>
+<div class="card"><h3>السيارات</h3>
+  <p class="muted small">المشاوير المنفذة التي بدأت في الفترة، والمسافة من قراءات العداد، والوقود بتاريخ التعبئة، والصيانة المنجزة في الفترة. تكلفة الكيلومتر = (الوقود + الصيانة) ÷ المسافة.</p>
+  <div class="table-wrap"><table class="table report">
+  <thead><tr><th>السيارة</th><th class="num">المشاوير</th><th class="num">المسافة (كم)</th><th class="num">الوقود (لتر)</th><th class="num">تكلفة الوقود</th>
+    <th class="num">مرات الصيانة</th><th class="num">تكلفة الصيانة</th><th class="num">الإجمالي</th><th class="num">تكلفة الكيلومتر</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td><a href="{{ r.vehicle.get_absolute_url }}">{{ r.vehicle }}</a></td><td class="num">{{ r.trips }}</td><td class="num">{{ r.km }}</td>
+    <td class="num">{{ r.liters|floatformat:2 }}</td><td class="num">{{ r.fuel|money }}</td><td class="num">{{ r.maint_count }}</td><td class="num">{{ r.maint|money }}</td>
+    <td class="num">{{ r.cost|money }}</td><td class="num">{% if r.per_km is not None %}{{ r.per_km|money }}{% else %}—{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="muted center">لا حركة للسيارات في الفترة</td></tr>{% endfor %}</tbody>
+  {% if rows %}<tfoot><tr><th>الإجمالي</th><th class="num">{{ totals.trips }}</th><th class="num">{{ totals.km }}</th><th class="num">{{ totals.liters|floatformat:2 }}</th>
+    <th class="num">{{ totals.fuel|money }}</th><th class="num">{{ totals.maint_count }}</th><th class="num">{{ totals.maint|money }}</th><th class="num">{{ totals.cost|money }}</th>
+    <th class="num">{% if totals.per_km is not None %}{{ totals.per_km|money }}{% else %}—{% endif %}</th></tr></tfoot>{% endif %}
+  </table></div>
+</div>
+<div class="card"><h3>صيانة المباني والمرافق حسب التصنيف</h3><div class="table-wrap"><table class="table report">
+  <thead><tr><th>التصنيف</th><th class="num">عدد الطلبات المنجزة</th><th class="num">التكلفة</th></tr></thead>
+  <tbody>{% for r in facility_rows %}<tr><td>{{ r.category }}</td><td class="num">{{ r.count }}</td><td class="num">{{ r.cost|money }}</td></tr>
+  {% empty %}<tr><td colspan="3" class="muted center">لا صيانة منجزة للمرافق في الفترة</td></tr>{% endfor %}</tbody>
+  {% if facility_rows %}<tfoot><tr><th>الإجمالي</th><th class="num">{{ facility_total.count }}</th><th class="num">{{ facility_total.cost|money }}</th></tr></tfoot>{% endif %}
+</table></div></div>
+{% endblock %}

@@ -1,3 +1,32 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load erp %}
 {% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
-{% block content %}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'training-program' %}">+ برنامج تدريبي</a>
+  <a class="btn" href="{% url 'doc_new' 'program-enrollment' %}">+ متدرب</a>
+  <a class="btn" href="{% url 'program_impact' %}">تقرير الأثر</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>برامج قائمة (تسجيل مفتوح / جارية)</span><b>{{ active }}</b></div>
+  <div class="kpi"><span>المتدربون في {{ year }}</span><b>{{ trainees }}</b></div>
+  <div class="kpi kpi-good"><span>ساعات تدريبية منفذة (للمجتازين)</span><b>{{ hours }}</b></div>
+  <div class="kpi"><span>متوسط رضا المتدربين</span><b>{% if satisfaction is not None %}{{ satisfaction }} / 5{% else %}—{% endif %}</b></div>
+  <div class="kpi {% if pending %}kpi-bad{% endif %}"><span>طلبات تسجيل بانتظار القبول</span><b>{{ pending|length }}</b></div>
+</div>
+<div class="card"><h3>البرامج المفتوحة والجارية</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>البرنامج</th><th>النوع</th><th>المدرب</th><th>الفترة</th><th class="num">المقبولون / المقاعد</th><th class="num">طلبات جديدة</th><th>الحالة</th><th></th></tr></thead><tbody>
+{% for p in programs %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p }}</a>{% if p.track %}<div class="muted small">{{ p.track }}</div>{% endif %}</td><td>{{ p.get_program_type_display }}</td><td>{{ p.trainer }}</td>
+<td>{{ p.start_date|date:"Y-m-d" }} — {{ p.end_date|date:"Y-m-d" }}</td><td class="num">{{ p.n }} / {{ p.capacity }}</td><td class="num">{{ p.waiting }}</td><td>{{ p.get_status_display }}</td>
+<td class="actions"><a class="btn btn-sm" href="{% url 'program_attendance' p.pk %}">كشف الحضور</a></td></tr>
+{% empty %}<tr><td colspan="8" class="muted center">لا برامج مفتوحة أو جارية</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="grid-2">
+<div class="card"><h3>طلبات التسجيل</h3><div class="table-wrap"><table class="table"><tbody>
+{% for e in pending %}<tr><td><a href="{{ e.get_absolute_url }}">{{ e.full_name }}</a></td><td>{{ e.phone }}</td><td><a href="{{ e.program.get_absolute_url }}">{{ e.program }}</a></td>
+<td class="actions">{% for key, label in e.available_actions %}<form method="post" action="{% url 'doc_action' 'program-enrollment' e.pk key %}">{% csrf_token %}<button class="btn btn-sm">{{ label }}</button></form>{% endfor %}</td></tr>
+{% empty %}<tr><td class="muted">لا طلبات</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>آخر البرامج المكتملة وأثرها</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>البرنامج</th><th class="num">المجتازون</th><th class="num">التحسن</th><th class="num">الرضا</th></tr></thead><tbody>
+{% for p in recent %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p }}</a></td><td class="num">{{ p.metrics.completed }} / {{ p.metrics.enrolled }}</td>
+<td class="num">{% if p.metrics.improvement is not None %}{{ p.metrics.improvement }}%{% else %}—{% endif %}</td><td class="num">{{ p.metrics.avg_satisfaction|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">—</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endblock %}

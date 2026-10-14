@@ -1,0 +1,28 @@
+{% load erp %}
+<div class="kpis">
+  <div class="kpi"><span>العداد</span><b>{{ obj.odometer }} كم</b></div>
+  <div class="kpi {% if obj.service_due %}kpi-bad{% endif %}"><span>الصيانة الدورية القادمة عند</span><b>{{ obj.next_service_km }} كم</b>{% if obj.service_due %}<span>مستحقة</span>{% endif %}</div>
+  <div class="kpi {% if obj.expiring_documents %}kpi-bad{% endif %}"><span>وثائق تنتهي خلال 30 يوماً</span><b>{{ obj.expiring_documents|length }}</b>
+    {% for label, date in obj.expiring_documents %}<span>{{ label }} {{ date|date:"Y-m-d" }}</span>{% endfor %}</div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>آخر المشاوير</h3><span><a class="btn btn-sm" href="{% url 'doc_new' 'vehicle-request' %}?vehicle={{ obj.pk }}">+ طلب سيارة</a></span></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الطلب</th><th>الانطلاق</th><th>الوجهة</th><th>الحالة</th><th class="num">المسافة</th></tr></thead>
+  <tbody>{% for t in obj.trips.all|slice:":10" %}<tr><td><a href="{{ t.get_absolute_url }}">{{ t.name }}</a></td><td>{{ t.start_at|date:"Y-m-d H:i" }}</td><td>{{ t.destination }}</td>
+  <td>{{ t.get_status_display }}</td><td class="num">{% if t.distance %}{{ t.distance }}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted center">لا مشاوير</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>الصيانة</h3><span><a class="btn btn-sm" href="{% url 'doc_new' 'maintenance-request' %}?target=vehicle&vehicle={{ obj.pk }}">+ طلب صيانة</a></span></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الطلب</th><th>التاريخ</th><th>التصنيف</th><th>الأولوية</th><th>الحالة</th><th class="num">التكلفة</th></tr></thead>
+  <tbody>{% for m in obj.maintenance.all|slice:":10" %}<tr><td><a href="{{ m.get_absolute_url }}">{{ m.number }}</a></td><td>{{ m.date|date:"Y-m-d" }}</td><td>{{ m.get_category_display }}</td>
+  <td>{{ m.get_priority_display }}</td><td>{{ m.get_status_display }}</td><td class="num">{{ m.cost|money }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا طلبات صيانة</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>آخر تعبئات الوقود</h3><span><a class="btn btn-sm" href="{% url 'doc_new' 'fuel-log' %}?vehicle={{ obj.pk }}">+ تعبئة وقود</a></span></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>التاريخ</th><th class="num">اللترات</th><th class="num">المبلغ</th><th class="num">العداد</th><th>المحطة</th></tr></thead>
+  <tbody>{% for f in obj.fuel_logs.all|slice:":10" %}<tr><td><a href="{{ f.get_absolute_url }}">{{ f.date|date:"Y-m-d" }}</a></td><td class="num">{{ f.liters }}</td><td class="num">{{ f.amount|money }}</td>
+  <td class="num">{{ f.odometer|default:"" }}</td><td>{{ f.station }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted center">لا تعبئات</td></tr>{% endfor %}</tbody></table></div>
+</div>

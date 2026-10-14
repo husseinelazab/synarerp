@@ -1,0 +1,8 @@
+<div class="kpis">
+  <div class="kpi"><span>نسبة الحضور</span><b>{{ obj.attendance_percent }}%</b><span>الحد الأدنى {{ obj.program.min_attendance }}%</span></div>
+  <div class="kpi"><span>الاختبار القبلي / البعدي</span><b>{{ obj.pre_score|default_if_none:"—" }} / {{ obj.post_score|default_if_none:"—" }}</b><span>درجة الاجتياز {{ obj.program.pass_score }}</span></div>
+  <div class="kpi"><span>الرسوم</span><b>{% if obj.fee_receipt %}<a href="{{ obj.fee_receipt.get_absolute_url }}">{{ obj.fee_status }}</a>{% else %}{{ obj.fee_status }}{% endif %}</b></div>
+</div>
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn" href="{% url 'program_attendance' obj.program_id %}">كشف حضور البرنامج</a>
+  {% if obj.certificate_code %}<a class="btn btn-primary" href="{% url 'program_certificate' obj.pk %}">الشهادة</a>{% endif %}</div></div>

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
+  <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
+  <button class="btn btn-primary">عرض</button>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button>
+</form>
+<div class="card"><p class="muted small">{{ company.name }} — البرامج المنفذة من {{ from_date|date:"Y-m-d" }} إلى {{ to_date|date:"Y-m-d" }}. التحسن = (متوسط البعدي − متوسط القبلي) ÷ متوسط القبلي.</p>
+<div class="table-wrap"><table class="table report">
+<thead><tr><th>البرنامج</th><th>النوع</th><th>المسار</th><th>الفترة</th><th>الحالة</th><th class="num">الساعات</th><th class="num">الملتحقون</th><th class="num">المجتازون</th><th class="num">نسبة الإتمام</th>
+<th class="num">متوسط القبلي</th><th class="num">متوسط البعدي</th><th class="num">التحسن</th><th class="num">الرضا</th><th class="num">ساعات تدريبية منفذة</th></tr></thead><tbody>
+{% for p in programs %}{% with m=p.metrics %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p }}</a></td><td>{{ p.get_program_type_display }}</td><td>{{ p.track }}</td>
+<td>{{ p.start_date|date:"Y-m-d" }} — {{ p.end_date|date:"Y-m-d" }}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.hours }}</td>
+<td class="num">{{ m.enrolled }}</td><td class="num">{{ m.completed }}</td><td class="num">{% if m.completion_rate is not None %}{{ m.completion_rate }}%{% else %}—{% endif %}</td>
+<td class="num">{{ m.avg_pre|default_if_none:"—" }}</td><td class="num">{{ m.avg_post|default_if_none:"—" }}</td>
+<td class="num">{% if m.improvement is not None %}{{ m.improvement }}%{% else %}—{% endif %}</td><td class="num">{{ m.avg_satisfaction|default_if_none:"—" }}</td><td class="num">{{ m.trained_hours }}</td></tr>{% endwith %}
+{% empty %}<tr><td colspan="14" class="muted center">لا برامج في الفترة</td></tr>{% endfor %}</tbody>
+<tfoot><tr><th colspan="6">الإجمالي ({{ programs|length }} برنامج)</th><th class="num">{{ totals.enrolled }}</th><th class="num">{{ totals.completed }}</th>
+<th class="num">{% if totals.completion_rate is not None %}{{ totals.completion_rate }}%{% else %}—{% endif %}</th><th colspan="4"></th><th class="num">{{ totals.trained_hours }}</th></tr></tfoot></table></div></div>
+{% endblock %}

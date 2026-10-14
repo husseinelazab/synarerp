@@ -312,9 +312,21 @@ class MeetingDecision(TenantModel):
 
 # ───────────────────────────── الحوكمة ─────────────────────────────
 
+class FrameworkSource(models.TextChoices):
+    CUSTOM = "", "معايير الجهة الخاصة"
+    NCNP = "ncnp", "معيار المركز الوطني لتنمية القطاع غير الربحي"
+
+
 class GovernanceStandard(TenantModel):
     code = models.CharField("الرمز", max_length=10)
     name = models.CharField("المعيار", max_length=150)
+    source = models.CharField("المصدر", max_length=20, choices=FrameworkSource.choices, blank=True, editable=False)
+    version = models.CharField("الإصدار", max_length=20, blank=True, editable=False)
+    weight_percent = models.DecimalField("وزن المعيار من التقييم الكلي %", max_digits=5, decimal_places=2, default=0,
+                                         help_text="صفر = تُحسب النتيجة الكلية بمجموع درجات المؤشرات")
+    description = models.TextField("الوصف", blank=True)
+    is_estimated = models.BooleanField("الوزن تقديري", default=False,
+                                       help_text="الوزن لم يُتحقق منه من دليل المركز؛ حدّثه من الدليل المعتمد")
 
     class Meta:
         verbose_name = "معيار حوكمة"
@@ -347,6 +359,16 @@ class GovernanceIndicator(TenantModel):
     auto_target = models.PositiveSmallIntegerField("الحد المطلوب للتحقق الآلي", default=0,
                                                    help_text="مثل عدد اجتماعات المجلس أو النسبة المئوية")
     is_active = models.BooleanField("مفعّل", default=True)
+    group = models.CharField("المؤشر الرئيسي", max_length=150, blank=True,
+                             help_text="المحور الذي تندرج تحته الممارسة في دليل المركز")
+    description = models.TextField("الوصف وطريقة التقييم", blank=True)
+    check_key = models.CharField("التحقق المقترح من بيانات النظام", max_length=40, blank=True,
+                                 help_text="يقترح حالة المؤشر في التقييم الذاتي ولا يعتمدها؛ المستخدم يؤكد الدرجة")
+    fix_link = models.CharField("مكان المعالجة في النظام", max_length=100, blank=True, editable=False)
+    version = models.CharField("الإصدار", max_length=20, blank=True, editable=False)
+    is_estimated = models.BooleanField("الدرجة تقديرية", default=False,
+                                       help_text="تقديري — يُحدَّث من دليل المركز")
+    source_note = models.CharField("ملاحظة المصدر", max_length=255, blank=True)
 
     class Meta:
         verbose_name = "مؤشر حوكمة"
@@ -425,6 +447,9 @@ class GovernanceAssessment(SubmittableDocument):
     posting_note = "التقييم معتمد؛ يمكن طباعته ومقارنته بنتيجة زيارة فريق الحوكمة."
 
     year = models.PositiveSmallIntegerField("السنة", default=current_year)
+    framework = models.CharField("الإطار", max_length=20, choices=FrameworkSource.choices, blank=True,
+                                 help_text="معيار المركز الوطني: تُجلب مؤشرات المعيار المحمّل فقط مع اقتراحات آلية تؤكدها أنت")
+    framework_version = models.CharField("إصدار الإطار", max_length=20, blank=True, editable=False)
     notes = models.TextField("ملاحظات وخطة التحسين", blank=True)
     total_weight = models.DecimalField("مجموع الأوزان", max_digits=8, decimal_places=2, default=0, editable=False)
     total_score = models.DecimalField("الدرجة", max_digits=8, decimal_places=2, default=0, editable=False)
@@ -438,21 +463,63 @@ class GovernanceAssessment(SubmittableDocument):
         if not self.pk:
             return
         if self.is_draft and not self.scores.exists():
-            GovernanceScore.objects.bulk_create([
-                GovernanceScore(parent=self, indicator=i, weight=i.weight)
-                for i in GovernanceIndicator.objects.filter(is_active=True).select_related("standard")])
+            indicators = GovernanceIndicator.objects.filter(is_active=True, standard__source=self.framework)
+            GovernanceScore.objects.bulk_create([GovernanceScore(parent=self, indicator=i, weight=i.weight)
+                                                 for i in indicators.select_related("standard")])
+            if self.framework:
+                self.framework_version = max((i.version for i in indicators), default="")
         if self.is_draft:
+            from governance.checks import run_check
+
             for row in self.scores.select_related("indicator"):
                 result = row.indicator.evaluate(self.year)
                 if result is not None:
                     met, text = result
                     row.status, row.auto_result = (ScoreStatus.MET if met else ScoreStatus.NOT_MET), text
                     row.save(update_fields=["status", "auto_result"])
+                elif row.indicator.check_key:
+                    suggestion = run_check(row.indicator.check_key, self.year, row.indicator.auto_target)
+                    if suggestion is not None:
+                        row.suggested_status, row.auto_result = suggestion.status, suggestion.text[:255]
+                        row.save(update_fields=["suggested_status", "auto_result"])
         rows = [r for r in self.scores.all() if r.status != ScoreStatus.NA]
         self.total_weight = sum((r.weight for r in rows), Decimal(0))
         self.total_score = sum((r.weight * SCORE_FACTOR.get(r.status, 0) for r in rows if r.status), Decimal(0))
         self.score_percent = (self.total_score * 100 / self.total_weight).quantize(Decimal("0.1")) \
             if self.total_weight else Decimal(0)
+        weighted = self.weighted_percent()
+        if weighted is not None:
+            self.score_percent = weighted
+
+    def weighted_percent(self):
+        """النسبة الكلية مرجحة بأوزان المعايير إن حُددت لكل المعايير (كما في معيار المركز)."""
+        parts = self.by_standard()
+        if not parts or any(not p["standard"].weight_percent for p in parts):
+            return None
+        scored = [p for p in parts if p["percent"] is not None]
+        total = sum((p["standard"].weight_percent for p in scored), Decimal(0))
+        if not total:
+            return Decimal(0)
+        return (sum(p["percent"] * p["standard"].weight_percent for p in scored) / total).quantize(Decimal("0.1"))
+
+    @property
+    def draft_actions(self):
+        if self.is_draft and any(r.suggested_status and not r.status for r in self.scores.all()):
+            return [("apply_suggestions", "اعتماد الحالات المقترحة للمؤشرات غير المقيّمة")]
+        return []
+
+    def apply_suggestions(self, user):
+        """ينسخ الحالة المقترحة إلى المؤشرات التي لم يحدد المستخدم حالتها؛ تبقى قابلة للتعديل قبل الاعتماد."""
+        if not self.is_draft:
+            raise ValidationError("التقييم معتمد.")
+        count = 0
+        for row in self.scores.filter(status="").exclude(suggested_status=""):
+            row.status = row.suggested_status
+            row.save(update_fields=["status"])
+            count += 1
+        self.calculate_totals()
+        self.save()
+        return count
 
     def validate_for_submit(self):
         missing = [r.indicator.code for r in self.scores.select_related("indicator") if not r.status]
@@ -476,6 +543,8 @@ class GovernanceScore(models.Model):
     weight = models.DecimalField("الوزن", max_digits=6, decimal_places=2, default=1)
     status = models.CharField("الحالة", max_length=10, choices=ScoreStatus.choices, blank=True)
     auto_result = models.CharField("نتيجة التحقق الآلي", max_length=255, blank=True)
+    suggested_status = models.CharField("الحالة المقترحة", max_length=10, choices=ScoreStatus.choices, blank=True,
+                                        editable=False)
     note = models.CharField("الشواهد / الملاحظات", max_length=255, blank=True)
 
     class Meta:

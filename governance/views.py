@@ -43,12 +43,63 @@ def governance_dashboard(request):
     year = timezone.localdate().year
     indicators = list(GovernanceIndicator.objects.filter(is_active=True).select_related("standard")
                       .annotate(evidence_count=Count("evidence")))
+    from governance.checks import run_check
+
     for indicator in indicators:
         indicator.result = indicator.evaluate(year)
+        if indicator.result is None and indicator.check_key:
+            suggestion = run_check(indicator.check_key, year, indicator.auto_target)
+            if suggestion is not None and suggestion.status != "na":
+                indicator.result = (suggestion.status == "met", suggestion.text)
+    from governance.ncnp import framework_data, loaded_version, version_key
+
+    available = framework_data()["version"]
+    loaded = loaded_version()
     return render(request, "governance/governance_dashboard.html", {
         "title": "لوحة إدارة الحوكمة", "year": year, "indicators": indicators,
+        "ncnp_available": available, "ncnp_loaded": loaded,
+        "ncnp_update": not loaded or version_key(loaded) < version_key(available),
         "assessments": GovernanceAssessment.objects.order_by("-year", "-id")[:5],
         "without_evidence": sum(1 for i in indicators if not i.evidence_count),
+    })
+
+
+@login_required
+@require_POST
+def load_ncnp_framework(request):
+    from governance.ncnp import load_framework
+
+    if request.membership.doctype_access("governance-indicator") != "write":
+        messages.error(request, "ليست لديك صلاحية تعديل مؤشرات الحوكمة.")
+        return redirect("governance_dashboard")
+    try:
+        stats = load_framework(request.company)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect("governance_dashboard")
+    if stats["skipped_newer"]:
+        messages.warning(request, f"لدى الجهة إصدار أحدث من {stats['version']}؛ لم يتغير شيء.")
+    else:
+        messages.success(request, f"معيار المركز الوطني (إصدار {stats['version']}): أُضيف {stats['created']} مؤشراً، "
+                                  f"وحُدّث {stats['updated']}، وأُوقف {stats['deactivated']}، "
+                                  f"وبقي {stats['unchanged']} دون تغيير.")
+    return redirect("governance_dashboard")
+
+
+@login_required
+def readiness_report(request):
+    from governance.models import FrameworkSource
+    from governance.ncnp import framework_data, loaded_version, readiness
+
+    assessments = GovernanceAssessment.objects.exclude(docstatus=2).order_by("-year", "-id")
+    pk = request.GET.get("assessment")
+    assessment = (get_object_or_404(GovernanceAssessment, pk=pk) if pk and pk.isdigit() else
+                  assessments.filter(framework=FrameworkSource.NCNP).first() or assessments.first())
+    data = framework_data()
+    return render(request, "governance/readiness_report.html", {
+        "title": "تقرير الجاهزية لتقييم الحوكمة", "assessment": assessment, "assessments": assessments[:20],
+        "report": readiness(assessment) if assessment else None, "as_of": timezone.localdate(),
+        "framework": data, "loaded_version": loaded_version(),
     })
 
 

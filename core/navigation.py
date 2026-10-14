@@ -330,7 +330,8 @@ def nonprofit_modules(modules, doc):
     ]}
     by_key["governance"] = {"key": "governance", "label": "إدارة الحوكمة", "sections": [
         {"items": [_item("لوحة الحوكمة", "governance_dashboard"), doc("التقييم الذاتي", "governance-assessment"),
-                   doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard")]},
+                   doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard"),
+                   _item("تقرير الجاهزية لتقييم الحوكمة", "governance_readiness")]},
     ]}
     by_key["grants"] = {"key": "grants", "label": "إدارة المنح", "sections": [
         {"items": [_item("لوحة المنح", "grants_dashboard"), doc("طلبات المنح", "grant-application"),

@@ -30,13 +30,16 @@ def dashboard(request):
     if membership is not None and (not membership.allows_module("accounts") or not membership.may("costs")):
         # من لا يملك صلاحية المحاسبة لا يرى أرقام الأرباح والنقدية
         return render(request, "core/dashboard_limited.html", {"today": timezone.localdate()})
+    from core.onboarding import onboarding_context
+
     if request.company.is_nonprofit:
         from core.dashboard import nonprofit_dashboard_context
 
-        return render(request, "core/dashboard_nonprofit.html", nonprofit_dashboard_context(request))
+        return render(request, "core/dashboard_nonprofit.html",
+                      {**nonprofit_dashboard_context(request), "onboarding": onboarding_context(request)})
     from core.dashboard import dashboard_context
 
-    return render(request, "core/dashboard.html", dashboard_context(request))
+    return render(request, "core/dashboard.html", {**dashboard_context(request), "onboarding": onboarding_context(request)})
 
 
 @login_required
@@ -215,10 +218,54 @@ def doc_form(request, slug, pk=None):
                 return _run_action(request, dt, obj, "submit")
             return redirect("doc_detail", slug=slug, pk=obj.pk)
 
+    advanced = _advanced_fields(dt, form, company)
     return render(request, "core/form.html", {
         "dt": dt, "form": form, "formset": formset, "empty_form": empty_form, "instance": instance, "is_return": is_return,
         "posts_to_ledger": getattr(dt.model, "posts_to_ledger", True), "type_title": type_title,
+        "advanced_names": [bf.name for bf in advanced], "advanced_fields": advanced,
+        "advanced_open": _advanced_open(form, advanced, company),
     })
+
+
+def _advanced_fields(dt, form, company):
+    """الحقول التي تُطوى في «خيارات إضافية»: ما عدا الإلزامي بلا قيمة، والصندوق في الجمعيات (أساس صرفها)."""
+    keep = {"fund"} if company is not None and company.is_nonprofit else set()
+    fields = []
+    for name in dt.advanced_fields:
+        if name not in form.fields or name in keep or form.fields[name].widget.is_hidden:
+            continue
+        bound = form[name]
+        if form.fields[name].required and bound.value() in (None, ""):
+            continue
+        fields.append(bound)
+    return fields
+
+
+def _advanced_open(form, fields, company):
+    """تُفتح الخيارات الإضافية إن كان فيها خطأ، أو عند تعديل مستند فيه قيمة غير الافتراضية."""
+    from decimal import Decimal, InvalidOperation
+
+    def norm(value):
+        if value in (None, "", False):
+            return ""
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            return str(value)
+        return "" if number == 0 else str(number.normalize())
+
+    if any(bf.errors for bf in fields):
+        return True
+    if form.is_bound or form.instance.pk is None:
+        return False
+    defaults = {"exchange_rate": 1}
+    if company:
+        defaults.update(currency=company.currency_id, tax_rate=company.default_tax_rate)
+    for bf in fields:
+        default = defaults.get(bf.name, form.instance._meta.get_field(bf.name).get_default())
+        if norm(bf.value()) != norm(default):
+            return True
+    return False
 
 
 def _scoped(request, dt):

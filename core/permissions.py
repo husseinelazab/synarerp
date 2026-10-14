@@ -50,6 +50,17 @@ NONPROFIT_LABELS = {
 }
 
 
+# لا تُخفى من القائمة: المحاسبة أساس كل شيء، والمدمجة في قائمة الشؤون المالية للجمعية لا قائمة مستقلة لها
+ALWAYS_SHOWN = {"accounts", "funds"}
+NONPROFIT_MERGED = {"buying", "einvoice"}
+
+
+def hideable_modules(company):
+    """الوحدات التي يمكن للمنشأة إخفاؤها من القائمة الجانبية إن لم تكن تستخدمها."""
+    skip = ALWAYS_SHOWN | (NONPROFIT_MERGED if company.is_nonprofit else set())
+    return [(key, label) for key, label in company_modules(company) if key not in skip]
+
+
 def company_modules(company):
     """الوحدات التي تخص نوع المنشأة لاختيار صلاحيات المستخدمين، بمسمياتها لدى هذا النوع."""
     if company is not None and company.is_nonprofit:

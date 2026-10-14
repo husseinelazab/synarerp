@@ -181,7 +181,8 @@
             rows.forEach(function (r) { var s = field(r, "item"); if (!row && s && !s.value) row = r; });
             if (!row) { document.querySelector(".add-row").click(); row = tbody.querySelector("tr.child-row:last-child"); }
             var select = field(row, "item");
-            select.value = id;
+            if (window.SynarSearch) window.SynarSearch.setValue(select, id, (res.data.code ? res.data.code + " - " : "") + res.data.name); else select.value = id;
+            select.dispatchEvent(new Event("change"));  // يحدّث اسم الصنف الظاهر في مربع البحث
             if (select.value !== id) { scanMsg.className = "scan-msg text-danger"; scanMsg.textContent = "✗ الصنف غير متاح في هذا المستند"; return; }
             var q2 = field(row, "qty"), u2 = field(row, "uom");
             if (q2) q2.value = qty;

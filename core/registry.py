@@ -68,7 +68,9 @@ class DocType:
     # حقل اختيار يفصل المستند إلى نوعين بعناوين مستقلة (مثل سند قبض / سند صرف): {القيمة: (المفرد، الجمع)}.
     # إن حُدد النوع من الرابط يُخفى الحقل في النموذج وتصبح عناوين القائمة والنموذج باسم النوع.
     type_field: str = ""
-    type_titles: dict = field(default_factory=dict)  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
+    type_titles: dict = field(default_factory=dict)
+    # حقول نادرة الاستخدام تُطوى في «خيارات إضافية» أسفل الحقول الأساسية حتى يبقى النموذج بسيطاً
+    advanced_fields: list = field(default_factory=list)  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
 
     @property
     def label(self):
@@ -84,6 +86,11 @@ class DocType:
 
         return issubclass(self.model, SubmittableDocument)
 
+
+# الحقول الإضافية للمستندات التجارية (الفواتير والعروض والأوامر وأذون التسليم والاستلام)
+COMMERCIAL_ADVANCED = ["price_list", "tax_rate", "currency", "project", "vat_category", "vat_exemption_reason",
+                       "prices_include_tax", "exchange_rate", "payment_terms", "cost_center", "fund", "sales_person",
+                       "coupon_code", "ignore_pricing_rules", "loyalty_points", "update_stock"]
 
 REGISTRY: dict[str, DocType] = {}
 

@@ -19,10 +19,15 @@ def formfield_callback(db_field, **kwargs):
 
 
 def style_form(form):
+    from core.remote_select import make_remote
+
     for name, field in form.fields.items():
+        make_remote(field)  # القوائم الكبيرة تُبحث على الخادم بدل تحميل كل الخيارات
         widget = field.widget
         if isinstance(widget, forms.CheckboxInput):
             widget.attrs.setdefault("class", "form-check")
+        elif isinstance(widget, forms.CheckboxSelectMultiple):
+            continue  # مربعات اختيار متعددة تُنسق كشبكة (.field-multi) لا كحقل إدخال
         else:
             css = "form-control"
             if isinstance(widget, forms.Select):

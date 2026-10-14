@@ -30,8 +30,17 @@
   // ---------- القوائم المنسدلة القابلة للبحث ----------
   var MIN_OPTIONS = 12;
 
+  // يضمن وجود الخيار في القائمة (القوائم الكبيرة لا تحمل إلا الخيار المختار) ثم يختاره
+  function setValue(select, value, text) {
+    value = String(value);
+    var found = Array.prototype.some.call(select.options, function (o) { return o.value === value; });
+    if (!found && select.dataset.remote && value) select.add(new Option(text || value, value));
+    select.value = value;
+  }
+
   function enhanceSelect(select) {
-    if (select.dataset.searchable || select.multiple || select.options.length < MIN_OPTIONS ||
+    var remote = select.dataset.remote;
+    if (select.dataset.searchable || select.multiple || (!remote && select.options.length < MIN_OPTIONS) ||
         select.closest(".no-search") || select.closest("template")) return;
     select.dataset.searchable = "1";
     var box = document.createElement("div");
@@ -40,7 +49,7 @@
     input.type = "text";
     input.className = "form-control combo-input";
     input.autocomplete = "off";
-    input.placeholder = "اكتب للبحث…";
+    input.placeholder = remote ? "اكتب للبحث بالاسم أو الرقم…" : "اكتب للبحث…";
     var list = document.createElement("div");
     list.className = "combo-list";
     list.hidden = true;
@@ -51,37 +60,65 @@
     select.classList.add("combo-native");
     select.tabIndex = -1;
 
-    var active = -1, shown = [];
+    var active = -1, shown = [], timer = null, seq = 0;
 
     function label() {
       var opt = select.options[select.selectedIndex];
       input.value = opt && opt.value ? opt.text : "";
     }
 
-    function render(query) {
+    function message(text) {
+      var empty = document.createElement("div");
+      empty.className = "combo-empty";
+      empty.textContent = text;
+      list.appendChild(empty);
+    }
+
+    function show(items, more) {
       list.innerHTML = "";
       shown = [];
-      for (var i = 0; i < select.options.length && shown.length < 200; i++) {
-        var opt = select.options[i];
-        if (!opt.value && query) continue;
-        if (query && !matches(opt.text, query)) continue;
+      items.forEach(function (it) {
         var div = document.createElement("div");
-        div.className = "combo-item" + (opt.value === select.value ? " selected" : "");
-        div.textContent = opt.text;
-        div.dataset.index = i;
+        div.className = "combo-item" + (it.value === select.value ? " selected" : "");
+        div.textContent = it.text;
+        div.dataset.value = it.value;
         list.appendChild(div);
         shown.push(div);
-      }
-      if (!shown.length) {
-        var empty = document.createElement("div");
-        empty.className = "combo-empty";
-        empty.textContent = "لا نتائج";
-        list.appendChild(empty);
-      }
+      });
+      if (!shown.length) message("لا نتائج");
+      else if (more) message("اكتب أكثر لتضييق النتائج…");
       active = shown.length ? 0 : -1;
       list.hidden = false;
       place();
       highlight();
+    }
+
+    function render(query) {
+      if (remote) {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          var mine = ++seq;
+          fetch(remote + "?q=" + encodeURIComponent(query || ""), { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : { results: [], expired: r.status === 404 }; })
+            .then(function (data) {
+              if (mine !== seq || document.activeElement !== input) return;
+              if (data.expired) { show([], false); list.innerHTML = ""; message("انتهت صلاحية الصفحة، أعد تحميلها للبحث."); return; }
+              var items = data.results.map(function (r) { return { value: String(r.id), text: r.text }; });
+              if (!query && !select.required) items.unshift({ value: "", text: (select.options[0] && !select.options[0].value) ? select.options[0].text : "—" });
+              show(items, data.more);
+            })
+            .catch(function () {});
+        }, query ? 200 : 0);
+        return;
+      }
+      var items = [];
+      for (var i = 0; i < select.options.length && items.length < 200; i++) {
+        var opt = select.options[i];
+        if (!opt.value && query) continue;
+        if (query && !matches(opt.text, query)) continue;
+        items.push({ value: opt.value, text: opt.text });
+      }
+      show(items, false);
     }
 
     // القائمة مثبّتة على الشاشة حتى لا تقصّها الجداول القابلة للتمرير أفقياً
@@ -101,8 +138,8 @@
       if (shown[active]) shown[active].scrollIntoView({ block: "nearest" });
     }
 
-    function choose(index) {
-      select.selectedIndex = index;
+    function choose(item) {
+      setValue(select, item.dataset.value, item.textContent);
       select.dispatchEvent(new Event("change", { bubbles: true }));
       label();
       list.hidden = true;
@@ -113,12 +150,12 @@
     input.addEventListener("keydown", function (e) {
       if (e.key === "ArrowDown") { active = Math.min(active + 1, shown.length - 1); highlight(); e.preventDefault(); }
       else if (e.key === "ArrowUp") { active = Math.max(active - 1, 0); highlight(); e.preventDefault(); }
-      else if (e.key === "Enter") { if (!list.hidden && shown[active]) { choose(+shown[active].dataset.index); e.preventDefault(); } }
+      else if (e.key === "Enter") { if (!list.hidden && shown[active]) { choose(shown[active]); e.preventDefault(); } }
       else if (e.key === "Escape") { list.hidden = true; label(); }
     });
     list.addEventListener("mousedown", function (e) {
       var item = e.target.closest(".combo-item");
-      if (item) { choose(+item.dataset.index); e.preventDefault(); }
+      if (item) { choose(item); e.preventDefault(); }
     });
     window.addEventListener("scroll", function (e) {
       if (!list.hidden && e.target !== list) place();
@@ -299,6 +336,6 @@
     }).observe(document.body, { childList: true, subtree: true });
   }
 
-  window.SynarSearch = { norm: norm, matches: matches, enhance: enhanceAll };
+  window.SynarSearch = { norm: norm, matches: matches, enhance: enhanceAll, setValue: setValue };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();

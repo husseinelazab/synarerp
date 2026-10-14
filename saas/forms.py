@@ -65,6 +65,10 @@ class CompanySettingsForm(forms.ModelForm):
         model = Company
         fields = "__all__"
 
+    hidden_modules = forms.MultipleChoiceField(
+        label="إخفاء وحدات لا تستخدمها", required=False, widget=forms.CheckboxSelectMultiple,
+        help_text="تختفي من القائمة الجانبية لكل المستخدمين. لا تُحذف بياناتها، وتعود بإلغاء التحديد.")
+
     NONPROFIT_FIELDS = ("license_number", "registration_date", "headquarters", "objectives", "fs_policies",
                         "eligibility_threshold", "review_period_months", "require_aid_otp")
 
@@ -73,6 +77,9 @@ class CompanySettingsForm(forms.ModelForm):
         if not self.instance.is_nonprofit:
             for name in self.NONPROFIT_FIELDS:
                 self.fields.pop(name)
+        from core.permissions import hideable_modules
+
+        self.fields["hidden_modules"].choices = hideable_modules(self.instance)
         style_form(self)
 
     def clean_currency(self):

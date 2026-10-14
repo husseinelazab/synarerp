@@ -1,9 +1,10 @@
-from core.registry import ChildTable, DocType, register
+from core.registry import COMMERCIAL_ADVANCED, ChildTable, DocType, register
 from selling.models import (Customer, CustomerGroup, SalesPerson, Territory, DeliveryNote, DeliveryNoteItem, Quotation, QuotationItem, SalesInvoice,
                             SalesInvoiceItem, SalesOrder, SalesOrderItem)
 
 register(DocType(
     slug="sales-invoice", model=SalesInvoice, module="selling",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "customer", "is_return", "grand_total", "outstanding_amount"],
     form_fields=["customer", "posting_date", "payment_terms", "due_date", "currency", "exchange_rate", "update_stock", "warehouse", "cost_center", "project", "fund", "sales_person",
                  "price_list", "coupon_code", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
@@ -21,6 +22,7 @@ register(DocType(
 ))
 register(DocType(
     slug="quotation", model=Quotation, module="selling",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "customer", "valid_till", "grand_total", "status"],
     form_fields=["customer", "posting_date", "valid_till", "sales_person", "currency", "exchange_rate", "price_list", "coupon_code",
                  "ignore_pricing_rules", "tax_rate", "prices_include_tax", "discount_amount", "terms", "remarks"],
@@ -30,6 +32,7 @@ register(DocType(
 ))
 register(DocType(
     slug="sales-order", model=SalesOrder, module="selling",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "customer", "delivery_date", "grand_total", "per_billed", "status"],
     form_fields=["customer", "posting_date", "delivery_date", "sales_person", "currency", "exchange_rate", "warehouse", "cost_center",
                  "price_list", "coupon_code", "ignore_pricing_rules", "tax_rate", "prices_include_tax", "discount_amount",
@@ -40,6 +43,7 @@ register(DocType(
 ))
 register(DocType(
     slug="delivery-note", model=DeliveryNote, module="selling",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "customer", "warehouse", "total_amount", "status"],
     form_fields=["customer", "posting_date", "warehouse", "cost_center", "currency", "exchange_rate", "tax_rate", "remarks"],
     search_fields=["name", "customer__name"],

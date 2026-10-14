@@ -91,7 +91,7 @@ def message_log(request):
 @require_POST
 def send_view(request, kind, pk):
     """إرسال رسالة من صفحة فاتورة أو عميل: mode=link يفتح واتساب، mode=provider عبر المزوّد."""
-    from messaging.service import compose, invoice_context, send, statement_context
+    from messaging.service import compose, invoice_context, send, statement_context, with_invoice_link
     from selling.models import Customer, SalesInvoice
 
     mode = "link" if request.POST.get("mode") == "link" else "provider"
@@ -108,6 +108,8 @@ def send_view(request, kind, pk):
         back, event = f"/app/customer/{customer.pk}/", "statement"
         body, reference = compose(request.company, event, **statement_context(customer)), customer.name
     body = request.POST.get("body", "").strip() or body
+    if kind == "invoice":
+        body = with_invoice_link(request.company, body, doc, request)
     try:
         entry, link = send(request.company, customer.phone, body, event=event, reference=reference,
                            customer=customer, user=request.user, mode=mode)

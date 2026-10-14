@@ -340,6 +340,13 @@ def doc_detail(request, slug, pk):
                                     .filter(Q(model_label=label, object_id=str(obj.pk)) |
                                             Q(parent_label=label, parent_id=str(obj.pk)))
                                     .select_related("user")[:100])
+    if dt.is_submittable and not obj.is_draft:
+        from core.mail import mail_enabled
+        from core.pdf import _party_email, share_path
+
+        context["mail_enabled"] = mail_enabled(request.company)
+        context["party_email"] = _party_email(obj)
+        context["share_path"] = share_path(request.company, slug, obj)
     if slug in ("customer", "sales-invoice"):
         from messaging.models import MessagingSettings
 
@@ -350,14 +357,22 @@ def doc_detail(request, slug, pk):
 
 @login_required
 def doc_print(request, slug, pk):
+    dt = get_doctype(slug)
+    obj = get_object_or_404(_scoped(request, dt), pk=pk)
+    membership = getattr(request, "membership", None)
+    context = print_page_context(dt, obj, request.company, template=request.GET.get("template"),
+                                 can_customize=bool(membership and membership.can_manage))
+    return render(request, "core/print.html", context)
+
+
+def print_page_context(dt, obj, company, template=None, can_customize=False):
+    """بيانات صفحة الطباعة؛ تُستخدم للعرض في المتصفح ولتوليد ملف PDF على الخادم."""
     from core.hijri import format_hijri
     from core.models import PrintSettings, PrintTemplate
     from core.printing import print_context
 
-    dt = get_doctype(slug)
-    obj = get_object_or_404(_scoped(request, dt), pk=pk)
-    ps = PrintSettings.for_company(request.company)
-    template = request.GET.get("template")
+    slug = dt.slug
+    ps = PrintSettings.for_company(company)
     if template not in PrintTemplate.values:
         template = ps.template
     child_headers, child_rows = _child_table(dt, obj)
@@ -366,21 +381,20 @@ def doc_print(request, slug, pk):
         from core.zatca import invoice_qr_svg
 
         qr = invoice_qr_svg(obj)
-    p = print_context(slug, obj, request.company, ps)
+    p = print_context(slug, obj, company, ps)
     exclude = set(dt.totals) | set(dt.detail_exclude) | {"name", "docstatus", "posting_date", "remarks", "company"}
-    membership = getattr(request, "membership", None)
     posting_date = getattr(obj, "posting_date", None)
-    return render(request, "core/print.html", {
+    return {
         "qr": qr, "doc_currency": getattr(obj, "currency", None), "p": p, "ps": ps, "template": template,
         "templates": [(v, label.split(" — ")[0]) for v, label in PrintTemplate.choices],
-        "can_customize": bool(membership and membership.can_manage),
+        "can_customize": can_customize,
         "hijri_date": format_hijri(posting_date) if posting_date else "",
         "generic_fields": detail_fields(obj, exclude=exclude) if p["kind"] == "generic" else [],
-        "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": request.company,
+        "dt": dt, "obj": obj, "child_headers": child_headers, "child_rows": child_rows, "company": company,
         # الجداول العريضة (مثل مسير الرواتب) تُطبع بالعرض وبخط أصغر حتى لا تخرج عن الورقة
         "landscape": len(child_headers) > 7,
         "totals": [(field_label(dt.model, f), getattr(obj, f)) for f in dt.totals if f != "outstanding_amount"],
-    })
+    }
 
 
 @login_required

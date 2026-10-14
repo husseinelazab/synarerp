@@ -1,6 +1,6 @@
 from django.urls import path
 
-from core import attachments, import_views, onboarding, remote_select, search, statistics, views
+from core import attachments, import_views, onboarding, pdf, remote_select, search, statistics, views
 from stock import tools as stock_tools
 
 urlpatterns = [
@@ -33,6 +33,8 @@ urlpatterns = [
     path("app/<slug:slug>/<int:pk>/edit/", views.doc_form, name="doc_edit"),
     path("app/<slug:slug>/<int:pk>/recurring/", views.make_recurring, name="make_recurring"),
     path("app/<slug:slug>/<int:pk>/print/", views.doc_print, name="doc_print"),
+    path("app/<slug:slug>/<int:pk>/pdf/", pdf.doc_pdf, name="doc_pdf"),
+    path("app/<slug:slug>/<int:pk>/email/", pdf.doc_email, name="doc_email"),
     path("app/<slug:slug>/<int:pk>/attachments/", attachments.upload, name="attachment_upload"),
     path("app/<slug:slug>/<int:pk>/attachments/<int:attachment_id>/", attachments.download,
          name="attachment_download"),

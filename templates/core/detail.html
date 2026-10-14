@@ -25,6 +25,16 @@
     {% if obj.is_submitted and dt.slug == 'purchase-invoice' and obj.update_stock and not obj.is_return %}<a class="btn" href="{% url 'stock_labels' %}?doc=pinv-{{ obj.pk }}">ملصقات الأصناف المستلمة</a>{% endif %}
     {% if dt.is_submittable %}
       <a class="btn" href="{% url 'doc_print' dt.slug obj.pk %}" target="_blank">طباعة</a>
+      <a class="btn" href="{% url 'doc_pdf' dt.slug obj.pk %}">تنزيل PDF</a>
+      {% if not obj.is_draft %}
+        {% if mail_enabled %}
+        <form method="post" action="{% url 'doc_email' dt.slug obj.pk %}"
+              onsubmit="var to = prompt('إرسال المستند PDF إلى البريد:', '{{ party_email|escapejs }}'); if (!to) return false; this.to.value = to;">
+          {% csrf_token %}<input type="hidden" name="to"><button class="btn" title="يُرسل المستند PDF مرفقاً">إرسال بالبريد</button></form>
+        {% endif %}
+        {% if share_path %}<button type="button" class="btn" data-copy="{{ request.scheme }}://{{ request.get_host }}{{ share_path }}"
+                title="رابط يفتح المستند PDF للعميل دون تسجيل دخول">نسخ رابط للعميل</button>{% endif %}
+      {% endif %}
       {% if obj.is_draft %}
         <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'submit' %}" onsubmit="return confirm('اعتماد المستند وترحيل القيود؟')">{% csrf_token %}<button class="btn btn-success">اعتماد</button></form>
       {% elif obj.is_submitted %}

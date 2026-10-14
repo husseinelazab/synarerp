@@ -10,7 +10,7 @@ SESSION_KEY = "company_id"
 
 # مسارات لا تحتاج شركة حالية
 PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/favicon.ico", "/password-reset/", "/healthz/", "/api/v1/", "/iclock/",
-                   "/v/", "/t/", "/s/", "/site/", "/store/webhook/", "/site-domain-check/", "/u/")
+                   "/v/", "/d/", "/t/", "/s/", "/site/", "/store/webhook/", "/site-domain-check/", "/u/")
 # مسارات متاحة حتى مع انتهاء الاشتراك
 BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 # ما يُسمح للكاشير بالوصول إليه

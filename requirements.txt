@@ -5,6 +5,8 @@ cryptography>=42
 lxml>=5
 hijridate>=2.5
 anthropic>=1.13,<2
+# ملفات PDF للمستندات على الخادم (تحتاج مكتبة Pango في النظام؛ مثبتة في صورة Docker)
+weasyprint>=66,<67
 # الإنتاج
 gunicorn>=23,<24
 whitenoise>=6.9,<7

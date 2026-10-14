@@ -5,6 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     SYNAR_DEBUG=0 SYNAR_TIME_ZONE=Asia/Riyadh
 
 WORKDIR /app
+# مكتبات تشكيل النص العربي ورسم الصفحات لتوليد ملفات PDF (WeasyPrint)، وخط احتياطي للرموز
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 

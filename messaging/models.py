@@ -31,7 +31,7 @@ DEFAULT_TEMPLATES = {
                    "استحقاقها {due_date}. نرجو السداد — {company}.",
     Event.STATEMENT: "عميلنا العزيز {customer}، رصيدكم المستحق لدى {company} هو {balance}{overdue_text}. شكراً لكم.",
 }
-PLACEHOLDERS = "{customer} {invoice} {amount} {due_date} {days} {balance} {company}"
+PLACEHOLDERS = "{customer} {invoice} {amount} {due_date} {days} {balance} {company} {link}"
 
 
 class MessagingSettings(TenantModel):

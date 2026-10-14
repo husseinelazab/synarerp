@@ -352,10 +352,11 @@ def nonprofit_modules(modules, doc):
                    doc("المتدربون", "program-enrollment"), _item("تقرير قياس الأثر", "program_impact")]},
     ]}
     by_key["excellence"] = {"key": "excellence", "label": "إدارة التميز المؤسسي", "sections": [
-        {"title": "الخطة", "items": [_item("لوحة الأداء المؤسسي", "excellence_dashboard"),
-                                    doc("الخطط الاستراتيجية", "strategic-plan"), doc("الأهداف الاستراتيجية", "strategic-goal"),
-                                    doc("المبادرات والخطة التشغيلية", "initiative")]},
-        {"title": "القياس", "items": [doc("مؤشرات الأداء", "kpi"), _item("إدخال قراءات المؤشرات", "kpi_entry"),
+        {"title": "الخطة الاستراتيجية", "items": [_item("لوحة التميز المؤسسي", "excellence_dashboard"),
+                                                 doc("الخطط الاستراتيجية", "strategic-plan"),
+                                                 doc("الأهداف الاستراتيجية", "strategic-goal")]},
+        {"title": "الخطة التشغيلية", "items": [doc("المبادرات والمشاريع", "initiative")]},
+        {"title": "قياس الأداء", "items": [doc("مؤشرات الأداء", "kpi"), _item("إدخال قراءات المؤشرات", "kpi_entry"),
                                      _item("تقرير الأداء المؤسسي", "performance_report")]},
     ]}
     by_key["relations"] = {"key": "relations", "label": "إدارة العلاقات العامة والإعلام", "sections": [

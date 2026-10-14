@@ -224,5 +224,29 @@ class NonprofitDemoTests(TestCase):
             today = timezone.localdate()
             data = activities_data(today.replace(month=1, day=1), today)
             self.assertTrue(all(v >= 0 for section in data["sections"] for v in section["totals"]))
+        with tenant_context(company):
+            from excellence.models import StrategicPlan
+            from fleet.models import VehicleRequest
+            from programs.models import TrainingProgram
+            from relations.models import Partnership
+
+            self.assertEqual(TrainingProgram.objects.get(status="completed").enrollments.filter(status="passed").count(), 2)
+            self.assertEqual(StrategicPlan.objects.get().status, "approved")
+            self.assertEqual(Partnership.objects.get().status, "active")
+            self.assertEqual(VehicleRequest.objects.get().status, "done")
         self.client.force_login(User.objects.get(username="demo_admin"))
-        self.assertContains(self.client.get("/"), "التبرعات هذا الشهر")
+        home = self.client.get("/")
+        self.assertContains(home, "التبرعات هذا الشهر")
+        # القائمة مجمعة تحت عناوين، والوحدات الجديدة ظاهرة للجمعية
+        groups = [m["group"] for m in home.context["nav_modules"]]
+        self.assertEqual(groups[:2], ["العمل اليومي", "العمل اليومي"])
+        for label in ("إدارة البرامج والتطوير", "إدارة التميز المؤسسي", "إدارة العلاقات العامة والإعلام",
+                      "إدارة الحركة والصيانة", "إدارة التقارير والإحصائيات"):
+            self.assertContains(home, label)
+        for url in ("/programs/", "/programs/impact/", "/excellence/", "/excellence/report/", "/relations/",
+                    "/relations/report/", "/fleet/", "/fleet/report/", "/statistics/"):
+            self.assertEqual(self.client.get(url).status_code, 200, url)
+        stats = self.client.get("/statistics/")
+        self.assertEqual(stats.context["stats"]["beneficiaries_approved"], 3)
+        self.assertContains(stats, "تقرير الأداء المؤسسي")  # روابط تقارير كل الوحدات
+        self.assertContains(self.client.get("/reports/accounts/trial-balance/"), 'class="print-tools"')

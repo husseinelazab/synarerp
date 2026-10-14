@@ -223,3 +223,104 @@ def create_nonprofit_demo(company, user=None):
     Circular.objects.create(title="مواعيد الدوام", body="يبدأ الدوام من الساعة 8 صباحاً حتى 4 مساءً.")
     AdminRequest.objects.create(request_type=AdminRequestType.objects.get(name="طلب شراء"), subject="أجهزة حاسب للباحثين",
                                 amount=Decimal("9000"), created_by=user)
+    _demo_new_modules(company, user, today, day)
+
+
+def _demo_new_modules(company, user, today, day):
+    """البرامج والتطوير، التميز المؤسسي، العلاقات العامة، الحركة والصيانة."""
+    from excellence.models import KPI, Initiative, StrategicGoal, StrategicPlan
+    from fleet.models import FuelLog, MaintenanceRequest, Vehicle, VehicleRequest
+    from programs.models import ProgramEnrollment, SessionAttendance, TrainingProgram
+    from relations.models import Partnership, PRContact, PREvent, Survey, SurveyResponse, Visit
+
+    # ── البرامج والتطوير: برنامج مكتمل بقياس أثر وبرنامج مفتوح للتسجيل ──
+    done = TrainingProgram.objects.create(title="إدارة الميزانية الأسرية", program_type="course", trainer="أ. نورة القحطاني",
+                                          location="قاعة الجمعية", start_date=day(1), end_date=day(3), hours=Decimal("9"),
+                                          capacity=20, target_audience="الأسر المستفيدة")
+    sessions = [done.sessions.create(date=day(n), topic=topic) for n, topic in
+                ((1, "التخطيط المالي"), (2, "الادخار"), (3, "المشاريع المنزلية"))]
+    trainees = [("هند العتيبي", "1200000001", 45, 80, 5, 3), ("مها الشمري", "1200000002", 50, 85, 4, 3),
+                ("سارة الحربي", "1200000003", 40, 55, 3, 1)]
+    for name, national_id, pre, post, rating, present in trainees:
+        enrollment = ProgramEnrollment.objects.create(program=done, full_name=name, national_id=national_id,
+                                                      phone="0550000000", gender="female", status="accepted",
+                                                      pre_score=pre, post_score=post, satisfaction=rating)
+        for session in sessions[:present]:
+            SessionAttendance.objects.create(enrollment=enrollment, session=session, present=True)
+    if user is not None:
+        done.status = "running"
+        done.save(update_fields=["status"])
+        done.complete(user)
+    upcoming = TrainingProgram.objects.create(title="مهارات التطوع الفعّال", program_type="workshop",
+                                              trainer="م. خالد الدوسري", mode="remote", start_date=today + datetime.timedelta(days=10),
+                                              end_date=today + datetime.timedelta(days=11), hours=Decimal("4"), capacity=40)
+    upcoming.sessions.create(date=today + datetime.timedelta(days=10), topic="أساسيات العمل التطوعي")
+    if user is not None:
+        upcoming.open_registration(user)
+
+    # ── التميز المؤسسي: خطة معتمدة بأهداف ومبادرات ومؤشرات ──
+    plan = StrategicPlan.objects.create(title=f"الخطة الاستراتيجية {today.year}–{today.year + 2}", start_year=today.year,
+                                        end_year=today.year + 2, vision="مجتمع متكافل تُصان فيه كرامة الأسرة",
+                                        mission="تمكين الأسر المحتاجة اجتماعياً واقتصادياً بشراكات مستدامة",
+                                        values="الأمانة\nالإتقان\nالشراكة")
+    care = StrategicGoal.objects.create(plan=plan, code="ه1", title="تمكين الأسر المستفيدة اقتصادياً", weight=60,
+                                        vision2030_pillar="society", sdg=1)
+    sustain = StrategicGoal.objects.create(plan=plan, code="ه2", title="تنمية الموارد المالية المستدامة", weight=40,
+                                           vision2030_pillar="economy", sdg=17)
+    Initiative.objects.create(goal=care, title="برنامج الأسر المنتجة", department="البرامج", start_date=day(0),
+                              end_date=today + datetime.timedelta(days=120), budget=150000, progress=35)
+    Initiative.objects.create(goal=care, title="الدورات التأهيلية للأسر", department="البرامج", start_date=day(0),
+                              end_date=day(5), budget=20000, progress=60)
+    Initiative.objects.create(goal=sustain, title="إطلاق المتجر الإلكتروني للتبرعات", department="الموارد المالية",
+                              start_date=day(0), end_date=today + datetime.timedelta(days=60), budget=40000, progress=20)
+    for goal, name, unit, target, direction, value in (
+            (care, "عدد الأسر المستفيدة من برامج التمكين", "count", 120, "higher", 95),
+            (care, "نسبة رضا المستفيدين", "percent", 90, "higher", 86),
+            (sustain, "نمو التبرعات السنوية", "percent", 15, "higher", 9),
+            (sustain, "نسبة المصروفات الإدارية إلى الإجمالي", "percent", 15, "lower", 12)):
+        kpi = KPI.objects.create(goal=goal, name=name, unit=unit, target=target, direction=direction, frequency="quarterly")
+        kpi.readings.create(period_end=day(0), value=value)
+    if user is not None:
+        plan.approve(user)
+
+    # ── العلاقات العامة والإعلام ──
+    contact = PRContact.objects.create(name="أ. فهد المطيري", organization="بنك التنمية الاجتماعية", category="government",
+                                       phone="0112223344")
+    partnership = Partnership.objects.create(partner="بنك التنمية الاجتماعية", contact=contact, partnership_type="executive",
+                                             start_date=day(0) - datetime.timedelta(days=330),
+                                             end_date=today + datetime.timedelta(days=25), value=250000,
+                                             objectives="تمويل مشاريع الأسر المنتجة وتدريبها")
+    if user is not None:
+        partnership.activate(user)
+    event = PREvent.objects.create(title="ملتقى الأسر المنتجة", event_type="forum", start_date=day(2), location="مقر الجمعية",
+                                   partner=partnership, budget=15000, actual_cost=12500, expected_attendees=150,
+                                   actual_attendees=180, outcomes="عرض 30 مشروعاً منزلياً وبيع منتجات بـ 40 ألف ريال")
+    if user is not None:
+        event.mark_done(user)
+    Visit.objects.create(direction="incoming", entity="وفد المركز الوطني لتنمية القطاع غير الربحي", contact=None,
+                         visit_date=day(4), purpose="الاطلاع على برامج التمكين", status="done",
+                         follow_up_date=today + datetime.timedelta(days=14))
+    survey = Survey.objects.create(title="رضا المستفيدين عن الخدمات", audience="الأسر المستفيدة")
+    rating = survey.questions.create(text="ما مدى رضاك عن سرعة إنجاز طلبك؟", question_type="rating")
+    channel = survey.questions.create(text="كيف عرفت عن الجمعية؟", question_type="choice",
+                                      choices="الأقارب والجيران\nوسائل التواصل\nجهة حكومية")
+    for score, source in ((5, "الأقارب والجيران"), (4, "وسائل التواصل"), (5, "الأقارب والجيران"), (3, "جهة حكومية")):
+        SurveyResponse.objects.create(survey=survey, answers={str(rating.pk): score, str(channel.pk): source})
+
+    # ── الحركة والصيانة ──
+    van = Vehicle.objects.create(plate_number="أ ب ج 1234", make="تويوتا", model="هايس", year=2022, vehicle_type="bus",
+                                 odometer=48200, last_service_km=44000, registration_expiry=today + datetime.timedelta(days=20),
+                                 insurance_expiry=today + datetime.timedelta(days=200))
+    Vehicle.objects.create(plate_number="د هـ و 5678", make="هيونداي", model="أكسنت", year=2023, odometer=21000,
+                           last_service_km=20000, registration_expiry=today + datetime.timedelta(days=300))
+    start = timezone.make_aware(datetime.datetime.combine(day(3), datetime.time(9)))
+    trip = VehicleRequest.objects.create(purpose="توصيل السلال الغذائية", destination="حي النسيم", vehicle=van,
+                                         start_at=start, end_at=start + datetime.timedelta(hours=4), passengers=3,
+                                         created_by=user)
+    trip.submit()
+    if user is not None:
+        trip.complete_trip(user, end_odometer=48260)
+    MaintenanceRequest.objects.create(target="facility", facility="مستودع الجمعية", category="hvac",
+                                      description="مكيف المستودع لا يبرد", priority="urgent", created_by=user)
+    FuelLog.objects.create(vehicle=van, date=day(3), liters=Decimal("60"), amount=Decimal("139.20"), odometer=48260,
+                           station="محطة الدريس")

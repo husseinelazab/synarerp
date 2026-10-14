@@ -1,0 +1,22 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}طلب العضوية — {{ request.site.company.name }}{% endblock %}
+{% block description %}قدّم طلب الانضمام لعضوية الجمعية العمومية في {{ request.site.company.name }}{% endblock %}
+{% block content %}
+<section class="wrap page narrow">
+  <nav class="crumbs"><a href="{% site_url 'site_services' %}">الخدمات الإلكترونية</a> / <span>طلب العضوية</span></nav>
+  <h1>طلب العضوية في الجمعية العمومية</h1>
+  {% if done %}<div class="notice ok" role="status">
+    <strong>شكراً لك، استلمنا طلب العضوية.</strong>
+    {% if reference %}<p>رقم طلبك: <bdi class="ref">{{ reference }}</bdi> — احتفظ به للمتابعة.</p>{% endif %}
+    <p>سيُعرض طلبك على مجلس الإدارة للبت فيه، وسنتواصل معك بالنتيجة وبطريقة سداد الاشتراك إن وُجد.</p>
+  </div>
+  <p><a href="{% site_url 'site_home' %}">العودة للرئيسية</a></p>
+  {% else %}
+  <p class="muted">العضوية في الجمعية العمومية تتيح لك المشاركة في اجتماعاتها وقراراتها وفق اللائحة الأساسية للجمعية. يُدرس الطلب ويُعتمد من مجلس الإدارة.</p>
+  <form method="post" class="site-form" novalidate>{% csrf_token %}
+    {% include "website/_form_fields.html" %}
+    <button class="btn-brand" type="submit">إرسال الطلب</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

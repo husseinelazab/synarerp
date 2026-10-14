@@ -1,24 +1,27 @@
 {% extends "website/public_base.html" %}{% load site %}
-{% block title %}الحوكمة والإفصاح — {{ request.site.company.name }}{% endblock %}
+{% block title %}الحوكمة والإفصاح | {{ request.site.company.name }}{% endblock %}
 {% block description %}اللوائح والسياسات والتقارير السنوية والقوائم المالية المعتمدة لـ{{ request.site.company.name }}{% endblock %}
 {% block content %}{% with company=request.site.company %}
-<section class="wrap page">
-  <h1>الحوكمة والإفصاح</h1>
-  <div class="notice">تلتزم {{ company.name }} بمبادئ الحوكمة والشفافية والإفصاح وفق متطلبات المركز الوطني لتنمية القطاع غير الربحي{% if company.license_number %}، وهي مسجلة لديه برقم (<bdi>{{ company.license_number }}</bdi>){% endif %}.
-  نُتيح هنا لوائحنا وسياساتنا وتقاريرنا وقوائمنا المالية المعتمدة للاطلاع العام.</div>
+{% include "website/_page_hero.html" with heading="الحوكمة والإفصاح" intro="لوائحنا وسياساتنا وتقاريرنا وقوائمنا المالية المعتمدة متاحة للاطلاع العام" %}
+{% if groups or seats %}<nav class="subnav" aria-label="أقسام الصفحة"><div class="wrap">
+  {% for value, label, docs in groups %}<a href="#{{ value }}">{{ label }}</a>{% endfor %}
+  {% if seats %}<a href="#board">مجلس الإدارة</a>{% endif %}
+</div></nav>{% endif %}
+<section class="section">
+  <div class="wrap">
+    <div class="notice commit"><i class="i" data-i="verify"></i><div>تلتزم {{ company.name }} بمبادئ الحوكمة والشفافية والإفصاح وفق متطلبات المركز الوطني لتنمية القطاع غير الربحي{% if company.license_number %}، وهي مسجلة لديه برقم (<bdi>{{ company.license_number }}</bdi>){% endif %}.</div></div>
 
-  {% for label, docs in groups %}<h2 class="sub">{{ label }}</h2>
-  <table class="plain docs">
-    <thead><tr><th>الوثيقة</th><th>السنة</th><th>الملف</th></tr></thead>
-    <tbody>{% for doc in docs %}<tr>
-      <td><strong>{{ doc.title }}</strong>{% if doc.description %}<br><small class="muted">{{ doc.description }}</small>{% endif %}</td>
-      <td>{{ doc.year }}</td>
-      <td><a href="{% site_url 'site_document' doc.pk %}" target="_blank" rel="noopener">{% if doc.content_type == "application/pdf" %}PDF{% else %}صورة{% endif %} · {{ doc.size_label }}</a></td>
-    </tr>{% endfor %}</tbody>
-  </table>
-  {% empty %}<p class="muted">لا توجد وثائق منشورة حالياً.</p>{% endfor %}
+    {% for value, label, docs in groups %}<h2 class="sub" id="{{ value }}" style="margin:36px 0 14px;font-size:22px">{{ label }}</h2>
+    <div class="doc-grid">{% for doc in docs %}
+      <a class="doc-card" href="{% site_url 'site_document' doc.pk %}" target="_blank" rel="noopener">
+        <span class="doc-icon{% if doc.content_type != 'application/pdf' %} img{% endif %}"><i class="i" data-i="{% if doc.content_type == 'application/pdf' %}doc{% else %}image{% endif %}"></i></span>
+        <span><strong>{{ doc.title }}</strong><small>{{ doc.year }} · {% if doc.content_type == "application/pdf" %}PDF{% else %}صورة{% endif %} · {{ doc.size_label }}</small>{% if doc.description %}<small class="muted" style="display:block">{{ doc.description }}</small>{% endif %}</span>
+        <i class="i doc-dl" data-i="download"></i>
+      </a>{% endfor %}</div>
+    {% empty %}<p class="muted" style="margin-top:24px">لا توجد وثائق منشورة حالياً.</p>{% endfor %}
 
-  {% if seats %}<h2 class="sub">مجلس الإدارة{% if term %} <small class="muted">{{ term.name }} ({{ term.start_date|date:"Y" }}–{{ term.end_date|date:"Y" }})</small>{% endif %}</h2>
-  {% include "website/_board.html" %}{% endif %}
+    {% if seats %}<h2 class="sub" id="board" style="margin:40px 0 14px;font-size:22px">مجلس الإدارة{% if term %} <small class="muted">{{ term.name }} ({{ term.start_date|date:"Y" }}–{{ term.end_date|date:"Y" }})</small>{% endif %}</h2>
+    {% include "website/_board.html" %}{% endif %}
+  </div>
 </section>
 {% endwith %}{% endblock %}

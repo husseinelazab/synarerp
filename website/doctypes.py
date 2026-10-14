@@ -1,5 +1,6 @@
 from core.registry import DocType, register
-from website.models import Album, NewsPost, Partner, PublishedDocument
+from website.models import (FAQ, Album, HeroSlide, ImpactCounter, NewsletterSubscriber, NewsPost, Partner,
+                            PublishedDocument, Video)
 
 # الصور والملفات تُرفع من صفحة المستند (القالب الإضافي) لأن النموذج العام لا يستقبل الملفات
 register(DocType(
@@ -28,4 +29,35 @@ register(DocType(
     list_fields=["name", "url", "sort", "is_published"],
     search_fields=["name"], detail_template="website/_partner_detail.html",
     detail_exclude=["logo"],
+))
+register(DocType(
+    slug="hero-slide", model=HeroSlide, module="website",
+    form_fields=["title", "subtitle", "button_text", "button_url", "sort", "is_published"],
+    list_fields=["title", "button_text", "sort", "is_published"],
+    search_fields=["title", "subtitle"], detail_template="website/_slide_detail.html",
+    detail_exclude=["image"],
+))
+register(DocType(
+    slug="impact-counter", model=ImpactCounter, module="website",
+    form_fields=["label", "value", "suffix", "icon", "sort", "is_published"],
+    list_fields=["label", "value", "suffix", "icon", "sort", "is_published"],
+    search_fields=["label"],
+))
+register(DocType(
+    slug="faq", model=FAQ, module="website",
+    form_fields=["question", "answer", "category", "sort", "is_published"],
+    list_fields=["question", "category", "sort", "is_published"],
+    search_fields=["question", "answer", "category"],
+))
+register(DocType(
+    slug="video", model=Video, module="website",
+    form_fields=["title", "youtube_url", "description", "published_on", "is_published"],
+    list_fields=["title", "published_on", "is_published"],
+    search_fields=["title", "description"],
+))
+register(DocType(
+    slug="newsletter-subscriber", model=NewsletterSubscriber, module="website",
+    form_fields=["email", "is_active"],
+    list_fields=["email", "created_at", "is_active"],
+    search_fields=["email"],
 ))

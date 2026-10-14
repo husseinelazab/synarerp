@@ -1,6 +1,7 @@
 """مسارات موقع الجمعية العام: تُخدم على نطاقها المستقل مباشرة، وعلى المنصة تحت /site/<المعرّف>/ للمعاينة."""
 from django.urls import include, path
 
+from website import extra_views
 from website import public_views as views
 
 urlpatterns = [
@@ -15,6 +16,14 @@ urlpatterns = [
     path("gallery/<int:pk>/", views.album, name="site_album"),
     path("apply/", views.apply, name="site_apply"),
     path("contact/", views.contact, name="site_contact"),
+    path("services/", extra_views.services, name="site_services"),
+    path("faq/", extra_views.faq, name="site_faq"),
+    path("videos/", extra_views.videos, name="site_videos"),
+    path("membership/", extra_views.membership, name="site_membership"),
+    path("feedback/", extra_views.feedback, name="site_feedback"),
+    path("verify/", extra_views.verify, name="site_verify"),
+    path("privacy/", extra_views.privacy, name="site_privacy"),
+    path("newsletter/", extra_views.newsletter, name="site_newsletter"),
     path("donate/", include("store.site_urls")),
     path("robots.txt", views.robots, name="site_robots"),
     path("sitemap.xml", views.sitemap, name="site_sitemap"),

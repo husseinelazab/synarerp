@@ -338,7 +338,8 @@ def _demo_digital(company, today, day):
     from funds.models import SponsorshipType
     from store.models import DonationOpportunity, DonationOrder, Marketer, StoreSettings
     from store.service import finalize
-    from website.models import Album, NewsPost, Partner, PublishedDocument, Website
+    from website.models import (FAQ, Album, HeroSlide, ImpactCounter, NewsPost, Partner, PublishedDocument, Video,
+                                Website)
 
     Website.objects.create(
         slug="albirr", is_published=True, tagline="معاً نصنع الأثر", hero_title="نمدّ يد العون للأسر المحتاجة في الرياض",
@@ -362,6 +363,35 @@ def _demo_digital(company, today, day):
                                          content_type="application/pdf", size=len(DEMO_PDF), content=DEMO_PDF)
     Partner.objects.create(name="بنك التنمية الاجتماعية", url="https://www.sdb.gov.sa/")
     Partner.objects.create(name="مؤسسة الخير القابضة")
+    # شرائح الواجهة: رابط الزر النسبي (مثل donate/) يُلحق بجذر الموقع عبر HeroSlide.resolved_url
+    for sort, (title, subtitle, button_text, button_url) in enumerate((
+            ("اكفل يتيماً وكن سبباً في سعادته", "كفالة الأيتام: 400 ريال شهرياً تغطي احتياجات يتيم وتعليمه", "اكفل الآن",
+             "donate/"),
+            ("السلال الغذائية تصل إلى بيوت الأسر المحتاجة", "سلة متكاملة تكفي أسرة شهراً كاملاً بدعمكم",
+             "تعرّف على برامجنا", "programs/"),
+            ("أوقاف الجمعية: أجر جارٍ لا ينقطع", "ساهم بسهم في عمارة الخير الوقفية ليعود ريعها على الأيتام والأسر",
+             "ساهم في الوقف", "donate/")), start=1):
+        HeroSlide.objects.create(title=title, subtitle=subtitle, button_text=button_text, button_url=button_url, sort=sort)
+    for sort, (label, value, suffix, icon) in enumerate((("مستفيد", 1250, "+", "people"), ("أسرة مكفولة", 320, "", "family"),
+                                                         ("برنامج", 18, "", "star"), ("ساعة تطوع", 4500, "", "clock")),
+                                                        start=1):
+        ImpactCounter.objects.create(label=label, value=value, suffix=suffix, icon=icon, sort=sort)
+    for sort, (category, question, answer) in enumerate((
+            ("طلب المساعدة", "كيف أقدّم طلب مساعدة؟",
+             "من صفحة «طلب مساعدة» في الموقع، ويتواصل معك الباحث الاجتماعي لاستكمال دراسة الحالة."),
+            ("طلب المساعدة", "ما المستندات المطلوبة لدراسة الحالة؟",
+             "صورة الهوية الوطنية، وصك الإعالة أو سجل الأسرة، وعقد السكن، وما يثبت الدخل."),
+            ("طلب المساعدة", "هل يُطلب مقابل مالي لتقديم الطلب؟", "لا، جميع خدمات الجمعية مجانية."),
+            ("التبرع", "هل التبرع عبر الموقع آمن؟",
+             "نعم، تتم المدفوعات عبر بوابة دفع مرخّصة ولا نحتفظ ببيانات بطاقتك، وتصلك شهادة تبرع برمز تحقق."),
+            ("التبرع", "هل يمكنني التبرع بالزكاة؟", "نعم، تُصرف الزكاة في مصارفها الشرعية للأسر المستحقة بعد دراسة حالتها."),
+            ("التبرع", "كيف أحصل على إيصال تبرعي؟", "يصلك إيصال وشهادة التبرع فور إتمام الدفع، ويمكنك التحقق منها من صفحة التحقق.")),
+            start=1):
+        FAQ.objects.create(category=category, question=question, answer=answer, sort=sort)
+    Video.objects.create(title="تعرّف على الجمعية وبرامجها", youtube_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                         description="فيديو تعريفي ببرامج الجمعية وأثرها في المجتمع", published_on=day(20))
+    Video.objects.create(title="ملتقى الأسر المنتجة", youtube_url="https://youtu.be/dQw4w9WgXcQ",
+                         description="لقطات من ملتقى الأسر المنتجة", published_on=day(5))
 
     # المتجر في وضع التجربة (مفاتيح ميسّر الحقيقية تُضاف من «إعدادات المتجر وبوابة الدفع»)
     store = StoreSettings.for_company(company)

@@ -29,17 +29,69 @@ NEWS_PER_PAGE = 9
 
 
 def impact_stats():
-    """أرقام الأثر الحية من وحدات النظام للواجهة."""
+    """أرقام الأثر الحية من وحدات النظام للواجهة: [(الوصف، الرقم، الأيقونة)] دون الأصفار."""
     from beneficiaries.models import AidDisbursement, Beneficiary
+    from funds.models import Donor
     from volunteering.models import VolunteerParticipation
 
     year = timezone.localdate().year
-    return [
-        ("مستفيد معتمد", Beneficiary.objects.filter(status="approved").count()),
-        ("مساعدة صُرفت هذا العام", AidDisbursement.objects.filter(docstatus=1, posting_date__year=year).count()),
+    rows = [
+        ("مستفيد معتمد", Beneficiary.objects.filter(status="approved").count(), "people"),
+        ("مساعدة صُرفت هذا العام", AidDisbursement.objects.filter(docstatus=1, posting_date__year=year).count(), "box"),
+        ("داعم ومتبرع", Donor.objects.count(), "heart"),
         ("ساعة تطوع هذا العام", int(flt(VolunteerParticipation.objects.filter(
-            status="completed", opportunity__start_date__year=year).aggregate(t=Sum("hours"))["t"]))),
+            status="completed", opportunity__start_date__year=year).aggregate(t=Sum("hours"))["t"])), "clock"),
     ]
+    return [row for row in rows if row[1]]
+
+
+def impact_counters():
+    """أرقام الأثر التي تحددها الجمعية، وإن لم تحدد شيئاً فالأرقام الحية من النظام."""
+    from website.models import ImpactCounter
+
+    counters = [{"label": c.label, "value": c.value, "suffix": c.suffix, "icon": c.icon}
+                for c in ImpactCounter.objects.filter(is_published=True)]
+    return counters or [{"label": label, "value": value, "suffix": "", "icon": icon}
+                        for label, value, icon in impact_stats()]
+
+
+def youtube_id(url):
+    from website.models import Video
+
+    return Video(youtube_url=url or "").youtube_id if url else ""
+
+
+def hero_slides(request):
+    """شرائح الواجهة المنشورة، وإن لم توجد فشريحة واحدة من إعدادات الموقع."""
+    from website.models import HeroSlide
+
+    base = site_url(request, "site_home")
+    slides = [{"title": s.title, "subtitle": s.subtitle, "image": s.image, "button_text": s.button_text,
+               "link": s.resolved_url(base) if s.button_url else ""}
+              for s in HeroSlide.objects.filter(is_published=True)]
+    if not slides:
+        site = request.site
+        slides = [{"title": site.hero_title or site.company.name, "subtitle": site.hero_subtitle,
+                   "image": site.hero_image, "button_text": "تعرّف علينا", "link": site_url(request, "site_about")}]
+    return slides
+
+
+def quick_donate(request):
+    """صندوق التبرع السريع في الواجهة: فرص التبرع بمبلغ حر والمبالغ المقترحة، متى كان المتجر جاهزاً ومرخصاً."""
+    try:
+        from store.models import StoreSettings
+        from store.public import open_opportunities as store_open
+
+        store = StoreSettings.for_company(request.site.company)
+        if not (request.site.fundraising_licensed and store.ready):
+            return None
+        options = [{"pk": o.pk, "title": o.title, "kind": o.get_kind_display(),
+                    "action": site_url(request, "store_opportunity", o.pk)}
+                   for o in store_open().filter(fixed_amount__isnull=True).order_by("sort_order", "id")[:8]]
+    except Exception:
+        logger.exception("quick donate failed")
+        return None
+    return {"options": options, "amounts": store.amounts} if options else None
 
 
 def erp_url(name, *args):
@@ -141,13 +193,31 @@ def current_board():
 
 @site_view
 def home(request):
+    from beneficiaries.models import AidProgram
+    from website.models import AlbumPhoto
+
+    participate = ([{"kind": "تدريب", "icon": "book", "title": p.title, "text": p.description,
+                     "meta": f"يبدأ {p.start_date:%Y-%m-%d}", "link": p.public_link, "cta": "سجّل الآن"}
+                    for p in open_training(request, 3)]
+                   + [{"kind": "تطوع", "icon": "volunteer", "title": o.title, "text": o.description,
+                       "meta": f"يبدأ {o.start_date:%Y-%m-%d}", "link": o.public_link, "cta": "انضم متطوعاً"}
+                      for o in open_opportunities(request, 3)]
+                   + [{"kind": "استبيان", "icon": "survey", "title": s.title, "text": s.description,
+                       "meta": f"حتى {s.end_date:%Y-%m-%d}" if s.end_date else "", "link": s.public_link,
+                       "cta": "شاركنا رأيك"} for s in open_surveys(request, 2)])
+    plan = current_plan()
     return render(request, "website/home.html", {
-        "stats": impact_stats(),
+        "slides": hero_slides(request),
+        "quick": quick_donate(request),
+        "counters": impact_counters(),
+        "plan": plan,
         "featured": featured_opportunities(request),
+        "aid_programs": list(AidProgram.objects.filter(is_active=True).only("name", "description", "aid_type")[:6]),
+        "participate": participate[:6],
         "latest_news": list(NewsPost.objects.filter(is_published=True)[:3]),
-        "training": open_training(request, 6),
-        "opportunities": open_opportunities(request, 6),
-        "surveys": open_surveys(request, 4),
+        "photos": list(AlbumPhoto.objects.filter(album__company=request.site.company, album__is_published=True)
+                       .select_related("album").order_by("-album__event_date", "-id")[:6]),
+        "intro_video": youtube_id(request.site.video_intro_url),
         "partners": list(Partner.objects.filter(is_published=True)),
     })
 
@@ -168,7 +238,7 @@ def governance(request):
     for value, label in DocumentCategory.choices:
         items = [d for d in docs if d.category == value]
         if items:
-            groups.append((label, items))
+            groups.append((value, label, items))
     term, seats = current_board()
     return render(request, "website/governance.html", {"groups": groups, "term": term, "seats": seats})
 
@@ -348,7 +418,10 @@ def sitemap(request):
     from xml.sax.saxutils import escape
 
     pages = ["site_home", "site_about", "site_programs", "site_news", "site_gallery", "site_governance",
-             "site_apply", "site_contact"]
+             "site_apply", "site_contact", "site_services", "site_faq", "site_videos", "site_feedback",
+             "site_verify", "site_privacy"]
+    if request.site.allow_membership_requests:
+        pages.append("site_membership")
     urls = [(request.build_absolute_uri(site_url(request, name)), None) for name in pages]
     urls += [(request.build_absolute_uri(site_url(request, "site_news_detail", p.pk)), p.published_on)
              for p in NewsPost.objects.filter(is_published=True).only("pk", "published_on")[:500]]

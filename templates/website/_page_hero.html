@@ -1,0 +1,7 @@
+{% load site %}<section class="page-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="{% site_url 'site_home' %}">الرئيسية</a>{% if parent %} / {{ parent }}{% endif %}</div>
+    <h1>{{ heading }}</h1>
+    {% if intro %}<p>{{ intro }}</p>{% endif %}
+  </div>
+</section>

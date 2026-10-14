@@ -1,0 +1,19 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}التحقق من الشهادات — {{ request.site.company.name }}{% endblock %}
+{% block description %}تحقق من صحة شهادات التدريب والتطوع والتبرع الصادرة من {{ request.site.company.name }}{% endblock %}
+{% block content %}
+<section class="wrap page narrow">
+  <nav class="crumbs"><a href="{% site_url 'site_services' %}">الخدمات الإلكترونية</a> / <span>التحقق من الشهادات</span></nav>
+  <h1>التحقق من الشهادات</h1>
+  <p class="muted">أدخل رمز التحقق المطبوع على الشهادة للتأكد من صحتها: شهادات البرامج التدريبية، وشهادات العمل التطوعي، وشهادات التبرع.</p>
+  {% if order %}<div class="notice ok" role="status">
+    <strong>شهادة تبرع صحيحة.</strong>
+    <p>رقم الطلب: <bdi class="ref">{{ order.number }}</bdi> — المبلغ: <bdi>{{ order.total|floatformat:2 }}</bdi> ريال{% if order.paid_at %} — بتاريخ <time datetime="{{ order.paid_at|date:'Y-m-d' }}">{{ order.paid_at|date:"Y-m-d" }}</time>{% endif %}</p>
+    <p><a class="btn-brand" href="{{ certificate_url }}">عرض الشهادة</a></p>
+  </div>{% elif not_found %}<div class="notice err" role="alert">لم يُعثر على شهادة بهذا الرمز. تأكد من كتابة الرمز كما هو مطبوع على الشهادة.</div>{% endif %}
+  <form method="get" class="site-form" novalidate>
+    {% include "website/_form_fields.html" %}
+    <button class="btn-brand" type="submit">تحقق</button>
+  </form>
+</section>
+{% endblock %}

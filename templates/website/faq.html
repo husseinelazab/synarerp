@@ -1,0 +1,19 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}الأسئلة الشائعة — {{ request.site.company.name }}{% endblock %}
+{% block description %}إجابات الأسئلة الشائعة عن {{ request.site.company.name }} وخدماتها وبرامجها{% endblock %}
+{% block content %}
+<section class="wrap page narrow">
+  <nav class="crumbs"><a href="{% site_url 'site_home' %}">الرئيسية</a> / <span>الأسئلة الشائعة</span></nav>
+  <h1>الأسئلة الشائعة</h1>
+  {% for category, items in groups %}
+  <section class="faq-group">
+    {% if groups|length > 1 %}<h2 class="sub">{{ category }}</h2>{% endif %}
+    {% for item in items %}<details class="faq-item card"{% if forloop.parentloop.first and forloop.first %} open{% endif %}>
+      <summary class="card-body"><strong>{{ item.question }}</strong></summary>
+      <div class="card-body prose">{{ item.answer|linebreaks }}</div>
+    </details>{% endfor %}
+  </section>
+  {% empty %}<p class="muted">لا توجد أسئلة منشورة بعد. لأي استفسار <a href="{% site_url 'site_contact' %}">تواصل معنا</a>.</p>{% endfor %}
+  {% if groups %}<p class="muted">لم تجد إجابة سؤالك؟ <a href="{% site_url 'site_contact' %}">تواصل معنا</a>.</p>{% endif %}
+</section>
+{% endblock %}

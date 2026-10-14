@@ -8,25 +8,33 @@ class WebsiteForm(forms.ModelForm):
     hero_file = forms.FileField(label="صورة الواجهة", required=False,
                                 help_text="PNG أو JPG أو WebP بحجم 800 كيلوبايت كحد أقصى، يُفضّل بعرض 1600 بكسل")
     remove_hero = forms.BooleanField(label="حذف صورة الواجهة", required=False)
+    org_chart_file = forms.FileField(label="الهيكل التنظيمي", required=False,
+                                     help_text="صورة PNG أو JPG أو WebP بحجم 800 كيلوبايت كحد أقصى، تظهر في صفحة «عن الجمعية»")
+    remove_org_chart = forms.BooleanField(label="حذف صورة الهيكل التنظيمي", required=False)
     MAX_IMAGE = 800 * 1024
+    # حقل الرفع ← (حقل الحذف، حقل النموذج)
+    IMAGES = {"hero_file": ("remove_hero", "hero_image"), "org_chart_file": ("remove_org_chart", "org_chart")}
 
     class Meta:
         model = Website
         fields = ["slug", "domain", "is_published", "tagline", "hero_title", "hero_subtitle", "about", "primary_color",
-                  "fundraising_license_number", "fundraising_license_expiry", "bank_accounts", "whatsapp",
-                  "working_hours", "map_url", "x_url", "instagram_url", "snapchat_url", "youtube_url", "linkedin_url"]
+                  "video_intro_url", "fundraising_license_number", "fundraising_license_expiry", "bank_accounts",
+                  "whatsapp", "working_hours", "map_url", "x_url", "instagram_url", "snapchat_url", "tiktok_url",
+                  "youtube_url", "linkedin_url", "allow_membership_requests", "privacy_policy"]
         widgets = {"primary_color": forms.TextInput(attrs={"type": "color", "style": "height:44px;width:120px;padding:4px"}),
                    "about": forms.Textarea(attrs={"rows": 4}), "bank_accounts": forms.Textarea(attrs={"rows": 3}),
+                   "privacy_policy": forms.Textarea(attrs={"rows": 6}),
                    "fundraising_license_expiry": forms.DateInput(attrs={"type": "date"})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not self.instance.hero_image:
-            del self.fields["remove_hero"]
+        for remove, field in self.IMAGES.values():
+            if not getattr(self.instance, field):
+                del self.fields[remove]
         style_form(self)
 
-    def clean_hero_file(self):
-        upload = self.cleaned_data.get("hero_file")
+    def _clean_image(self, name):
+        upload = self.cleaned_data.get(name)
         if not upload:
             return None
         if upload.size > self.MAX_IMAGE:
@@ -39,12 +47,27 @@ class WebsiteForm(forms.ModelForm):
             raise forms.ValidationError("الصيغ المسموحة: PNG أو JPG أو WebP.")
         return f"data:{kind};base64,{base64.b64encode(data).decode()}"
 
+    def clean_hero_file(self):
+        return self._clean_image("hero_file")
+
+    def clean_org_chart_file(self):
+        return self._clean_image("org_chart_file")
+
+    def clean_video_intro_url(self):
+        from website.models import youtube_id
+
+        value = self.cleaned_data.get("video_intro_url")
+        if value and not youtube_id(value):
+            raise forms.ValidationError("أدخل رابط فيديو يوتيوب صحيحاً.")
+        return value
+
     def save(self, commit=True):
         site = super().save(commit=False)
-        if self.cleaned_data.get("remove_hero"):
-            site.hero_image = ""
-        if self.cleaned_data.get("hero_file"):
-            site.hero_image = self.cleaned_data["hero_file"]
+        for upload, (remove, field) in self.IMAGES.items():
+            if self.cleaned_data.get(remove):
+                setattr(site, field, "")
+            if self.cleaned_data.get(upload):
+                setattr(site, field, self.cleaned_data[upload])
         if commit:
             site.save()
         return site
@@ -211,3 +234,78 @@ class ContactForm(HoneypotMixin):
         if not data.get("phone") and not data.get("email") and not self.errors:
             raise forms.ValidationError("أدخل رقم الجوال أو البريد الإلكتروني لنتمكن من الرد عليك.")
         return data
+
+
+class MembershipForm(HoneypotMixin):
+    """طلب الانضمام لعضوية الجمعية العمومية من الموقع: يُنشئ عضواً بحالة «طلب انضمام» للبت فيه."""
+
+    full_name = forms.CharField(label="الاسم الرباعي", max_length=150)
+    national_id = forms.CharField(label="رقم الهوية / الإقامة", max_length=10, min_length=10)
+    phone = forms.CharField(label="رقم الجوال", max_length=20)
+    email = forms.EmailField(label="البريد الإلكتروني", required=False)
+    category = forms.ModelChoiceField(label="فئة العضوية", queryset=None, empty_label="— اختر —")
+    notes = forms.CharField(label="نبذة عنك وسبب رغبتك في العضوية", max_length=1000, required=False,
+                            widget=forms.Textarea(attrs={"rows": 3}))
+
+    def __init__(self, *args, **kwargs):
+        from governance.models import MembershipCategory
+
+        super().__init__(*args, **kwargs)
+        self.fields["category"].queryset = MembershipCategory.objects.all()
+        self.fields["national_id"].widget.attrs.update({"inputmode": "numeric", "dir": "ltr"})
+        self.fields["phone"].widget.attrs.update({"inputmode": "tel", "dir": "ltr", "placeholder": "05xxxxxxxx"})
+
+    def clean_national_id(self):
+        from beneficiaries.models import validate_national_id
+
+        value = self.cleaned_data["national_id"].strip()
+        validate_national_id(value)
+        return value
+
+    def clean_phone(self):
+        return clean_phone(self.cleaned_data["phone"])
+
+
+class FeedbackForm(HoneypotMixin):
+    """الشكاوى والمقترحات: تُقيد معاملة واردة في الاتصالات الإدارية."""
+
+    kind = forms.ChoiceField(label="النوع")
+    name = forms.CharField(label="الاسم", max_length=120, required=False)
+    phone = forms.CharField(label="رقم الجوال", max_length=20, required=False)
+    email = forms.EmailField(label="البريد الإلكتروني", required=False)
+    subject = forms.CharField(label="الموضوع", max_length=150)
+    message = forms.CharField(label="التفاصيل", max_length=3000, widget=forms.Textarea(attrs={"rows": 5}))
+
+    def __init__(self, *args, **kwargs):
+        from website.models import FEEDBACK_TYPES
+
+        super().__init__(*args, **kwargs)
+        self.fields["kind"].choices = FEEDBACK_TYPES
+        self.fields["phone"].widget.attrs.update({"inputmode": "tel", "dir": "ltr", "placeholder": "05xxxxxxxx"})
+
+    def clean_phone(self):
+        value = self.cleaned_data.get("phone")
+        return clean_phone(value) if value else ""
+
+    def clean(self):
+        data = super().clean()
+        if (data.get("kind") == "complaint" and not data.get("phone") and not data.get("email")
+                and not self.errors):
+            raise forms.ValidationError("أدخل رقم الجوال أو البريد الإلكتروني لنتمكن من متابعة شكواك والرد عليك.")
+        return data
+
+
+class VerifyForm(forms.Form):
+    code = forms.CharField(label="رمز التحقق", max_length=20,
+                           help_text="الرمز المطبوع على الشهادة (شهادة تدريب أو تطوع أو تبرع)")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["code"].widget.attrs.update({"dir": "ltr", "autocomplete": "off", "autocapitalize": "characters"})
+
+    def clean_code(self):
+        return self.cleaned_data["code"].strip().upper()
+
+
+class NewsletterForm(HoneypotMixin):
+    email = forms.EmailField(label="البريد الإلكتروني")

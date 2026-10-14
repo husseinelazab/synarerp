@@ -1,4 +1,4 @@
-<div class="board">{% for seat in seats %}<div class="board-member">
+<div class="board">{% for seat in seats %}<div class="board-member{% if seat.position == 'chair' %} lead-seat{% endif %}">
   <span class="avatar" aria-hidden="true">{{ seat.member.full_name|slice:":1" }}</span>
   <strong>{{ seat.member.full_name }}</strong><small>{{ seat.get_position_display }}</small>
 </div>{% endfor %}</div>

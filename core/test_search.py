@@ -144,3 +144,41 @@ class PageLayoutTests(TestCase):
             self.assertIn(text, head)
         self.assertIn('class="signatures"', html)  # التقارير المالية بخانات توقيع، والقوائم العادية بدونها
         self.assertNotIn('class="signatures"', self.client.get("/app/customer/").content.decode())
+
+
+class ListAndTopbarTests(TestCase):
+    """أداء القوائم مع كثرة السجلات، ونص البحث العلوي حسب نوع المنشأة."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.company, cls.owner = make_company("شركة القوائم", "list_owner")
+
+    def item_list_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as queries:
+            self.assertEqual(self.client.get("/app/item/").status_code, 200)
+        return len(queries)
+
+    def test_list_queries_do_not_grow_with_rows(self):
+        from stock.models import UOM, Item, ItemGroup
+
+        self.client.force_login(self.owner)
+        with tenant_context(self.company):
+            group, uom = ItemGroup.objects.first(), UOM.objects.first()
+            Item.objects.create(code="L0", name="صنف 0", item_group=group, uom=uom)
+            self.item_list_queries()  # الطلب الأول يحمّل الجلسة والإعدادات
+            few = self.item_list_queries()
+            for n in range(1, 15):
+                Item.objects.create(code=f"L{n}", name=f"صنف {n}", item_group=group, uom=uom)
+        self.assertEqual(self.item_list_queries(), few)
+
+    def test_search_placeholder_matches_organization_type(self):
+        self.client.force_login(self.owner)
+        page = self.client.get("/")
+        self.assertContains(page, "ابحث عن عميل، صنف، فاتورة")
+        self.assertNotContains(page, "ابحث عن مستفيد")
+        self.company.organization_type = "nonprofit"
+        self.company.save(update_fields=["organization_type"])
+        self.assertContains(self.client.get("/"), "ابحث عن مستفيد، متبرع")

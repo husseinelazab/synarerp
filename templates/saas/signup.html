@@ -4,6 +4,9 @@
 <div class="login-page">
   <form method="post" class="card login-card signup-card" novalidate>
     {% csrf_token %}
+    <div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">
+      <label>اترك هذا الحقل فارغاً <input type="text" name="website_url" tabindex="-1" autocomplete="off"></label>
+    </div>
     <h1>{{ ERP_NAME }}</h1>
     <div class="login-en">{{ ERP_NAME_EN }}</div>
     <p class="muted">أسّس حساب منشأتك وابدأ فترتك التجريبية المجانية</p>

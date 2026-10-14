@@ -1,7 +1,9 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.db.models import Sum
 from django.test import TestCase
 from django.utils import timezone
@@ -109,6 +111,9 @@ class TenantIsolationTests(TestCase):
 
 
 class SignupTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_signup_provisions_company_and_trial(self):
         ensure_default_plans()
         response = self.client.post("/signup/", {
@@ -134,6 +139,28 @@ class SignupTests(TestCase):
         form = response.context["form"]
         for field in ("company_name", "email", "username", "password2"):
             self.assertIn(field, form.errors)
+
+    def signup_data(self, n, **extra):
+        return {"company_name": f"شركة {n}", "tax_id": "", "phone": "0500000000", "full_name": "سارة أحمد",
+                "email": f"u{n}@example.com", "username": f"u{n}", "password": "Strong-Pass-123",
+                "password2": "Strong-Pass-123", "plan": Plan.objects.get(code="basic").pk, **extra}
+
+    def test_signup_limited_per_ip(self):
+        ensure_default_plans()
+        with mock.patch("saas.views.SIGNUP_LIMIT", 2):
+            for n in range(2):
+                self.assertRedirects(self.client.post("/signup/", self.signup_data(n)), "/")
+                self.client.logout()
+            response = self.client.post("/signup/", self.signup_data(3))
+        self.assertEqual(response.status_code, 429)
+        self.assertFalse(Company.objects.filter(name="شركة 3").exists())
+
+    def test_signup_honeypot_rejects_bots(self):
+        ensure_default_plans()
+        response = self.client.post("/signup/", self.signup_data(1, website_url="http://spam.example"))
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Company.objects.filter(name="شركة 1").exists())
+        self.assertContains(self.client.get("/signup/"), 'name="website_url"')
 
 
 class SubscriptionAndRoleTests(TestCase):

@@ -61,7 +61,7 @@
       <button class="menu-toggle" type="button" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
       {% if current_company %}<form method="get" action="{% url 'global_search' %}" class="global-search" role="search" data-suggest="{% url 'search_suggest' %}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-        <input type="search" name="q" class="form-control" placeholder="ابحث عن مستفيد، متبرع، سند، أو صفحة…" aria-label="بحث في النظام" autocomplete="off" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">
+        <input type="search" name="q" class="form-control" placeholder="{% if current_company.is_nonprofit %}ابحث عن مستفيد، متبرع، سند، أو صفحة…{% else %}ابحث عن عميل، صنف، فاتورة، أو صفحة…{% endif %}" aria-label="بحث في النظام" autocomplete="off" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">
         <kbd>/</kbd>
         <div class="suggest" role="listbox" hidden></div>
       </form>{% else %}<div class="topbar-spacer"></div>{% endif %}

@@ -178,8 +178,9 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
 .login-card label { display: block; margin: 14px 0 4px; font-size: 13px; color: var(--muted); }
 
 @media (max-width: 900px) {
-  .sidebar { position: fixed; right: -260px; height: 100vh; z-index: 20; transition: right .2s; }
-  .sidebar.open { right: 0; }
+  .sidebar { position: fixed; right: 0; width: min(288px, 85vw); height: 100vh; z-index: 20; transform: translateX(100%); visibility: hidden;
+             transition: transform .2s, visibility .2s; }
+  .sidebar.open { transform: none; visibility: visible; }
   .menu-toggle { display: block; }
   .grid-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }

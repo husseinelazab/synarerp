@@ -1,0 +1,9 @@
+<div class="kpis">
+  <a class="kpi" href="{% url 'survey_results' obj.pk %}"><span>الردود المستلمة</span><b>{{ obj.responses.count }}</b><span>عرض النتائج</span></a>
+  <div class="kpi {% if obj.accepting %}kpi-good{% else %}kpi-bad{% endif %}"><span>الحالة</span><b>{% if obj.accepting %}يستقبل الردود{% else %}مغلق{% endif %}</b></div>
+</div>
+<div class="card"><h3>الرابط العام للاستبيان</h3>
+  <p class="muted small">انشره في الموقع أو واتساب أو برمز QR؛ يجيب المستهدف دون حساب، وتظهر الإجابات في صفحة النتائج.</p>
+  <input class="form-control" readonly value="{{ request.scheme }}://{{ request.get_host }}{% url 'survey_respond' obj.public_token %}" onclick="this.select()">
+  <p><a class="btn" href="{% url 'survey_results' obj.pk %}">نتائج الاستبيان</a> <a class="btn" target="_blank" href="{% url 'survey_respond' obj.public_token %}">معاينة الاستبيان</a></p>
+</div>

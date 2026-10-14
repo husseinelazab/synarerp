@@ -1,0 +1,18 @@
+<div class="login-page">
+  <form method="post" class="card login-card signup-card" novalidate>
+    {% csrf_token %}
+    <h1>{{ survey.company.name }}</h1>
+    <h3>{{ survey.title }}</h3>
+    {% if survey.description %}<p>{{ survey.description|linebreaksbr }}</p>{% endif %}
+    {% if done %}
+      <div class="alert alert-success">شكراً لك، تم استلام إجاباتك. رأيك يساعدنا على التحسين.</div>
+    {% elif closed %}
+      <div class="alert alert-error">هذا الاستبيان مغلق ولا يستقبل ردوداً.</div>
+    {% else %}
+      {% if form.errors %}<div class="alert alert-error">يرجى مراجعة الإجابات المشار إليها.</div>{% endif %}
+      {% for field in form.visible_fields %}{% include "core/_field.html" %}{% endfor %}
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      <button class="btn btn-primary btn-lg">إرسال الإجابات</button>
+    {% endif %}
+  </form>
+</div>

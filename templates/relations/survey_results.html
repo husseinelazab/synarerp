@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn" href="{{ survey.get_absolute_url }}">الاستبيان</a>
+  <button type="button" class="btn" onclick="window.print()">طباعة</button></div></div>
+<div class="kpis">
+  <div class="kpi"><span>عدد الردود</span><b>{{ count }}</b></div>
+  <div class="kpi {% if survey.accepting %}kpi-good{% endif %}"><span>الحالة</span><b>{% if survey.accepting %}يستقبل الردود{% else %}مغلق{% endif %}</b></div>
+</div>
+{% for r in results %}
+<div class="card"><h3>{{ forloop.counter }}. {{ r.question.text }}</h3>
+  <p class="muted small">{{ r.question.get_question_type_display }} · أجاب {{ r.answered }} من {{ count }}</p>
+  {% if r.distribution %}
+    <p>متوسط التقييم: <b>{{ r.average|default:"—" }}</b> من 5</p>
+    <div class="table-wrap"><table class="table"><thead><tr><th>التقييم</th><th class="num">العدد</th><th class="num">النسبة</th></tr></thead><tbody>
+    {% for value, n, pct in r.distribution %}<tr><td>{{ value }}</td><td class="num">{{ n }}</td><td class="num">{{ pct }}%</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% elif r.counts %}
+    <div class="table-wrap"><table class="table"><thead><tr><th>الخيار</th><th class="num">العدد</th><th class="num">النسبة</th></tr></thead><tbody>
+    {% for option, n, pct in r.counts %}<tr><td>{{ option }}</td><td class="num">{{ n }}</td><td class="num">{{ pct }}%</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% elif r.question.question_type == "text" %}
+    {% for t in r.texts %}<p class="small">• {{ t|linebreaksbr }}</p>{% empty %}<p class="muted">لا إجابات نصية</p>{% endfor %}
+  {% endif %}
+</div>
+{% empty %}<div class="card muted">لا أسئلة في هذا الاستبيان.</div>{% endfor %}
+{% endblock %}

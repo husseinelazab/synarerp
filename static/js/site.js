@@ -103,4 +103,66 @@
       r.addEventListener("change", function () { if (custom) custom.value = ""; });
     });
   });
+  // المتجر: المبلغ المكتوب يلغي المبالغ المقترحة في البطاقات وصفحة الفرصة
+  document.querySelectorAll(".op-quick, [data-donate-form]").forEach(function (form) {
+    var custom = form.querySelector("input[name=custom_amount]");
+    if (!custom) return;
+    custom.addEventListener("input", function () {
+      if (custom.value) form.querySelectorAll("input[name=amount]").forEach(function (r) { r.checked = false; });
+    });
+    form.querySelectorAll("input[name=amount]").forEach(function (r) {
+      r.addEventListener("change", function () { custom.value = ""; });
+    });
+  });
+
+  // عداد الأسهم والكفالات مع الإجمالي
+  document.querySelectorAll(".stepper").forEach(function (box) {
+    var input = box.querySelector("input"), price = parseFloat(box.getAttribute("data-price")) || 0;
+    var total = box.parentNode.querySelector("[data-total]");
+    var sync = function () {
+      var q = Math.max(1, Math.min(1000, parseInt(input.value, 10) || 1));
+      if (total) total.textContent = fmt(q * price);
+    };
+    box.querySelectorAll("[data-step]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        input.value = Math.max(1, Math.min(1000, (parseInt(input.value, 10) || 1) + parseInt(b.getAttribute("data-step"), 10)));
+        sync();
+      });
+    });
+    input.addEventListener("input", sync);
+    sync();
+  });
+
+  if (document.querySelector(".sticky-donate")) body.classList.add("has-sticky");
+
+  // حاسبة الزكاة
+  document.querySelectorAll("[data-zakat]").forEach(function (root) {
+    var num = function (el) { var v = parseFloat(el && el.value); return isFinite(v) && v > 0 ? v : 0; };
+    var out = function (name) { return root.querySelector('[data-out="' + name + '"]'); };
+    var priceInput = root.querySelector("[data-gold-price]"), pay = root.querySelector("[data-pay]");
+    var calc = function () {
+      var price = num(priceInput), total = 0;
+      root.querySelectorAll("[data-add]").forEach(function (el) { total += num(el); });
+      root.querySelectorAll("[data-gold]").forEach(function (el) {
+        total += num(el) * parseInt(el.getAttribute("data-gold"), 10) / 24 * price;
+      });
+      root.querySelectorAll("[data-sub]").forEach(function (el) { total -= num(el); });
+      total = Math.max(total, 0);
+      var nisab = price ? 85 * price : 0, zakat = 0, msg;
+      if (!total) msg = "أدخل أموالك لحساب الزكاة.";
+      else if (!price) msg = "أدخل سعر جرام الذهب اليوم لمعرفة النصاب.";
+      else if (total < nisab) msg = "لم تبلغ أموالك النصاب، فلا زكاة عليها.";
+      else { zakat = Math.round(total * 0.025 * 100) / 100; msg = "بلغت أموالك النصاب، والزكاة الواجبة ربع العشر (2.5%)."; }
+      out("total").textContent = fmt(total);
+      out("nisab").textContent = nisab ? fmt(nisab) : "—";
+      out("zakat").textContent = zakat.toLocaleString("en-US", { maximumFractionDigits: 2 });
+      out("msg").textContent = msg;
+      if (pay) {
+        pay.href = pay.getAttribute("data-base") + (zakat ? "?amount=" + Math.ceil(zakat) + "#donate" : "");
+        pay.classList.toggle("disabled", !zakat);
+      }
+    };
+    root.addEventListener("input", calc);
+    calc();
+  });
 })();

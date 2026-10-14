@@ -1,8 +1,10 @@
 {% extends "store/site/_base.html" %}{% load site %}
 {% block title %}إتمام التبرع | {{ request.site.company.name }}{% endblock %}
+{% block crumb %} / إتمام التبرع{% endblock %}
 {% block heading %}إتمام التبرع{% endblock %}
 {% block store_content %}
-<div class="detail-grid">
+{% include "store/site/_steps.html" with step=2 %}
+<div class="checkout-grid">
 <form method="post" class="panel" novalidate>{% csrf_token %}
   <h2>بيانات المتبرع</h2>
   {{ form.website }}
@@ -12,23 +14,27 @@
     <div class="field">{{ form.donor_phone.label_tag }}{{ form.donor_phone }}<small class="muted">{{ form.donor_phone.help_text }}</small>{{ form.donor_phone.errors }}</div>
     <div class="field">{{ form.donor_email.label_tag }}{{ form.donor_email }}{{ form.donor_email.errors }}</div>
   </div>
-  <div class="field check-field" style="margin-top:10px">{{ form.is_anonymous }}{{ form.is_anonymous.label_tag }}</div>
-  {% if form.is_monthly %}<div class="field check-field" style="margin-top:6px">{{ form.is_monthly }}{{ form.is_monthly.label_tag }}</div>{% endif %}
-  <details style="margin-top:14px" {% if form.gift_to_name.value or form.gift_to_name.errors %}open{% endif %}>
-    <summary><strong>إهداء التبرع</strong> <span class="muted">(تصل المُهدى إليه رسالة باسمك)</span></summary>
-    <div class="form-grid" style="margin-top:10px">
+  <div class="option-cards">
+    <label class="option-card">{{ form.is_anonymous }}<span><strong>{{ form.is_anonymous.label }}</strong><small>لا يظهر اسمك في سند التبرع وشهادة الشكر</small></span></label>
+    {% if form.is_monthly %}<label class="option-card">{{ form.is_monthly }}<span><strong><i class="i" data-i="repeat"></i> اجعله تبرعاً شهرياً</strong><small>يُخصم المبلغ نفسه كل شهر من بطاقتك، ويمكنك إيقافه متى شئت من «تبرعاتي»</small></span></label>{% endif %}
+  </div>
+  <details class="gift-box" {% if form.gift_to_name.value or form.gift_to_name.errors %}open{% endif %}>
+    <summary><i class="i" data-i="gift"></i> <strong>إهداء التبرع</strong> <span class="muted">تبرع عن والديك أو أحد أحبابك، وتصله رسالة باسمك</span></summary>
+    <div class="form-grid" style="margin-top:12px">
       <div class="field">{{ form.gift_to_name.label_tag }}{{ form.gift_to_name }}{{ form.gift_to_name.errors }}</div>
       <div class="field">{{ form.gift_to_phone.label_tag }}{{ form.gift_to_phone }}{{ form.gift_to_phone.errors }}</div>
-      <div class="field" style="grid-column:1/-1">{{ form.gift_message.label_tag }}{{ form.gift_message }}{{ form.gift_message.errors }}</div>
+      <div class="field field-wide">{{ form.gift_message.label_tag }}{{ form.gift_message }}{{ form.gift_message.errors }}</div>
     </div>
   </details>
-  <div class="actions-row"><button class="btn-brand">المتابعة إلى الدفع</button></div>
+  <button class="btn-brand big" style="margin-top:18px">المتابعة إلى الدفع</button>
 </form>
-<aside class="panel">
+<aside class="panel summary">
   <h3>ملخص التبرع</h3>
-  <table class="plain">{% for o, qty, amount in lines %}<tr><td>{{ o.title }}{% if o.fixed_amount %} × {{ qty }}{% endif %}</td><td class="num">{{ amount|floatformat:"-2g" }}</td></tr>{% endfor %}
-  <tr class="total-row"><td>الإجمالي (ريال)</td><td class="num">{{ total|floatformat:"-2g" }}</td></tr></table>
-  <p class="muted" style="font-size:14px">الدفع عبر بوابة ميسّر المرخّصة: مدى، فيزا، ماستركارد، Apple Pay، STC Pay.</p>
+  {% for o, qty, amount in lines %}<div class="sum-row"><span>{{ o.title }}{% if o.fixed_amount %} × {{ qty }}{% endif %}</span><b>{{ amount|floatformat:"-2g" }}</b></div>{% endfor %}
+  <div class="sum-row total"><span>الإجمالي</span><b>{{ total|floatformat:"-2g" }} ريال</b></div>
+  <a class="muted small-note" href="{% site_url 'store_cart' %}">تعديل السلة</a>
+  <div class="pay-logos small" aria-label="وسائل الدفع"><span>مدى</span><span>VISA</span><span>Mastercard</span><span>Apple Pay</span><span>STC Pay</span></div>
+  <p class="muted small-note">الدفع عبر بوابة ميسّر المرخّصة، ولا نحتفظ ببيانات بطاقتك.</p>
 </aside>
 </div>
 {% endblock %}

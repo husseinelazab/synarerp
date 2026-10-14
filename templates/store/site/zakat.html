@@ -1,0 +1,59 @@
+{% extends "store/site/_base.html" %}{% load site %}
+{% block title %}حاسبة الزكاة | {{ request.site.company.name }}{% endblock %}
+{% block description %}احسب زكاة مالك من النقود والذهب والفضة والأسهم وعروض التجارة، وأخرجها إلكترونياً لدى {{ request.site.company.name }}.{% endblock %}
+{% block crumb %} / حاسبة الزكاة{% endblock %}
+{% block heading %}حاسبة الزكاة{% endblock %}
+{% block hero_extra %}<p>أدخل أموالك التي حال عليها الحول (سنة هجرية كاملة)، وتُحسب الزكاة بنسبة 2.5% متى بلغت النصاب.</p>{% endblock %}
+{% block store_content %}
+<div class="zakat-layout" data-zakat>
+  <form class="panel zakat-form" onsubmit="return false">
+    <h2>أموالك الزكوية</h2>
+    <div class="zk-group">
+      <h3><i class="i" data-i="money"></i> النقود</h3>
+      <div class="form-grid">
+        <div class="field"><label for="zk-cash">النقد والأرصدة البنكية (ريال)</label><input id="zk-cash" type="number" min="0" step="any" inputmode="decimal" data-add></div>
+        <div class="field"><label for="zk-receivables">ديون مرجوّة السداد لك (ريال)</label><input id="zk-receivables" type="number" min="0" step="any" inputmode="decimal" data-add></div>
+      </div>
+    </div>
+    <div class="zk-group">
+      <h3><i class="i" data-i="star"></i> الذهب والفضة <small class="muted">(المعدّ للادخار)</small></h3>
+      <div class="form-grid">
+        <div class="field"><label for="zk-g24">ذهب عيار 24 (جرام)</label><input id="zk-g24" type="number" min="0" step="any" inputmode="decimal" data-gold="24"></div>
+        <div class="field"><label for="zk-g21">ذهب عيار 21 (جرام)</label><input id="zk-g21" type="number" min="0" step="any" inputmode="decimal" data-gold="21"></div>
+        <div class="field"><label for="zk-g18">ذهب عيار 18 (جرام)</label><input id="zk-g18" type="number" min="0" step="any" inputmode="decimal" data-gold="18"></div>
+        <div class="field"><label for="zk-silver">قيمة الفضة (ريال)</label><input id="zk-silver" type="number" min="0" step="any" inputmode="decimal" data-add></div>
+      </div>
+    </div>
+    <div class="zk-group">
+      <h3><i class="i" data-i="box"></i> الاستثمار والتجارة</h3>
+      <div class="form-grid">
+        <div class="field"><label for="zk-stocks">الأسهم المعدّة للمتاجرة (القيمة السوقية)</label><input id="zk-stocks" type="number" min="0" step="any" inputmode="decimal" data-add></div>
+        <div class="field"><label for="zk-trade">عروض التجارة (قيمة البضاعة)</label><input id="zk-trade" type="number" min="0" step="any" inputmode="decimal" data-add></div>
+      </div>
+    </div>
+    <div class="zk-group">
+      <h3><i class="i" data-i="minus"></i> يُخصم</h3>
+      <div class="form-grid">
+        <div class="field"><label for="zk-debts">ديون حالّة عليك (ريال)</label><input id="zk-debts" type="number" min="0" step="any" inputmode="decimal" data-sub></div>
+        <div class="field"><label for="zk-gold-price">سعر جرام الذهب عيار 24 اليوم (ريال)</label><input id="zk-gold-price" type="number" min="0" step="any" inputmode="decimal" value="{% if gold_price %}{{ gold_price|stringformat:'s' }}{% endif %}" data-gold-price></div>
+      </div>
+      <p class="muted small-note">النصاب قيمة 85 جراماً من الذهب عيار 24. حدّث السعر بسعر اليوم للحصول على نتيجة دقيقة.</p>
+    </div>
+  </form>
+
+  <aside class="panel zakat-result" aria-live="polite">
+    <h2>نتيجة الحساب</h2>
+    <dl>
+      <div><dt>إجمالي الأموال الزكوية</dt><dd><b data-out="total">0</b> ريال</dd></div>
+      <div><dt>النصاب</dt><dd><b data-out="nisab">—</b> ريال</dd></div>
+    </dl>
+    <div class="zk-due"><small>الزكاة الواجبة (2.5%)</small><b data-out="zakat">0</b><small>ريال</small></div>
+    <p class="zk-msg muted" data-out="msg">أدخل أموالك لحساب الزكاة.</p>
+    {% if zakat and store_ready %}
+      <a class="btn-brand wide big" data-pay href="{% site_url 'store_opportunity' zakat.pk %}" data-base="{% site_url 'store_opportunity' zakat.pk %}"><i class="i" data-i="heart"></i> أخرج زكاتك الآن</a>
+      <p class="muted small-note">تُصرف الزكاة في مصارفها الشرعية عبر صندوق الزكاة في الجمعية.</p>
+    {% elif zakat %}{% include "store/site/_unavailable_notice.html" %}{% endif %}
+    <p class="muted small-note">الحاسبة تقديرية للمساعدة، وللحالات الخاصة يُرجع لأهل العلم.</p>
+  </aside>
+</div>
+{% endblock %}

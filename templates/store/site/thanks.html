@@ -1,11 +1,14 @@
 {% extends "store/site/_base.html" %}{% load site %}
 {% block title %}شكراً لتبرعك | {{ request.site.company.name }}{% endblock %}
 {% block heading %}{% if order.is_paid %}شكراً لتبرعك{% else %}حالة التبرع{% endif %}{% endblock %}
+{% block crumb %} / حالة التبرع{% endblock %}
 {% block store_content %}
 {% if order %}
-<div class="panel">
+{% if order.status == "paid" %}{% include "store/site/_steps.html" with step=4 %}{% endif %}
+<div class="panel thanks-panel">
   {% if order.status == "paid" %}
-    <p class="status-big" style="color:var(--brand)">تم استلام تبرعك بنجاح ✓</p>
+    <div class="success-mark"><i class="i" data-i="check"></i></div>
+    <p class="status-big" style="color:var(--brand)">تم استلام تبرعك بنجاح</p>
     {% if store.thank_you_message %}<p>{{ store.thank_you_message|linebreaksbr }}</p>{% endif %}
   {% elif order.status == "failed" %}
     <p class="status-big" style="color:#b42318">لم تكتمل عملية الدفع</p>
@@ -25,7 +28,14 @@
     {% if order.gift_to_name %}<tr><th>إهداء إلى</th><td>{{ order.gift_to_name }}</td></tr>{% endif %}
     {% if order.recurring_id %}<tr><th>تبرع شهري</th><td>يُخصم شهرياً — يمكنك إيقافه من «تبرعاتي»</td></tr>{% endif %}
   </table>
-  {% if order.status == "paid" %}<div class="actions-row"><a class="btn-brand" href="{% site_url 'store_certificate' order.number %}" target="_blank">شهادة الشكر</a><a class="btn-outline" href="{% site_url 'store_home' %}">تبرع مرة أخرى</a></div>{% endif %}
+  {% if order.status == "paid" %}<div class="actions-row"><a class="btn-brand" href="{% site_url 'store_certificate' order.number %}" target="_blank">شهادة الشكر</a><a class="btn-outline" href="{% site_url 'store_home' %}">تبرع مرة أخرى</a></div>
+  <div class="share-block"><strong>شارك الأجر</strong><span class="muted">ادعُ أهلك وأصدقاءك للتبرع، «الدال على الخير كفاعله»</span>
+    <div class="share-row">
+      <a class="share wa" href="https://wa.me/?text={{ share_text|urlencode }}%20{{ share_url|urlencode }}" target="_blank" rel="noopener"><i class="i" data-i="whatsapp"></i>واتساب</a>
+      <a class="share x" href="https://x.com/intent/post?text={{ share_text|urlencode }}&url={{ share_url|urlencode }}" target="_blank" rel="noopener"><i class="i" data-i="x"></i>إكس</a>
+      <button class="share copy-btn" type="button" data-copy="{{ share_url }}"><i class="i" data-i="link"></i><span>نسخ الرابط</span></button>
+    </div>
+  </div>{% endif %}
 </div>
 {% else %}
 <div class="notice">{% if pending %}لم نتمكن من التحقق من عملية الدفع الآن، وسيصلك إشعار عند تأكيدها.{% else %}شكراً لزيارتك. تفاصيل الطلب متاحة لصاحبه فقط — ادخل إلى <a href="{% site_url 'store_account' %}">تبرعاتي</a> برقم جوالك.{% endif %}</div>

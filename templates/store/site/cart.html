@@ -1,31 +1,37 @@
 {% extends "store/site/_base.html" %}{% load site %}
 {% block title %}سلة التبرعات | {{ request.site.company.name }}{% endblock %}
+{% block crumb %} / سلة التبرعات{% endblock %}
 {% block heading %}سلة التبرعات{% endblock %}
 {% block store_content %}
+{% include "store/site/_steps.html" with step=1 %}
 {% if lines %}
-<div class="panel" style="overflow-x:auto">
-<table class="plain">
-  <thead><tr><th>فرصة التبرع</th><th>العدد / المبلغ</th><th class="num">المبلغ (ريال)</th><th></th></tr></thead>
-  <tbody>
-  {% for o, qty, amount in lines %}<tr>
-    <td><a href="{% site_url 'store_opportunity' o.pk %}">{{ o.title }}</a><br><small class="muted">{{ o.get_kind_display }}</small></td>
-    <td><form method="post" style="display:flex;gap:6px;align-items:center">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="op" value="{{ o.pk }}"><input type="hidden" name="action" value="update">
-      {% if o.fixed_amount %}<input class="qty-input" type="number" name="quantity" min="1" max="1000" value="{{ qty }}" aria-label="عدد الأسهم">
-      {% else %}<input class="amt-input" type="number" name="amount" min="1" step="1" value="{{ amount|floatformat:0 }}" aria-label="المبلغ"{% if not o.allow_custom_amount %} readonly{% endif %}>{% endif %}
-      <button class="btn-outline" style="padding:6px 12px">تحديث</button></form></td>
-    <td class="num">{{ amount|floatformat:"-2g" }}</td>
-    <td><form method="post">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="op" value="{{ o.pk }}"><button class="btn-link" name="action" value="remove">حذف</button></form></td>
-  </tr>{% endfor %}
-  <tr class="total-row"><td colspan="2">الإجمالي</td><td class="num">{{ total|floatformat:"-2g" }}</td><td></td></tr>
-  </tbody>
-</table>
-<div class="actions-row">
-  {% if store_ready %}<a class="btn-brand" href="{% site_url 'store_checkout' %}">إتمام التبرع</a>{% endif %}
-  <a class="btn-outline" href="{% site_url 'store_home' %}">أضف تبرعاً آخر</a>
-</div>
+<div class="checkout-grid">
+  <div class="cart-list">
+  {% for o, qty, amount in lines %}<div class="cart-item">
+    <a class="ci-media" href="{% site_url 'store_opportunity' o.pk %}">{% if o.image %}<img src="{{ o.image }}" alt="">{% else %}<span class="op-ph"><i class="i" data-i="heart"></i></span>{% endif %}</a>
+    <div class="ci-info">
+      <a class="ci-title" href="{% site_url 'store_opportunity' o.pk %}">{{ o.title }}</a>
+      <span class="tag">{{ o.get_kind_display }}</span>
+      <form method="post" class="ci-edit">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="op" value="{{ o.pk }}"><input type="hidden" name="action" value="update">
+        {% if o.fixed_amount %}<label>العدد <input class="qty-input" type="number" name="quantity" min="1" max="1000" value="{{ qty }}" aria-label="عدد الأسهم"></label>
+        {% else %}<label>المبلغ <input class="amt-input" type="number" name="amount" min="1" step="1" value="{{ amount|floatformat:0 }}" aria-label="المبلغ"{% if not o.allow_custom_amount %} readonly{% endif %}></label>{% endif %}
+        <button class="btn-outline sm">تحديث</button></form>
+    </div>
+    <div class="ci-amount"><b>{{ amount|floatformat:"-2g" }}</b><small>ريال</small>
+      <form method="post">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="op" value="{{ o.pk }}"><button class="ci-remove" name="action" value="remove" aria-label="حذف {{ o.title }}"><i class="i" data-i="trash"></i> حذف</button></form>
+    </div>
+  </div>{% endfor %}
+  </div>
+  <aside class="panel summary">
+    <h3>ملخص التبرع</h3>
+    <div class="sum-row"><span>عدد الفرص</span><b>{{ lines|length }}</b></div>
+    <div class="sum-row total"><span>الإجمالي</span><b>{{ total|floatformat:"-2g" }} ريال</b></div>
+    {% if store_ready %}<a class="btn-brand wide big" href="{% site_url 'store_checkout' %}">إتمام التبرع</a>{% endif %}
+    <a class="btn-outline wide" href="{% site_url 'store_home' %}">أضف تبرعاً آخر</a>
+  </aside>
 </div>
 {% if not store_ready %}<br>{% include "store/site/_unavailable_notice.html" %}{% endif %}
 {% else %}
-<div class="notice">سلة التبرعات فارغة. <a href="{% site_url 'store_home' %}">تصفح فرص التبرع</a></div>
+<div class="empty-state"><span class="es-icon"><i class="i" data-i="cart"></i></span><h2>سلة التبرعات فارغة</h2><p class="muted">اختر فرصة تبرع وأضفها للسلة، أو تبرع مباشرة.</p><a class="btn-brand" href="{% site_url 'store_home' %}">تصفح فرص التبرع</a></div>
 {% endif %}
 {% endblock %}

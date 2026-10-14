@@ -5,6 +5,7 @@ from store import site_views as views
 urlpatterns = [
     path("", views.store_home, name="store_home"),
     path("<int:pk>/", views.store_opportunity, name="store_opportunity"),
+    path("zakat/", views.store_zakat, name="store_zakat"),
     path("cart/", views.store_cart, name="store_cart"),
     path("checkout/", views.store_checkout, name="store_checkout"),
     path("pay/<str:number>/", views.store_pay, name="store_pay"),

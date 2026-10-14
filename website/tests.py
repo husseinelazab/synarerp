@@ -70,3 +70,11 @@ class WebsiteFoundationTests(TestCase):
             Website.objects.create(slug="bizsite")
         self.client.force_login(user)
         self.assertEqual(self.client.get("/site/bizsite/").status_code, 404)
+
+    def test_tls_domain_check_only_for_published_sites(self):
+        self.assertEqual(self.client.get("/site-domain-check/", {"domain": "albirr.org.sa"}).status_code, 404)
+        self.site.is_published = True
+        self.site.save()
+        clear_cache()
+        self.assertEqual(self.client.get("/site-domain-check/", {"domain": "www.albirr.org.sa"}).status_code, 200)
+        self.assertEqual(self.client.get("/site-domain-check/", {"domain": "other.org.sa"}).status_code, 404)

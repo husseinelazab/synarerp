@@ -5,6 +5,7 @@ from django.urls import include, path, re_path
 from core import password_reset, two_factor
 from core import views as core_views
 from hr import adms
+from website import tls as website_tls
 
 admin.site.site_header = "سِينار Synar ERP - لوحة الإدارة"
 admin.site.site_title = "سِينار"
@@ -59,7 +60,8 @@ urlpatterns = [
     path("fleet/", include("fleet.urls")),
     path("website/", include("website.urls")),
     path("store/", include("store.urls")),
-    path("site/<slug:site_slug>/", include("website.site_urls")),  # معاينة موقع الجمعية على المنصة
+    path("site/<slug:site_slug>/", include("website.site_urls")),
+    path("site-domain-check/", website_tls.domain_check),  # يسأله Caddy قبل إصدار شهادة نطاق جمعية
     path("office/", include("office.urls")),
     path("me/", include("hr.portal_urls")),
     path("", include("buying.urls")),

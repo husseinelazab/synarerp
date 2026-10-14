@@ -1,3 +1,10 @@
+# إصدار شهادات مواقع الجمعيات (نطاقاتها المستقلة .sa) عند أول زيارة، بعد التأكد من سِينار أن النطاق مسجل ومنشور
+{
+	on_demand_tls {
+		ask http://web:8000/site-domain-check/
+	}
+}
+
 # Caddy يصدر شهادة HTTPS مجانية تلقائياً (Let's Encrypt) للنطاق ويجددها قبل انتهائها
 {$SYNAR_DOMAIN} {
 	encode zstd gzip
@@ -18,4 +25,23 @@ http://{$SYNAR_DOMAIN} {
 	handle {
 		redir https://{host}{uri} 308
 	}
+}
+
+# مواقع الجمعيات على نطاقاتها المستقلة (مثل albirr.org.sa و www.albirr.org.sa)
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy web:8000
+	request_body {
+		max_size 20MB
+	}
+	header {
+		-Server
+	}
+}
+
+http:// {
+	redir https://{host}{uri} 308
 }

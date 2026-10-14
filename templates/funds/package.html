@@ -1,0 +1,226 @@
+{% load fs erp static %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>القوائم المالية {{ year.name }} — {{ company.name }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; --line: #222; --muted: #666; }
+  body { font-family: Tajawal, Tahoma, sans-serif; margin: 0; background: #eef1f5; color: #111; }
+  .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex;
+             gap: 8px; align-items: center; flex-wrap: wrap; z-index: 2; }
+  .toolbar a, .toolbar button, .toolbar select { font: inherit; padding: 6px 12px; border: 1px solid #ccd; border-radius: 6px;
+             background: #fff; color: #123; text-decoration: none; cursor: pointer; }
+  .toolbar .primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .check { padding: 4px 10px; border-radius: 12px; font-size: 13px; }
+  .check.ok { background: #d4edda; color: #155724; } .check.bad { background: #fde2e4; color: #8b1f2a; }
+  .page { background: #fff; width: 210mm; min-height: 297mm; margin: 16px auto; padding: 18mm 16mm; box-sizing: border-box;
+          box-shadow: 0 1px 4px rgba(0,0,0,.12); page-break-after: always; }
+  .page.landscape { width: 297mm; min-height: 210mm; }
+  .head { border-bottom: 2px solid var(--line); margin-bottom: 14px; padding-bottom: 6px; }
+  .head h1 { font-size: 17px; margin: 0; } .head div { font-size: 14px; }
+  .head .title { font-weight: 800; margin-top: 6px; font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: center; border-bottom: 1.5px solid var(--line); padding: 6px 4px; font-weight: 700; }
+  td { padding: 4px; } td.num, th.num { text-align: left; white-space: nowrap; direction: ltr; width: 110px; }
+  td.note { text-align: center; width: 50px; color: var(--muted); }
+  tr.group td { font-weight: 800; padding-top: 10px; text-decoration: underline; }
+  tr.sub td { font-weight: 700; } tr.total td { font-weight: 800; border-top: 1px solid var(--line); }
+  tr.grand td { font-weight: 800; border-top: 1.5px solid var(--line); border-bottom: 3px double var(--line); }
+  tr.subtotal td { font-weight: 700; border-top: 1px solid var(--line); }
+  .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .cover img { max-height: 110px; margin-bottom: 24px; } .cover h1 { font-size: 26px; } .cover p { font-size: 18px; margin: 6px; }
+  .contents td { font-size: 16px; padding: 10px 4px; }
+  table.schedule { font-size: 10.5px; table-layout: fixed; } table.schedule th { white-space: normal; font-size: 10px; }
+  table.schedule td.num, table.schedule th.num { width: auto; } table.schedule th:first-child { width: 18%; }
+  .note-title { font-weight: 800; text-decoration: underline; margin: 18px 0 8px; font-size: 15px; }
+  .policies p { line-height: 1.9; margin: 4px 0; font-size: 13.5px; } .footnote { color: var(--muted); font-size: 12px; }
+  .footer { margin-top: 18px; text-align: center; font-size: 12px; color: var(--muted); }
+  .head .lh { display: flex; align-items: center; gap: 10px; } .head .lh img { max-height: 44px; max-width: 110px; }
+  .head .reg { font-size: 11px; color: var(--muted); }
+  @page { size: A4; margin: 12mm;
+          @bottom-center { content: counter(page); font-family: Tajawal, sans-serif; font-size: 9pt; color: #666; } }
+  @page wide { size: A4 landscape; margin: 12mm; }
+  @media print { body { background: #fff; } .toolbar { display: none; } .page { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 0; }
+                 .page.landscape { page: wide; width: auto; min-height: auto; } }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <a href="/">→ لوحة التحكم</a>
+  <form method="get" style="display:inline">
+    <select name="year" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.pk }}" {% if y.pk == year.pk %}selected{% endif %}>السنة المالية {{ y.name }}</option>{% endfor %}</select>
+  </form>
+  {% if year %}
+  <button class="primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+  <a href="{% url 'statements_export' %}?year={{ year.pk }}">⬇ Excel للمراجع</a>
+  <span class="check {% if checks.balanced %}ok{% else %}bad{% endif %}">{% if checks.balanced %}✓ قائمة المركز المالي متوازنة{% else %}✗ قائمة المركز المالي غير متوازنة{% endif %}</span>
+  <span class="check {% if checks.cash %}ok{% else %}bad{% endif %}">{% if checks.cash %}✓ التدفقات النقدية مطابقة للنقدية{% else %}✗ التدفقات لا تطابق النقدية — حسابات خارج فروع الدليل{% endif %}</span>
+  <span class="check {% if checks.net_assets %}ok{% else %}bad{% endif %}">{% if checks.net_assets %}✓ صافي الأصول متطابق بين القائمتين{% else %}✗ صافي الأصول غير متطابق{% endif %}</span>
+  {% endif %}
+</div>
+{% if not year %}<div class="page"><p>أضف سنة مالية أولاً من الإعدادات.</p></div>{% else %}
+
+{% with cur=end|date:"j/n/Y" pri=prior_end|date:"j/n/Y" %}
+<!-- الغلاف -->
+<div class="page cover">
+  {% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}
+  <h1>{{ company.name }}</h1>
+  {% if company.license_number %}<p>مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</p>{% endif %}
+  {% if company.headquarters %}<p>{{ company.headquarters }} - المملكة العربية السعودية</p>{% endif %}
+  <p><strong>القوائم المالية كما في {{ end|date:"j F Y" }}م</strong></p>
+</div>
+
+<!-- المحتويات -->
+<div class="page">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">القوائم المالية كما في {{ end|date:"j F Y" }}م</div></div>
+  <table class="contents"><thead><tr><th style="text-align:right">المحتويات</th></tr></thead><tbody>
+    <tr><td>تقرير المراجع المستقل</td></tr><tr><td>قائمة المركز المالي</td></tr><tr><td>قائمة الأنشطة</td></tr>
+    <tr><td>قائمة التغيرات في صافي الأصول</td></tr><tr><td>قائمة التدفقات النقدية</td></tr><tr><td>الإيضاحات المتممة للقوائم المالية ({{ notes|length }} إيضاحاً)</td></tr>
+  </tbody></table>
+</div>
+
+<!-- قائمة المركز المالي -->
+<div class="page">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة المركز المالي</div>
+    <div>كما في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+  <table><thead><tr><th style="text-align:right"></th><th>إيضاح</th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
+    <tr class="group"><td colspan="4">الموجودات</td></tr>
+    {% for s in position.assets %}
+      <tr class="sub"><td colspan="4">{{ s.title }}</td></tr>
+      {% for l in s.lines %}<tr><td>{{ l.label }}</td><td class="note">{% if l.note %}({{ l.note }}){% endif %}</td><td class="num">{{ l.value|acct }}</td><td class="num">{{ l.prior|acct }}</td></tr>{% endfor %}
+      <tr class="total"><td>مجموع {{ s.title }}</td><td></td><td class="num">{{ s.value|acct }}</td><td class="num">{{ s.prior|acct }}</td></tr>
+    {% endfor %}
+    <tr class="grand"><td>مجموع الموجودات</td><td></td><td class="num">{{ position.total_assets|acct }}</td><td class="num">{{ position.total_assets_prior|acct }}</td></tr>
+    <tr class="group"><td colspan="4">المطلوبات وصافي الأصول</td></tr>
+    {% for s in position.liabilities %}
+      <tr class="sub"><td colspan="4">{{ s.title }}</td></tr>
+      {% for l in s.lines %}<tr><td>{{ l.label }}</td><td class="note">{% if l.note %}({{ l.note }}){% endif %}</td><td class="num">{{ l.value|acct }}</td><td class="num">{{ l.prior|acct }}</td></tr>{% endfor %}
+      <tr class="total"><td>مجموع {{ s.title }}</td><td></td><td class="num">{{ s.value|acct }}</td><td class="num">{{ s.prior|acct }}</td></tr>
+    {% endfor %}
+    <tr class="sub"><td colspan="4">صافي الأصول</td></tr>
+    {% for n in position.net_assets %}<tr><td>{{ n.label }}</td><td class="note">{% if n.note %}({{ n.note }}){% endif %}</td><td class="num">{{ n.value|acct }}</td><td class="num">{{ n.prior|acct }}</td></tr>{% endfor %}
+    <tr class="total"><td>إجمالي صافي الأصول</td><td></td><td class="num">{{ position.total_net|acct }}</td><td class="num">{{ position.total_net_prior|acct }}</td></tr>
+    <tr class="grand"><td>إجمالي المطلوبات وصافي الأصول</td><td></td>
+      <td class="num">{{ position.total_liabilities_and_net|acct }}</td>
+      <td class="num">{{ position.total_liabilities_and_net_prior|acct }}</td></tr>
+  </tbody></table>
+  <div class="footer">إن الإيضاحات المرفقة من رقم (1) إلى رقم ({{ notes|length }}) جزء لا يتجزأ من القوائم المالية</div>
+</div>
+
+<!-- قائمة الأنشطة -->
+<div class="page landscape">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة الأنشطة</div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+  <table><thead><tr><th style="text-align:right">البيان</th><th>إيضاح</th>{% for c in activities.columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
+    {% for s in activities.sections %}
+      <tr class="group"><td colspan="7">{{ s.title }}</td></tr>
+      {% for l in s.lines %}<tr><td>{{ l.label }}</td><td class="note">{% if l.note %}({{ l.note }}){% endif %}</td>{% for v in l.values.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ l.total|acct }}</td><td class="num">{{ l.prior|acct }}</td></tr>{% endfor %}
+      <tr class="total"><td>إجمالي {{ s.title }}</td><td></td>{% for v in s.totals.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ s.total|acct }}</td><td class="num">{{ s.prior|acct }}</td></tr>
+    {% endfor %}
+    {% for t in activities.transfers %}<tr><td>{{ t.label }}</td><td></td>{% for v in t.values.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ t.total|acct }}</td><td class="num">{{ t.prior|acct }}</td></tr>{% endfor %}
+    <tr class="total"><td>التغير في صافي الأصول من الأنشطة</td><td></td>{% for v in activities.change.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ activities.change_total|acct }}</td><td class="num">{{ activities.change_prior|acct }}</td></tr>
+    {% if activities.direct_total or activities.direct_prior %}<tr><td>قيود مباشرة على صافي الأصول (أرصدة افتتاحية وتسويات)</td><td></td>{% for v in activities.direct.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ activities.direct_total|acct }}</td><td class="num">{{ activities.direct_prior|acct }}</td></tr>{% endif %}
+    <tr><td>صافي الأصول في بداية السنة</td><td></td>{% for v in activities.opening.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ activities.opening_total|acct }}</td><td class="num">{{ activities.opening_prior|acct }}</td></tr>
+    <tr class="grand"><td>صافي الأصول في نهاية السنة</td><td></td>{% for v in activities.closing.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ activities.closing_total|acct }}</td><td class="num">{{ activities.closing_prior|acct }}</td></tr>
+  </tbody></table>
+  <div class="footer">إن الإيضاحات المرفقة من رقم (1) إلى رقم ({{ notes|length }}) جزء لا يتجزأ من القوائم المالية</div>
+</div>
+
+<!-- قائمة التغيرات في صافي الأصول -->
+<div class="page landscape">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة التغيرات في صافي الأصول</div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+  <table><thead><tr><th style="text-align:right">البيان</th>{% for c in changes.columns %}<th class="num">صافي الأصول {{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead><tbody>
+    {% for b in changes.blocks %}
+      <tr class="group"><td colspan="5">{{ b.label }}</td></tr>
+      {% for r in b.rows %}<tr class="{{ r.kind }}"><td>{{ r.label }}</td>{% for v in r.values.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ r.total|acct }}</td></tr>{% endfor %}
+    {% endfor %}
+  </tbody></table>
+  <div class="footer">إن الإيضاحات المرفقة من رقم (1) إلى رقم ({{ notes|length }}) جزء لا يتجزأ من القوائم المالية</div>
+</div>
+
+<!-- قائمة التدفقات النقدية -->
+<div class="page">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة التدفقات النقدية</div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+  <table><thead><tr><th style="text-align:right"></th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
+    <tr class="group"><td colspan="3">التدفقات النقدية من الأنشطة التشغيلية</td></tr>
+    <tr><td>التغير في صافي الأصول</td><td class="num">{{ flows.change_in_net_assets|acct }}</td><td class="num">{{ flows_prior.change_in_net_assets|acct }}</td></tr>
+    {% for l in flows.adjustments %}<tr><td>{{ l.label }}</td><td class="num">{{ l.value|acct }}</td><td class="num">{% for p in flows_prior.adjustments %}{% if p.label == l.label %}{{ p.value|acct }}{% endif %}{% endfor %}</td></tr>{% endfor %}
+    {% for l in flows.working %}<tr><td>{{ l.label }}</td><td class="num">{{ l.value|acct }}</td><td class="num">{% for p in flows_prior.working %}{% if p.label == l.label %}{{ p.value|acct }}{% endif %}{% endfor %}</td></tr>{% endfor %}
+    <tr class="total"><td>صافي التدفقات النقدية من الأنشطة التشغيلية</td><td class="num">{{ flows.operating|acct }}</td><td class="num">{{ flows_prior.operating|acct }}</td></tr>
+    <tr class="group"><td colspan="3">التدفقات النقدية من الأنشطة الاستثمارية</td></tr>
+    {% for l in flows.investing_lines %}<tr><td>{{ l.label }}</td><td class="num">{{ l.value|acct }}</td><td class="num">{% for p in flows_prior.investing_lines %}{% if p.label == l.label %}{{ p.value|acct }}{% endif %}{% endfor %}</td></tr>{% endfor %}
+    <tr class="total"><td>صافي التدفقات النقدية من الأنشطة الاستثمارية</td><td class="num">{{ flows.investing|acct }}</td><td class="num">{{ flows_prior.investing|acct }}</td></tr>
+    <tr class="group"><td colspan="3">التدفقات النقدية من الأنشطة التمويلية</td></tr>
+    {% for l in flows.financing_lines %}<tr><td>{{ l.label }}</td><td class="num">{{ l.value|acct }}</td><td class="num">{% for p in flows_prior.financing_lines %}{% if p.label == l.label %}{{ p.value|acct }}{% endif %}{% endfor %}</td></tr>{% endfor %}
+    <tr class="total"><td>صافي التدفقات النقدية من الأنشطة التمويلية</td><td class="num">{{ flows.financing|acct }}</td><td class="num">{{ flows_prior.financing|acct }}</td></tr>
+    <tr class="sub"><td>التغير في النقدية خلال السنة</td><td class="num">{{ flows.net|acct }}</td><td class="num">{{ flows_prior.net|acct }}</td></tr>
+    <tr><td>رصيد النقدية وما في حكمها بداية السنة</td><td class="num">{{ flows.opening|acct }}</td><td class="num">{{ flows_prior.opening|acct }}</td></tr>
+    <tr class="grand"><td>رصيد النقدية وما في حكمها نهاية السنة</td><td class="num">{{ flows.closing|acct }}</td><td class="num">{{ flows_prior.closing|acct }}</td></tr>
+  </tbody></table>
+  <div class="footer">إن الإيضاحات المرفقة من رقم (1) إلى رقم ({{ notes|length }}) جزء لا يتجزأ من القوائم المالية</div>
+</div>
+
+<!-- الإيضاحات -->
+<div class="page">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">الإيضاحات المتممة للقوائم المالية</div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م</div></div>
+  {% for n in notes %}
+    <div class="note-title">({{ n.number }}) {{ n.title }}</div>
+    {% if n.kind == "info" %}
+      <table><tbody>
+        <tr><td style="width:30%">اسم الجمعية</td><td>{{ company.name }}</td></tr>
+        {% if company.headquarters %}<tr><td>المركز الرئيسي</td><td>{{ company.headquarters }}</td></tr>{% endif %}
+        {% if company.license_number %}<tr><td>رقم التسجيل</td><td>مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }}){% if company.registration_date %} بتاريخ {{ company.registration_date }}{% endif %}</td></tr>{% endif %}
+        {% if company.objectives %}<tr><td>أهداف الجمعية</td><td style="white-space:pre-line">{{ company.objectives }}</td></tr>{% endif %}
+        <tr><td>السنة المالية</td><td>تبدأ في {{ start|date:"Y/n/j" }}م وتنتهي في {{ end|date:"Y/n/j" }}م</td></tr>
+      </tbody></table>
+    {% elif n.kind == "awqaf" %}
+      <table class="schedule"><thead><tr><th style="text-align:right">الوقف</th><th>النوع</th><th>رقم الصك</th><th>تصنيف الغلة</th><th class="num">قيمة الأصل الموقوف</th><th class="num">غلة السنة</th><th class="num">الموزع خلال السنة</th><th class="num">رصيد الغلة آخر السنة</th></tr></thead><tbody>
+        {% for w in n.awqaf %}<tr><td>{{ w.name }}</td><td>{{ w.type }}</td><td>{{ w.deed|default:"-" }}</td><td>{{ w.classification }}</td><td class="num">{{ w.asset_value|acct }}</td><td class="num">{{ w.revenue|acct }}</td><td class="num">{{ w.distributed|acct }}</td><td class="num">{{ w.balance|acct }}</td></tr>{% endfor %}
+      </tbody></table>
+      <p class="footnote">تُدار الأوقاف وفق شروط الواقفين، ويُصرف من غلتها دون المساس بأصولها.</p>
+    {% elif n.kind == "pledges" %}
+      <table><thead><tr><th style="text-align:right">الداعم</th><th style="text-align:right">الشرط</th><th>الصندوق</th><th>تاريخ الوعد</th><th class="num">المبلغ</th></tr></thead><tbody>
+        {% for p in n.pledges %}<tr><td>{{ p.donor }}</td><td>{{ p.condition }}</td><td>{{ p.fund }}</td><td>{{ p.date|date:"Y/m/d" }}</td><td class="num">{{ p.amount|acct }}</td></tr>{% endfor %}
+        <tr class="grand"><td colspan="4">الإجمالي</td><td class="num">{{ n.pledges_total|acct }}</td></tr>
+      </tbody></table>
+      <p class="footnote">لا تُثبت هذه الوعود إيراداً حتى يتحقق شرطها.</p>
+    {% elif n.kind == "matrix" %}
+      <table class="schedule"><thead><tr><th style="text-align:right">طبيعة المصروف</th>{% for c in n.matrix.columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead><tbody>
+        {% for r in n.matrix.rows %}<tr><td>{{ r.label }}</td>{% for v in r.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ r.total|acct }}</td></tr>{% endfor %}
+        <tr class="grand"><td>الإجمالي</td>{% for v in n.matrix.totals %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ n.matrix.total|acct }}</td></tr>
+      </tbody></table>
+      <p class="footnote">عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م.</p>
+    {% elif n.kind == "text" %}
+      <div class="policies">{% for p in n.text.splitlines %}{% if p %}<p>{{ p }}</p>{% endif %}{% endfor %}</div>
+    {% else %}
+      {% if n.kind == "fixed_assets" and n.schedule.rows %}
+        <table class="schedule"><thead><tr><th style="text-align:right">الفئة</th><th>النسبة</th><th class="num">التكلفة أول السنة</th><th class="num">الإضافات</th><th class="num">الاستبعادات</th><th class="num">التكلفة آخر السنة</th><th class="num">مجمع الإهلاك أول السنة</th><th class="num">إهلاك السنة</th><th class="num">مجمع الإهلاك آخر السنة</th><th class="num">الصافي {{ cur }}</th><th class="num">الصافي {{ pri }}</th></tr></thead><tbody>
+          {% for r in n.schedule.rows %}<tr><td>{{ r.label }}</td><td class="note">{% if r.rate %}{{ r.rate }}%{% endif %}</td><td class="num">{{ r.cost_open|acct }}</td><td class="num">{{ r.additions|acct }}</td><td class="num">{{ r.disposals|acct }}</td><td class="num">{{ r.cost_close|acct }}</td><td class="num">{{ r.dep_open|acct }}</td><td class="num">{{ r.dep_charge|acct }}</td><td class="num">{{ r.dep_close|acct }}</td><td class="num">{{ r.nbv|acct }}</td><td class="num">{{ r.nbv_prior|acct }}</td></tr>{% endfor %}
+          {% with t=n.schedule.totals %}<tr class="grand"><td>الإجمالي</td><td></td><td class="num">{{ t.cost_open|acct }}</td><td class="num">{{ t.additions|acct }}</td><td class="num">{{ t.disposals|acct }}</td><td class="num">{{ t.cost_close|acct }}</td><td class="num">{{ t.dep_open|acct }}</td><td class="num">{{ t.dep_charge|acct }}</td><td class="num">{{ t.dep_close|acct }}</td><td class="num">{{ t.nbv|acct }}</td><td class="num">{{ t.nbv_prior|acct }}</td></tr>{% endwith %}
+        </tbody></table><br>
+      {% endif %}
+      {% if n.kind == "provision" %}
+        <table><tbody>
+          <tr><td>رصيد مخصص مكافأة نهاية الخدمة أول العام</td><td class="num">{{ n.movement.opening|acct }}</td></tr>
+          <tr><td>المكون خلال العام</td><td class="num">{{ n.movement.additions|acct }}</td></tr>
+          <tr><td>المستخدم خلال العام</td><td class="num">{% if n.movement.used %}({{ n.movement.used|acct }}){% else %}-{% endif %}</td></tr>
+          <tr class="grand"><td>الرصيد آخر العام</td><td class="num">{{ n.movement.closing|acct }}</td></tr>
+        </tbody></table><br>
+      {% endif %}
+      {% if n.rows %}
+      <table><thead><tr><th style="text-align:right"></th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
+        {% for r in n.rows %}<tr><td>{{ r.label }}</td><td class="num">{{ r.value|acct }}</td><td class="num">{{ r.prior|acct }}</td></tr>{% endfor %}
+        <tr class="grand"><td>الإجمالي</td><td class="num">{{ n.total|acct }}</td><td class="num">{{ n.total_prior|acct }}</td></tr>
+      </tbody></table>
+      {% if n.footnote %}<p class="footnote">{{ n.footnote }}</p>{% endif %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+</div>
+{% endwith %}
+{% endif %}
+</body></html>

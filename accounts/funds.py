@@ -4,8 +4,39 @@ from django.core.exceptions import ValidationError
 from core.utils import flt
 
 
+CLOSING_VOUCHER = "period-closing"
+
+# فروع الدليل المحاسبي الموحد للجهات غير الربحية التي تحدد فئة صافي الأصول عند عدم تحديد صندوق.
+# وفق معيار العرض والإفصاح للمنشآت غير الهادفة للربح (الهيئة السعودية للمراجعين والمحاسبين): فئة «الأوقاف» لأصل الوقف
+# فقط (التبرعات لإنشاء الأوقاف، ومكاسب وخسائر أصولها)؛ أما الغلة (الريع وأرباح الاستثمار) ومصروفاتها وتوزيعاتها فغير مقيدة
+# ما لم يشترط الواقف صرفها في مصارف محددة (فتُقيد في صندوق غلة مقيد)، فتتبع الصندوق.
+BRANCH_CLASSES = [("23102", "restricted"), ("23103", "endowment"), ("311", "restricted"), ("421", "restricted"),
+                  ("31301", "endowment"), ("31302", "endowment"), ("43103", "endowment"),
+                  ("43104001", "endowment"), ("4310400201", "endowment"), ("4310400202", "endowment"),
+                  ("4310400203", "endowment"), ("13", "endowment")]
+# استهلاك أصول الأوقاف: يُخفض صافي أصول الأوقاف دائماً، ويُعرض في قائمة الأنشطة ضمن المصروفات غير المقيدة مع إعادة
+# تصنيف مبلغ مماثل من صافي أصول الأوقاف إلى غير المقيدة.
+WAQF_DEPRECIATION = "43103"
+# حساب صافي الأصول الذي يُقفل فيه فائض كل فئة
+CLASS_NET_ASSETS = {"unrestricted": "23101001", "restricted": "23102001", "endowment": "23103001"}
+
+
+def branch_class(number):
+    return next((cls for prefix, cls in BRANCH_CLASSES if (number or "").startswith(prefix)), "unrestricted")
+
+
+def row_class(number, fund_type=None):
+    """فئة صافي الأصول لسطر قيد: من نوع صندوقه إن وُجد، وإلا من فرع حسابه في الدليل الموحد."""
+    if (number or "").startswith(WAQF_DEPRECIATION):
+        return "endowment"
+    return fund_type or branch_class(number)
+
+
 def check_funds(doc, rows):
     from accounts.models import FundType, RootType
+
+    if getattr(doc, "doctype_slug", "") == CLOSING_VOUCHER:
+        return  # قيد الإقفال يعكس أرصدة السنة بصناديقها ولا يُعد صرفاً
 
     effects = {}
     for row in rows:

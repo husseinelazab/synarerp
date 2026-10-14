@@ -252,6 +252,9 @@ def nonprofit_modules(modules, doc):
     if buying:
         titles = {"التقارير": "تقارير الموردين"}
         accounts["sections"][1:1] = [{**s, "title": titles.get(s["title"], s["title"])} for s in buying["sections"]]
+    for section in accounts["sections"]:
+        if section.get("title") == "القوائم المالية":
+            section["items"].insert(0, _item("حزمة القوائم المالية للجمعية (للمراجع)", "statements_package"))
     accounts["sections"].insert(1, {"title": "الأموال المقيدة", "items": [
         doc("الصناديق والأموال المقيدة", "fund"),
         _item("أرصدة الصناديق", "fund_balances"), _item("قائمة الأنشطة", "statement_of_activities")]})
@@ -267,7 +270,9 @@ def nonprofit_modules(modules, doc):
     ]}
     by_key["resources"] = {"key": "resources", "label": "إدارة الموارد المالية", "sections": [
         {"title": "التبرعات", "items": [_item("لوحة الموارد المالية", "resources_dashboard"),
-                                       doc("سندات التبرعات", "donation-receipt"), doc("الداعمون", "donor")]},
+                                       doc("سندات التبرعات", "donation-receipt"),
+                                       doc("التبرعات العينية", "in-kind-donation"), doc("وعود التبرع", "pledge"),
+                                       doc("الداعمون", "donor")]},
         {"title": "الكفالات", "items": [doc("الكفالات", "sponsorship"), doc("استحقاقات الكفالات", "sponsorship-due"),
                                        doc("أنواع الكفالات", "sponsorship-type")]},
     ]}
@@ -314,12 +319,17 @@ def nonprofit_modules(modules, doc):
     return [by_key[key] for key in NONPROFIT_ORDER if key in by_key and key not in COMMERCIAL_MODULES]
 
 
+# الوحدة التي لا تتجاوز عناصرها هذا العدد تُعرض أقسامها عناوين ثابتة دون طي، والأكبر تُطوى أقسامها
+FLAT_LIMIT = 30
+
+
 def _mark_active(request, modules):
     # تحديد العنصر النشط (الأطول تطابقاً) وفتح وحدته
     path = request.get_full_path()
     best, best_len = None, 0
     for module in modules:
         module["icon"] = ICONS[module["key"]]
+        module["flat"] = sum(len(s["items"]) for s in module["sections"]) <= FLAT_LIMIT
         for section in module["sections"]:
             for item in section["items"]:
                 base = item["url"].split("?")[0]
@@ -335,3 +345,25 @@ def _mark_active(request, modules):
         active = next((s for s in sections if any(i.get("active") for i in s["items"])), None)
         (active or sections[0])["open"] = True
     return modules
+
+
+def breadcrumb(modules, path):
+    """مسار الصفحة الحالية في القائمة: [(النص، الرابط)] — الوحدة، ثم القسم، ثم صفحة القائمة إن كنا داخل أحد عناصرها."""
+    for module in modules:
+        for section in module["sections"]:
+            for item in section["items"]:
+                if not item.get("active"):
+                    continue
+                trail = [(module["label"], module["sections"][0]["items"][0]["url"])]
+                if section.get("title") and len(module["sections"]) > 1:
+                    trail.append((section["title"], section["items"][0]["url"]))
+                if item["url"].split("?")[0] != path:
+                    trail.append((item["label"], item["url"]))
+                return trail
+    return []
+
+
+def menu_pages(modules):
+    """كل صفحات القائمة المتاحة للمستخدم، للبحث العام: [{label, url, module, section}]."""
+    return [{"label": item["label"], "url": item["url"], "module": module["label"], "section": section.get("title") or ""}
+            for module in modules for section in module["sections"] for item in section["items"]]

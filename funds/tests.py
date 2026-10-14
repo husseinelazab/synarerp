@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import Account, Fund, GLEntry, JournalEntry
 from beneficiaries.tests import make_nonprofit
@@ -11,7 +12,7 @@ from funds.models import DonationReceipt
 from funds.reports import activities_data, fund_balances_data
 from saas.tests import make_company
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 
 
 class FundTests(TestCase):
@@ -101,6 +102,32 @@ class FundTests(TestCase):
         numbers = set(GLEntry.objects.filter(voucher_type="payroll-run", voucher_id=run.pk)
                       .values_list("account__number", flat=True))
         self.assertTrue({"41101001", "41101008", "21401001", "21304004"} <= numbers, numbers)
+
+    def test_year_closing_by_net_asset_class(self):
+        from accounts.models import PeriodClosingVoucher
+        from core.models import FiscalYear
+
+        waqf = Fund.objects.create(name="وقف للإقفال", fund_type="endowment")
+        self.donate(1000)                                # غير مقيد
+        self.donate(3000, "restricted", self.orphans)    # مقيد
+        self.donate(5000, "endowment", waqf)              # وقف
+        self.spend(1200, self.orphans)
+        self.spend(100, None, account=Account.objects.get(number="44103"))
+        year = FiscalYear.objects.get(start_date__year=TODAY.year)
+        closing = PeriodClosingVoucher.objects.create(fiscal_year=year)
+        closing.submit()
+
+        def equity(number):
+            rows = GLEntry.objects.filter(account__number=number, is_cancelled=False)
+            return sum((g.credit - g.debit for g in rows), Decimal(0))
+
+        self.assertEqual(equity("23101001"), Decimal("900"))
+        self.assertEqual(equity("23102001"), Decimal("1800"))
+        self.assertEqual(equity("23103001"), Decimal("5000"))
+        self.assertEqual(closing.net_profit, Decimal("7700"))
+        self.assertEqual(self.orphans.balance, Decimal("1800"))  # رصيد الصندوق لا يتصفّر بالإقفال
+        data = activities_data(year.start_date, year.end_date)
+        self.assertEqual(data["net"], [Decimal("900"), Decimal("1800"), Decimal("5000")])
 
     def test_nonprofit_balance_sheet_labels(self):
         self.donate(1000)

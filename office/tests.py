@@ -4,6 +4,7 @@ from io import StringIO
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 
 from beneficiaries.tests import make_nonprofit
 from core.models import Membership, Notification, Role
@@ -11,7 +12,7 @@ from core.tenancy import tenant_context
 from office.models import (AdminRequest, AdminRequestType, ArchiveCategory, ArchiveDocument, Circular,
                            Correspondence, CorrespondenceStatus)
 
-TODAY = datetime.date.today()
+TODAY = timezone.localdate()
 
 
 class OfficeTests(TestCase):

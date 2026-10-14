@@ -1,6 +1,6 @@
 from django.conf import settings
 
-from core.navigation import ICONS, build_menu
+from core.navigation import ICONS, breadcrumb, build_menu
 
 
 def erp(request):
@@ -11,8 +11,10 @@ def erp(request):
         context["PASSWORD_RESET_ENABLED"] = reset_available()
     if request.user.is_authenticated:
         membership = getattr(request, "membership", None)
+        modules = build_menu(request)
         context.update({
-            "nav_modules": build_menu(request),
+            "nav_modules": modules,
+            "nav_trail": breadcrumb(modules, request.path),
             "home_icon": ICONS["home"],
             "current_company": getattr(request, "company", None),
             "current_membership": membership,
@@ -22,7 +24,9 @@ def erp(request):
         })
         company = getattr(request, "company", None)
         if company is not None:
-            from core.models import Notification
+            from core.models import Notification, PrintSettings
+
+            context["letterhead"] = PrintSettings.for_company(company)
 
             context["unread_notifications"] = Notification.all_objects.filter(
                 company=company, user=request.user, is_read=False).count()

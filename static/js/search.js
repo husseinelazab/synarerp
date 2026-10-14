@@ -14,9 +14,17 @@
       .replace(/\s+/g, " ").trim();
   }
 
+  // جذع تقريبي حتى يطابق المفرد الجمع (كفالة ← الكفالات)، مثل البحث على الخادم
+  function stem(w) {
+    var pre = ["وال", "بال", "لل", "ال"], suf = ["ات", "ون", "ين", "يه", "ه"], i;
+    for (i = 0; i < pre.length; i++) if (w.indexOf(pre[i]) === 0 && w.length - pre[i].length >= 3) { w = w.slice(pre[i].length); break; }
+    for (i = 0; i < suf.length; i++) if (w.slice(-suf[i].length) === suf[i] && w.length - suf[i].length >= 3) return w.slice(0, -suf[i].length);
+    return w;
+  }
+
   function matches(text, query) {
     var t = norm(text);
-    return norm(query).split(" ").every(function (w) { return !w || t.indexOf(w) !== -1; });
+    return norm(query).split(" ").every(function (w) { return !w || t.indexOf(stem(w)) !== -1; });
   }
 
   // ---------- القوائم المنسدلة القابلة للبحث ----------
@@ -168,15 +176,114 @@
     }
   }
 
+  // ---------- البحث العام: اقتراحات فورية أثناء الكتابة ----------
+  function globalSuggest() {
+    var form = document.querySelector(".global-search[data-suggest]");
+    if (!form) return;
+    var input = form.querySelector("input[name=q]"), panel = form.querySelector(".suggest");
+    var timer = null, seq = 0, links = [], active = -1;
+
+    function close() { panel.hidden = true; active = -1; }
+    function highlight() {
+      links.forEach(function (a, i) { a.classList.toggle("active", i === active); });
+      if (links[active]) links[active].scrollIntoView({ block: "nearest" });
+    }
+    function add(parent, url, title, meta, cls) {
+      var a = document.createElement("a");
+      a.href = url;
+      a.className = "suggest-item" + (cls ? " " + cls : "");
+      var t = document.createElement("span"); t.textContent = title; a.appendChild(t);
+      if (meta) { var m = document.createElement("small"); m.textContent = meta; a.appendChild(m); }
+      parent.appendChild(a);
+      links.push(a);
+    }
+    function render(data) {
+      panel.innerHTML = ""; links = []; active = -1;
+      (data.groups || []).forEach(function (g) {
+        var h = document.createElement("div"); h.className = "suggest-head"; h.textContent = g.title; panel.appendChild(h);
+        g.items.forEach(function (it) { add(panel, it.url, it.title, it.meta, it.kind); });
+      });
+      if (!links.length) {
+        var e = document.createElement("div"); e.className = "suggest-empty";
+        e.textContent = "لا نتائج لـ «" + input.value.trim() + "»"; panel.appendChild(e);
+      }
+      add(panel, form.action + "?q=" + encodeURIComponent(input.value.trim()), "كل نتائج «" + input.value.trim() + "»",
+          "Enter", "all");
+      panel.hidden = false;
+    }
+    function fetchSuggest() {
+      var q = input.value.trim();
+      if (q.length < 2) { close(); return; }
+      var mine = ++seq;
+      fetch(form.dataset.suggest + "?q=" + encodeURIComponent(q), { headers: { "X-Requested-With": "fetch" } })
+        .then(function (r) { return r.ok ? r.json() : { groups: [] }; })
+        .then(function (data) { if (mine === seq && document.activeElement === input) render(data); })
+        .catch(function () {});
+    }
+    input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(fetchSuggest, 180); });
+    input.addEventListener("focus", function () { if (input.value.trim().length >= 2) fetchSuggest(); });
+    input.addEventListener("keydown", function (e) {
+      if (panel.hidden) return;
+      if (e.key === "ArrowDown") { active = Math.min(active + 1, links.length - 1); highlight(); e.preventDefault(); }
+      else if (e.key === "ArrowUp") { active = Math.max(active - 1, -1); highlight(); e.preventDefault(); }
+      else if (e.key === "Enter" && links[active]) { location.href = links[active].href; e.preventDefault(); }
+      else if (e.key === "Escape") { close(); }
+    });
+    document.addEventListener("click", function (e) { if (!form.contains(e.target)) close(); });
+  }
+
+  // ---------- تصفية القائمة الجانبية ----------
+  function navFilter() {
+    var input = document.getElementById("nav-filter"), sidebar = document.getElementById("sidebar");
+    if (!input) return;
+    var modules = Array.prototype.slice.call(sidebar.querySelectorAll(".nav-module"));
+    var initial = modules.map(function (d) { return d.open; });
+    input.addEventListener("input", function () {
+      var q = input.value.trim(), any = false;
+      sidebar.classList.toggle("filtering", !!q);
+      modules.forEach(function (mod, i) {
+        var title = mod.querySelector("summary span").textContent, moduleHit = q && matches(title, q), hits = 0;
+        mod.querySelectorAll(".nav-item").forEach(function (a) {
+          var group = a.closest(".nav-group"), heading = group ? group.querySelector("summary").textContent : "";
+          var show = !q || moduleHit || matches(a.textContent + " " + heading, q);
+          a.hidden = !show;
+          if (show) hits++;
+        });
+        mod.querySelectorAll(".nav-group").forEach(function (g) {
+          var visible = g.querySelectorAll(".nav-item:not([hidden])").length;
+          g.hidden = q && !visible; if (q && visible) g.open = true;
+        });
+        mod.querySelectorAll(".nav-heading").forEach(function (h) {
+          var n = h.nextElementSibling, visible = false;
+          while (n && n.classList.contains("nav-item")) { if (!n.hidden) visible = true; n = n.nextElementSibling; }
+          h.hidden = q && !visible;
+        });
+        mod.hidden = q && !hits;
+        mod.open = q ? hits > 0 : initial[i];
+        if (q && hits) any = true;
+      });
+      sidebar.querySelector(".nav-empty").hidden = !q || any;
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        var first = sidebar.querySelector(".nav-item:not([hidden])");
+        if (first && input.value.trim()) { location.href = first.href; e.preventDefault(); }
+      } else if (e.key === "Escape") { input.value = ""; input.dispatchEvent(new Event("input")); }
+    });
+  }
+
   function init() {
-    // «/» ينقل التركيز إلى البحث العام من أي صفحة
+    // «/» أو Ctrl+K ينقل التركيز إلى البحث العام من أي صفحة
     document.addEventListener("keydown", function (e) {
       var tag = (e.target.tagName || "").toLowerCase();
-      if (e.key !== "/" || e.ctrlKey || e.metaKey || tag === "input" || tag === "textarea" || tag === "select" ||
-          e.target.isContentEditable) return;
+      var palette = (e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K");
+      if (!palette && (e.key !== "/" || e.ctrlKey || e.metaKey || tag === "input" || tag === "textarea" ||
+          tag === "select" || e.target.isContentEditable)) return;
       var box = document.querySelector(".global-search input");
       if (box) { box.focus(); box.select(); e.preventDefault(); }
     });
+    globalSuggest();
+    navFilter();
     enhanceAll();
     filterAll();
     // الأسطر الجديدة في جداول النماذج (إضافة سطر، الماسح الضوئي)

@@ -43,6 +43,12 @@ class Company(models.Model):
         help_text="دراسة الحالة التي تبلغ هذه الدرجة تعتمد المستفيد، وما دونها يُرفض")
     review_period_months = models.PositiveSmallIntegerField(
         "مدة إعادة دراسة الحالة (شهر)", default=12, help_text="بعدها يظهر المستفيد في قائمة المستحقين لإعادة الدراسة")
+    registration_date = models.CharField("تاريخ التسجيل", max_length=30, blank=True,
+                                         help_text="تاريخ تسجيل الجمعية لدى المركز الوطني (هجري أو ميلادي)")
+    headquarters = models.CharField("المقر الرئيسي", max_length=100, blank=True)
+    objectives = models.TextField("أهداف الجمعية", blank=True, help_text="تظهر في إيضاح معلومات الجمعية بالقوائم المالية")
+    fs_policies = models.TextField("السياسات المحاسبية (للقوائم المالية)", blank=True,
+                                   help_text="فارغ = النص القياسي لسياسات الجهات غير الربحية")
     require_aid_otp = models.BooleanField(
         "تأكيد استلام المساعدات برمز تحقق", default=True,
         help_text="لا تُعتمد المساعدة حتى يُدخل رمز يصل إلى جوال المستفيد (أو يؤكدها المدير يدوياً مع ذكر السبب)")

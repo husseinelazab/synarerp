@@ -19,7 +19,7 @@ a:hover { text-decoration: underline; }
 code { background: #eef; padding: 1px 6px; border-radius: 4px; direction: ltr; display: inline-block; }
 
 .layout { display: flex; min-height: 100vh; }
-.sidebar { width: 250px; background: var(--sidebar); color: #fff; flex-shrink: 0; overflow-y: auto; max-height: 100vh; position: sticky; top: 0; }
+.sidebar { width: 272px; background: var(--sidebar); color: #fff; flex-shrink: 0; overflow-y: auto; max-height: 100vh; position: sticky; top: 0; }
 .brand { display: block; padding: 18px 20px; font-size: 22px; font-weight: 700; color: #fff; border-bottom: 1px solid rgba(255,255,255,.1); }
 .brand:hover { text-decoration: none; }
 .nav-section { padding: 14px 20px 4px; font-size: 12px; color: #9fb6cc; font-weight: 700; }
@@ -27,9 +27,44 @@ code { background: #eef; padding: 1px 6px; border-radius: 4px; direction: ltr; d
 .nav-link:hover, .nav-link.active { background: rgba(255,255,255,.1); color: #fff; text-decoration: none; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { display: flex; align-items: center; gap: 16px; background: var(--card); padding: 12px 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
-.topbar-title { flex: 1; font-size: 18px; font-weight: 700; }
-.global-search { flex: 0 1 280px; margin: 0; }
-.global-search .form-control { width: 100%; padding-top: 6px; padding-bottom: 6px; }
+.topbar-spacer { flex: 1; }
+.global-search { flex: 1 1 auto; max-width: 560px; margin: 0; position: relative; }
+.global-search > svg { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); width: 17px; height: 17px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+.global-search .form-control { width: 100%; padding: 8px 36px; background: #f4f6f9; border-color: transparent; }
+.global-search .form-control:focus { background: #fff; }
+.global-search kbd { position: absolute; inset-inline-end: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.global-search .form-control:focus ~ kbd { display: none; }
+kbd { font-family: inherit; font-size: 11.5px; color: var(--muted); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; background: #fff; }
+.suggest { position: absolute; top: calc(100% + 6px); inset-inline: 0; background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 16px 40px rgba(20,50,79,.18); max-height: min(70vh, 560px); overflow-y: auto; padding: 6px; z-index: 30; }
+.suggest-head { font-size: 11.5px; font-weight: 700; color: var(--muted); padding: 8px 10px 4px; }
+.suggest-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--text); }
+.suggest-item small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+.suggest-item:hover, .suggest-item.active { background: var(--primary-light); text-decoration: none; }
+.suggest-item.exact span { font-weight: 700; }
+.suggest-item.action span { color: var(--primary); font-weight: 700; }
+.suggest-item.all { border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; margin-top: 4px; color: var(--primary); }
+.suggest-empty { padding: 12px 10px; color: var(--muted); }
+/* عنوان الصفحة ومسارها */
+.page-head { margin: -4px 0 18px; }
+.page-head h1 { margin: 0; font-size: 22px; line-height: 1.4; }
+.page-head h1:empty { display: none; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.crumbs a { color: var(--muted); }
+.crumbs a:hover { color: var(--primary); }
+.crumbs span { opacity: .6; }
+.page-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.page-link { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-weight: 700; }
+.page-link small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.page-link:hover { border-color: var(--primary); text-decoration: none; }
+.page-link.action { color: var(--primary); background: var(--primary-light); border-color: transparent; }
+/* تصفية القائمة الجانبية */
+.nav-filter { padding: 12px 14px 0; }
+.nav-filter input { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.07); color: #fff; font-family: inherit; font-size: 13.5px; }
+.nav-filter input::placeholder { color: #8fa8c0; }
+.nav-filter input:focus { outline: none; border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.12); }
+.nav-empty { color: #9fb6cc; font-size: 13px; padding: 8px 14px; }
+.nav-heading { font-size: 11.5px; color: #7f9bb5; font-weight: 700; padding: 10px 12px 2px; }
+.nav-children > .nav-heading:first-child { padding-top: 4px; }
 .search-group h3 { margin-top: 0; }
 .user-box { display: flex; align-items: center; gap: 12px; font-size: 14px; }
 .user-box form { margin: 0; }
@@ -138,10 +173,43 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
   .grid-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
 }
+.print-only { display: none; }
 @media print {
   .sidebar, .topbar, .filters, .toolbar, .quick-actions { display: none !important; }
   .content { padding: 0; }
   .card { border: 0; }
+}
+/* ===== الطباعة الرسمية للتقارير: ترويسة الجهة وبيانات التقرير والتوقيعات وأرقام الصفحات ===== */
+@page { size: A4; margin: 12mm 11mm 16mm;
+  @bottom-left { content: "صفحة " counter(page) " من " counter(pages); font-family: "Tajawal", sans-serif; font-size: 9pt; color: #6b7785; } }
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .print-only { display: block; }
+  .main { display: block; }
+  .layout { display: block; }
+  .page-head .crumbs, .nav-filter, .alert, .btn, button, .table-search, .actions, .page-head + .toolbar, kbd { display: none !important; }
+  .letterhead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 2.5px solid var(--accent); padding-bottom: 10px; margin-bottom: 8px; }
+  .lh-entity { display: flex; align-items: center; gap: 14px; }
+  .lh-logo { max-height: 64px; max-width: 150px; object-fit: contain; }
+  .lh-name { font-size: 17pt; font-weight: 700; color: var(--accent); }
+  .lh-name-en { font-size: 9.5pt; color: #6b7785; direction: ltr; text-align: right; letter-spacing: .5px; }
+  .lh-details { font-size: 9pt; color: #444; display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 3px; }
+  .lh-meta { text-align: left; font-size: 9.5pt; color: #444; line-height: 1.7; white-space: nowrap; }
+  .page-head { text-align: center; margin: 4px 0 14px; }
+  .page-head h1 { font-size: 15pt; }
+  .card { padding: 0; margin-bottom: 12px; box-shadow: none; }
+  .table { font-size: 9.5pt; }
+  .table thead { display: table-header-group; }
+  .table tr { break-inside: avoid; }
+  .table th, .table td { padding: 5px 6px; }
+  .table thead th { background: #eef2f6 !important; color: #222; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .kpi-row, .dash-grid { break-inside: avoid; }
+  .report-footer { margin-top: 26px; break-inside: avoid; }
+  .signatures { display: flex; gap: 24px; margin-bottom: 18px; }
+  .signatures div { flex: 1; text-align: center; font-size: 10pt; }
+  .signatures i { display: block; border-bottom: 1px solid #999; height: 34px; margin-top: 4px; }
+  .printed-by { font-size: 8.5pt; color: #6b7785; border-top: 1px solid #dde3ea; padding-top: 6px; }
+  a { color: inherit; text-decoration: none; }
 }
 .nav-pos { background: var(--success); color: #fff !important; margin: 8px 16px; border-radius: 8px; text-align: center; font-weight: 700; }
 .nav-pos:hover { background: #17692a !important; }
@@ -174,14 +242,14 @@ tr.cancelled td { text-decoration: line-through; color: var(--muted); }
 /* ===== القائمة الجانبية الهرمية ===== */
 .side-nav { padding: 10px 10px 30px; }
 .side-nav svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
-.nav-top, .nav-module summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: #e4edf5; font-weight: 700; font-size: 15px; cursor: pointer; }
+.nav-top, .nav-module summary { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: #e4edf5; font-weight: 700; font-size: 14.5px; cursor: pointer; }
 .nav-top:hover, .nav-module summary:hover { background: rgba(255,255,255,.08); text-decoration: none; color: #fff; }
 .nav-top.active, .nav-module summary.current { background: rgba(255,255,255,.12); color: #fff; }
 .nav-module summary { list-style: none; user-select: none; }
 .nav-module summary::-webkit-details-marker { display: none; }
-.nav-module summary span { flex: 1; }
+.nav-module summary span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-children { margin: 2px 0 8px; padding-inline-start: 22px; border-inline-start: 1px solid rgba(255,255,255,.12); margin-inline-start: 21px; }
-.nav-item { display: block; padding: 6px 12px; color: #b9cbdc; font-size: 14px; border-radius: 6px; }
+.nav-item { display: block; padding: 6px 12px; color: #b9cbdc; font-size: 14px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,.06); text-decoration: none; }
 .nav-item.active { color: #fff; background: var(--primary); font-weight: 700; }
 .nav-subtitle { font-size: 11.5px; color: #7f9bb5; font-weight: 700; padding: 10px 12px 2px; letter-spacing: .3px; }
@@ -351,8 +419,9 @@ tr.row-low td { background: #fff8e8; }
 /* الشاشات الصغيرة: الشريط العلوي يلتف بدلاً من أن يدفع الصفحة خارج العرض */
 @media (max-width: 700px) {
   .topbar { flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
-  .topbar-title { flex: 1 1 60%; min-width: 0; font-size: 16px; overflow-wrap: anywhere; }
-  .global-search { flex: 1 1 100%; order: 3; }
+  .global-search { flex: 1 1 100%; order: 3; max-width: none; }
+  .global-search kbd { display: none; }
+  .page-head h1 { font-size: 19px; }
   .user-box { flex: 1 1 100%; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; min-width: 0; }
   .user-box .company-switch .form-select { min-width: 0; max-width: 100%; }
   .toolbar, .actions { flex-wrap: wrap; }

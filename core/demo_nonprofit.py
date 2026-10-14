@@ -12,20 +12,47 @@ def _submit(doc):
     return doc
 
 
+def _demo_logo():
+    """شعار تجريبي جاهز (PNG مضمّن) لتظهر ترويسة التقارير كاملة في التجربة."""
+    import base64
+    from pathlib import Path
+
+    data = (Path(__file__).parent / "data" / "demo_logo.png").read_bytes()
+    return "data:image/png;base64," + base64.b64encode(data).decode()
+
+
+def _profile(company):
+    from core.models import PrintSettings
+
+    for field, value in (("license_number", "1234"), ("headquarters", "الرياض"), ("phone", "0112345678"),
+                         ("address", "حي النسيم، الرياض 12345"), ("email", "info@albirr.example")):
+        if not getattr(company, field):
+            setattr(company, field, value)
+    company.save()
+    settings = PrintSettings.for_company(company)
+    if not settings.logo:
+        settings.logo = _demo_logo()
+        settings.accent_color = "#1e6e5a"
+        settings.name_en = "Al-Birr Charitable Association (Demo)"
+        settings.save()
+
+
 def create_nonprofit_demo(company, user=None):
     """تُستدعى داخل tenant_context للجمعية بعد تأسيسها."""
     from accounts.models import Fund
     from awqaf.models import Waqf, WaqfDistribution, WaqfLease
     from beneficiaries.models import (AidDisbursement, AidProgram, Beneficiary, BeneficiaryCategory,
                                       BeneficiaryEntity, CaseAssessment, EntityRequest)
-    from funds.models import DonationReceipt, Donor, Sponsorship, SponsorshipType, generate_dues
+    from funds.models import (DonationReceipt, Donor, InKindDonation, Pledge, Sponsorship, SponsorshipType,
+                              generate_dues)
     from governance.models import BoardTerm, Meeting, MeetingDecision, Member, MembershipCategory, generate_fees
     from office.models import AdminRequest, AdminRequestType, Circular, Correspondence
-    from stock.models import UOM, Item, ItemGroup, OpeningStock, Warehouse
+    from stock.models import UOM, Item, ItemGroup, Warehouse
     from volunteering.models import Volunteer, VolunteerOpportunity, VolunteerParticipation
 
     if Beneficiary.objects.exists():
         return
+    _profile(company)
     today = timezone.localdate()
     start = today.replace(day=1)
 
@@ -96,9 +123,10 @@ def create_nonprofit_demo(company, user=None):
     warehouse = Warehouse.objects.get(name="المستودع الرئيسي")
     group, uom = ItemGroup.objects.first(), UOM.objects.first()
     basket = Item.objects.create(code="BSK-01", name="سلة غذائية متكاملة", item_group=group, uom=uom, buying_rate=250)
-    opening = OpeningStock.objects.create(warehouse=warehouse, posting_date=start)  # رصيد افتتاحي للسلال
-    opening.items.create(item=basket, qty=40, rate=250)
-    _submit(opening)
+    in_kind = InKindDonation.objects.create(donor=donors[1], donor_name=donors[1].name, warehouse=warehouse,
+                                            posting_date=start, remarks="سلال غذائية من مؤسسة الخير")
+    in_kind.items.create(item=basket, qty=40, rate=250)  # تبرع عيني مقيد بقيمته العادلة
+    _submit(in_kind)
     aid = AidDisbursement.objects.create(beneficiary=beneficiaries[1], program=AidProgram.objects.get(name="السلة الغذائية"),
                                          warehouse=warehouse, posting_date=day(12))
     aid.items.create(item=basket, qty=2)
@@ -107,6 +135,17 @@ def create_nonprofit_demo(company, user=None):
     if user is not None:
         aid.confirm_manually(user, "بيانات تجريبية")
         _submit(aid)
+
+    # ── وعود التبرع: وعد غير مشروط حُصّل جزء منه، ووعد مشروط يُفصح عنه ──
+    pledge = Pledge.objects.create(donor=donors[1], amount=20000, posting_date=day(3), due_date=day(3) + datetime.timedelta(days=90),
+                                   remarks="دعم البرامج العامة للجمعية")
+    _submit(pledge)
+    if user is not None:
+        receipt = pledge.collect(user)
+        receipt.amount, receipt.posting_date = Decimal("5000"), day(10)
+        _submit(receipt)
+    _submit(Pledge.objects.create(donor=donors[0], amount=100000, posting_date=day(4), is_conditional=True,
+                                  condition="عند استكمال 50% من تمويل مشروع مركز الأسرة"))
 
     # ── الكفالات ──
     orphan_type = SponsorshipType.objects.get(name="كفالة يتيم")
@@ -149,7 +188,8 @@ def create_nonprofit_demo(company, user=None):
 
     # ── الأوقاف ──
     waqf = Waqf.objects.create(name="عمارة الخير الوقفية", waqif="فاعل خير", deed_number="4310001",
-                               asset_value=3500000, conditions="تُصرف الغلة على الأيتام والأسر المحتاجة")
+                               asset_value=3500000, conditions="تُصرف الغلة على الأيتام والأسر المحتاجة",
+                               revenue_restriction="restricted")
     waqf.shares.create(name="النظارة", percent=10)
     waqf.shares.create(name="كفالة الأيتام", percent=60, target_fund=Fund.objects.get(name="صندوق الكفالات"))
     waqf.shares.create(name="الأسر المحتاجة", percent=30, target_fund=Fund.objects.get(name="صندوق الزكاة"))

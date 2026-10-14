@@ -65,7 +65,8 @@ class CompanySettingsForm(forms.ModelForm):
         model = Company
         fields = "__all__"
 
-    NONPROFIT_FIELDS = ("license_number", "eligibility_threshold", "review_period_months", "require_aid_otp")
+    NONPROFIT_FIELDS = ("license_number", "registration_date", "headquarters", "objectives", "fs_policies",
+                        "eligibility_threshold", "review_period_months", "require_aid_otp")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

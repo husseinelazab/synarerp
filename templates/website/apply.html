@@ -1,0 +1,21 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}طلب مساعدة — {{ request.site.company.name }}{% endblock %}
+{% block description %}قدّم طلب مساعدة أو سجّل مستفيداً لدى {{ request.site.company.name }}{% endblock %}
+{% block content %}
+<section class="wrap page narrow">
+  <h1>طلب مساعدة / تسجيل مستفيد</h1>
+  {% if done %}<div class="notice ok" role="status">
+    <strong>شكراً لك، استلمنا طلبك.</strong>
+    {% if reference %}<p>رقم طلبك: <bdi class="ref">{{ reference }}</bdi> — احتفظ به للمتابعة.</p>{% endif %}
+    <p>سيتواصل معك الباحث الاجتماعي لاستكمال دراسة الحالة والمستندات المطلوبة.</p>
+  </div>
+  <p><a href="{% site_url 'site_home' %}">العودة للرئيسية</a></p>
+  {% else %}
+  <p class="muted">املأ البيانات التالية بدقة، وسيُدرس طلبك من فريق البحث الاجتماعي ويُتواصل معك. لا يُطلب منك أي مقابل مالي لتقديم الطلب.</p>
+  <form method="post" class="site-form" novalidate>{% csrf_token %}
+    {% include "website/_form_fields.html" %}
+    <button class="btn-brand" type="submit">إرسال الطلب</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

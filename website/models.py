@@ -83,3 +83,140 @@ class Website(TenantModel):
         if site is None:
             site = cls(company=company, slug=f"org-{company.pk}")
         return site
+
+
+# مرجع ما يصل من نماذج الموقع: «رقم الجهة / مرجعها» في الوارد، وبداية ملاحظات ملف المستفيد
+WEB_SUBMISSION = "الموقع الإلكتروني"
+APPLY_NOTE = "طلب مقدم عبر الموقع الإلكتروني"
+
+
+def current_year():
+    return timezone.localdate().year
+
+
+class NewsCategory(models.TextChoices):
+    NEWS = "news", "خبر"
+    EVENT = "event", "فعالية"
+    ANNOUNCEMENT = "announcement", "إعلان"
+
+
+class NewsPost(TenantModel):
+    """أخبار الجمعية وفعالياتها وإعلاناتها في المركز الإعلامي."""
+
+    title = models.CharField("العنوان", max_length=200)
+    category = models.CharField("التصنيف", max_length=12, choices=NewsCategory.choices, default=NewsCategory.NEWS)
+    published_on = models.DateField("تاريخ النشر", default=timezone.localdate)
+    summary = models.CharField("الملخص", max_length=300, blank=True, help_text="يظهر في بطاقة الخبر ووصف الصفحة")
+    body = models.TextField("نص الخبر", blank=True)
+    cover = models.TextField("صورة الغلاف", blank=True, editable=False)  # data URI
+    is_published = models.BooleanField("منشور", default=True)
+
+    class Meta:
+        verbose_name = "خبر"
+        verbose_name_plural = "الأخبار"
+        ordering = ["-published_on", "-id"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def excerpt(self):
+        return self.summary or self.body[:220]
+
+
+class Album(TenantModel):
+    """ألبوم صور لفعالية أو برنامج في معرض الصور."""
+
+    title = models.CharField("عنوان الألبوم", max_length=200)
+    event_date = models.DateField("تاريخ الفعالية", null=True, blank=True)
+    description = models.TextField("الوصف", blank=True)
+    is_published = models.BooleanField("منشور", default=True)
+
+    class Meta:
+        verbose_name = "ألبوم الصور"
+        verbose_name_plural = "ألبومات الصور"
+        ordering = ["-event_date", "-id"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def cover(self):
+        first = self.photos.first()
+        return first.image if first else ""
+
+
+class AlbumPhoto(models.Model):
+    album = models.ForeignKey(Album, models.CASCADE, related_name="photos", verbose_name="الألبوم")
+    image = models.TextField("الصورة")  # data URI
+    caption = models.CharField("الوصف", max_length=200, blank=True)
+    sort = models.PositiveSmallIntegerField("الترتيب", default=0)
+
+    class Meta:
+        verbose_name = "صورة"
+        verbose_name_plural = "الصور"
+        ordering = ["sort", "id"]
+
+    def __str__(self):
+        return self.caption or f"صورة {self.pk}"
+
+
+class DocumentCategory(models.TextChoices):
+    POLICIES = "policies", "اللوائح والسياسات"
+    ANNUAL_REPORTS = "annual", "التقارير السنوية"
+    FINANCIALS = "financials", "القوائم المالية"
+    ASSEMBLY = "assembly", "محاضر الجمعية العمومية"
+    STRATEGY = "strategy", "الخطط الاستراتيجية"
+    LICENSES = "licenses", "شهادات وتراخيص"
+    OTHER = "other", "أخرى"
+
+
+class PublishedDocument(TenantModel):
+    """وثيقة حوكمة وإفصاح منشورة للعامة (PDF أو صورة) تُحفظ في قاعدة البيانات."""
+
+    MAX_BYTES = 10 * 1024 * 1024
+
+    title = models.CharField("عنوان الوثيقة", max_length=200)
+    category = models.CharField("التصنيف", max_length=12, choices=DocumentCategory.choices,
+                                default=DocumentCategory.POLICIES)
+    year = models.PositiveSmallIntegerField("السنة", default=current_year)
+    description = models.CharField("الوصف", max_length=300, blank=True)
+    file_name = models.CharField("اسم الملف", max_length=255, blank=True, editable=False)
+    content_type = models.CharField("نوع الملف", max_length=100, blank=True, editable=False)
+    size = models.PositiveIntegerField("الحجم", default=0, editable=False)
+    content = models.BinaryField(default=b"", editable=False)
+    is_published = models.BooleanField("منشورة", default=True)
+
+    class Meta:
+        verbose_name = "وثيقة حوكمة وإفصاح"
+        verbose_name_plural = "وثائق الحوكمة والإفصاح"
+        ordering = ["category", "-year", "-id"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def has_file(self):
+        return bool(self.size)
+
+    @property
+    def size_label(self):
+        return f"{self.size / 1024 / 1024:.1f} م.ب" if self.size >= 1024 * 1024 else f"{max(self.size // 1024, 1)} ك.ب"
+
+
+class Partner(TenantModel):
+    """شركاء النجاح والداعمون في شريط الشركاء بالموقع."""
+
+    name = models.CharField("اسم الشريك", max_length=150)
+    logo = models.TextField("الشعار", blank=True, editable=False)  # data URI
+    url = models.URLField("رابط موقع الشريك", blank=True)
+    sort = models.PositiveSmallIntegerField("الترتيب", default=0)
+    is_published = models.BooleanField("يظهر في الموقع", default=True)
+
+    class Meta:
+        verbose_name = "شريك نجاح"
+        verbose_name_plural = "شركاء النجاح"
+        ordering = ["sort", "id"]
+
+    def __str__(self):
+        return self.name

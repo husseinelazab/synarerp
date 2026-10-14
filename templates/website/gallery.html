@@ -1,0 +1,13 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}معرض الصور — {{ request.site.company.name }}{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <div class="section-head"><h1>معرض الصور</h1><a href="{% site_url 'site_news' %}">المركز الإعلامي ←</a></div>
+  {% if albums %}<div class="cards">{% for album in albums %}<article class="card">
+    {% if album.cover %}<a href="{% site_url 'site_album' album.pk %}"><img class="cover" src="{{ album.cover }}" alt="{{ album.title }}" loading="lazy"></a>{% endif %}
+    <div class="card-body"><h3><a href="{% site_url 'site_album' album.pk %}">{{ album.title }}</a></h3>
+    <small class="muted">{% if album.event_date %}{{ album.event_date|date:"Y-m-d" }} · {% endif %}{{ album.photos.count }} صورة</small></div>
+  </article>{% endfor %}</div>
+  {% else %}<p class="muted">لا توجد ألبومات منشورة بعد.</p>{% endif %}
+</section>
+{% endblock %}

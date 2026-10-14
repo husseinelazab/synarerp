@@ -1,0 +1,12 @@
+<article class="card"><div class="card-body">
+  <div class="meta"><span class="tag">{{ p.get_program_type_display }}</span><span>{{ p.get_mode_display }}</span></div>
+  <h3>{{ p.title }}</h3>
+  {% if p.description %}<p class="muted">{{ p.description|truncatewords:25 }}</p>{% endif %}
+  <ul class="facts">
+    <li>من {{ p.start_date|date:"Y-m-d" }} إلى {{ p.end_date|date:"Y-m-d" }}</li>
+    {% if p.hours %}<li>{{ p.hours|floatformat:"-1" }} ساعة تدريبية</li>{% endif %}
+    {% if p.target_audience %}<li>الفئة: {{ p.target_audience }}</li>{% endif %}
+    <li>{% if p.fee %}الرسوم: {{ p.fee|floatformat:"-2" }} ريال{% else %}مجاني{% endif %}</li>
+  </ul>
+  {% if p.public_link %}<a class="btn-brand card-cta" href="{{ p.public_link }}">سجّل الآن</a>{% endif %}
+</div></article>

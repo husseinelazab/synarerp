@@ -1,0 +1,26 @@
+{% load static site %}<!doctype html>
+{% with site=request.site company=request.site.company brand=request.site_brand %}
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شهادة شكر {{ order.number }} | {{ company.name }}</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/site.css' %}"><link rel="stylesheet" href="{% static 'css/store.css' %}">
+<style>:root { --brand: {{ site.primary_color }}; } body { background: var(--soft); }</style>
+</head><body>
+<div class="print-bar"><button class="btn-brand" onclick="window.print()">طباعة / حفظ PDF</button></div>
+<div class="certificate">
+  {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ company.name }}">{% endif %}
+  <h1>شهادة شكر وتقدير</h1>
+  <p>تتقدم {{ company.name }} بخالص الشكر والتقدير إلى</p>
+  <p class="who">{{ order.display_name }}</p>
+  <p>على تبرعه الكريم بمبلغ</p>
+  <p class="amount">{{ order.total|floatformat:"-2g" }} ريال سعودي</p>
+  <p>لصالح: {% for line in lines %}«{{ line.opportunity.title }}»{% if not forloop.last %}، {% endif %}{% endfor %}</p>
+  {% if order.gift_to_name %}<p>إهداءً إلى: <strong>{{ order.gift_to_name }}</strong></p>{% endif %}
+  <p>بتاريخ {{ order.paid_at|date:"Y-m-d" }} · رقم العملية {{ order.number }}</p>
+  <p>سائلين الله أن يجعله في موازين حسناتكم</p>
+  {% if company.license_number %}<p class="muted" style="font-size:13px">جمعية مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</p>{% endif %}
+  <p class="verify">رمز التحقق: {{ order.verify_code }} — {{ verify_url }}</p>
+</div>
+</body></html>
+{% endwith %}

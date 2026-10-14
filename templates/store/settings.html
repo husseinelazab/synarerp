@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card">
+  <p>الحالة: {% if obj.ready %}<span class="ok">جاهز لاستقبال التبرعات ({{ obj.get_mode_display }})</span>{% else %}<span class="muted">غير جاهز — فعّل المتجر وأدخل المفتاحين وحساب التسوية</span>{% endif %}
+  {% if obj.secret_key_encrypted %} · المفتاح السري محفوظ{% endif %}{% if obj.webhook_secret_encrypted %} · رمز الويب هوك محفوظ{% endif %}</p>
+  {% if site.pk and not site.fundraising_licensed %}<p class="neg">لا تظهر صفحة الدفع على الموقع إلا مع ترخيص جمع تبرعات ساري: أضف رقمه من <a href="{% url 'website_settings' %}">إعدادات الموقع</a>.</p>{% endif %}
+  <h3>ربط بوابة ميسّر (Moyasar)</h3>
+  <ol class="muted small">
+    <li>من لوحة ميسّر ← الإعدادات ← مفاتيح API انسخ المفتاح العام (pk_…) والمفتاح السري (sk_…). استخدم مفاتيح test للتجربة ثم live بعد تفعيل الحساب.</li>
+    <li>من لوحة ميسّر ← Webhooks أضف الرابط <code dir="ltr">{{ webhook_url }}</code> واختر الحدث <code dir="ltr">payment_paid</code> (ويمكن إضافة payment_failed)، واكتب رمزاً سرياً (Secret Token) ثم اكتب الرمز نفسه هنا.</li>
+    <li>بطاقات مدى وفيزا وماستركارد تعمل مباشرة. Apple Pay يتطلب توثيق نطاق موقع الجمعية في لوحة ميسّر (Apple Pay ← إضافة نطاق) ورفع ملف التوثيق على النطاق. STC Pay يتطلب تفعيله من ميسّر.</li>
+    <li>تُقيد التبرعات الإلكترونية في «حساب التسوية» بسندات تبرع معتمدة، ويُسوّى عند تحويل ميسّر للمبالغ إلى بنك الجمعية.</li>
+  </ol>
+</div>
+<form method="post" class="card" autocomplete="off">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endfor %}</div>
+  <div class="actions" style="margin-top:14px"><button class="btn btn-primary">حفظ</button></div>
+</form>
+{% endblock %}

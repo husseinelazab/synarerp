@@ -1,0 +1,38 @@
+{% extends "store/site/_base.html" %}{% load site %}
+{% block title %}{{ o.title }} | {{ request.site.company.name }}{% endblock %}
+{% block description %}{{ o.description|truncatewords:30|default:o.title }}{% endblock %}
+{% block heading %}{{ o.title }}{% endblock %}
+{% block store_content %}
+<div class="detail-grid">
+  <div>
+    {% if o.image %}<img class="cover" style="border-radius:var(--radius);width:100%;aspect-ratio:16/9;object-fit:cover" src="{{ o.image }}" alt="{{ o.title }}">{% endif %}
+    <p><span class="kind-tag">{{ o.get_kind_display }}</span>{% if o.end_date %} <span class="muted">· تنتهي في {{ o.end_date|date:"Y-m-d" }}</span>{% endif %}</p>
+    {% if o.description %}<div>{{ o.description|linebreaks }}</div>{% endif %}
+  </div>
+  <aside class="panel">
+    {% if o.target_amount %}
+    <div class="progress"><i style="width:{{ o.percent }}%"></i></div>
+    <div class="raised" style="margin:6px 0 14px"><span>تم جمع <b>{{ o.raised|floatformat:"-2g" }}</b> ريال</span><span>المتبقي {{ o.remaining|floatformat:"-2g" }}</span></div>
+    {% elif o.raised %}<p class="raised"><span>تم جمع <b>{{ o.raised|floatformat:"-2g" }}</b> ريال</span></p>{% endif %}
+    {% if not store_ready %}{% include "store/site/_unavailable_notice.html" %}
+    {% else %}
+    {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
+    <form method="post">{% csrf_token %}<input type="hidden" name="website" value="">
+      {% if o.fixed_amount %}
+        <div class="field"><label for="qty">عدد الأسهم (السهم بـ {{ o.fixed_amount|floatformat:"-2g" }} ريال)</label>
+        <input id="qty" class="qty-input" type="number" name="quantity" min="1" max="1000" value="{{ request.POST.quantity|default:1 }}" required></div>
+      {% else %}
+        <fieldset style="border:0;padding:0;margin:0"><legend class="muted">مبلغ التبرع (ريال)</legend>
+        <div class="amount-pick">{% for a in amounts %}<input type="radio" name="amount" id="a{{ a }}" value="{{ a }}" {% if selected == a|stringformat:"s" %}checked{% endif %}><label for="a{{ a }}">{{ a }}</label>{% endfor %}</div></fieldset>
+        {% if o.allow_custom_amount %}<div class="field"><label for="custom">أو اكتب مبلغاً آخر</label>
+        <input id="custom" name="custom_amount" class="amt-input" type="number" min="1" step="1" inputmode="numeric" oninput="if(this.value){document.querySelectorAll('.amount-pick input').forEach(function(r){r.checked=false})}"></div>{% endif %}
+      {% endif %}
+      <div class="actions-row">
+        <button class="btn-brand" name="now" value="1">تبرع الآن</button>
+        <button class="btn-outline">أضف للسلة</button>
+      </div>
+    </form>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

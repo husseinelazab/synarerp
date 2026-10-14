@@ -1,0 +1,29 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}البرامج والمشاريع — {{ request.site.company.name }}{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <h1>البرامج والمشاريع</h1>
+  {% if aid_programs %}<h2 class="sub" id="aid">برامج المساعدات</h2>
+  <div class="cards">{% for p in aid_programs %}<article class="card"><div class="card-body">
+    <span class="tag">{{ p.get_aid_type_display }}</span><h3>{{ p.name }}</h3>
+    {% if p.description %}<p class="muted">{{ p.description|truncatewords:35 }}</p>{% endif %}
+    <a class="btn-ghost card-cta" href="{% site_url 'site_apply' %}">قدّم طلب مساعدة</a>
+  </div></article>{% endfor %}</div>{% endif %}
+
+  {% if training or running %}<h2 class="sub" id="training">البرامج التدريبية والتأهيلية</h2>
+  <div class="cards">{% for p in training %}{% include "website/_training_card.html" %}{% endfor %}
+  {% for p in running %}{% include "website/_training_card.html" %}{% endfor %}</div>{% endif %}
+
+  {% if opportunities %}<h2 class="sub" id="volunteering">الفرص التطوعية</h2>
+  <div class="cards">{% for o in opportunities %}{% include "website/_opportunity_card.html" %}{% endfor %}</div>{% endif %}
+
+  {% if projects %}<h2 class="sub" id="projects">المشاريع</h2>
+  <div class="cards">{% for project in projects %}<article class="card"><div class="card-body">
+    <span class="tag">{{ project.get_status_display }}</span><h3>{{ project.name }}</h3>
+    {% if project.description %}<p class="muted">{{ project.description|truncatewords:35 }}</p>{% endif %}
+    {% with pct=project.progress|floatformat:"0" %}<div class="progress"><i style="width:{{ pct }}%"></i></div><small class="muted">نسبة الإنجاز {{ pct }}%</small>{% endwith %}
+  </div></article>{% endfor %}</div>{% endif %}
+
+  {% if not aid_programs and not training and not running and not opportunities and not projects %}<p class="muted">ستُنشر برامجنا ومشاريعنا هنا قريباً.</p>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}المركز الإعلامي — {{ request.site.company.name }}{% endblock %}
+{% block description %}أخبار {{ request.site.company.name }} وفعالياتها وإعلاناتها{% endblock %}
+{% block content %}{% site_url 'site_news' as news_url %}
+<section class="wrap page">
+  <div class="section-head"><h1>المركز الإعلامي</h1><a href="{% site_url 'site_gallery' %}">معرض الصور ←</a></div>
+  <nav class="filters" aria-label="تصنيف الأخبار">
+    <a href="{{ news_url }}"{% if not category %} class="active" aria-current="page"{% endif %}>الكل</a>
+    {% for value, label in categories %}<a href="{{ news_url }}?category={{ value }}"{% if category == value %} class="active" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+  {% if page.object_list %}<div class="cards">{% for post in page.object_list %}{% include "website/_news_card.html" %}{% endfor %}</div>
+  {% if page.has_other_pages %}<nav class="pager" aria-label="الصفحات">
+    {% if page.has_previous %}<a href="?{% if category %}category={{ category }}&{% endif %}page={{ page.previous_page_number }}">→ الأحدث</a>{% endif %}
+    <span class="muted">صفحة {{ page.number }} من {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="?{% if category %}category={{ category }}&{% endif %}page={{ page.next_page_number }}">الأقدم ←</a>{% endif %}
+  </nav>{% endif %}
+  {% else %}<p class="muted">لا توجد أخبار منشورة بعد.</p>{% endif %}
+</section>
+{% endblock %}

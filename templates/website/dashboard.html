@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div>
+  {% if site.pk %}<a class="btn" href="/site/{{ site.slug }}/" target="_blank">معاينة الموقع</a>
+  {% if site.domain and site.is_published %}<a class="btn" href="https://{{ site.domain }}/" target="_blank" dir="ltr">{{ site.domain }}</a>{% endif %}
+  {% if site.is_published %}<span class="badge status-1">منشور</span>{% else %}<span class="badge status-0">غير منشور</span>{% endif %}{% endif %}
+</div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'news-post' %}">+ خبر</a>
+  <a class="btn" href="{% url 'doc_new' 'album' %}">+ ألبوم صور</a>
+  <a class="btn" href="{% url 'doc_new' 'published-document' %}">+ وثيقة حوكمة</a>
+  <a class="btn" href="{% url 'doc_new' 'partner' %}">+ شريك</a>
+  <a class="btn" href="{% url 'website_settings' %}">إعدادات الموقع</a>
+</div></div>
+{% if not site.pk %}<div class="alert alert-warning">لم يُنشأ موقع الجمعية بعد. ابدأ من <a href="{% url 'website_settings' %}">إعدادات الموقع</a> لتحديد المعرّف والنطاق والهوية.</div>{% endif %}
+<div class="kpis">
+  {% for label, value, slug in stats %}<a class="kpi" href="{% url 'doc_list' slug %}"><span>{{ label }}</span><b>{{ value }}</b></a>{% endfor %}
+  {% for label, value, slug in inbound %}<a class="kpi {% if value %}kpi-good{% endif %}" href="{% url 'doc_list' slug %}"><span>{{ label }}</span><b>{{ value }}</b></a>{% endfor %}
+</div>
+<div class="card"><h3>آخر الأخبار</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>العنوان</th><th>التصنيف</th><th>تاريخ النشر</th><th>الحالة</th></tr></thead><tbody>
+{% for post in latest_news %}<tr><td><a href="{{ post.get_absolute_url }}">{{ post.title }}</a></td><td>{{ post.get_category_display }}</td>
+<td>{{ post.published_on|date:"Y-m-d" }}</td><td>{% if post.is_published %}منشور{% else %}<span class="muted">مخفي</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لا أخبار بعد — <a href="{% url 'doc_new' 'news-post' %}">أضف أول خبر</a></td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>محتوى الموقع</h3><div class="table-wrap"><table class="table"><tbody>
+<tr><td><a href="{% url 'doc_list' 'news-post' %}">الأخبار</a></td><td class="muted">أخبار وفعاليات وإعلانات المركز الإعلامي مع صورة الغلاف</td></tr>
+<tr><td><a href="{% url 'doc_list' 'album' %}">ألبومات الصور</a></td><td class="muted">معرض الصور: أنشئ ألبوماً ثم ارفع صوره دفعة واحدة</td></tr>
+<tr><td><a href="{% url 'doc_list' 'published-document' %}">وثائق الحوكمة والإفصاح</a></td><td class="muted">اللوائح والسياسات والتقارير السنوية والقوائم المالية المعتمدة ومحاضر الجمعية العمومية</td></tr>
+<tr><td><a href="{% url 'doc_list' 'partner' %}">شركاء النجاح</a></td><td class="muted">شعارات الشركاء والداعمين في الصفحة الرئيسية</td></tr>
+<tr><td><a href="{% url 'website_settings' %}">إعدادات الموقع</a></td><td class="muted">النطاق والنشر والهوية ونبذة الجمعية والحسابات البنكية ووسائل التواصل</td></tr>
+</tbody></table></div>
+<p class="muted small">تُعرض في الموقع تلقائياً: الرؤية والرسالة والقيم والأهداف من الخطة الاستراتيجية المعتمدة، ومجلس الإدارة من الدورة السارية، وبرامج المساعدات المفعّلة، والبرامج التدريبية والفرص التطوعية المفتوحة والاستبيانات المفتوحة. وتصل طلبات المساعدة ملفات مستفيدين بحالة «جديد»، ورسائل «تواصل معنا» معاملات واردة.</p></div>
+{% endblock %}

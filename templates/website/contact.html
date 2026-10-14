@@ -1,0 +1,40 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}تواصل معنا — {{ request.site.company.name }}{% endblock %}
+{% block description %}بيانات التواصل مع {{ request.site.company.name }} والحسابات البنكية ونموذج المراسلة{% endblock %}
+{% block content %}{% with company=request.site.company site=request.site %}
+<section class="wrap page">
+  <h1>تواصل معنا</h1>
+  <div class="contact-grid">
+    <div>
+      <div class="card"><div class="card-body">
+        <h3>بيانات التواصل</h3>
+        {% if company.address %}<p>{{ company.address|linebreaksbr }}</p>{% endif %}
+        {% if company.phone %}<p>الهاتف: <a href="tel:{{ company.phone }}"><bdi>{{ company.phone }}</bdi></a></p>{% endif %}
+        {% if site.whatsapp %}<p>واتساب: <a href="https://wa.me/{{ site.whatsapp }}" rel="noopener"><bdi>{{ site.whatsapp }}</bdi></a></p>{% endif %}
+        {% if company.email %}<p>البريد: <a href="mailto:{{ company.email }}">{{ company.email }}</a></p>{% endif %}
+        {% if site.working_hours %}<p>أوقات العمل: {{ site.working_hours }}</p>{% endif %}
+        {% if site.map_url %}<p><a class="btn-ghost" href="{{ site.map_url }}" target="_blank" rel="noopener">موقعنا على الخريطة</a></p>{% endif %}
+        <div class="social-row">
+          {% if site.x_url %}<a href="{{ site.x_url }}" rel="noopener">X</a>{% endif %}
+          {% if site.instagram_url %}<a href="{{ site.instagram_url }}" rel="noopener">إنستغرام</a>{% endif %}
+          {% if site.snapchat_url %}<a href="{{ site.snapchat_url }}" rel="noopener">سناب شات</a>{% endif %}
+          {% if site.youtube_url %}<a href="{{ site.youtube_url }}" rel="noopener">يوتيوب</a>{% endif %}
+          {% if site.linkedin_url %}<a href="{{ site.linkedin_url }}" rel="noopener">لينكدإن</a>{% endif %}
+        </div>
+      </div></div>
+      {% if site.bank_account_lines %}<div class="card"><div class="card-body">
+        <h3>الحسابات البنكية للتبرع</h3>
+        {% for line in site.bank_account_lines %}<p class="iban-line"><bdi>{{ line }}</bdi></p>{% endfor %}
+      </div></div>{% endif %}
+    </div>
+    <div class="card"><div class="card-body">
+      <h3>راسلنا</h3>
+      {% if done %}<div class="notice ok" role="status"><strong>شكراً لتواصلك، وصلت رسالتك.</strong>{% if reference %}<p>رقم القيد: <bdi class="ref">{{ reference }}</bdi></p>{% endif %}<p>سنرد عليك في أقرب وقت.</p></div>
+      {% else %}<form method="post" class="site-form" novalidate>{% csrf_token %}
+        {% include "website/_form_fields.html" %}
+        <button class="btn-brand" type="submit">إرسال</button>
+      </form>{% endif %}
+    </div></div>
+  </div>
+</section>
+{% endwith %}{% endblock %}

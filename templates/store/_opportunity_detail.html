@@ -1,0 +1,9 @@
+{% load erp %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'store_opportunity_image' obj.pk %}">{% if obj.image %}تغيير الصورة{% else %}+ صورة{% endif %}</a>
+  <a class="btn" href="{% url 'doc_list' 'donation-order' %}?q={{ obj.title|urlencode }}">الطلبات</a></div></div>
+<div class="card"><h3>التحصيل</h3>
+  {% if obj.image %}<p><img src="{{ obj.image }}" alt="" style="max-width:320px;border-radius:10px"></p>{% endif %}
+  <p>المحصّل: <strong>{{ obj.raised|money }}</strong>{% if obj.target_amount %} من {{ obj.target_amount|money }} ({{ obj.percent }}%){% endif %}
+  · نوع سند التبرع: {{ obj.get_kind_display }} · الصندوق: {{ obj.resolve_fund|default:"عام (غير مقيد)" }}</p>
+</div>

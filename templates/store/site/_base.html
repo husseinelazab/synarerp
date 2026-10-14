@@ -1,0 +1,13 @@
+{% extends "website/public_base.html" %}{% load static site %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/store.css' %}">{% block store_head %}{% endblock %}{% endblock %}
+{% block content %}<section class="page"><div class="wrap">
+  <div class="store-head">
+    <h1>{% block heading %}تبرع الآن{% endblock %}</h1>
+    <nav class="store-links" aria-label="المتجر">
+      <a href="{% site_url 'store_home' %}">فرص التبرع</a>
+      <a href="{% site_url 'store_cart' %}">سلة التبرعات{% if cart_count %}<span class="badge-count">{{ cart_count }}</span>{% endif %}</a>
+      <a href="{% site_url 'store_account' %}">تبرعاتي</a>
+    </nav>
+  </div>
+  {% block store_content %}{% endblock %}
+</div></section>{% endblock %}

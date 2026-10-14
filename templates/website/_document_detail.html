@@ -1,0 +1,10 @@
+<div class="card">
+  <div class="card-head"><h3>ملف الوثيقة</h3></div>
+  {% if obj.has_file %}<p>{{ obj.file_name }} · {{ obj.size_label }}{% if obj.is_published %} · <span class="muted">منشورة في صفحة «الحوكمة والإفصاح»</span>{% endif %}</p>
+  {% else %}<div class="alert alert-warning">لم يُرفع ملف بعد؛ لن تظهر الوثيقة في الموقع حتى يُرفع ملفها.</div>{% endif %}
+  <form method="post" action="{% url 'website_upload' 'document' obj.pk %}" enctype="multipart/form-data" class="form-grid">{% csrf_token %}
+    <div class="field"><label>{% if obj.has_file %}استبدال الملف{% else %}الملف{% endif %}</label><input type="file" name="file" accept="application/pdf,image/png,image/jpeg" class="form-control" required>
+    <small class="muted">PDF أو PNG أو JPG بحجم 10 ميجابايت كحد أقصى</small></div>
+    <div class="field" style="align-self:end"><button class="btn btn-primary">رفع</button></div>
+  </form>
+</div>

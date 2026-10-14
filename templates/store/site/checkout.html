@@ -1,0 +1,34 @@
+{% extends "store/site/_base.html" %}{% load site %}
+{% block title %}إتمام التبرع | {{ request.site.company.name }}{% endblock %}
+{% block heading %}إتمام التبرع{% endblock %}
+{% block store_content %}
+<div class="detail-grid">
+<form method="post" class="panel" novalidate>{% csrf_token %}
+  <h2>بيانات المتبرع</h2>
+  {{ form.website }}
+  {% if form.non_field_errors %}<div class="notice err">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">
+    <div class="field">{{ form.donor_name.label_tag }}{{ form.donor_name }}{{ form.donor_name.errors }}</div>
+    <div class="field">{{ form.donor_phone.label_tag }}{{ form.donor_phone }}<small class="muted">{{ form.donor_phone.help_text }}</small>{{ form.donor_phone.errors }}</div>
+    <div class="field">{{ form.donor_email.label_tag }}{{ form.donor_email }}{{ form.donor_email.errors }}</div>
+  </div>
+  <div class="field check-field" style="margin-top:10px">{{ form.is_anonymous }}{{ form.is_anonymous.label_tag }}</div>
+  {% if form.is_monthly %}<div class="field check-field" style="margin-top:6px">{{ form.is_monthly }}{{ form.is_monthly.label_tag }}</div>{% endif %}
+  <details style="margin-top:14px" {% if form.gift_to_name.value or form.gift_to_name.errors %}open{% endif %}>
+    <summary><strong>إهداء التبرع</strong> <span class="muted">(تصل المُهدى إليه رسالة باسمك)</span></summary>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field">{{ form.gift_to_name.label_tag }}{{ form.gift_to_name }}{{ form.gift_to_name.errors }}</div>
+      <div class="field">{{ form.gift_to_phone.label_tag }}{{ form.gift_to_phone }}{{ form.gift_to_phone.errors }}</div>
+      <div class="field" style="grid-column:1/-1">{{ form.gift_message.label_tag }}{{ form.gift_message }}{{ form.gift_message.errors }}</div>
+    </div>
+  </details>
+  <div class="actions-row"><button class="btn-brand">المتابعة إلى الدفع</button></div>
+</form>
+<aside class="panel">
+  <h3>ملخص التبرع</h3>
+  <table class="plain">{% for o, qty, amount in lines %}<tr><td>{{ o.title }}{% if o.fixed_amount %} × {{ qty }}{% endif %}</td><td class="num">{{ amount|floatformat:"-2g" }}</td></tr>{% endfor %}
+  <tr class="total-row"><td>الإجمالي (ريال)</td><td class="num">{{ total|floatformat:"-2g" }}</td></tr></table>
+  <p class="muted" style="font-size:14px">الدفع عبر بوابة ميسّر المرخّصة: مدى، فيزا، ماستركارد، Apple Pay، STC Pay.</p>
+</aside>
+</div>
+{% endblock %}

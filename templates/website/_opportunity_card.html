@@ -1,0 +1,11 @@
+<article class="card"><div class="card-body">
+  <h3>{{ o.title }}</h3>
+  {% if o.description %}<p class="muted">{{ o.description|truncatewords:25 }}</p>{% endif %}
+  <ul class="facts">
+    <li>من {{ o.start_date|date:"Y-m-d" }} إلى {{ o.end_date|date:"Y-m-d" }}</li>
+    {% if o.location %}<li>المكان: {{ o.location }}</li>{% endif %}
+    <li>العدد المطلوب: {{ o.required_count }} · {{ o.expected_hours|floatformat:"-1" }} ساعة</li>
+    {% if o.gender %}<li>مخصصة لـ: {{ o.get_gender_display }}</li>{% endif %}
+  </ul>
+  <a class="btn-brand card-cta" href="{{ o.public_link }}">انضم متطوعاً</a>
+</div></article>

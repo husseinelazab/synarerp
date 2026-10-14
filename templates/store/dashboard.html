@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="dash-head">
+  <span class="muted">{% if settings.ready %}المتجر مفعّل ({{ settings.get_mode_display }}){% else %}المتجر غير جاهز لاستقبال التبرعات — أكمل <a href="{% url 'store_settings' %}">إعدادات المتجر</a>{% endif %}
+  {% if site.pk %} · <a href="{{ site.public_url }}donate/" target="_blank">صفحة التبرع على الموقع</a>{% endif %}
+  {% if site.pk and not site.fundraising_licensed %} · <span class="neg">لا يوجد ترخيص جمع تبرعات ساري في إعدادات الموقع</span>{% endif %}</span>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'doc_new' 'donation-opportunity' %}">+ فرصة تبرع</a>
+    <a class="btn" href="{% url 'doc_list' 'donation-order' %}">الطلبات</a>
+    <a class="btn" href="{% url 'store_settings' %}">الإعدادات</a>
+  </div>
+</div>
+<div class="kpi-row">
+  {% for k in kpis %}<div class="card kpi-card"><div class="kpi-label">{{ k.label }}</div>
+  <div class="kpi-value">{% if k.money %}{{ k.value|money }}{% else %}{{ k.value }}{% endif %}</div>
+  <div class="kpi-foot"><span class="muted">{{ k.hint|default:"" }}</span></div></div>{% endfor %}
+</div>
+<div class="dash-grid">
+  <div class="card"><h3>أعلى فرص التبرع</h3><div class="table-wrap"><table class="table">
+    <thead><tr><th>الفرصة</th><th class="num">عدد</th><th class="num">المحصّل</th></tr></thead><tbody>
+    {% for t in top %}<tr><td><a href="{% url 'doc_detail' 'donation-opportunity' t.opportunity__id %}">{{ t.opportunity__title }}</a></td><td class="num">{{ t.count }}</td><td class="num">{{ t.total|money }}</td></tr>
+    {% empty %}<tr><td colspan="3" class="muted center">لا توجد تبرعات بعد ({{ opportunities_count }} فرصة منشورة)</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="card"><h3>المسوّقون الأعلى تحصيلاً</h3><div class="table-wrap"><table class="table">
+    <thead><tr><th>المسوّق</th><th class="num">الطلبات</th><th class="num">المحصّل</th></tr></thead><tbody>
+    {% for m in marketers %}<tr><td><a href="{{ m.get_absolute_url }}">{{ m.name }}</a></td><td class="num">{{ m.count }}</td><td class="num">{{ m.total|money }}</td></tr>
+    {% empty %}<tr><td colspan="3" class="muted center">لا توجد تبرعات عبر المسوّقين بعد</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<div class="card"><h3>أحدث الطلبات</h3><div class="table-wrap"><table class="table">
+  <thead><tr><th>الطلب</th><th>التاريخ</th><th>المتبرع</th><th class="num">المبلغ</th><th>الحالة</th><th>الوسيلة</th><th>المسوّق</th></tr></thead><tbody>
+  {% for o in recent %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a></td><td>{{ o.created_at|date:"Y-m-d H:i" }}</td><td>{{ o.display_name }}</td>
+  <td class="num">{{ o.total|money }}</td><td>{{ o.get_status_display }}</td><td>{{ o.payment_method }}</td><td>{{ o.marketer|default:"" }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لا توجد طلبات بعد</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% load static site %}<!doctype html>
+{% with site=request.site company=request.site.company brand=request.site_brand %}
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ company.name }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ site.tagline|default:company.name }}{% endblock %}">
+  {% if brand.logo %}<link rel="icon" href="{{ brand.logo }}">{% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/site.css' %}">
+  <style>:root { --brand: {{ site.primary_color }}; }</style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% if not site.is_published %}<div class="preview-bar">معاينة — الموقع غير منشور بعد، ولا يراه إلا مستخدمو الجمعية</div>{% endif %}
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="site-brand" href="{% site_url 'site_home' %}">
+      {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ company.name }}">{% endif %}
+      <span><strong>{{ company.name }}</strong>{% if site.tagline %}<small>{{ site.tagline }}</small>{% endif %}</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="القائمة" onclick="document.body.classList.toggle('nav-open')">☰</button>
+    <nav class="site-nav" aria-label="القائمة الرئيسية">
+      <a href="{% site_url 'site_home' %}">الرئيسية</a>
+      <a href="{% site_url 'site_about' %}">عن الجمعية</a>
+      <a href="{% site_url 'site_programs' %}">البرامج والمشاريع</a>
+      <a href="{% site_url 'site_news' %}">المركز الإعلامي</a>
+      <a href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a>
+      <a href="{% site_url 'site_apply' %}">طلب مساعدة</a>
+      <a href="{% site_url 'site_contact' %}">تواصل معنا</a>
+      <a class="nav-donate" href="{% site_url 'store_home' %}">تبرع الآن</a>
+    </nav>
+  </div>
+</header>
+<main class="site-main">{% block content %}{% endblock %}</main>
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <h4>{{ company.name }}</h4>
+      {% if site.about %}<p>{{ site.about|truncatewords:40 }}</p>{% endif %}
+      {% if company.license_number %}<p class="license">مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</p>{% endif %}
+      {% if site.fundraising_license_number %}<p class="license">ترخيص جمع التبرعات رقم ({{ site.fundraising_license_number }})</p>{% endif %}
+    </div>
+    <div>
+      <h4>روابط</h4>
+      <a href="{% site_url 'site_about' %}">عن الجمعية</a>
+      <a href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a>
+      <a href="{% site_url 'site_programs' %}">البرامج والمشاريع</a>
+      <a href="{% site_url 'store_home' %}">تبرع الآن</a>
+    </div>
+    <div>
+      <h4>تواصل معنا</h4>
+      {% if company.address %}<p>{{ company.address|linebreaksbr }}</p>{% endif %}
+      {% if company.phone %}<p>هاتف: <bdi>{{ company.phone }}</bdi></p>{% endif %}
+      {% if site.whatsapp %}<p>واتساب: <a href="https://wa.me/{{ site.whatsapp }}"><bdi>{{ site.whatsapp }}</bdi></a></p>{% endif %}
+      {% if company.email %}<p><a href="mailto:{{ company.email }}">{{ company.email }}</a></p>{% endif %}
+      {% if site.working_hours %}<p>{{ site.working_hours }}</p>{% endif %}
+      <div class="social">
+        {% if site.x_url %}<a href="{{ site.x_url }}" rel="noopener">X</a>{% endif %}
+        {% if site.instagram_url %}<a href="{{ site.instagram_url }}" rel="noopener">إنستغرام</a>{% endif %}
+        {% if site.snapchat_url %}<a href="{{ site.snapchat_url }}" rel="noopener">سناب</a>{% endif %}
+        {% if site.youtube_url %}<a href="{{ site.youtube_url }}" rel="noopener">يوتيوب</a>{% endif %}
+        {% if site.linkedin_url %}<a href="{{ site.linkedin_url }}" rel="noopener">لينكدإن</a>{% endif %}
+      </div>
+    </div>
+    {% if site.bank_account_lines %}<div>
+      <h4>الحسابات البنكية</h4>
+      {% for line in site.bank_account_lines %}<p class="iban"><bdi>{{ line }}</bdi></p>{% endfor %}
+    </div>{% endif %}
+  </div>
+  <div class="wrap footer-bottom">© {% now "Y" %} {{ company.name }} — جميع الحقوق محفوظة</div>
+</footer>
+</body>
+</html>
+{% endwith %}

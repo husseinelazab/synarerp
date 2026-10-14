@@ -1,0 +1,5 @@
+<div class="partners">{% for partner in partners %}
+  {% if partner.url %}<a class="partner" href="{{ partner.url }}" rel="noopener" target="_blank" title="{{ partner.name }}">{% else %}<div class="partner" title="{{ partner.name }}">{% endif %}
+  {% if partner.logo %}<img src="{{ partner.logo }}" alt="{{ partner.name }}" loading="lazy">{% else %}<span>{{ partner.name }}</span>{% endif %}
+  {% if partner.url %}</a>{% else %}</div>{% endif %}
+{% endfor %}</div>

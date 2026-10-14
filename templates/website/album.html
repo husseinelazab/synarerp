@@ -1,0 +1,16 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}{{ album.title }} — {{ request.site.company.name }}{% endblock %}
+{% block description %}{{ album.description|default:album.title|truncatewords:30 }}{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <nav class="crumbs"><a href="{% site_url 'site_gallery' %}">معرض الصور</a> / <span>{{ album.title }}</span></nav>
+  <h1>{{ album.title }}</h1>
+  {% if album.event_date %}<p class="muted">{{ album.event_date|date:"Y-m-d" }}</p>{% endif %}
+  {% if album.description %}<div class="prose">{{ album.description|linebreaks }}</div>{% endif %}
+  <div class="photo-grid">{% for photo in photos %}<figure>
+    <a href="#photo-{{ photo.pk }}"><img src="{{ photo.image }}" alt="{{ photo.caption|default:album.title }}" loading="lazy"></a>
+    {% if photo.caption %}<figcaption>{{ photo.caption }}</figcaption>{% endif %}
+  </figure>{% empty %}<p class="muted">لا صور في هذا الألبوم.</p>{% endfor %}</div>
+  {% for photo in photos %}<a class="lightbox" id="photo-{{ photo.pk }}" href="#_" aria-label="إغلاق"><img src="{{ photo.image }}" alt="{{ photo.caption|default:album.title }}"></a>{% endfor %}
+</section>
+{% endblock %}

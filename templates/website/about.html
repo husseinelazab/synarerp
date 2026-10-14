@@ -1,0 +1,37 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}عن الجمعية — {{ request.site.company.name }}{% endblock %}
+{% block description %}{{ request.site.about|default:request.site.company.objectives|default:request.site.company.name|truncatewords:30 }}{% endblock %}
+{% block content %}{% with company=request.site.company site=request.site %}
+<section class="wrap page">
+  <h1>عن الجمعية</h1>
+  {% if site.about %}<div class="prose lead">{{ site.about|linebreaks }}</div>{% endif %}
+
+  {% if plan.vision or plan.mission %}<div class="cards two">
+    {% if plan.vision %}<div class="card highlight"><div class="card-body"><h3>رؤيتنا</h3><p>{{ plan.vision|linebreaksbr }}</p></div></div>{% endif %}
+    {% if plan.mission %}<div class="card highlight"><div class="card-body"><h3>رسالتنا</h3><p>{{ plan.mission|linebreaksbr }}</p></div></div>{% endif %}
+  </div>{% endif %}
+
+  {% if plan.values_list %}<h2 class="sub">قيمنا</h2>
+  <ul class="chips">{% for value in plan.values_list %}<li>{{ value }}</li>{% endfor %}</ul>{% endif %}
+
+  {% if goals %}<h2 class="sub">أهدافنا الاستراتيجية{% if plan %} <small class="muted">{{ plan.title }}</small>{% endif %}</h2>
+  <div class="cards">{% for goal in goals %}<div class="card"><div class="card-body">
+    <div class="meta">{% if goal.code %}<span class="tag">{{ goal.code }}</span>{% endif %}{% if goal.vision2030_pillar %}<span>رؤية 2030: {{ goal.get_vision2030_pillar_display }}</span>{% endif %}</div>
+    <h3>{{ goal.title }}</h3>{% if goal.description %}<p class="muted">{{ goal.description|truncatewords:30 }}</p>{% endif %}
+  </div></div>{% endfor %}</div>
+  {% elif company.objectives %}<h2 class="sub">أهداف الجمعية</h2><div class="prose">{{ company.objectives|linebreaks }}</div>{% endif %}
+
+  {% if seats %}<h2 class="sub">مجلس الإدارة{% if term %} <small class="muted">{{ term.name }} ({{ term.start_date|date:"Y" }}–{{ term.end_date|date:"Y" }})</small>{% endif %}</h2>
+  {% include "website/_board.html" %}{% endif %}
+
+  <h2 class="sub">البيانات النظامية</h2>
+  <table class="plain facts-table">
+    <tr><th>اسم الجمعية</th><td>{{ company.name }}</td></tr>
+    {% if company.license_number %}<tr><th>رقم التسجيل لدى المركز الوطني لتنمية القطاع غير الربحي</th><td><bdi>{{ company.license_number }}</bdi></td></tr>{% endif %}
+    {% if company.registration_date %}<tr><th>تاريخ التسجيل</th><td>{{ company.registration_date }}</td></tr>{% endif %}
+    {% if company.headquarters %}<tr><th>المقر الرئيسي</th><td>{{ company.headquarters }}</td></tr>{% endif %}
+    {% if site.fundraising_license_number %}<tr><th>ترخيص جمع التبرعات</th><td><bdi>{{ site.fundraising_license_number }}</bdi>{% if site.fundraising_license_expiry %} — ساري حتى {{ site.fundraising_license_expiry|date:"Y-m-d" }}{% endif %}</td></tr>{% endif %}
+  </table>
+  <p><a class="btn-brand" href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a></p>
+</section>
+{% endwith %}{% endblock %}

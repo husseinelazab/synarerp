@@ -100,6 +100,20 @@ docker compose exec db sh -c 'dropdb -U "$POSTGRES_USER" synar_restore'
 ## ملاحظات
 
 - **التوسع:** زد `SYNAR_WORKERS` مع زيادة الأنوية، وانقل قاعدة البيانات إلى خدمة مُدارة عند كبر الحجم.
-- **أكثر من نطاق** (لكل عميل نطاق): أضف النطاقات في `SYNAR_ALLOWED_HOSTS` و`SYNAR_CSRF_TRUSTED_ORIGINS` ككتل إضافية في `deploy/Caddyfile`.
+- **أكثر من نطاق للنظام نفسه**: أضف النطاقات في `SYNAR_ALLOWED_HOSTS` و`SYNAR_CSRF_TRUSTED_ORIGINS` ككتل إضافية في `deploy/Caddyfile`.
+
+## مواقع الجمعيات على نطاقاتها المستقلة (.sa)
+
+كل جمعية تربط نطاقها (مثل `albirr.org.sa`) بموقعها في سِينار دون أي تعديل على الخادم:
+
+1. **عند مزود النطاق** (مثل نطاقات المركز السعودي SaudiNIC أو المسجّل المعتمد): سجل `A` للنطاق و`www` يشير إلى عنوان IP لخادم سِينار.
+2. **في سِينار** (إدارة الموقع الإلكتروني ← إعدادات الموقع): اكتب النطاق دون `https://` و`www`، وفعّل «منشور للعامة».
+3. أول زيارة للنطاق: Caddy يسأل سِينار (`/site-domain-check/`) هل النطاق مسجل ومنشور، ثم يصدر شهادة HTTPS مجانية تلقائياً ويجددها.
+
+- `SYNAR_DYNAMIC_SITE_HOSTS=1` (الافتراضي في docker-compose) يقبل نطاقات المواقع المسجلة دون إضافتها إلى `SYNAR_ALLOWED_HOSTS`،
+  ويرفض أي نطاق آخر غير نطاق المنصة (`SYNAR_DOMAIN` يجب أن يكون في `SYNAR_ALLOWED_HOSTS`).
+- النطاق المستقل يعرض صفحات الموقع والمتجر فقط؛ الدخول للنظام يبقى على نطاق المنصة.
+- **ميسّر (بوابة الدفع)**: في لوحة ميسّر أضف Webhook على `https://<نطاق المنصة>/store/webhook/` لحدث `payment_paid` بنفس «الرمز السري» المحفوظ
+  في إعدادات المتجر، ولتفعيل Apple Pay أضف كل نطاق جمعية في إعدادات Apple Pay بلوحة ميسّر وفق تعليماتها.
 - **بدون Docker:** يعمل أيضاً بـ `gunicorn synar.wsgi` خلف Nginx مع PostgreSQL؛ اضبط متغيرات `.env` نفسها، ونفّذ
   `python manage.py migrate` و`collectstatic`، وشغّل `python manage.py run_scheduler` كخدمة دائمة.

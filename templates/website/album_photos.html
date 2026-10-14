@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div><a class="btn" href="{{ album.get_absolute_url }}">→ الألبوم</a></div><div class="actions">
+  <a class="btn" href="{% url 'website_dashboard' %}">إدارة الموقع</a></div></div>
+<form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
+  <h3>رفع صور</h3>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">{% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endfor %}</div>
+  <div class="actions" style="margin-top:14px"><button class="btn btn-primary">رفع الصور</button></div>
+</form>
+<div class="card"><h3>صور الألبوم ({{ photos|length }})</h3>
+  <div class="album-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+  {% for photo in photos %}<figure style="margin:0">
+    <img src="{{ photo.image }}" alt="{{ photo.caption }}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px">
+    <figcaption class="small">{{ photo.caption|default:"" }}</figcaption>
+    <form method="post" action="{% url 'website_album_photo_delete' album.pk photo.pk %}" onsubmit="return confirm('حذف الصورة؟')">{% csrf_token %}<button class="btn btn-sm">حذف</button></form>
+  </figure>{% empty %}<p class="muted">لا صور بعد.</p>{% endfor %}
+  </div>
+</div>
+{% endblock %}

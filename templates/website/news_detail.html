@@ -1,0 +1,28 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}{{ post.title }} — {{ request.site.company.name }}{% endblock %}
+{% block description %}{{ post.excerpt|truncatewords:30 }}{% endblock %}
+{% block head %}
+  <link rel="canonical" href="{{ canonical }}">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{{ post.title }}">
+  <meta property="og:description" content="{{ post.excerpt|truncatewords:30 }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:site_name" content="{{ request.site.company.name }}">
+  <meta property="og:locale" content="ar_SA">
+  <meta property="article:published_time" content="{{ post.published_on|date:'Y-m-d' }}">
+  <meta name="twitter:card" content="summary">
+{% endblock %}
+{% block content %}
+<article class="wrap page article">
+  <nav class="crumbs"><a href="{% site_url 'site_news' %}">المركز الإعلامي</a> / <span>{{ post.get_category_display }}</span></nav>
+  <h1>{{ post.title }}</h1>
+  <div class="meta"><span class="tag">{{ post.get_category_display }}</span><time datetime="{{ post.published_on|date:'Y-m-d' }}">{{ post.published_on|date:"Y-m-d" }}</time></div>
+  {% if post.cover %}<img class="article-cover" src="{{ post.cover }}" alt="{{ post.title }}">{% endif %}
+  {% if post.summary %}<p class="lead">{{ post.summary }}</p>{% endif %}
+  <div class="prose">{{ post.body|linebreaks }}</div>
+</article>
+{% if related %}<section class="section wrap">
+  <div class="section-head"><h2>أخبار أخرى</h2></div>
+  <div class="cards">{% for post in related %}{% include "website/_news_card.html" %}{% endfor %}</div>
+</section>{% endif %}
+{% endblock %}

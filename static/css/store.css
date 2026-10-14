@@ -1,0 +1,47 @@
+/* المتجر الإلكتروني للتبرعات: يعتمد على site.css ولونه الرئيسي --brand */
+.store-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.store-head h1 { margin: 0; }
+.store-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.store-links a { padding: 7px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); font-weight: 500; }
+.store-links a:hover { background: var(--soft); text-decoration: none; }
+.badge-count { background: var(--brand); color: #fff; border-radius: 20px; padding: 0 7px; font-size: 13px; margin-inline-start: 4px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.tabs a { padding: 6px 14px; border-radius: 20px; background: var(--soft); color: var(--ink); font-size: 15px; }
+.tabs a.active { background: var(--brand); color: #fff; }
+.tabs a:hover { text-decoration: none; }
+.kind-tag { display: inline-block; font-size: 12px; background: color-mix(in srgb, var(--brand) 12%, #fff); color: var(--brand); padding: 1px 10px; border-radius: 20px; align-self: flex-start; }
+.cover-ph { aspect-ratio: 16 / 9; background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 25%, #fff), var(--soft)); display: grid; place-items: center; font-size: 42px; color: var(--brand); }
+.raised { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
+.raised b { color: var(--ink); }
+.quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.quick form { display: contents; }
+.quick button, .amount-pick label { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 6px 12px; cursor: pointer; font: inherit; font-weight: 700; color: var(--ink); }
+.quick button:hover { border-color: var(--brand); color: var(--brand); }
+.amount-pick { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 14px; }
+.amount-pick input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+.amount-pick input[type=radio]:checked + label { background: var(--brand); border-color: var(--brand); color: #fff; }
+.amount-pick input[type=radio]:focus-visible + label { outline: 2px solid var(--brand); outline-offset: 2px; }
+.detail-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px; align-items: start; }
+.panel { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; background: #fff; }
+.panel h2, .panel h3 { margin-top: 0; }
+.actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.btn-outline { display: inline-block; padding: 9px 18px; border-radius: 10px; border: 1.5px solid var(--brand); color: var(--brand); background: #fff; font-weight: 700; cursor: pointer; font: inherit; }
+.btn-link { background: none; border: 0; color: #b42318; cursor: pointer; font: inherit; padding: 0; }
+.total-row td { font-weight: 800; font-size: 18px; }
+.num { text-align: left !important; direction: ltr; unicode-bidi: plaintext; }
+.qty-input, .amt-input { width: 120px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+.check-field { display: flex; gap: 8px; align-items: center; }
+.check-field label { margin: 0; color: var(--ink); font-size: 15px; }
+.mysr-wrap { max-width: 460px; margin: 0 auto; }
+.secure { font-size: 13px; color: var(--muted); text-align: center; margin-top: 10px; }
+.status-big { font-size: 22px; font-weight: 800; }
+.otp input { letter-spacing: 8px; text-align: center; font-size: 22px; }
+.certificate { max-width: 800px; margin: 30px auto; border: 10px double var(--brand); padding: 40px 48px; text-align: center; background: #fff; }
+.certificate img { max-height: 90px; }
+.certificate h1 { color: var(--brand); font-size: 36px; margin: 12px 0; }
+.certificate .who { font-size: 28px; font-weight: 800; margin: 10px 0; }
+.certificate .amount { font-size: 24px; font-weight: 700; color: var(--brand); }
+.certificate .verify { font-size: 13px; color: var(--muted); margin-top: 26px; direction: ltr; }
+.print-bar { text-align: center; margin: 16px; }
+@media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; } }
+@media print { .print-bar, .preview-bar { display: none; } body { background: #fff; } .certificate { margin: 0 auto; } }

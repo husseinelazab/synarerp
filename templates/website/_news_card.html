@@ -1,0 +1,8 @@
+{% load site %}<article class="card">
+  {% if post.cover %}<img class="cover" src="{{ post.cover }}" alt="" loading="lazy">{% endif %}
+  <div class="card-body">
+    <div class="meta"><span class="tag">{{ post.get_category_display }}</span><time datetime="{{ post.published_on|date:'Y-m-d' }}">{{ post.published_on|date:"Y-m-d" }}</time></div>
+    <h3><a href="{% site_url 'site_news_detail' post.pk %}">{{ post.title }}</a></h3>
+    <p class="muted">{{ post.excerpt|truncatewords:28 }}</p>
+  </div>
+</article>

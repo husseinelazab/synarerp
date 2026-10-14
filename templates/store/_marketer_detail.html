@@ -1,0 +1,7 @@
+{% load erp %}
+<div class="card"><h3>رابط الإحالة</h3>
+<p>أضف <code dir="ltr">?ref={{ obj.code }}</code> لأي رابط في صفحات التبرع، مثل: <code dir="ltr">/donate/?ref={{ obj.code }}</code></p>
+<p>الطلبات المدفوعة: <strong>{{ obj.paid_orders.count }}</strong> · إجمالي المحصّل: <strong>{{ obj.total_raised|money }}</strong></p>
+<div class="table-wrap"><table class="table"><thead><tr><th>الطلب</th><th>التاريخ</th><th>المتبرع</th><th class="num">المبلغ</th><th>الحالة</th></tr></thead><tbody>
+{% for o in obj.orders.all|slice:":30" %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a></td><td>{{ o.created_at|date:"Y-m-d" }}</td><td>{{ o.display_name }}</td><td class="num">{{ o.total|money }}</td><td>{{ o.get_status_display }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted center">لا توجد طلبات</td></tr>{% endfor %}</tbody></table></div></div>

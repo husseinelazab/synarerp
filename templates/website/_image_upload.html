@@ -1,0 +1,6 @@
+<form method="post" action="{% url 'website_upload' kind obj.pk %}" enctype="multipart/form-data" class="form-grid">{% csrf_token %}
+  <div class="field"><label>{{ label }}</label><input type="file" name="file" accept="image/png,image/jpeg,image/webp" class="form-control">
+  <small class="muted">PNG أو JPG أو WebP بحجم 800 كيلوبايت كحد أقصى</small></div>
+  <div class="field" style="align-self:end"><button class="btn btn-primary">رفع</button>
+  {% if current %}<label style="margin-inline-start:10px"><input type="checkbox" name="remove" class="form-check"> حذف الحالية</label>{% endif %}</div>
+</form>

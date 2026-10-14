@@ -1,0 +1,55 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block content %}
+<section class="hero"{% if request.site.hero_image %} style="--hero: url('{{ request.site.hero_image }}')"{% endif %}>
+  <div class="wrap">
+    <h1>{{ request.site.hero_title|default:request.site.company.name }}</h1>
+    {% if request.site.hero_subtitle %}<p>{{ request.site.hero_subtitle }}</p>{% endif %}
+    <div class="hero-actions">
+      <a class="btn-brand" href="{% site_url 'store_home' %}">تبرع الآن</a>
+      <a class="btn-ghost" href="{% site_url 'site_about' %}">تعرّف علينا</a>
+    </div>
+  </div>
+</section>
+<section class="stats wrap">
+  {% for label, value in stats %}<div class="stat"><b>{{ value }}</b><span>{{ label }}</span></div>{% endfor %}
+</section>
+{% block home_sections %}
+{% if featured %}<section class="section wrap">
+  <div class="section-head"><h2>فرص التبرع</h2><a href="{% site_url 'store_home' %}">عرض الكل ←</a></div>
+  <div class="cards">{% for item in featured %}<article class="card">
+    {% if item.image %}<img class="cover" src="{{ item.image }}" alt="" loading="lazy">{% endif %}
+    <div class="card-body">
+      {% if item.kind_label %}<span class="tag">{{ item.kind_label }}</span>{% endif %}
+      <h3><a href="{{ item.link }}">{{ item.title }}</a></h3>
+      {% if item.target %}<div class="progress" role="progressbar" aria-valuenow="{{ item.percent }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ item.percent }}%"></i></div>
+      <small class="muted">جُمع {{ item.raised|floatformat:"0g" }} من {{ item.target|floatformat:"0g" }} ريال ({{ item.percent }}%)</small>{% endif %}
+      <a class="btn-brand card-cta" href="{{ item.link }}">تبرع الآن</a>
+    </div>
+  </article>{% endfor %}</div>
+</section>{% endif %}
+{% if latest_news %}<section class="section wrap">
+  <div class="section-head"><h2>أحدث الأخبار</h2><a href="{% site_url 'site_news' %}">المركز الإعلامي ←</a></div>
+  <div class="cards">{% for post in latest_news %}{% include "website/_news_card.html" %}{% endfor %}</div>
+</section>{% endif %}
+{% if training %}<section class="section wrap">
+  <div class="section-head"><h2>برامج تدريبية مفتوحة للتسجيل</h2><a href="{% site_url 'site_programs' %}">كل البرامج ←</a></div>
+  <div class="cards">{% for p in training %}{% include "website/_training_card.html" %}{% endfor %}</div>
+</section>{% endif %}
+{% if opportunities %}<section class="section wrap">
+  <div class="section-head"><h2>فرص تطوعية</h2><a href="{% site_url 'site_programs' %}#volunteering">كل الفرص ←</a></div>
+  <div class="cards">{% for o in opportunities %}{% include "website/_opportunity_card.html" %}{% endfor %}</div>
+</section>{% endif %}
+{% if surveys %}<section class="section wrap">
+  <div class="section-head"><h2>شاركنا رأيك</h2></div>
+  <div class="cards">{% for s in surveys %}<article class="card"><div class="card-body">
+    <h3>{{ s.title }}</h3>{% if s.description %}<p class="muted">{{ s.description|truncatewords:25 }}</p>{% endif %}
+    {% if s.end_date %}<small class="muted">آخر موعد: {{ s.end_date|date:"Y-m-d" }}</small>{% endif %}
+    <a class="btn-brand card-cta" href="{{ s.public_link }}">المشاركة في الاستبيان</a>
+  </div></article>{% endfor %}</div>
+</section>{% endif %}
+{% if partners %}<section class="section wrap">
+  <div class="section-head"><h2>شركاء النجاح</h2></div>
+  {% include "website/_partners.html" %}
+</section>{% endif %}
+{% endblock %}
+{% endblock %}

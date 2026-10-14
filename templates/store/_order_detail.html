@@ -1,0 +1,8 @@
+{% load erp %}
+<div class="card"><h3>بنود الطلب</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>فرصة التبرع</th><th class="num">الكمية</th><th class="num">المبلغ</th><th>سند التبرع</th></tr></thead><tbody>
+{% for line in obj.lines.all %}<tr><td><a href="{{ line.opportunity.get_absolute_url }}">{{ line.opportunity }}</a></td><td class="num">{{ line.quantity }}</td>
+<td class="num">{{ line.amount|money }}</td><td>{% if line.receipt %}<a href="{{ line.receipt.get_absolute_url }}">{{ line.receipt.name }}</a> ({{ line.receipt.get_docstatus_display }}){% else %}—{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لا توجد بنود</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted small">رقم عملية ميسّر: <span dir="ltr">{{ obj.payment_id|default:"—" }}</span> · الحالة: {{ obj.get_status_display }}{% if obj.paid_at %} · دُفع في {{ obj.paid_at|date:"Y-m-d H:i" }}{% endif %}{% if obj.failure_reason %} · {{ obj.failure_reason }}{% endif %}</p>
+</div>

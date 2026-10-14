@@ -32,6 +32,7 @@ services:
       SYNAR_DB_PASSWORD: ${SYNAR_DB_PASSWORD}
       SYNAR_REDIS_URL: redis://redis:6379/0
       SYNAR_BACKGROUND_JOBS: "1"
+      SYNAR_DYNAMIC_SITE_HOSTS: ${SYNAR_DYNAMIC_SITE_HOSTS:-1}  # قبول نطاقات مواقع الجمعيات المسجلة تلقائياً
     volumes:
       - media:/app/media
       - ./backups:/app/backups:ro  # لعرض حالة النسخ الاحتياطي في لوحة المنصة (قراءة فقط)

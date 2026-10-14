@@ -1,0 +1,40 @@
+{% extends "store/site/_base.html" %}{% load site %}
+{% block title %}تبرعاتي | {{ request.site.company.name }}{% endblock %}
+{% block heading %}تبرعاتي{% endblock %}
+{% block store_content %}
+{% if message %}<div class="notice ok" role="status">{{ message }}</div><br>{% endif %}
+{% if error %}<div class="notice err" role="alert">{{ error }}</div><br>{% endif %}
+{% if phone %}
+<div class="panel">
+  <div class="store-head" style="margin:0"><p style="margin:0">الجوال: <bdi>{{ phone }}</bdi> · إجمالي تبرعاتك <strong>{{ total|floatformat:"-2g" }} ريال</strong></p>
+  <form method="post">{% csrf_token %}<input type="hidden" name="website" value=""><button class="btn-outline" name="action" value="logout">خروج</button></form></div>
+</div><br>
+<div class="panel" style="overflow-x:auto"><h2>التبرعات</h2>
+<table class="plain"><thead><tr><th>الطلب</th><th>التاريخ</th><th>الفرص</th><th class="num">المبلغ</th><th></th></tr></thead><tbody>
+{% for o in orders %}<tr><td><a href="{% site_url 'store_thanks' o.number %}">{{ o.number }}</a></td><td>{{ o.paid_at|date:"Y-m-d" }}</td>
+<td>{% for line in o.lines.all %}{{ line.opportunity.title }}{% if not forloop.last %}، {% endif %}{% endfor %}</td>
+<td class="num">{{ o.total|floatformat:"-2g" }}</td><td><a href="{% site_url 'store_certificate' o.number %}" target="_blank">شهادة الشكر</a></td></tr>
+{% empty %}<tr><td colspan="5" class="muted">لا توجد تبرعات مدفوعة بعد.</td></tr>{% endfor %}
+</tbody></table></div><br>
+{% if recurring %}<div class="panel" style="overflow-x:auto"><h2>التبرعات الشهرية</h2>
+<table class="plain"><thead><tr><th>الفرصة</th><th class="num">المبلغ الشهري</th><th>الخصم القادم</th><th>الحالة</th><th></th></tr></thead><tbody>
+{% for r in recurring %}<tr><td>{{ r.opportunity.title }}</td><td class="num">{{ r.amount|floatformat:"-2g" }}</td>
+<td>{% if r.active %}{{ r.next_charge_on|date:"Y-m-d" }}{% else %}—{% endif %}</td><td>{% if r.active %}نشط{% else %}موقوف{% endif %}</td>
+<td>{% if r.active %}<form method="post" onsubmit="return confirm('إيقاف التبرع الشهري؟')">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="id" value="{{ r.pk }}"><button class="btn-link" name="action" value="cancel_recurring">إيقاف</button></form>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% elif pending_phone %}
+<form method="post" class="panel otp" style="max-width:420px">{% csrf_token %}{{ code_form.website }}
+  <p>أدخل الرمز المرسل إلى <bdi>{{ pending_phone }}</bdi></p>
+  <div class="field">{{ code_form.code.label_tag }}<input type="text" name="code" id="id_code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required>{{ code_form.code.errors }}</div>
+  <div class="actions-row"><button class="btn-brand" name="action" value="verify">دخول</button>
+  <button class="btn-outline" name="action" value="change" formnovalidate>تغيير الرقم</button></div>
+</form>
+<form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="phone" value="{{ pending_phone }}"><button class="btn-link" style="color:var(--brand)" name="action" value="send">إعادة إرسال الرمز</button></form>
+{% else %}
+<form method="post" class="panel" style="max-width:420px">{% csrf_token %}{{ phone_form.website }}
+  <p>ادخل برقم جوالك لعرض تبرعاتك وشهاداتك وإدارة التبرع الشهري.</p>
+  <div class="field">{{ phone_form.phone.label_tag }}<input type="tel" name="phone" id="id_phone" inputmode="tel" placeholder="05xxxxxxxx" required value="{{ phone_form.phone.value|default:'' }}">{{ phone_form.phone.errors }}</div>
+  <div class="actions-row"><button class="btn-brand" name="action" value="send">إرسال رمز التحقق</button></div>
+</form>
+{% endif %}
+{% endblock %}

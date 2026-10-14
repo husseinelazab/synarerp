@@ -1,0 +1,31 @@
+{% extends "store/site/_base.html" %}{% load site %}
+{% block title %}سلة التبرعات | {{ request.site.company.name }}{% endblock %}
+{% block heading %}سلة التبرعات{% endblock %}
+{% block store_content %}
+{% if lines %}
+<div class="panel" style="overflow-x:auto">
+<table class="plain">
+  <thead><tr><th>فرصة التبرع</th><th>العدد / المبلغ</th><th class="num">المبلغ (ريال)</th><th></th></tr></thead>
+  <tbody>
+  {% for o, qty, amount in lines %}<tr>
+    <td><a href="{% site_url 'store_opportunity' o.pk %}">{{ o.title }}</a><br><small class="muted">{{ o.get_kind_display }}</small></td>
+    <td><form method="post" style="display:flex;gap:6px;align-items:center">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="op" value="{{ o.pk }}"><input type="hidden" name="action" value="update">
+      {% if o.fixed_amount %}<input class="qty-input" type="number" name="quantity" min="1" max="1000" value="{{ qty }}" aria-label="عدد الأسهم">
+      {% else %}<input class="amt-input" type="number" name="amount" min="1" step="1" value="{{ amount|floatformat:0 }}" aria-label="المبلغ"{% if not o.allow_custom_amount %} readonly{% endif %}>{% endif %}
+      <button class="btn-outline" style="padding:6px 12px">تحديث</button></form></td>
+    <td class="num">{{ amount|floatformat:"-2g" }}</td>
+    <td><form method="post">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="op" value="{{ o.pk }}"><button class="btn-link" name="action" value="remove">حذف</button></form></td>
+  </tr>{% endfor %}
+  <tr class="total-row"><td colspan="2">الإجمالي</td><td class="num">{{ total|floatformat:"-2g" }}</td><td></td></tr>
+  </tbody>
+</table>
+<div class="actions-row">
+  {% if store_ready %}<a class="btn-brand" href="{% site_url 'store_checkout' %}">إتمام التبرع</a>{% endif %}
+  <a class="btn-outline" href="{% site_url 'store_home' %}">أضف تبرعاً آخر</a>
+</div>
+</div>
+{% if not store_ready %}<br>{% include "store/site/_unavailable_notice.html" %}{% endif %}
+{% else %}
+<div class="notice">سلة التبرعات فارغة. <a href="{% site_url 'store_home' %}">تصفح فرص التبرع</a></div>
+{% endif %}
+{% endblock %}

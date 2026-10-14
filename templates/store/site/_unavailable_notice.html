@@ -1,0 +1,6 @@
+<div class="notice err" role="status">
+  <strong>التبرع الإلكتروني غير متاح حالياً.</strong>
+  {% if request.site.bank_account_lines %}يمكنك التبرع بالتحويل إلى أحد حسابات الجمعية:
+  <ul>{% for line in request.site.bank_account_lines %}<li class="iban"><bdi>{{ line }}</bdi></li>{% endfor %}</ul>
+  {% else %}يرجى التواصل مع الجمعية لمعرفة طرق التبرع المتاحة.{% endif %}
+</div>

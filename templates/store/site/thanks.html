@@ -1,0 +1,33 @@
+{% extends "store/site/_base.html" %}{% load site %}
+{% block title %}شكراً لتبرعك | {{ request.site.company.name }}{% endblock %}
+{% block heading %}{% if order.is_paid %}شكراً لتبرعك{% else %}حالة التبرع{% endif %}{% endblock %}
+{% block store_content %}
+{% if order %}
+<div class="panel">
+  {% if order.status == "paid" %}
+    <p class="status-big" style="color:var(--brand)">تم استلام تبرعك بنجاح ✓</p>
+    {% if store.thank_you_message %}<p>{{ store.thank_you_message|linebreaksbr }}</p>{% endif %}
+  {% elif order.status == "failed" %}
+    <p class="status-big" style="color:#b42318">لم تكتمل عملية الدفع</p>
+    {% if order.failure_reason %}<p class="muted">{{ order.failure_reason }}</p>{% endif %}
+    <div class="actions-row"><a class="btn-brand" href="{% site_url 'store_pay' order.number %}">إعادة المحاولة</a></div>
+  {% else %}
+    <p class="status-big">بانتظار تأكيد الدفع</p>
+    <p class="muted">لم يصلنا تأكيد الدفع بعد. إن أتممت الدفع فسيُحدَّث الطلب خلال لحظات.</p>
+    <div class="actions-row"><a class="btn-outline" href="?check=1">تحديث الحالة</a><a class="btn-brand" href="{% site_url 'store_pay' order.number %}">إتمام الدفع</a></div>
+  {% endif %}
+  <table class="plain" style="margin-top:14px">
+    <tr><th>رقم الطلب</th><td>{{ order.number }}</td></tr>
+    <tr><th>المتبرع</th><td>{{ order.display_name }}</td></tr>
+    {% for line in lines %}<tr><th>{{ line.opportunity.title }}</th><td class="num">{{ line.amount|floatformat:"-2g" }} ريال{% if line.opportunity.fixed_amount %} ({{ line.quantity }} سهم){% endif %}</td></tr>{% endfor %}
+    <tr class="total-row"><th>الإجمالي</th><td class="num">{{ order.total|floatformat:"-2g" }} ريال</td></tr>
+    {% if order.payment_method %}<tr><th>وسيلة الدفع</th><td>{{ order.payment_method }}</td></tr>{% endif %}
+    {% if order.gift_to_name %}<tr><th>إهداء إلى</th><td>{{ order.gift_to_name }}</td></tr>{% endif %}
+    {% if order.recurring_id %}<tr><th>تبرع شهري</th><td>يُخصم شهرياً — يمكنك إيقافه من «تبرعاتي»</td></tr>{% endif %}
+  </table>
+  {% if order.status == "paid" %}<div class="actions-row"><a class="btn-brand" href="{% site_url 'store_certificate' order.number %}" target="_blank">شهادة الشكر</a><a class="btn-outline" href="{% site_url 'store_home' %}">تبرع مرة أخرى</a></div>{% endif %}
+</div>
+{% else %}
+<div class="notice">{% if pending %}لم نتمكن من التحقق من عملية الدفع الآن، وسيصلك إشعار عند تأكيدها.{% else %}شكراً لزيارتك. تفاصيل الطلب متاحة لصاحبه فقط — ادخل إلى <a href="{% site_url 'store_account' %}">تبرعاتي</a> برقم جوالك.{% endif %}</div>
+{% endif %}
+{% endblock %}

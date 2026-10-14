@@ -1,0 +1,6 @@
+{% load erp %}
+<div class="card"><h3>عمليات الخصم</h3>
+<p class="muted small">البطاقة: <span dir="ltr">{{ obj.card_label|default:"—" }}</span> · محاولات فاشلة متتالية: {{ obj.failures }}</p>
+<div class="table-wrap"><table class="table"><thead><tr><th>الطلب</th><th>التاريخ</th><th class="num">المبلغ</th><th>الحالة</th></tr></thead><tbody>
+{% for o in obj.orders.all|slice:":24" %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a></td><td>{{ o.created_at|date:"Y-m-d" }}</td><td class="num">{{ o.total|money }}</td><td>{{ o.get_status_display }}{% if o.failure_reason %} — {{ o.failure_reason }}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لا توجد عمليات</td></tr>{% endfor %}</tbody></table></div></div>

@@ -1,0 +1,7 @@
+<div class="card">
+  <div class="card-head"><h3>صور الألبوم ({{ obj.photos.count }})</h3><span><a class="btn btn-sm btn-primary" href="{% url 'website_album_photos' obj.pk %}">رفع / إدارة الصور</a></span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+  {% for photo in obj.photos.all %}<img src="{{ photo.image }}" alt="{{ photo.caption }}" title="{{ photo.caption }}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px">
+  {% empty %}<p class="muted">لا صور بعد — <a href="{% url 'website_album_photos' obj.pk %}">ارفع صور الألبوم</a>.</p>{% endfor %}
+  </div>
+</div>

@@ -2,13 +2,15 @@
 {% block title %}الدفع | {{ request.site.company.name }}{% endblock %}
 {% block heading %}الدفع الآمن{% endblock %}
 {% block store_head %}<link rel="stylesheet" href="{{ css_url }}"><script src="{{ js_url }}"></script>{% endblock %}
+{% block crumb %} / الدفع{% endblock %}
 {% block store_content %}
+{% include "store/site/_steps.html" with step=3 %}
 <div class="mysr-wrap panel">
   <p>طلب رقم <strong>{{ order.number }}</strong> · المبلغ <strong>{{ order.total|floatformat:"-2g" }} ريال</strong>{% if order.is_monthly %} شهرياً{% endif %}</p>
   {% if order.status == "failed" %}<div class="notice err">لم تكتمل محاولة الدفع السابقة{% if order.failure_reason %}: {{ order.failure_reason }}{% endif %}. يمكنك المحاولة مرة أخرى.</div>{% endif %}
   {% if order.is_monthly %}<p class="muted" style="font-size:14px">ستُحفظ بطاقتك بشكل آمن لدى ميسّر لخصم المبلغ شهرياً، ويمكنك الإيقاف في أي وقت من صفحة «تبرعاتي».</p>{% endif %}
   <div class="mysr-form"></div>
-  <p class="secure">🔒 بيانات البطاقة تُدخل مباشرة لدى ميسّر ولا تمر بخوادم الجمعية.{% if store.mode == "test" %} <strong>(وضع تجريبي)</strong>{% endif %}</p>
+  <p class="secure">بيانات البطاقة تُدخل مباشرة لدى ميسّر ولا تمر بخوادم الجمعية.{% if store.mode == "test" %} <strong>(وضع تجريبي)</strong>{% endif %}</p>
 </div>
 {{ config|json_script:"mysr-config" }}
 <script>

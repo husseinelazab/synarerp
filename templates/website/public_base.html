@@ -88,6 +88,7 @@
         </div>
       </div>
       <a class="nav-link" href="{% site_url 'site_contact' %}">تواصل معنا</a>
+      {% cart_count as cart_n %}<a class="nav-cart" href="{% site_url 'store_cart' %}" aria-label="سلة التبرعات{% if cart_n %} ({{ cart_n }}){% endif %}" title="سلة التبرعات"><i class="i" data-i="cart"></i>{% if cart_n %}<span class="badge-count">{{ cart_n }}</span>{% endif %}<span class="nav-cart-label">سلة التبرعات</span></a>
       <a class="nav-donate" href="{% site_url 'store_home' %}"><i class="i" data-i="heart"></i> تبرع الآن</a>
     </nav>
   </div>

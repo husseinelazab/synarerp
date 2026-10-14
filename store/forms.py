@@ -56,7 +56,7 @@ class StoreSettingsForm(forms.ModelForm):
     class Meta:
         model = StoreSettings
         fields = ["enabled", "mode", "publishable_key", "secret_key", "webhook_secret", "clearing_account",
-                  "suggested_amounts", "thank_you_message", "allow_recurring"]
+                  "suggested_amounts", "thank_you_message", "allow_recurring", "gold_gram_price"]
         widgets = {"thank_you_message": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, **kwargs):

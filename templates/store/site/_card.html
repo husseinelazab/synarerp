@@ -1,0 +1,44 @@
+{% load site %}<article class="op-card{% if o.completed %} done{% endif %}">
+  <a class="op-media" href="{% site_url 'store_opportunity' o.pk %}" tabindex="-1" aria-hidden="true">
+    {% if o.image %}<img src="{{ o.image }}" alt="" loading="lazy">{% else %}<span class="op-ph"><i class="i" data-i="{{ o.icon }}"></i></span>{% endif %}
+    <span class="op-kind"><i class="i" data-i="{{ o.icon }}"></i>{{ o.get_kind_display }}</span>
+    {% if o.completed %}<span class="op-flag ok">اكتمل المستهدف</span>{% elif o.days_left is not None and o.days_left <= 14 %}<span class="op-flag">{% if o.days_left == 0 %}ينتهي اليوم{% else %}باقٍ {{ o.days_left }} يوم{% endif %}</span>{% endif %}
+  </a>
+  <div class="op-body">
+    <h3><a href="{% site_url 'store_opportunity' o.pk %}">{{ o.title }}</a></h3>
+    {% if o.description %}<p class="op-desc">{{ o.description|truncatewords:16 }}</p>{% endif %}
+    {% if o.target_amount %}
+      <div class="progress" role="progressbar" aria-label="نسبة الإنجاز" aria-valuenow="{{ o.percent }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ o.percent }}%"></i></div>
+      <div class="op-stats">
+        <span><small>المحصّل</small><b>{{ o.raised|floatformat:"0g" }}</b></span>
+        <span><small>المتبقي</small><b>{{ o.remaining|floatformat:"0g" }}</b></span>
+        <span class="pct">{{ o.percent }}%</span>
+      </div>
+    {% else %}
+      <div class="op-stats">
+        {% if o.fixed_amount %}<span><small>قيمة {% if o.kind == "sponsorship" %}الكفالة{% else %}السهم{% endif %}</small><b>{{ o.fixed_amount|floatformat:"0g" }} ريال</b></span>{% endif %}
+        <span><small>المحصّل</small><b>{{ o.raised|floatformat:"0g" }}</b></span>
+      </div>
+    {% endif %}
+    <div class="op-donors"><i class="i" data-i="people"></i>{% if o.donors %}{{ o.donors }} عملية تبرع{% else %}كن أول المتبرعين{% endif %}</div>
+    {% if o.completed %}
+      <a class="btn-outline op-cta" href="{% site_url 'store_opportunity' o.pk %}">تفاصيل الفرصة</a>
+    {% elif store_ready %}
+      <form class="op-quick" method="post" action="{% site_url 'store_opportunity' o.pk %}">{% csrf_token %}
+        <input type="hidden" name="website" value="">
+        {% if o.fixed_amount %}
+          <input type="hidden" name="quantity" value="1">
+        {% else %}
+          <div class="op-amounts">{% for a in amounts %}<input type="radio" name="amount" id="a{{ o.pk }}-{{ a }}" value="{{ a }}"{% if forloop.counter == 2 %} checked{% endif %}><label for="a{{ o.pk }}-{{ a }}">{{ a }}</label>{% endfor %}
+          {% if o.allow_custom_amount %}<input class="op-custom" type="number" name="custom_amount" min="1" step="1" inputmode="numeric" placeholder="مبلغ آخر" aria-label="مبلغ آخر">{% endif %}</div>
+        {% endif %}
+        <div class="op-actions">
+          <button class="btn-brand" name="now" value="1">{% if o.fixed_amount %}{% if o.kind == "sponsorship" %}اكفل الآن{% else %}سهم بـ {{ o.fixed_amount|floatformat:"-2g" }} ريال{% endif %}{% else %}تبرع الآن{% endif %}</button>
+          <button class="icon-btn" aria-label="أضف للسلة" title="أضف للسلة"><i class="i" data-i="cart"></i></button>
+        </div>
+      </form>
+    {% else %}
+      <a class="btn-outline op-cta" href="{% site_url 'store_opportunity' o.pk %}">تفاصيل الفرصة</a>
+    {% endif %}
+  </div>
+</article>

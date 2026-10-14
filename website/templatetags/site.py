@@ -25,3 +25,14 @@ def bank_line(line):
     raw = re.sub(r"\s", "", match.group()).upper()
     bank = (line[:match.start()] + line[match.end():]).strip(" -–—:|")
     return {"bank": bank, "iban": " ".join(raw[i:i + 4] for i in range(0, len(raw), 4)), "iban_raw": raw}
+
+
+@register.simple_tag(takes_context=True)
+def cart_count(context):
+    """عدد فرص التبرع في سلة الزائر لرأس الموقع (السلة في الجلسة لكل جمعية)."""
+    request = context["request"]
+    site = getattr(request, "site", None)
+    session = getattr(request, "session", None)
+    if site is None or session is None:
+        return 0
+    return len(session.get(f"store_cart_{site.company_id}", []))

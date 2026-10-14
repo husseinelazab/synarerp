@@ -1,13 +1,30 @@
 {% extends "website/public_base.html" %}{% load static site %}
 {% block head %}<link rel="stylesheet" href="{% static 'css/store.css' %}">{% block store_head %}{% endblock %}{% endblock %}
-{% block content %}<section class="page"><div class="wrap">
-  <div class="store-head">
+{% block content %}
+<section class="page-hero store-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="{% site_url 'site_home' %}">الرئيسية</a> / <a href="{% site_url 'store_home' %}">متجر التبرعات</a>{% block crumb %}{% endblock %}</div>
     <h1>{% block heading %}تبرع الآن{% endblock %}</h1>
-    <nav class="store-links" aria-label="المتجر">
-      <a href="{% site_url 'store_home' %}">فرص التبرع</a>
-      <a href="{% site_url 'store_cart' %}">سلة التبرعات{% if cart_count %}<span class="badge-count">{{ cart_count }}</span>{% endif %}</a>
-      <a href="{% site_url 'store_account' %}">تبرعاتي</a>
-    </nav>
+    {% block hero_extra %}{% endblock %}
   </div>
+</section>
+<nav class="store-bar" aria-label="المتجر">
+  <div class="wrap store-bar-row">
+    <a href="{% site_url 'store_home' %}" class="{% if request.resolver_match.url_name == 'store_home' %}on{% endif %}"><i class="i" data-i="heart"></i>فرص التبرع</a>
+    <a href="{% site_url 'store_zakat' %}" class="{% if request.resolver_match.url_name == 'store_zakat' %}on{% endif %}"><i class="i" data-i="money"></i>حاسبة الزكاة</a>
+    <a href="{% site_url 'store_account' %}" class="{% if request.resolver_match.url_name == 'store_account' %}on{% endif %}"><i class="i" data-i="user"></i>تبرعاتي</a>
+    <a href="{% site_url 'store_cart' %}" class="cart-link{% if request.resolver_match.url_name == 'store_cart' %} on{% endif %}"><i class="i" data-i="cart"></i>سلة التبرعات{% if cart_count %}<span class="badge-count">{{ cart_count }}</span>{% endif %}</a>
+  </div>
+</nav>
+<section class="page store-page"><div class="wrap">
   {% block store_content %}{% endblock %}
-</div></section>{% endblock %}
+</div></section>
+<section class="trust-strip">
+  <div class="wrap trust-row">
+    <div class="trust-item"><i class="i" data-i="verify"></i><span><strong>دفع آمن</strong><small>عبر بوابة ميسّر المرخصة من البنك المركزي</small></span></div>
+    {% if request.site.fundraising_license_number %}<div class="trust-item"><i class="i" data-i="doc"></i><span><strong>جمع تبرعات مرخص</strong><small>ترخيص رقم <bdi>{{ request.site.fundraising_license_number }}</bdi></small></span></div>{% endif %}
+    <div class="trust-item"><i class="i" data-i="check"></i><span><strong>سند وشهادة شكر</strong><small>لكل تبرع فور اكتماله</small></span></div>
+    <div class="pay-logos" aria-label="وسائل الدفع"><span>مدى</span><span>VISA</span><span>Mastercard</span><span>Apple Pay</span><span>STC Pay</span></div>
+  </div>
+</section>
+{% endblock %}

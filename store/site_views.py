@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from django.conf import settings as django_settings
 from django.db import transaction
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -16,7 +17,7 @@ from store import moyasar
 from store.forms import CheckoutForm, CodeForm, HoneypotForm, PhoneForm
 from store.models import (DonationOrder, DonationOrderLine, DonorLogin, Marketer,
                           OpportunityKind, OrderStatus, RecurringDonation, StoreSettings)
-from store.public import attach_raised, open_opportunities
+from store.public import attach_raised, open_opportunities, recent_donations, store_stats
 from store.service import fetch_and_finalize, finalize, phone_variants, to_decimal
 from website.ratelimit import LIMIT_MESSAGE, too_many
 from website.site import site_url, site_view
@@ -119,23 +120,53 @@ def _line_amount(request, opportunity, data):
 
 # ─────────────────────────── الصفحات ───────────────────────────
 
+# أيقونة كل نوع فرصة في المتجر
+KIND_ICONS = {"general": "heart", "zakat": "money", "project": "box", "case": "hand", "sponsorship": "family",
+              "waqf": "home", "restricted": "target"}
+SORTS = [("", "الأحدث"), ("near", "الأقرب للاكتمال"), ("popular", "الأكثر تبرعاً")]
+
+
+def _decorate(opportunities):
+    today = timezone.localdate()
+    for o in opportunities:
+        o.icon = KIND_ICONS.get(o.kind, "heart")
+        o.completed = bool(o.target_amount and o.raised >= flt(o.target_amount))
+        o.days_left = (o.end_date - today).days if o.end_date else None
+    return opportunities
+
+
 @store_page
 def store_home(request):
     kind = request.GET.get("kind", "")
+    query = (request.GET.get("q") or "").strip()[:80]
+    sort = request.GET.get("sort", "")
     qs = open_opportunities()
-    kinds = [(value, label) for value, label in OpportunityKind.choices if qs.filter(kind=value).exists()]
+    kinds = [(value, label, KIND_ICONS[value]) for value, label in OpportunityKind.choices
+             if qs.filter(kind=value).exists()]
     if kind in dict(OpportunityKind.choices):
         qs = qs.filter(kind=kind)
     else:
         kind = ""
+    if query:
+        qs = qs.filter(Q(title__icontains=query) | Q(description__icontains=query))
+    opportunities = _decorate(attach_raised(qs))
+    if sort == "near":
+        opportunities.sort(key=lambda o: -o.percent if o.target_amount else 1)
+    elif sort == "popular":
+        opportunities.sort(key=lambda o: -o.donors)
+    else:
+        sort = ""
+    opportunities.sort(key=lambda o: o.completed)  # المكتملة في الآخر
     return render(request, "store/site/home.html", _base(
-        request, opportunities=attach_raised(qs), kinds=kinds, kind=kind, amounts=request.store.amounts[:4]))
+        request, opportunities=opportunities, kinds=kinds, kind=kind, query=query, sort=sort, sorts=SORTS,
+        stats=store_stats(), amounts=request.store.amounts[:4],
+        zakat=open_opportunities().filter(kind=OpportunityKind.ZAKAT, fixed_amount__isnull=True).first()))
 
 
 @store_page
 def store_opportunity(request, pk):
     opportunity = get_object_or_404(open_opportunities(), pk=pk)
-    attach_raised([opportunity])
+    _decorate(attach_raised([opportunity]))
     error = ""
     if request.method == "POST":
         if not request.store_ready:
@@ -143,16 +174,34 @@ def store_opportunity(request, pk):
         form = HoneypotForm(request.POST)
         if form.is_valid() and form.cleaned_data["website"]:
             return redirect(site_url(request, "store_home"))
-        qty, amount, error = _line_amount(request, opportunity, request.POST)
+        if opportunity.completed:
+            error = "اكتمل المبلغ المستهدف لهذه الفرصة، جزاكم الله خيراً. تصفح فرص التبرع الأخرى."
+        else:
+            qty, amount, error = _line_amount(request, opportunity, request.POST)
         if not error:
             cart = [c for c in _cart(request) if c["op"] != opportunity.pk]
             cart.append({"op": opportunity.pk, "qty": qty, "amount": str(amount)})
             _save_cart(request, cart)
             target = "store_checkout" if request.POST.get("now") else "store_cart"
             return redirect(site_url(request, target))
+    related = _decorate(attach_raised(open_opportunities().exclude(pk=opportunity.pk).filter(
+        kind=opportunity.kind)[:3])) or _decorate(attach_raised(open_opportunities().exclude(pk=opportunity.pk)[:3]))
     return render(request, "store/site/opportunity.html", _base(
         request, o=opportunity, error=error, amounts=request.store.amounts,
-        selected=request.POST.get("amount") or request.GET.get("amount", "")))
+        selected=request.POST.get("amount") or request.GET.get("amount", ""),
+        custom=request.POST.get("custom_amount") or ("" if request.GET.get("amount", "") in
+                                                       [str(a) for a in request.store.amounts]
+                                                       else request.GET.get("amount", "")),
+        recent=recent_donations(opportunity), related=[o for o in related if not o.completed],
+        share_url=request.build_absolute_uri(site_url(request, "store_opportunity", opportunity.pk))))
+
+
+@store_page
+def store_zakat(request):
+    """حاسبة الزكاة: تُحسب في المتصفح، ثم يُدفع المبلغ لفرصة الزكاة مباشرة."""
+    zakat = open_opportunities().filter(kind=OpportunityKind.ZAKAT, fixed_amount__isnull=True).first()
+    return render(request, "store/site/zakat.html", _base(
+        request, zakat=zakat, gold_price=request.store.gold_gram_price))
 
 
 @store_page
@@ -277,8 +326,10 @@ def store_thanks(request, number):
             order, _ = fetch_and_finalize(order, order.payment_id)
         except moyasar.MoyasarError:
             pass
-    return render(request, "store/site/thanks.html", _base(request, order=order, lines=order.lines.select_related(
-        "opportunity")))
+    return render(request, "store/site/thanks.html", _base(
+        request, order=order, lines=order.lines.select_related("opportunity"),
+        share_url=request.build_absolute_uri(site_url(request, "store_home")),
+        share_text=f"تبرعت اليوم لدى {request.site.company.name}، شاركني الأجر:"))
 
 
 @store_page

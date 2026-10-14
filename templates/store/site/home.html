@@ -1,36 +1,47 @@
 {% extends "store/site/_base.html" %}{% load site %}
-{% block title %}تبرع الآن | {{ request.site.company.name }}{% endblock %}
+{% block title %}متجر التبرعات | {{ request.site.company.name }}{% endblock %}
 {% block description %}فرص التبرع لدى {{ request.site.company.name }}: تبرع إلكترونياً بأمان عبر مدى وApple Pay وSTC Pay.{% endblock %}
+{% block heading %}متجر التبرعات{% endblock %}
+{% block hero_extra %}
+<p>اختر الفرصة وتبرع في أقل من دقيقة. تبرعك يصل لمستحقيه وتصلك شهادة الشكر فوراً.</p>
+<form class="store-search" method="get" role="search">
+  {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+  <i class="i" data-i="search"></i>
+  <input type="search" name="q" value="{{ query }}" placeholder="ابحث عن فرصة تبرع" aria-label="ابحث عن فرصة تبرع">
+  <button class="btn-light" type="submit">بحث</button>
+</form>
+{% if stats.orders %}<div class="store-stats">
+  <span><b>{{ stats.raised|floatformat:"0g" }}</b> ريال تبرعات</span>
+  <span><b>{{ stats.orders }}</b> عملية تبرع</span>
+  <span><b>{{ stats.donors }}</b> متبرع</span>
+</div>{% endif %}
+{% endblock %}
 {% block store_content %}
 {% if not store_ready %}{% include "store/site/_unavailable_notice.html" %}<br>{% endif %}
-{% if kinds|length > 1 %}<nav class="tabs" aria-label="تصفية حسب النوع">
-  <a href="{% site_url 'store_home' %}" class="{% if not kind %}active{% endif %}">الكل</a>
-  {% for value, label in kinds %}<a href="{% site_url 'store_home' %}?kind={{ value }}" class="{% if kind == value %}active{% endif %}">{{ label }}</a>{% endfor %}
-</nav>{% endif %}
-<div class="cards">
-{% for o in opportunities %}
-  <article class="card">
-    <a href="{% site_url 'store_opportunity' o.pk %}">{% if o.image %}<img class="cover" src="{{ o.image }}" alt="{{ o.title }}" loading="lazy">{% else %}<div class="cover-ph" aria-hidden="true">♥</div>{% endif %}</a>
-    <div class="card-body">
-      <span class="kind-tag">{{ o.get_kind_display }}</span>
-      <h3><a href="{% site_url 'store_opportunity' o.pk %}">{{ o.title }}</a></h3>
-      {% if o.description %}<p class="muted">{{ o.description|truncatewords:18 }}</p>{% endif %}
-      {% if o.target_amount %}
-      <div class="progress" role="progressbar" aria-valuenow="{{ o.percent }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ o.percent }}%"></i></div>
-      <div class="raised"><span>تم جمع <b>{{ o.raised|floatformat:"-2g" }}</b> ريال</span><span>{{ o.percent }}% من {{ o.target_amount|floatformat:"-2g" }}</span></div>
-      {% elif o.raised %}<div class="raised"><span>تم جمع <b>{{ o.raised|floatformat:"-2g" }}</b> ريال</span></div>{% endif %}
-      {% if store_ready %}<div class="quick">
-        {% if o.fixed_amount %}
-          <form method="post" action="{% site_url 'store_opportunity' o.pk %}">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="quantity" value="1"><input type="hidden" name="now" value="1"><button>سهم بـ {{ o.fixed_amount|floatformat:"-2g" }} ريال</button></form>
-        {% else %}
-          {% for a in amounts %}<form method="post" action="{% site_url 'store_opportunity' o.pk %}">{% csrf_token %}<input type="hidden" name="website" value=""><input type="hidden" name="amount" value="{{ a }}"><input type="hidden" name="now" value="1"><button aria-label="تبرع بـ {{ a }} ريال">{{ a }}</button></form>{% endfor %}
-        {% endif %}
-        <a class="btn-brand" href="{% site_url 'store_opportunity' o.pk %}">تبرع</a>
-      </div>{% endif %}
-    </div>
-  </article>
-{% empty %}
-  <p class="muted">لا توجد فرص تبرع منشورة حالياً.</p>
+
+<div class="store-tools">
+  {% if kinds|length > 1 %}<nav class="kind-chips" aria-label="تصفية حسب النوع">
+    <a href="{% site_url 'store_home' %}{% if query %}?q={{ query|urlencode }}{% endif %}" class="{% if not kind %}on{% endif %}"><i class="i" data-i="star"></i>الكل</a>
+    {% for value, label, icon in kinds %}<a href="{% site_url 'store_home' %}?kind={{ value }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="{% if kind == value %}on{% endif %}"><i class="i" data-i="{{ icon }}"></i>{{ label }}</a>{% endfor %}
+  </nav>{% endif %}
+  <form method="get" class="sort-form">
+    {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}{% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+    <label for="sort">ترتيب</label>
+    <select id="sort" name="sort" onchange="this.form.submit()">{% for value, label in sorts %}<option value="{{ value }}"{% if sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <noscript><button class="btn-outline">تطبيق</button></noscript>
+  </form>
+</div>
+
+{% if zakat and not kind and not query %}<a class="zakat-banner" href="{% site_url 'store_zakat' %}">
+  <span class="zb-icon"><i class="i" data-i="calc"></i></span>
+  <span><strong>احسب زكاتك وأخرجها في دقيقة</strong><small>حاسبة الزكاة للنقود والذهب والفضة والأسهم وعروض التجارة</small></span>
+  <span class="btn-light">حاسبة الزكاة</span>
+</a>{% endif %}
+
+{% if query %}<p class="muted">نتائج البحث عن «{{ query }}»: {{ opportunities|length }} فرصة</p>{% endif %}
+<div class="op-grid">
+{% for o in opportunities %}{% include "store/site/_card.html" %}
+{% empty %}<div class="notice">لا توجد فرص تبرع مطابقة. <a href="{% site_url 'store_home' %}">عرض كل الفرص</a></div>
 {% endfor %}
 </div>
 {% endblock %}

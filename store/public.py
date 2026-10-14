@@ -14,15 +14,40 @@ def open_opportunities():
 
 
 def attach_raised(opportunities):
-    """يحسب المحصّل لكل الفرص باستعلام واحد."""
+    """يحسب المحصّل وعدد المتبرعين لكل الفرص باستعلام واحد."""
+    from django.db.models import Count
+
     from store.models import DonationOrderLine, OrderStatus
 
     opportunities = list(opportunities)
-    totals = dict(DonationOrderLine.objects.filter(opportunity__in=opportunities, order__status=OrderStatus.PAID)
-                  .values("opportunity").annotate(t=Sum("amount")).values_list("opportunity", "t"))
+    rows = (DonationOrderLine.objects.filter(opportunity__in=opportunities, order__status=OrderStatus.PAID)
+            .values("opportunity").annotate(t=Sum("amount"), n=Count("order", distinct=True)))
+    totals = {row["opportunity"]: row for row in rows}
     for opportunity in opportunities:
-        opportunity._raised = flt(totals.get(opportunity.pk))
+        row = totals.get(opportunity.pk) or {}
+        opportunity._raised = flt(row.get("t"))
+        opportunity.donors = row.get("n", 0)
     return opportunities
+
+
+def store_stats():
+    """أرقام المتجر للواجهة: إجمالي المحصّل وعدد عمليات التبرع وعدد المتبرعين."""
+    from django.db.models import Count
+
+    from store.models import DonationOrder, OrderStatus
+
+    paid = DonationOrder.objects.filter(status=OrderStatus.PAID)
+    totals = paid.aggregate(t=Sum("total"), n=Count("id"), d=Count("donor_phone", distinct=True))
+    return {"raised": flt(totals["t"]), "orders": totals["n"], "donors": totals["d"]}
+
+
+def recent_donations(opportunity, limit=8):
+    """آخر التبرعات المدفوعة لفرصة (المبلغ والوقت فقط، دون أسماء المتبرعين)."""
+    from store.models import DonationOrderLine, OrderStatus
+
+    return list(DonationOrderLine.objects.filter(opportunity=opportunity, order__status=OrderStatus.PAID)
+                .select_related("order").only("amount", "quantity", "order__paid_at", "order__is_monthly")
+                .order_by("-order__paid_at", "-id")[:limit])
 
 
 def featured_opportunities(limit=6):

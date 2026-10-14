@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% if plan %} — {{ plan.title }}{% endif %}{% endblock %}{% block heading %}{{ title }}{% if plan %}: {{ plan.title }}{% endif %}{% endblock %}
+{% block content %}{% include "excellence/_styles.html" %}
+{% if not plan %}
+<div class="card"><p class="muted">لا توجد خطة استراتيجية بعد. <a href="{% url 'doc_new' 'strategic-plan' %}">أنشئ الخطة</a> لإصدار تقرير الأداء.</p></div>
+{% else %}
+<form method="get" class="filters card no-print">
+  {% if plans|length > 1 %}<label>الخطة <select name="plan" class="form-select">{% for p in plans %}<option value="{{ p.pk }}" {% if p.pk == plan.pk %}selected{% endif %}>{{ p }} ({{ p.get_status_display }})</option>{% endfor %}</select></label>
+  <button class="btn">عرض</button>{% endif %}
+  <button type="button" class="btn btn-primary" onclick="window.print()">طباعة</button>
+</form>
+<div class="card">
+  <h3>الخطة الاستراتيجية {{ plan.start_year }}–{{ plan.end_year }} <span class="muted small">({{ plan.get_status_display }})</span></h3>
+  {% if plan.vision %}<p class="ex-statement"><strong>الرؤية</strong>{{ plan.vision }}</p>{% endif %}
+  {% if plan.mission %}<p class="ex-statement"><strong>الرسالة</strong>{{ plan.mission }}</p>{% endif %}
+  {% if plan.values_list %}<ul class="ex-values">{% for v in plan.values_list %}<li>{{ v }}</li>{% endfor %}</ul>{% endif %}
+</div>
+<div class="kpi-row">
+  <div class="card kpi-card"><div class="kpi-label">التقدم العام للخطة</div><div class="kpi-value">{{ plan_progress|floatformat:"-1" }}%</div></div>
+  <div class="card kpi-card"><div class="kpi-label">المبادرات</div><div class="kpi-value">{{ initiatives_count }}</div><div class="kpi-foot">مكتملة {{ completed_count }} · متأخرة {{ delayed_count }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">مؤشرات على المسار</div><div class="kpi-value">{{ kpi_summary.on_target_percent }}%</div><div class="kpi-foot">{{ kpi_summary.counts.green }} أخضر · {{ kpi_summary.counts.yellow }} أصفر · {{ kpi_summary.counts.red }} أحمر · {{ kpi_summary.counts.grey }} بلا قراءة</div></div>
+  <div class="card kpi-card"><div class="kpi-label">ميزانية المبادرات</div><div class="kpi-value">{{ budget|money }}</div><div class="kpi-foot">المنصرف فعلياً {{ actual_cost|money }}</div></div>
+</div>
+
+<div class="card"><h3>مواءمة الأهداف مع رؤية المملكة 2030 وأهداف التنمية المستدامة</h3>
+<div class="table-wrap"><table class="table"><thead><tr><th>الرمز</th><th>الهدف الاستراتيجي</th><th>محور رؤية 2030</th><th>هدف التنمية المستدامة</th><th class="num">الوزن</th><th class="num">التقدم</th></tr></thead><tbody>
+{% for g in goals %}<tr><td>{{ g.code }}</td><td>{{ g.title }}</td><td>{{ g.get_vision2030_pillar_display|default:"—" }}</td><td>{{ g.get_sdg_display|default:"—" }}</td><td class="num">{{ g.effective_weight|floatformat:"-2" }}%</td><td class="num">{{ g.progress|floatformat:"-1" }}%</td></tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا أهداف</td></tr>{% endfor %}</tbody></table></div>
+<div class="grid-2" style="margin-top:14px">
+  <div><h4>حسب محاور رؤية 2030</h4><table class="table"><tbody>
+  {% for p in pillars %}<tr><th>{{ p.label }}</th><td>{% for g in p.goals %}{{ g.code }}{% if not forloop.last %}، {% endif %}{% empty %}<span class="muted">—</span>{% endfor %}</td><td class="num">{{ p.goals|length }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div><h4>حسب أهداف التنمية المستدامة</h4><table class="table"><tbody>
+  {% for s in sdgs %}<tr><th>{{ s.label }}</th><td>{% for g in s.goals %}{{ g.code }}{% if not forloop.last %}، {% endif %}{% endfor %}</td><td class="num">{{ s.goals|length }}</td></tr>
+  {% empty %}<tr><td class="muted center">لم تُربط الأهداف بأهداف التنمية المستدامة</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% if unmapped %}<p class="muted small">أهداف غير مربوطة بأي إطار: {% for g in unmapped %}{{ g.code }}{% if not forloop.last %}، {% endif %}{% endfor %}</p>{% endif %}
+</div>
+
+{% for g in goals %}
+<div class="card">
+  <h3>{{ g.code }} — {{ g.title }}</h3>
+  <p class="muted small">الوزن {{ g.effective_weight|floatformat:"-2" }}%{% if g.vision2030_pillar %} · رؤية 2030: {{ g.get_vision2030_pillar_display }}{% endif %}{% if g.sdg %} · التنمية المستدامة: {{ g.get_sdg_display }}{% endif %}{% if g.owner %} · المسؤول: {{ g.owner.get_full_name|default:g.owner }}{% endif %}</p>
+  {% if g.description %}<p>{{ g.description|linebreaksbr }}</p>{% endif %}
+  <div style="max-width:420px;margin-bottom:10px">{% include "excellence/_bar.html" with value=g.progress %}</div>
+  <h4>المبادرات والمشاريع</h4>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المبادرة</th><th>المسؤول</th><th>المدة</th><th class="num">الميزانية</th><th class="num">التكلفة الفعلية</th><th class="num">الإنجاز</th><th>الحالة</th></tr></thead><tbody>
+  {% for i in g.initiatives.all %}<tr{% if i.is_delayed %} class="row-loss"{% endif %}><td>{{ i.title }}</td><td>{{ i.owner.get_full_name|default:i.owner|default:"—" }}</td><td>{{ i.start_date|date:"Y-m-d" }} – {{ i.end_date|date:"Y-m-d" }}</td>
+  <td class="num">{{ i.budget|money }}</td><td class="num">{{ i.actual_cost|money }}</td><td class="num">{{ i.progress }}%</td><td>{{ i.get_status_display }}{% if i.is_delayed and i.status != "delayed" %} (متأخرة){% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted center">لا مبادرات</td></tr>{% endfor %}</tbody></table></div>
+  <h4>مؤشرات الأداء</h4>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المؤشر</th><th class="num">خط الأساس</th><th class="num">المستهدف</th><th class="num">آخر قيمة</th><th class="num">التحقق</th><th>الحالة</th></tr></thead><tbody>
+  {% for k in g.kpis.all %}{% with r=k.latest_reading %}<tr><td>{{ k.name }} <span class="muted small">({{ k.get_unit_display }}، {{ k.get_direction_display }})</span></td>
+  <td class="num">{{ k.baseline|floatformat:"-2"|default:"—" }}</td><td class="num">{{ k.target|floatformat:"-2" }}</td>
+  <td class="num">{% if r %}{{ r.value|floatformat:"-2" }} <span class="muted small">{{ r.period_end|date:"Y-m-d" }}</span>{% else %}—{% endif %}</td>
+  <td class="num">{% if k.achievement is not None %}{{ k.achievement|floatformat:"-1" }}%{% else %}—{% endif %}</td><td>{% include "excellence/_light.html" with kpi=k %}</td></tr>{% endwith %}
+  {% empty %}<tr><td colspan="6" class="muted center">لا مؤشرات</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

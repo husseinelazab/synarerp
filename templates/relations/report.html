@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% include "reports/_period.html" %}
+<p class="muted small">الفترة من {{ from_date|date:"Y-m-d" }} إلى {{ to_date|date:"Y-m-d" }}</p>
+<div class="kpi-row">
+  <div class="card kpi-card"><span class="kpi-label">الفعاليات المنفذة</span><span class="kpi-value">{{ events|length }}</span><span class="kpi-foot">{{ event_attendees }} حاضر</span></div>
+  <div class="card kpi-card"><span class="kpi-label">الزيارات المنفذة</span><span class="kpi-value">{{ visits|length }}</span><span class="kpi-foot">{{ incoming_visits }} واردة · {{ outgoing_visits }} صادرة</span></div>
+  <div class="card kpi-card"><span class="kpi-label">الشراكات الموقعة</span><span class="kpi-value">{{ partnerships|length }}</span><span class="kpi-foot">بقيمة {{ partnerships_value|money }}</span></div>
+  <div class="card kpi-card"><span class="kpi-label">التغطيات الإعلامية</span><span class="kpi-value">{{ coverage_count }}</span><span class="kpi-foot">وصول {{ coverage_reach }}</span></div>
+</div>
+<div class="card"><h3>الفعاليات والحملات المنفذة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>التاريخ</th><th>العنوان</th><th>النوع</th><th>المكان</th><th class="num">الحضور</th><th class="num">الميزانية</th><th class="num">التكلفة الفعلية</th></tr></thead><tbody>
+{% for e in events %}<tr><td>{{ e.start_date|date:"Y-m-d" }}</td><td><a href="{{ e.get_absolute_url }}">{{ e }}</a></td><td>{{ e.get_event_type_display }}</td><td>{{ e.location }}</td><td class="num">{{ e.actual_attendees|default:0 }}</td><td class="num">{{ e.budget|money }}</td><td class="num">{{ e.actual_cost|money }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted center">لا فعاليات منفذة في الفترة</td></tr>{% endfor %}</tbody>
+<tfoot><tr><th colspan="4">الإجمالي ({{ events|length }})</th><th class="num">{{ event_attendees }}</th><th class="num">{{ event_budget|money }}</th><th class="num">{{ event_cost|money }}</th></tr></tfoot>
+</table></div></div>
+<div class="card"><h3>الزيارات</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>التاريخ</th><th>النوع</th><th>الجهة</th><th>الغرض</th><th>المخرجات</th></tr></thead><tbody>
+{% for v in visits %}<tr><td>{{ v.visit_date|date:"Y-m-d" }}</td><td>{{ v.get_direction_display }}</td><td><a href="{{ v.get_absolute_url }}">{{ v.entity }}</a></td><td>{{ v.purpose }}</td><td>{{ v.outcomes|truncatechars:120 }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted center">لا زيارات منفذة في الفترة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>الشراكات الموقعة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الجهة الشريكة</th><th>النوع</th><th>رقم الاتفاقية</th><th>من</th><th>إلى</th><th class="num">القيمة</th><th>الحالة</th></tr></thead><tbody>
+{% for p in partnerships %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.partner }}</a></td><td>{{ p.get_partnership_type_display }}</td><td>{{ p.agreement_number }}</td><td>{{ p.start_date|date:"Y-m-d" }}</td><td>{{ p.end_date|date:"Y-m-d"|default:"—" }}</td><td class="num">{% if p.value is not None %}{{ p.value|money }}{% endif %}</td><td>{{ p.get_status_display }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted center">لا شراكات موقعة في الفترة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>التغطيات الإعلامية حسب الوسيلة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الوسيلة</th><th class="num">عدد التغطيات</th><th class="num">الوصول</th></tr></thead><tbody>
+{% for c in channels %}<tr><td>{{ c.label }}</td><td class="num">{{ c.n }}</td><td class="num">{{ c.reach }}</td></tr>{% endfor %}</tbody>
+<tfoot><tr><th>الإجمالي</th><th class="num">{{ coverage_count }}</th><th class="num">{{ coverage_reach }}</th></tr></tfoot>
+</table></div></div>
+{% endblock %}

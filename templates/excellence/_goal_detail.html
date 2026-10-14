@@ -1,0 +1,15 @@
+{% include "excellence/_styles.html" %}
+<div class="card">
+  <div class="toolbar"><h3 style="margin:0">المبادرات والمشاريع</h3><div class="actions"><a class="btn" href="{% url 'doc_new' 'initiative' %}?goal={{ obj.pk }}">+ مبادرة</a></div></div>
+  <div style="max-width:420px;margin-bottom:12px"><span class="muted small">تقدم الهدف (متوسط مرجّح للمبادرات عدا الملغاة)</span>{% include "excellence/_bar.html" with value=obj.progress %}</div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المبادرة</th><th>المسؤول</th><th>تاريخ النهاية</th><th class="num">الوزن</th><th>الإنجاز</th><th>الحالة</th></tr></thead><tbody>
+  {% for i in obj.initiatives.all %}<tr{% if i.is_delayed %} class="row-loss"{% endif %}><td><a href="{{ i.get_absolute_url }}">{{ i.title }}</a></td><td>{{ i.owner.get_full_name|default:i.owner|default:"—" }}</td><td>{{ i.end_date|date:"Y-m-d" }}</td><td class="num">{{ i.weight|floatformat:"-2" }}</td><td>{% include "excellence/_bar.html" with value=i.progress %}</td><td>{{ i.get_status_display }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا مبادرات</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="card">
+  <div class="toolbar"><h3 style="margin:0">مؤشرات الأداء</h3><div class="actions"><a class="btn" href="{% url 'doc_new' 'kpi' %}?goal={{ obj.pk }}">+ مؤشر</a></div></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المؤشر</th><th class="num">المستهدف</th><th class="num">آخر قيمة</th><th class="num">التحقق</th><th>الحالة</th></tr></thead><tbody>
+  {% for k in obj.kpis.all %}{% with r=k.latest_reading %}<tr><td><a href="{{ k.get_absolute_url }}">{{ k.name }}</a></td><td class="num">{{ k.target|floatformat:"-2" }} {{ k.get_unit_display }}</td>
+  <td class="num">{% if r %}{{ r.value|floatformat:"-2" }}{% else %}—{% endif %}</td><td class="num">{% if k.achievement is not None %}{{ k.achievement|floatformat:"-1" }}%{% else %}—{% endif %}</td><td>{% include "excellence/_light.html" with kpi=k %}</td></tr>{% endwith %}
+  {% empty %}<tr><td colspan="5" class="muted center">لا مؤشرات</td></tr>{% endfor %}</tbody></table></div>
+</div>

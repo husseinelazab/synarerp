@@ -1,0 +1,25 @@
+{% load erp %}{% with m=obj.impact %}
+<div class="kpis">
+  <div class="kpi"><span>المقبولون / المقاعد</span><b>{{ obj.accepted_count }} / {{ obj.capacity }}</b></div>
+  <div class="kpi"><span>إجمالي المسجلين</span><b>{{ obj.enrollments.count }}</b></div>
+  <div class="kpi kpi-good"><span>المجتازون</span><b>{{ m.completed }}</b>{% if m.completion_rate is not None %}<span>{{ m.completion_rate }}% إتمام</span>{% endif %}</div>
+  <div class="kpi"><span>التحسن (قبلي ← بعدي)</span><b>{% if m.improvement is not None %}{{ m.improvement }}%{% else %}—{% endif %}</b>{% if m.avg_pre is not None %}<span>{{ m.avg_pre }} ← {{ m.avg_post|default:"—" }}</span>{% endif %}</div>
+  <div class="kpi"><span>متوسط الرضا</span><b>{{ m.avg_satisfaction|default:"—" }}</b></div>
+</div>{% endwith %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'program_attendance' obj.pk %}">كشف الحضور والدرجات</a>
+  <a class="btn" href="{% url 'program_impact' %}?from_date={{ obj.start_date|date:'Y-m-d' }}&to_date={{ obj.end_date|date:'Y-m-d' }}">تقرير الأثر</a>
+  <a class="btn" href="{% url 'doc_new' 'program-enrollment' %}?program={{ obj.pk }}">+ متدرب</a></div></div>
+{% if obj.status == "open" %}
+<div class="card"><h3>رابط التسجيل العام</h3>
+  <p class="muted small">انشره في الموقع أو واتساب؛ يسجل المتدرب نفسه دون حساب، ويظهر طلبه هنا للقبول.</p>
+  <input class="form-control" readonly value="{{ request.scheme }}://{{ request.get_host }}{% url 'program_register' obj.public_token %}" onclick="this.select()">
+</div>
+{% endif %}
+<div class="card"><h3>المتدربون</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>المتدرب</th><th>الجوال</th><th>الحالة</th><th class="num">الحضور</th><th class="num">قبلي</th><th class="num">بعدي</th><th>الرضا</th>{% if obj.fee %}<th>الرسوم</th>{% endif %}<th></th></tr></thead><tbody>
+{% for e in obj.enrollments.all %}<tr><td><a href="{{ e.get_absolute_url }}">{{ e.full_name }}</a></td><td>{{ e.phone }}</td><td>{{ e.get_status_display }}</td><td class="num">{{ e.attendance_percent }}%</td>
+<td class="num">{{ e.pre_score|default_if_none:"" }}</td><td class="num">{{ e.post_score|default_if_none:"" }}</td><td>{{ e.satisfaction|default_if_none:"" }}</td>{% if obj.fee %}<td>{% if e.fee_receipt %}<a href="{{ e.fee_receipt.get_absolute_url }}">{{ e.fee_status }}</a>{% else %}{{ e.fee_status }}{% endif %}</td>{% endif %}
+<td class="actions">{% for key, label in e.available_actions %}<form method="post" action="{% url 'doc_action' 'program-enrollment' e.pk key %}">{% csrf_token %}<button class="btn btn-sm">{{ label }}</button></form>{% endfor %}
+{% if e.certificate_code %}<a class="btn btn-sm" href="{% url 'program_certificate' e.pk %}">الشهادة</a>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="9" class="muted center">لا متدربين بعد</td></tr>{% endfor %}</tbody></table></div></div>

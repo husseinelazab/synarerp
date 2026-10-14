@@ -1,0 +1,24 @@
+<div class="login-page">
+  <form method="post" class="card login-card signup-card" novalidate>
+    {% csrf_token %}
+    <h1>{{ program.company.name }}</h1>
+    <h3>{{ program.title }}</h3>
+    <p class="muted">{{ program.get_program_type_display }} · {{ program.get_mode_display }} · {{ program.start_date|date:"Y-m-d" }} — {{ program.end_date|date:"Y-m-d" }}{% if program.location %} · {{ program.location }}{% endif %}</p>
+    {% if program.trainer %}<p>المدرب: {{ program.trainer }}{% if program.hours %} · {{ program.hours }} ساعة تدريبية{% endif %}</p>{% endif %}
+    {% if program.target_audience %}<p class="muted">الفئة المستهدفة: {{ program.target_audience }}</p>{% endif %}
+    {% if program.fee %}<p>رسوم التسجيل: {{ program.fee }} ريال</p>{% endif %}
+    {% if program.description %}<p>{{ program.description|linebreaksbr }}</p>{% endif %}
+    {% if done %}
+      <div class="alert alert-success">تم استلام طلب تسجيلك، وسنتواصل معك على جوالك لتأكيد القبول.</div>
+    {% elif closed %}
+      <div class="alert alert-error">التسجيل في هذا البرنامج مغلق.</div>
+    {% elif full %}
+      <div class="alert alert-error">اكتملت المقاعد المتاحة في هذا البرنامج.</div>
+    {% else %}
+      {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="form-grid">{% for field in form.visible_fields %}{% include "core/_field.html" %}{% endfor %}</div>
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      <button class="btn btn-primary btn-lg">سجّلني في البرنامج</button>
+    {% endif %}
+  </form>
+</div>

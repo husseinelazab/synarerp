@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'vehicle-request' %}">+ طلب سيارة</a>
+  <a class="btn" href="{% url 'doc_new' 'maintenance-request' %}">+ طلب صيانة</a>
+  <a class="btn" href="{% url 'doc_new' 'fuel-log' %}">+ تعبئة وقود</a>
+  <a class="btn" href="{% url 'fleet_report' %}">تقرير الحركة والصيانة</a></div></div>
+<div class="kpis">
+  <div class="kpi kpi-good"><span>سيارات في الخدمة</span><b>{{ in_service }}</b><span>من {{ vehicles_count }} سيارة</span></div>
+  <div class="kpi {% if pending %}kpi-bad{% endif %}"><span>طلبات بانتظار الاعتماد</span><b>{{ pending|length }}</b></div>
+  <div class="kpi"><span>مشاوير اليوم</span><b>{{ today_trips }}</b></div>
+  <div class="kpi {% if open_maintenance %}kpi-bad{% endif %}"><span>صيانة مفتوحة</span><b>{{ open_maintenance|length }}</b></div>
+  <div class="kpi"><span>الوقود هذا الشهر</span><b>{{ fuel_month|money }}</b></div>
+</div>
+<div class="card"><h3>المشاوير المعتمدة (اليوم والأيام السبعة القادمة)</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الطلب</th><th>الانطلاق</th><th>العودة</th><th>الغرض</th><th>الوجهة</th><th>السيارة</th><th>الطالب</th></tr></thead><tbody>
+{% for t in upcoming %}<tr><td><a href="{{ t.get_absolute_url }}">{{ t.name }}</a></td><td>{{ t.start_at|date:"Y-m-d H:i" }}</td><td>{{ t.end_at|date:"Y-m-d H:i" }}</td>
+<td>{{ t.purpose }}</td><td>{{ t.destination }}</td><td>{{ t.vehicle.plate_number }}</td><td>{{ t.created_by.get_full_name|default:t.created_by|default:"" }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted center">لا مشاوير معتمدة قريبة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="grid-2">
+<div class="card"><h3>طلبات بانتظار الاعتماد</h3><div class="table-wrap"><table class="table"><tbody>
+{% for t in pending %}<tr><td><a href="{{ t.get_absolute_url }}">{{ t.name }}</a></td><td>{{ t.start_at|date:"Y-m-d H:i" }}</td><td>{{ t.destination }}</td><td>{{ t.vehicle.plate_number|default:"بلا سيارة" }}</td></tr>
+{% empty %}<tr><td class="muted">لا طلبات معلقة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>الصيانة المفتوحة حسب الأولوية</h3><div class="table-wrap"><table class="table"><tbody>
+{% for m in open_maintenance %}<tr class="{% if m.priority != 'normal' %}row-loss{% endif %}"><td><a href="{{ m.get_absolute_url }}">{{ m.number }}</a></td>
+<td>{% if m.vehicle %}{{ m.vehicle.plate_number }}{% else %}{{ m.facility }}{% endif %}</td><td>{{ m.get_category_display }}</td>
+<td>{{ m.get_priority_display }}</td><td>{{ m.get_status_display }}</td><td>{{ m.assigned_to.get_full_name|default:m.assigned_to|default:"" }}</td></tr>
+{% empty %}<tr><td class="muted">لا طلبات صيانة مفتوحة</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<div class="card"><h3>سيارات تحتاج انتباهاً (وثائق تنتهي خلال {{ warning_days }} يوماً أو صيانة دورية مستحقة)</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>السيارة</th><th>الحالة</th><th>الوثائق</th><th class="num">العداد</th><th class="num">الصيانة القادمة عند</th></tr></thead><tbody>
+{% for v in attention %}<tr><td><a href="{{ v.get_absolute_url }}">{{ v }}</a></td><td>{{ v.get_status_display }}</td>
+<td>{% for label, date in v.expiring_documents %}<span class="badge status-2">{{ label }} {{ date|date:"Y-m-d" }}</span> {% endfor %}</td>
+<td class="num">{{ v.odometer }}</td><td class="num {% if v.service_due %}neg{% endif %}">{{ v.next_service_km }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted center">كل السيارات سليمة الوثائق والصيانة</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

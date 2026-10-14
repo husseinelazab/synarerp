@@ -1,0 +1,9 @@
+<div class="login-page"><div class="card login-card">
+  <h1>التحقق من شهادة برنامج تدريبي</h1>
+  {% if e %}
+    <div class="alert alert-success">شهادة صحيحة ✓</div>
+    <p><strong>{{ e.full_name }}</strong><br>{{ e.program.get_program_type_display }}: {{ e.program.title }}<br>{% if e.program.hours %}{{ e.program.hours }} ساعة — {% endif %}{{ e.program.start_date|date:"Y-m-d" }} إلى {{ e.program.end_date|date:"Y-m-d" }}<br>{{ e.company.name }}</p>
+  {% else %}
+    <div class="alert alert-error">لا توجد شهادة بالرمز {{ code }}.</div>
+  {% endif %}
+</div></div>

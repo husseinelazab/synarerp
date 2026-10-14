@@ -1,0 +1,17 @@
+<div class="card">
+  <dl class="detail-grid">
+    <div><dt>وقت الانطلاق</dt><dd>{{ obj.start_at|date:"Y-m-d H:i" }}</dd></div>
+    <div><dt>وقت العودة المتوقع</dt><dd>{{ obj.end_at|date:"Y-m-d H:i" }}</dd></div>
+    {% if obj.distance %}<div><dt>المسافة المقطوعة</dt><dd>{{ obj.distance }} كم</dd></div>{% endif %}
+  </dl>
+  {% if obj.is_draft and not obj.vehicle %}<p class="muted small">حدد السيارة من «تعديل» قبل الاعتماد؛ يُرفض الاعتماد إن كانت السيارة خارج الخدمة أو محجوزة في الفترة نفسها.</p>{% endif %}
+</div>
+{% if obj.is_submitted and obj.status == 'approved' %}
+<div class="card"><h3>إنهاء المشوار</h3>
+  <form method="post" action="{% url 'fleet_complete_trip' obj.pk %}" class="inline-form">{% csrf_token %}
+    <label>العداد عند العودة <input type="number" name="end_odometer" min="{{ obj.start_odometer|default:0 }}" class="form-control" required></label>
+    <span class="muted small">عند الانطلاق: {{ obj.start_odometer|default:0 }} كم</span>
+    <button class="btn btn-primary">إنهاء المشوار وتحديث العداد</button>
+  </form>
+</div>
+{% endif %}

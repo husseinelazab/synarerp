@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load l10n %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}{% include "excellence/_styles.html" %}
+{% if not plan %}
+<div class="card"><p class="muted">لا توجد خطة استراتيجية بعد. <a href="{% url 'doc_new' 'strategic-plan' %}">أنشئ الخطة</a> ثم عرّف مؤشراتها.</p></div>
+{% else %}
+<form method="get" class="filters card">
+  {% if plans|length > 1 %}<label>الخطة <select name="plan" class="form-select">{% for p in plans %}<option value="{{ p.pk }}" {% if p.pk == plan.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>{% else %}<input type="hidden" name="plan" value="{{ plan.pk }}">{% endif %}
+  <label>نهاية الفترة <input type="date" name="period_end" value="{{ period_end|date:'Y-m-d' }}" class="form-control"></label>
+  <button class="btn">عرض</button>
+  <span class="muted small">فترات شائعة:{% for d in suggestions %} <a href="?plan={{ plan.pk }}&period_end={{ d|date:'Y-m-d' }}">{{ d|date:"Y-m-d" }}</a>{% endfor %}</span>
+</form>
+<form method="post" class="card">{% csrf_token %}
+  <input type="hidden" name="period_end" value="{{ period_end|date:'Y-m-d' }}">
+  <h3>قراءات الفترة المنتهية في {{ period_end|date:"Y-m-d" }}</h3>
+  <p class="muted small">اترك الحقل فارغاً لمؤشر لا يُقاس في هذه الفترة. القراءة المسجلة سابقاً لنفس الفترة تُحدَّث بالقيمة الجديدة.</p>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الهدف</th><th>المؤشر</th><th>الدورية</th><th class="num">المستهدف</th><th>آخر قراءة</th><th>القيمة</th><th>ملاحظة</th></tr></thead><tbody>
+  {% for row in rows %}{% with k=row.kpi last=row.kpi.latest_reading %}<tr{% if row.error %} class="row-loss"{% endif %}>
+    <td>{{ k.goal.code }}</td><td><a href="{{ k.get_absolute_url }}">{{ k.name }}</a></td><td>{{ k.get_frequency_display }}</td>
+    <td class="num">{{ k.target|floatformat:"-2" }} {{ k.get_unit_display }}</td>
+    <td class="muted small">{% if last %}{{ last.value|floatformat:"-2" }} ({{ last.period_end|date:"Y-m-d" }}){% else %}—{% endif %}</td>
+    <td><input name="value_{{ k.pk }}" class="form-control num" dir="ltr" inputmode="decimal" style="min-width:100px" value="{{ row.value|unlocalize }}" aria-label="قيمة {{ k.name }}">{% if row.error %}<div class="neg small">{{ row.error }}</div>{% endif %}</td>
+    <td><input name="note_{{ k.pk }}" class="form-control" maxlength="255" value="{{ row.note }}" aria-label="ملاحظة {{ k.name }}"></td>
+  </tr>{% endwith %}
+  {% empty %}<tr><td colspan="7" class="muted center">لا مؤشرات في هذه الخطة — <a href="{% url 'doc_new' 'kpi' %}">عرّف مؤشراً</a></td></tr>{% endfor %}</tbody></table></div>
+  {% if rows %}<button class="btn btn-primary btn-block">حفظ القراءات</button>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

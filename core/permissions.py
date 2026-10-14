@@ -23,12 +23,16 @@ PERMISSION_MODULES = [
     ("documents", "إدارة التوثيق والمستندات (الصادر والوارد والأرشيف)"),
     ("beneficiaries", "إدارة التقييم والمتابعة (المستفيدون)"),
     ("entities", "إدارة الجهات المستفيدة"),
+    ("programs", "إدارة البرامج والتطوير (التدريب والتأهيل)"),
+    ("excellence", "إدارة التميز المؤسسي (الخطة الاستراتيجية ومؤشرات الأداء)"),
+    ("relations", "إدارة العلاقات العامة والإعلام"),
+    ("fleet", "إدارة الحركة والصيانة"),
+    ("statistics", "إدارة التقارير والإحصائيات"),
 ]
 
 # وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
 NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "volunteering", "office", "documents",
-                     "beneficiaries",
-                     "entities"}
+                     "beneficiaries", "entities", "programs", "excellence", "relations", "fleet", "statistics"}
 # الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
 COMMERCIAL_MODULES = {"selling", "crm", "support", "manufacturing", "pos"}
 # مسميات الوحدات للجهة غير الربحية (بمسميات «مكونات النظام» المعتادة في أنظمة الجمعيات)
@@ -93,6 +97,11 @@ PATH_MODULES = [
     ("/volunteering/", "volunteering"),
     ("/office/documents/", "documents"),
     ("/office/", "office"),
+    ("/programs/", "programs"),
+    ("/excellence/", "excellence"),
+    ("/relations/", "relations"),
+    ("/fleet/", "fleet"),
+    ("/statistics/", "statistics"),
     ("/beneficiaries/entities/", "entities"),
     ("/beneficiaries/", "beneficiaries"),
 ]

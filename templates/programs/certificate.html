@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}شهادة اجتياز برنامج{% endblock %}{% block heading %}شهادة اجتياز برنامج{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions"><button class="btn btn-primary" onclick="window.print()">طباعة</button></div></div>
+<div class="card" style="max-width:780px;margin:auto;text-align:center;padding:3em 2em;border:3px double var(--border, #c9b37e)">
+  <h2>{{ company.name }}</h2>
+  {% if company.license_number %}<p class="muted small">ترخيص رقم {{ company.license_number }}</p>{% endif %}
+  <h1 style="margin:1em 0">شهادة اجتياز</h1>
+  <p style="font-size:1.2em;line-height:2">تشهد {{ company.name }} بأن المتدرب/ة<br><strong style="font-size:1.4em">{{ e.full_name }}</strong><br>
+  قد اجتاز/ت {{ e.program.get_program_type_display }} «<strong>{{ e.program.title }}</strong>»{% if e.program.track %} ضمن {{ e.program.track }}{% endif %}<br>
+  خلال الفترة من {{ e.program.start_date|date:"Y-m-d" }} إلى {{ e.program.end_date|date:"Y-m-d" }}
+  {% if e.program.hours %}بواقع <strong>{{ e.program.hours }}</strong> ساعة تدريبية{% endif %}{% if e.program.trainer %}، بتقديم {{ e.program.trainer }}{% endif %}.</p>
+  <p>متمنين له/لها دوام التوفيق والنجاح.</p>
+  <p class="muted small" style="margin-top:2em">رمز التحقق: <strong>{{ e.certificate_code }}</strong> — {{ verify_url }}</p>
+</div>
+{% endblock %}

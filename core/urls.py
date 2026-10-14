@@ -1,12 +1,13 @@
 from django.urls import path
 
-from core import attachments, import_views, search, views
+from core import attachments, import_views, search, statistics, views
 from stock import tools as stock_tools
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("search/", search.global_search, name="global_search"),
     path("search/suggest/", search.search_suggest, name="search_suggest"),
+    path("statistics/", statistics.statistics_center, name="statistics_center"),
     path("module/<str:module>/", views.module_page, name="module"),
     path("account/notifications/", views.notifications, name="notifications"),
     path("account/profile/", views.profile, name="profile"),

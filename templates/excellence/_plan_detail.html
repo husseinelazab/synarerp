@@ -1,0 +1,13 @@
+{% include "excellence/_styles.html" %}
+<div class="card">
+  <div class="toolbar"><h3 style="margin:0">أهداف الخطة وتقدمها</h3><div class="actions">
+    <a class="btn" href="{% url 'doc_new' 'strategic-goal' %}?plan={{ obj.pk }}">+ هدف</a>
+    <a class="btn" href="{% url 'kpi_entry' %}?plan={{ obj.pk }}">إدخال قراءات المؤشرات</a>
+    <a class="btn btn-primary" href="{% url 'performance_report' %}?plan={{ obj.pk }}">تقرير الأداء المؤسسي</a>
+  </div></div>
+  <div style="max-width:420px;margin-bottom:12px"><span class="muted small">التقدم العام للخطة</span>{% include "excellence/_bar.html" with value=obj.progress %}</div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الرمز</th><th>الهدف</th><th>رؤية 2030</th><th>التنمية المستدامة</th><th class="num">الوزن</th><th class="num">المبادرات</th><th class="num">المؤشرات</th><th>التقدم</th></tr></thead><tbody>
+  {% for g in obj.goals.all %}<tr><td><a href="{{ g.get_absolute_url }}">{{ g.code }}</a></td><td>{{ g.title }}</td><td>{{ g.get_vision2030_pillar_display|default:"—" }}</td><td>{{ g.get_sdg_display|default:"—" }}</td>
+  <td class="num">{{ g.effective_weight|floatformat:"-2" }}%</td><td class="num">{{ g.active_initiatives|length }}</td><td class="num">{{ g.kpis.count }}</td><td>{% include "excellence/_bar.html" with value=g.progress %}</td></tr>
+  {% empty %}<tr><td colspan="8" class="muted center">لا أهداف بعد — أضف الأهداف قبل اعتماد الخطة</td></tr>{% endfor %}</tbody></table></div>
+</div>

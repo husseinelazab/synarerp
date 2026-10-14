@@ -1,6 +1,8 @@
+import datetime
 from decimal import Decimal
 
 from django.db import models
+from django.utils import timezone
 
 from core.utils import money
 
@@ -26,6 +28,8 @@ def display_value(obj, field_name):
         return "نعم" if value else "لا"
     if isinstance(value, Decimal):
         return money(value) if field.decimal_places == 2 else f"{value.normalize():f}"
+    if isinstance(value, datetime.datetime):  # بتوقيت الرياض لا UTC
+        return (timezone.localtime(value) if timezone.is_aware(value) else value).strftime("%Y-%m-%d %H:%M")
     return str(value)
 
 

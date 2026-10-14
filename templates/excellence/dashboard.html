@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}{% include "excellence/_styles.html" %}
+{% if not plan %}
+<div class="card">
+  <h3>ابدأ بالخطة الاستراتيجية</h3>
+  <p class="muted">تربط هذه الوحدة رؤية الجمعية ورسالتها بأهداف استراتيجية، ثم بمبادرات الخطة التشغيلية ومؤشرات الأداء التي تقيس تحققها:</p>
+  <ol>
+    <li>أنشئ <a href="{% url 'doc_new' 'strategic-plan' %}">خطة استراتيجية</a> بسنواتها ورؤيتها ورسالتها وقيمها.</li>
+    <li>أضف <a href="{% url 'doc_new' 'strategic-goal' %}">الأهداف الاستراتيجية</a> بأوزانها، واربط كل هدف بمحور رؤية 2030 وهدف التنمية المستدامة.</li>
+    <li>أضف <a href="{% url 'doc_new' 'initiative' %}">المبادرات والمشاريع</a> لكل هدف بمسؤوليها ومواعيدها وميزانياتها.</li>
+    <li>عرّف <a href="{% url 'doc_new' 'kpi' %}">مؤشرات الأداء</a> ومستهدفاتها، ثم اعتمد الخطة وسجّل القراءات دورياً.</li>
+  </ol>
+  <a class="btn btn-primary" href="{% url 'doc_new' 'strategic-plan' %}">+ خطة استراتيجية</a>
+</div>
+{% else %}
+<div class="toolbar">
+  <form method="get" class="filters">{% if plans|length > 1 %}
+    <label>الخطة <select name="plan" class="form-select" onchange="this.form.submit()">{% for p in plans %}<option value="{{ p.pk }}" {% if p.pk == plan.pk %}selected{% endif %}>{{ p }} ({{ p.get_status_display }})</option>{% endfor %}</select></label>{% endif %}
+  </form>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'kpi_entry' %}?plan={{ plan.pk }}">إدخال قراءات المؤشرات</a>
+    <a class="btn" href="{% url 'performance_report' %}?plan={{ plan.pk }}">تقرير الأداء المؤسسي</a>
+    <a class="btn" href="{% url 'doc_new' 'initiative' %}">+ مبادرة</a>
+    <a class="btn" href="{% url 'doc_new' 'kpi' %}">+ مؤشر</a>
+  </div>
+</div>
+<div class="card">
+  <h3><a href="{{ plan.get_absolute_url }}">{{ plan.title }}</a> <span class="muted small">{{ plan.start_year }}–{{ plan.end_year }} · {{ plan.get_status_display }}</span></h3>
+  {% if plan.vision %}<p class="ex-statement"><strong>الرؤية</strong>{{ plan.vision }}</p>{% endif %}
+  {% if plan.mission %}<p class="ex-statement"><strong>الرسالة</strong>{{ plan.mission }}</p>{% endif %}
+  {% if plan.values_list %}<ul class="ex-values">{% for v in plan.values_list %}<li>{{ v }}</li>{% endfor %}</ul>{% endif %}
+  <div style="margin-top:12px;max-width:420px"><span class="muted small">التقدم العام للخطة</span>{% include "excellence/_bar.html" with value=plan_progress %}</div>
+</div>
+<div class="kpi-row">
+  <a class="card kpi-card" href="{{ plan.get_absolute_url }}"><div class="kpi-label">الأهداف الاستراتيجية</div><div class="kpi-value">{{ goals|length }}</div></a>
+  <a class="card kpi-card" href="{% url 'doc_list' 'initiative' %}"><div class="kpi-label">المبادرات والمشاريع</div><div class="kpi-value">{{ initiatives_count }}</div></a>
+  <a class="card kpi-card" href="#delayed"><div class="kpi-label">مبادرات متأخرة</div><div class="kpi-value {% if delayed %}neg{% endif %}">{{ delayed|length }}</div></a>
+  <a class="card kpi-card" href="#kpis"><div class="kpi-label">مؤشرات على المسار</div><div class="kpi-value">{{ kpi_summary.on_target_percent }}%</div>
+    <div class="kpi-foot">{{ kpi_summary.counts.green }} من {{ kpi_summary.total }} مؤشر{% if kpi_summary.counts.grey %} · {{ kpi_summary.counts.grey }} بلا قراءة{% endif %}</div></a>
+</div>
+<div class="card"><h3>الأهداف الاستراتيجية وتقدمها</h3>
+<div class="table-wrap"><table class="table"><thead><tr><th>الرمز</th><th>الهدف</th><th>رؤية 2030</th><th class="num">الوزن</th><th class="num">المبادرات</th><th>التقدم</th></tr></thead><tbody>
+{% for g in goals %}<tr><td><a href="{{ g.get_absolute_url }}">{{ g.code }}</a></td><td>{{ g.title }}</td><td>{{ g.get_vision2030_pillar_display|default:"—" }}</td>
+<td class="num">{{ g.effective_weight|floatformat:"-2" }}%</td><td class="num">{{ g.active_initiatives|length }}</td><td>{% include "excellence/_bar.html" with value=g.progress %}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted center">لا أهداف بعد — <a href="{% url 'doc_new' 'strategic-goal' %}?plan={{ plan.pk }}">أضف هدفاً</a></td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card" id="kpis"><h3>مؤشرات الأداء (إشارات المرور)</h3>
+<p class="muted small">أخضر: تحقق 90% فأكثر من المستهدف · أصفر: 70%–90% · أحمر: أقل من 70% · رمادي: لا توجد قراءة.</p>
+<div class="table-wrap"><table class="table"><thead><tr><th>الهدف</th><th>المؤشر</th><th class="num">آخر قيمة</th><th class="num">المستهدف</th><th>الاتجاه</th><th class="num">التحقق</th><th>الحالة</th></tr></thead><tbody>
+{% for k in kpis %}{% with r=k.latest_reading %}<tr><td>{{ k.goal.code }}</td><td><a href="{{ k.get_absolute_url }}">{{ k.name }}</a></td>
+<td class="num">{% if r %}{{ r.value|floatformat:"-2" }} <span class="muted small">{{ k.get_unit_display }} · {{ r.period_end|date:"Y-m-d" }}</span>{% else %}—{% endif %}</td>
+<td class="num">{{ k.target|floatformat:"-2" }} <span class="muted small">{{ k.get_unit_display }}</span></td><td>{{ k.get_direction_display }}</td>
+<td class="num">{% if k.achievement is not None %}{{ k.achievement|floatformat:"-1" }}%{% else %}—{% endif %}</td><td>{% include "excellence/_light.html" with kpi=k %}</td></tr>{% endwith %}
+{% empty %}<tr><td colspan="7" class="muted center">لا مؤشرات بعد — <a href="{% url 'doc_new' 'kpi' %}">عرّف مؤشراً</a></td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card" id="delayed"><h3>المبادرات المتأخرة</h3>
+<div class="table-wrap"><table class="table"><thead><tr><th>المبادرة</th><th>الهدف</th><th>المسؤول</th><th>تاريخ النهاية</th><th>الإنجاز</th></tr></thead><tbody>
+{% for i in delayed %}<tr class="row-loss"><td><a href="{{ i.get_absolute_url }}">{{ i.title }}</a></td><td>{{ i.goal.code }}</td><td>{{ i.owner.get_full_name|default:i.owner|default:"—" }}</td><td>{{ i.end_date|date:"Y-m-d" }}</td><td>{% include "excellence/_bar.html" with value=i.progress %}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted center">لا مبادرات متأخرة</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+{% endblock %}

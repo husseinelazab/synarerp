@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'pr-event' %}">+ فعالية / حملة</a>
+  <a class="btn" href="{% url 'doc_new' 'visit' %}">+ زيارة</a>
+  <a class="btn" href="{% url 'doc_new' 'partnership' %}">+ شراكة</a>
+  <a class="btn" href="{% url 'doc_new' 'media-coverage' %}">+ تغطية إعلامية</a>
+  <a class="btn" href="{% url 'relations_report' %}">تقرير النشاط</a></div></div>
+<div class="kpi-row">
+  <a class="card kpi-card" href="{% url 'doc_list' 'partnership' %}?status=active"><span class="kpi-label">الشراكات السارية</span><span class="kpi-value">{{ active_partnerships }}</span></a>
+  <a class="card kpi-card" href="{% url 'doc_list' 'pr-event' %}"><span class="kpi-label">فعاليات وحملات {{ year }}</span><span class="kpi-value">{{ events_count }}</span></a>
+  <div class="card kpi-card"><span class="kpi-label">الحضور الفعلي في {{ year }}</span><span class="kpi-value">{{ attendees }}</span><span class="kpi-foot">في الفعاليات المنفذة</span></div>
+  <a class="card kpi-card" href="{% url 'doc_list' 'media-coverage' %}"><span class="kpi-label">التغطيات الإعلامية {{ year }}</span><span class="kpi-value">{{ coverage_count }}</span></a>
+</div>
+<div class="grid-2">
+<div class="card"><h3>الفعاليات القادمة (30 يوماً)</h3><div class="table-wrap"><table class="table"><tbody>
+{% for e in upcoming_events %}<tr><td>{{ e.start_date|date:"Y-m-d" }}</td><td><a href="{{ e.get_absolute_url }}">{{ e }}</a></td><td>{{ e.get_event_type_display }}</td><td>{{ e.location }}</td></tr>
+{% empty %}<tr><td class="muted">لا فعاليات قادمة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>الزيارات القادمة (30 يوماً)</h3><div class="table-wrap"><table class="table"><tbody>
+{% for v in upcoming_visits %}<tr><td>{{ v.visit_date|date:"Y-m-d" }}</td><td>{{ v.get_direction_display }}</td><td><a href="{{ v.get_absolute_url }}">{{ v.entity }}</a></td><td>{{ v.purpose }}</td></tr>
+{% empty %}<tr><td class="muted">لا زيارات مجدولة</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>شراكات تنتهي خلال 60 يوماً</h3><div class="table-wrap"><table class="table"><tbody>
+{% for p in expiring %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.partner }}</a></td><td>{{ p.end_date|date:"Y-m-d" }}</td>
+<td class="num {% if p.days_to_expiry < 0 %}neg{% endif %}">{% if p.days_to_expiry < 0 %}انتهت منذ {{ p.days_to_expiry|stringformat:"d"|slice:"1:" }} يوماً{% else %}بعد {{ p.days_to_expiry }} يوماً{% endif %}</td></tr>
+{% empty %}<tr><td class="muted">لا شراكات قريبة الانتهاء</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3>متابعات الزيارات المستحقة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for v in follow_ups %}<tr><td>{{ v.follow_up_date|date:"Y-m-d" }}</td><td><a href="{{ v.get_absolute_url }}">{{ v.entity }}</a></td><td>{{ v.purpose }}</td></tr>
+{% empty %}<tr><td class="muted">لا متابعات مستحقة</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<div class="card"><h3>الاستبيانات المفتوحة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الاستبيان</th><th>الفئة المستهدفة</th><th>آخر موعد</th><th class="num">الردود</th><th></th></tr></thead><tbody>
+{% for s in surveys %}<tr><td><a href="{{ s.get_absolute_url }}">{{ s }}</a></td><td>{{ s.audience }}</td><td>{{ s.end_date|date:"Y-m-d"|default:"—" }}</td><td class="num">{{ s.n }}</td>
+<td class="actions"><a class="btn btn-sm" href="{% url 'survey_results' s.pk %}">النتائج</a></td></tr>
+{% empty %}<tr><td colspan="5" class="muted center">لا استبيانات مفتوحة — <a href="{% url 'doc_new' 'survey' %}">أنشئ استبياناً</a></td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

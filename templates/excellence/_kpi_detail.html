@@ -1,0 +1,16 @@
+{% include "excellence/_styles.html" %}
+{% with r=obj.latest_reading %}
+<div class="kpis">
+  <div class="kpi"><span>آخر قيمة</span><b>{% if r %}{{ r.value|floatformat:"-2" }} {{ obj.get_unit_display }}{% else %}—{% endif %}</b>{% if r %}<span>في {{ r.period_end|date:"Y-m-d" }}</span>{% endif %}</div>
+  <div class="kpi"><span>المستهدف</span><b>{{ obj.target|floatformat:"-2" }} {{ obj.get_unit_display }}</b><span>{{ obj.get_direction_display }}</span></div>
+  <div class="kpi {% if obj.status == 'green' %}kpi-good{% elif obj.status == 'yellow' %}kpi-warn{% elif obj.status == 'red' %}kpi-bad{% endif %}"><span>نسبة التحقق</span><b>{% if obj.achievement is not None %}{{ obj.achievement|floatformat:"-1" }}%{% else %}—{% endif %}</b><span>{% include "excellence/_light.html" with kpi=obj %}</span></div>
+  {% if obj.is_stale %}<div class="kpi kpi-warn"><span>القياس</span><b>متأخر</b><span>لم تُسجل قراءة خلال دورة القياس ({{ obj.get_frequency_display }})</span></div>{% endif %}
+</div>
+{% endwith %}
+<div class="card">
+  <div class="toolbar"><h3 style="margin:0">سجل القراءات</h3><div class="actions"><a class="btn" href="{% url 'kpi_entry' %}?plan={{ obj.goal.plan_id }}">إدخال قراءات المؤشرات</a></div></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>نهاية الفترة</th><th class="num">القيمة</th><th class="num">التحقق</th><th>الحالة</th><th>ملاحظة</th></tr></thead><tbody>
+  {% for h in obj.history %}<tr><td>{{ h.reading.period_end|date:"Y-m-d" }}</td><td class="num">{{ h.reading.value|floatformat:"-2" }}</td><td class="num">{{ h.achievement|floatformat:"-1" }}%</td>
+  <td><span class="ex-light ex-{{ h.status }}">{% if h.status == 'green' %}على المسار{% elif h.status == 'yellow' %}يحتاج متابعة{% else %}متعثر{% endif %}</span></td><td>{{ h.reading.note }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted center">لا قراءات بعد</td></tr>{% endfor %}</tbody></table></div>
+</div>

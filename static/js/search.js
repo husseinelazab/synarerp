@@ -262,6 +262,11 @@
         mod.open = q ? hits > 0 : initial[i];
         if (q && hits) any = true;
       });
+      sidebar.querySelectorAll(".nav-group-title").forEach(function (title) {
+        var n = title.nextElementSibling, visible = false;
+        while (n && !n.classList.contains("nav-group-title")) { if (n.classList.contains("nav-module") && !n.hidden) visible = true; n = n.nextElementSibling; }
+        title.hidden = !!q && !visible;
+      });
       sidebar.querySelector(".nav-empty").hidden = !q || any;
     });
     input.addEventListener("keydown", function (e) {

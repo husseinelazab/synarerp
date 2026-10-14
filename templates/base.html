@@ -20,6 +20,7 @@
       <a href="{% url 'dashboard' %}" class="nav-top {% if request.path == '/' %}active{% endif %}"><svg viewBox="0 0 24 24">{{ home_icon|safe }}</svg>لوحة التحكم</a>
       {% endif %}
       {% for module in nav_modules %}
+      {% ifchanged module.group %}{% if module.group %}<div class="nav-group-title">{{ module.group }}</div>{% endif %}{% endifchanged %}
       <details class="nav-module" {% if module.open %}open{% endif %}>
         <summary class="{% if module.open %}current{% endif %}" title="{{ module.label }}"><svg viewBox="0 0 24 24">{{ module.icon|safe }}</svg><span>{{ module.label }}</span><i class="chev"></i></summary>
         <div class="nav-children">
@@ -83,7 +84,16 @@
       {% if current_company %}{% include "core/_letterhead.html" %}{% endif %}
       <div class="page-head">
         {% if nav_trail %}<nav class="crumbs" aria-label="مسار الصفحة">{% for label, url in nav_trail %}<a href="{{ url }}">{{ label }}</a>{% if not forloop.last %}<span>›</span>{% endif %}{% endfor %}</nav>{% endif %}
-        <h1>{% block heading %}{% endblock %}</h1>
+        <div class="page-title-row">
+          <h1>{% block heading %}{% endblock %}</h1>
+          <div class="print-tools" hidden>
+            <button type="button" class="btn" data-print="auto" title="طباعة أو حفظ PDF بالاتجاه المناسب لعرض الجدول">🖨 طباعة</button>
+            <div class="seg" role="group" aria-label="اتجاه الصفحة">
+              <button type="button" data-orientation="portrait" title="طولي">▯ طولي</button>
+              <button type="button" data-orientation="landscape" title="عرضي">▭ عرضي</button>
+            </div>
+          </div>
+        </div>
       </div>
       {% if subscription and subscription.is_valid and subscription.status == 'trial' and subscription.days_left <= 7 %}
         <div class="alert alert-warning">تنتهي الفترة التجريبية خلال {{ subscription.days_left }} يوماً.{% if current_membership.can_manage %} <a href="{% url 'billing' %}">اشترك الآن</a> لتستمر دون انقطاع.{% endif %}</div>
@@ -101,5 +111,6 @@
 {% endif %}
 <script src="{% static 'js/erp.js' %}"></script>
 <script src="{% static 'js/search.js' %}"></script>
+<script src="{% static 'js/print.js' %}"></script>
 </body>
 </html>

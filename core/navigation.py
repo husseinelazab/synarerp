@@ -25,6 +25,11 @@ ICONS = {
     "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
+    "programs": '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5M22 9v6"/>',
+    "excellence": '<circle cx="12" cy="9" r="6"/><path d="M8.5 14l-1.5 8 5-3 5 3-1.5-8"/>',
+    "relations": '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12"/>',
+    "fleet": '<path d="M3 13l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5v4h-2M5 17H3v-4h18"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>',
+    "statistics": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     "einvoice": '<path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h2v2H9zM13 13h2v2h-2zM9 17h2v2H9z"/>',
 }
 
@@ -205,6 +210,7 @@ def build_menu(request):
         modules = nonprofit_modules(modules, doc)
     if request.user.is_superuser:
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [{"items": platform_items()}]})
+    modules = _grouped(modules, NONPROFIT_GROUPS if request.company.is_nonprofit else BUSINESS_GROUPS)
 
     # ما أغلقته باقة الشركة لا يظهر لأحد، ولا مالك الحساب
     plan = subscription.plan if subscription else None
@@ -231,6 +237,34 @@ def build_menu(request):
     return _mark_active(request, modules)
 
 
+# مجموعات القائمة الجانبية: عنوان صغير فوق كل مجموعة وحدات متقاربة، بالترتيب المعروض
+NONPROFIT_GROUPS = [
+    ("العمل اليومي", ["office", "documents"]),
+    ("الخدمات والبرامج", ["beneficiaries", "entities", "programs", "volunteering", "projects"]),
+    ("الموارد والمالية", ["resources", "accounts", "awqaf", "stock"]),
+    ("الحوكمة والتميز", ["members", "governance", "excellence", "relations"]),
+    ("الخدمات المساندة", ["hr", "fleet", "statistics", "settings"]),
+    ("المنصة", ["platform"]),
+]
+BUSINESS_GROUPS = [
+    ("المبيعات والعملاء", ["selling", "crm", "pos"]),
+    ("المشتريات والعمليات", ["buying", "stock", "manufacturing"]),
+    ("المشاريع والخدمات", ["projects", "support"]),
+    ("المالية", ["accounts", "einvoice"]),
+    ("الموارد البشرية", ["hr"]),
+    ("النظام", ["settings", "platform"]),
+]
+
+
+def _grouped(modules, groups):
+    """ترتيب الوحدات حسب مجموعاتها مع وسم كل وحدة بعنوان مجموعتها؛ ما لم يُصنف يأتي آخراً."""
+    position = {key: (index, order) for index, (_, keys) in enumerate(groups) for order, key in enumerate(keys)}
+    titles = {key: title for title, keys in groups for key in keys}
+    for module in modules:
+        module["group"] = titles.get(module["key"], "")
+    return sorted(modules, key=lambda m: position.get(m["key"], (len(groups), 0)))
+
+
 def _keys(module):
     # الوحدة المدمجة (كالشؤون المالية للجمعية) تظهر لمن يملك صلاحية أي وحدة من مكوناتها
     return module.get("keys", (module["key"],))
@@ -238,7 +272,7 @@ def _keys(module):
 
 # ترتيب وحدات الجهة غير الربحية
 NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
-                   "volunteering", "stock", "settings"]
+                   "volunteering", "stock", "programs", "excellence", "relations", "fleet", "statistics", "settings"]
 
 
 def nonprofit_modules(modules, doc):
@@ -312,6 +346,32 @@ def nonprofit_modules(modules, doc):
     by_key["entities"] = {"key": "entities", "label": "إدارة الجهات المستفيدة", "sections": [
         {"items": [_item("لوحة الطلبات", "entities_dashboard"), doc("الجهات", "beneficiary-entity"),
                    doc("طلبات الجهات", "entity-request")]},
+    ]}
+    by_key["programs"] = {"key": "programs", "label": "إدارة البرامج والتطوير", "sections": [
+        {"items": [_item("لوحة البرامج", "programs_dashboard"), doc("البرامج التدريبية", "training-program"),
+                   doc("المتدربون", "program-enrollment"), _item("تقرير قياس الأثر", "program_impact")]},
+    ]}
+    by_key["excellence"] = {"key": "excellence", "label": "إدارة التميز المؤسسي", "sections": [
+        {"title": "الخطة", "items": [_item("لوحة الأداء المؤسسي", "excellence_dashboard"),
+                                    doc("الخطط الاستراتيجية", "strategic-plan"), doc("الأهداف الاستراتيجية", "strategic-goal"),
+                                    doc("المبادرات والخطة التشغيلية", "initiative")]},
+        {"title": "القياس", "items": [doc("مؤشرات الأداء", "kpi"), _item("إدخال قراءات المؤشرات", "kpi_entry"),
+                                     _item("تقرير الأداء المؤسسي", "performance_report")]},
+    ]}
+    by_key["relations"] = {"key": "relations", "label": "إدارة العلاقات العامة والإعلام", "sections": [
+        {"title": "العلاقات", "items": [_item("لوحة العلاقات العامة", "relations_dashboard"), doc("الشراكات", "partnership"),
+                                       doc("جهات التواصل", "pr-contact"), doc("الزيارات", "visit")]},
+        {"title": "الإعلام والفعاليات", "items": [doc("الفعاليات والحملات", "pr-event"),
+                                                 doc("التغطيات الإعلامية", "media-coverage"),
+                                                 doc("الاستطلاعات", "survey"), _item("تقرير العلاقات العامة", "relations_report")]},
+    ]}
+    by_key["fleet"] = {"key": "fleet", "label": "إدارة الحركة والصيانة", "sections": [
+        {"title": "الحركة", "items": [_item("لوحة الحركة والصيانة", "fleet_dashboard"), doc("طلبات السيارات", "vehicle-request"),
+                                     doc("السيارات", "vehicle"), doc("سجل الوقود", "fuel-log")]},
+        {"title": "الصيانة", "items": [doc("طلبات الصيانة", "maintenance-request"), _item("تقرير الحركة والصيانة", "fleet_report")]},
+    ]}
+    by_key["statistics"] = {"key": "statistics", "label": "إدارة التقارير والإحصائيات", "sections": [
+        {"items": [_item("مركز التقارير والإحصائيات", "statistics_center")]},
     ]}
     for key, label in NONPROFIT_LABELS.items():
         if key in by_key:

@@ -1,0 +1,67 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<form method="get" class="filters card">
+  <label>السنة<select name="year" class="form-select" onchange="this.form.submit()">{% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
+</form>
+
+{% if stats %}
+<div class="kpi-row">
+  <div class="card kpi-card"><span class="kpi-label">المستفيدون المعتمدون</span><p class="kpi-value">{{ stats.beneficiaries_approved }}</p><span class="kpi-foot">من {{ stats.beneficiaries_total }} ملفاً مسجلاً</span></div>
+  <div class="card kpi-card"><span class="kpi-label">المساعدات المصروفة {{ year }}</span><p class="kpi-value">{{ stats.aid_total|money }}</p><span class="kpi-foot">{{ stats.aid_count }} صرف لـ {{ stats.aid_people }} مستفيد</span></div>
+  <div class="card kpi-card"><span class="kpi-label">التبرعات {{ year }}</span><p class="kpi-value">{{ stats.donations_total|money }}</p><span class="kpi-foot">{{ stats.donations_count }} سند من {{ stats.donors }} داعم</span></div>
+  <div class="card kpi-card"><span class="kpi-label">نسبة المساعدات إلى التبرعات</span><p class="kpi-value">{% if stats.donations_total %}{% widthratio stats.aid_total stats.donations_total 100 %}%{% else %}-{% endif %}</p><span class="kpi-foot">ما صُرف للمستفيدين من كل ريال</span></div>
+</div>
+
+<div class="dash-grid">
+  <div class="card">
+    <h3>التبرعات والمساعدات حسب الشهر — {{ year }}</h3>
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>الشهر</th><th class="num">التبرعات</th><th class="num">المساعدات</th><th class="num">الفرق</th></tr></thead>
+      <tbody>{% for m in stats.months %}<tr><td>{{ m.month|date:"F" }}</td><td class="num">{{ m.donations|money }}</td><td class="num">{{ m.aid|money }}</td><td class="num">{{ m.donations|sub_money:m.aid }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h3>المستفيدون حسب الفئة</h3>
+    <table class="table"><thead><tr><th>الفئة</th><th class="num">المسجلون</th><th class="num">المعتمدون</th></tr></thead>
+      <tbody>{% for r in stats.by_category %}<tr><td>{{ r.category__name|default:"بدون فئة" }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.approved }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">لا يوجد</td></tr>{% endfor %}</tbody>
+    </table>
+    <h3 style="margin-top:16px">حسب الجنس</h3>
+    <table class="table"><tbody>{% for r in stats.by_gender %}<tr><td>{{ r.label }}</td><td class="num">{{ r.n }}</td></tr>{% endfor %}</tbody></table>
+  </div>
+</div>
+
+<div class="dash-grid">
+  <div class="card">
+    <h3>المساعدات حسب البرنامج — {{ year }}</h3>
+    <table class="table"><thead><tr><th>البرنامج</th><th class="num">عدد مرات الصرف</th><th class="num">المستفيدون</th><th class="num">المبلغ</th></tr></thead>
+      <tbody>{% for r in stats.by_program %}<tr><td>{{ r.program__name }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.people }}</td><td class="num">{{ r.total|money }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">لا يوجد صرف في هذه السنة</td></tr>{% endfor %}</tbody>
+    </table>
+    <h3 style="margin-top:16px">التبرعات حسب النوع — {{ year }}</h3>
+    <table class="table"><thead><tr><th>النوع</th><th class="num">العدد</th><th class="num">المبلغ</th></tr></thead>
+      <tbody>{% for r in stats.by_donation_type %}<tr><td>{{ r.label }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.total|money }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">لا يوجد</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>أكبر الداعمين — {{ year }}</h3>
+    <table class="table"><thead><tr><th>الداعم</th><th class="num">السندات</th><th class="num">المبلغ</th></tr></thead>
+      <tbody>{% for r in stats.top_donors %}<tr><td>{{ r.donor_name|default:"فاعل خير" }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.total|money }}</td></tr>{% empty %}<tr><td colspan="3" class="muted">لا يوجد</td></tr>{% endfor %}</tbody>
+    </table>
+    <h3 style="margin-top:16px">المستفيدون حسب المدينة</h3>
+    <table class="table"><tbody>{% for r in stats.by_city %}<tr><td>{{ r.city }}</td><td class="num">{{ r.n }}</td></tr>{% empty %}<tr><td class="muted">لا يوجد</td></tr>{% endfor %}</tbody></table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>كل التقارير واللوحات</h3>
+  <div class="report-groups">
+    {% for g in groups %}
+    <div class="report-group">
+      <h4>{{ g.label }}</h4>
+      {% for link in g.links %}<a href="{{ link.url }}">{{ link.label }}</a>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

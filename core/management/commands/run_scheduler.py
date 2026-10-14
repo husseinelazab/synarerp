@@ -1,7 +1,7 @@
 """مُجدول المهام الدورية (يعمل في حاوية مستقلة في الإنتاج).
 
 - يومياً في الساعة SYNAR_REMINDERS_HOUR (افتراضي 7 صباحاً): تنبيهات الموارد البشرية (hr_reminders) وصلاحية التشغيلات (expiry_alerts)
-  والشيكات المستحقة (accounts_alerts).
+  والشيكات المستحقة (accounts_alerts)، وتنبيهات الجمعيات (الأوقاف، المكتب، التميز المؤسسي، العلاقات العامة، الحركة).
 - كل ساعة: إعادة إرسال الفواتير الإلكترونية المعلقة — للشركات التي فعّلت الربط مع منصة فاتورة بنفسها فقط.
 """
 import os
@@ -40,6 +40,9 @@ class Command(BaseCommand):
             self.run("sponsorship_dues")
             self.run("waqf_alerts")
             self.run("office_alerts")
+            self.run("excellence_alerts")
+            self.run("relations_alerts")
+            self.run("fleet_alerts")
             self.run("zatca_submit")
             from core.jobs import run_pending
 
@@ -73,4 +76,7 @@ class Command(BaseCommand):
                 self.run("sponsorship_dues")
                 self.run("waqf_alerts")
                 self.run("office_alerts")
+                self.run("excellence_alerts")
+                self.run("relations_alerts")
+                self.run("fleet_alerts")
             time.sleep(int(os.environ.get("SYNAR_SCHEDULER_TICK", "5")))

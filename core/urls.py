@@ -1,6 +1,6 @@
 from django.urls import path
 
-from core import attachments, import_views, search, statistics, views
+from core import attachments, import_views, onboarding, remote_select, search, statistics, views
 from stock import tools as stock_tools
 
 urlpatterns = [
@@ -13,6 +13,7 @@ urlpatterns = [
     path("account/profile/", views.profile, name="profile"),
     path("settings/email/", views.company_email_settings, name="company_email_settings"),
     path("settings/print/", views.print_settings, name="print_settings"),
+    path("settings/onboarding/dismiss/", onboarding.dismiss_onboarding, name="dismiss_onboarding"),
     path("settings/audit/", views.audit_log, name="audit_log"),
     path("settings/export-all/", views.company_export, name="company_export"),
     path("settings/api/", views.api_keys, name="api_keys"),
@@ -21,6 +22,7 @@ urlpatterns = [
     path("account/notifications/<int:pk>/", views.notification_open, name="notification_open"),
     path("api/item/<int:pk>/", views.item_api, name="item_api"),
     path("api/item/lookup/", stock_tools.lookup_api, name="item_lookup"),
+    path("api/options/<str:token>/", remote_select.remote_options, name="remote_options"),
     path("app/<slug:slug>/", views.doc_list, name="doc_list"),
     path("app/<slug:slug>/new/", views.doc_form, name="doc_new"),
     path("app/<slug:slug>/import/", import_views.import_page, name="doc_import"),

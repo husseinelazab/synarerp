@@ -227,6 +227,11 @@ def build_menu(request):
             module["sections"] = [s for s in module["sections"] if s["items"]]
         modules = [m for m in modules if m["sections"]]
 
+    # الوحدات التي اختارت المنشأة إخفاءها لأنها لا تستخدمها (من إعدادات الشركة)
+    hidden = set(request.company.hidden_modules or ())
+    if hidden:
+        modules = [m for m in modules if m["key"] not in hidden]
+
     # المستخدم العادي يرى الوحدات المسموحة له فقط، وداخلها ما يحق له فتحه
     modules = [m for m in modules if m["key"] in ("settings", "platform") or any(map(membership.allows_module, _keys(m)))]
     if not membership.can_manage:

@@ -8,8 +8,16 @@
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
   <div class="card">
     <div class="form-grid">
-      {% for field in form %}{% include "core/_field.html" %}{% endfor %}
+      {% for field in form %}{% if field.name not in advanced_names %}{% include "core/_field.html" %}{% endif %}{% endfor %}
     </div>
+    {% if advanced_fields %}
+    <details class="form-advanced"{% if advanced_open %} open{% endif %}>
+      <summary>خيارات إضافية <span class="muted small">({% for bf in advanced_fields|slice:":4" %}{{ bf.label }}{% if not forloop.last %}، {% endif %}{% endfor %}{% if advanced_fields|length > 4 %}…{% endif %})</span></summary>
+      <div class="form-grid">
+        {% for field in advanced_fields %}{% include "core/_field.html" %}{% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </div>
   {% if formset %}
   <div class="card">

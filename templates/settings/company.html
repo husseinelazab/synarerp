@@ -6,11 +6,14 @@
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
   <div class="card"><h3>بيانات المنشأة</h3><div class="form-grid">
-    {% for field in form %}{% if not field.name|slice:":8" == "default_" or field.name == "default_tax_rate" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
+    {% for field in form %}{% if field.name != "hidden_modules" and not field.name|slice:":8" == "default_" or field.name == "default_tax_rate" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
   </div></div>
   <div class="card"><h3>الحسابات الافتراضية</h3><div class="form-grid">
     {% for field in form %}{% if field.name|slice:":8" == "default_" and field.name != "default_tax_rate" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
   </div></div>
+  <div class="card"><h3>القائمة الجانبية</h3>
+    {% include "core/_field.html" with field=form.hidden_modules %}
+  </div>
   <div class="form-actions"><button class="btn btn-primary">حفظ</button></div>
 </form>
 {% endblock %}

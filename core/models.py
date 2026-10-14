@@ -63,6 +63,10 @@ class Company(models.Model):
     allow_support_access = models.BooleanField(
         "السماح لفريق الدعم الفني بالدخول إلى بيانات الشركة", default=True,
         help_text="عند الإلغاء لا يستطيع مدير المنصة فتح حساب شركتك من لوحة المنصة. كل دخول للدعم يُسجَّل ويصلك تنبيه به")
+    hidden_modules = models.JSONField(
+        "وحدات مخفية من القائمة", default=list, blank=True,
+        help_text="الوحدات التي لا تستخدمها المنشأة تُخفى من القائمة الجانبية لكل المستخدمين، وتعود بإلغاء التحديد")
+    onboarding_dismissed = models.BooleanField("إخفاء قائمة خطوات البداية", default=False, editable=False)
     email = models.EmailField("البريد الإلكتروني", blank=True)
     address = models.TextField("العنوان", blank=True)
     default_tax_rate = models.DecimalField("نسبة ضريبة القيمة المضافة %", max_digits=5, decimal_places=2, default=15)

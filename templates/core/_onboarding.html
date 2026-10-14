@@ -1,0 +1,23 @@
+{% if onboarding %}
+<section class="card onboarding" aria-labelledby="onboarding-title">
+  <div class="onboarding-head">
+    <div>
+      <h3 id="onboarding-title">ابدأ تجهيز {% if current_company.is_nonprofit %}الجمعية{% else %}منشأتك{% endif %}</h3>
+      <span class="muted small">أنجزت {{ onboarding.done }} من {{ onboarding.total }} خطوات · تُعلَّم كل خطوة تلقائياً عند إنجازها</span>
+    </div>
+    <form method="post" action="{% url 'dismiss_onboarding' %}">{% csrf_token %}
+      <button class="btn btn-sm" type="submit">إخفاء القائمة</button>
+    </form>
+  </div>
+  <div class="onboarding-bar" role="progressbar" aria-valuenow="{{ onboarding.percent }}" aria-valuemin="0" aria-valuemax="100"><span style="width:{{ onboarding.percent }}%"></span></div>
+  <ol class="onboarding-steps">
+    {% for step in onboarding.steps %}
+    <li class="{% if step.done %}done{% endif %}">
+      <span class="onboarding-mark" aria-hidden="true">{% if step.done %}✓{% else %}{{ forloop.counter }}{% endif %}</span>
+      <div><strong>{{ step.title }}</strong><small class="muted">{{ step.text }}</small></div>
+      {% if not step.done %}<a class="btn btn-sm" href="{{ step.url }}">{{ step.action }}</a>{% else %}<span class="muted small">تم</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}

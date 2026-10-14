@@ -1,10 +1,11 @@
 from buying.models import (LandedCostCharge, MaterialRequest, MaterialRequestItem, SupplierQuotation,
                            SupplierQuotationItem, LandedCostVoucher, PurchaseInvoice, PurchaseInvoiceItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
                            PurchaseReceiptItem, Supplier)
-from core.registry import ChildTable, DocType, register
+from core.registry import COMMERCIAL_ADVANCED, ChildTable, DocType, register
 
 register(DocType(
     slug="purchase-invoice", model=PurchaseInvoice, module="buying",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "supplier", "bill_no", "is_return", "grand_total", "outstanding_amount"],
     form_fields=["supplier", "bill_no", "posting_date", "payment_terms", "due_date", "currency", "exchange_rate", "update_stock", "warehouse",
                  "cost_center", "project", "fund", "price_list", "ignore_pricing_rules", "tax_rate", "vat_category", "vat_exemption_reason",
@@ -22,6 +23,7 @@ register(DocType(
 ))
 register(DocType(
     slug="purchase-order", model=PurchaseOrder, module="buying",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "supplier", "schedule_date", "grand_total", "per_billed", "status"],
     form_fields=["supplier", "posting_date", "schedule_date", "currency", "exchange_rate", "warehouse", "cost_center",
                  "price_list", "ignore_pricing_rules", "tax_rate", "terms", "remarks"],
@@ -31,6 +33,7 @@ register(DocType(
 ))
 register(DocType(
     slug="purchase-receipt", model=PurchaseReceipt, module="buying",
+    advanced_fields=COMMERCIAL_ADVANCED,
     list_fields=["name", "posting_date", "supplier", "warehouse", "total_amount", "status"],
     form_fields=["supplier", "supplier_delivery_no", "posting_date", "warehouse", "cost_center", "currency",
                  "exchange_rate", "tax_rate", "remarks"],

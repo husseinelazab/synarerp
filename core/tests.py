@@ -423,3 +423,12 @@ class AccountingRigorTests(TestCase):
 def datetime_today():
     import datetime
     return datetime.date.today()
+
+
+class VersionedStaticTests(TestCase):
+    def test_debug_static_urls_carry_file_version(self):
+        from core.storage import VersionedStaticFilesStorage
+
+        storage = VersionedStaticFilesStorage()
+        self.assertRegex(storage.url("css/site.css"), r"site\.css\?v=\d+$")
+        self.assertNotIn("?v=", storage.url("css/no-such-file.css"))

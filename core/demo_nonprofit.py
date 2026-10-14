@@ -18,10 +18,10 @@ def create_nonprofit_demo(company, user=None):
     from awqaf.models import Waqf, WaqfDistribution, WaqfLease
     from beneficiaries.models import (AidDisbursement, AidProgram, Beneficiary, BeneficiaryCategory,
                                       BeneficiaryEntity, CaseAssessment, EntityRequest)
-    from funds.models import DonationReceipt, Donor, Sponsorship, SponsorshipType, generate_dues
+    from funds.models import DonationReceipt, Donor, InKindDonation, Sponsorship, SponsorshipType, generate_dues
     from governance.models import BoardTerm, Meeting, MeetingDecision, Member, MembershipCategory, generate_fees
     from office.models import AdminRequest, AdminRequestType, Circular, Correspondence
-    from stock.models import UOM, Item, ItemGroup, OpeningStock, Warehouse
+    from stock.models import UOM, Item, ItemGroup, Warehouse
     from volunteering.models import Volunteer, VolunteerOpportunity, VolunteerParticipation
 
     if Beneficiary.objects.exists():
@@ -96,9 +96,10 @@ def create_nonprofit_demo(company, user=None):
     warehouse = Warehouse.objects.get(name="المستودع الرئيسي")
     group, uom = ItemGroup.objects.first(), UOM.objects.first()
     basket = Item.objects.create(code="BSK-01", name="سلة غذائية متكاملة", item_group=group, uom=uom, buying_rate=250)
-    opening = OpeningStock.objects.create(warehouse=warehouse, posting_date=start)  # رصيد افتتاحي للسلال
-    opening.items.create(item=basket, qty=40, rate=250)
-    _submit(opening)
+    in_kind = InKindDonation.objects.create(donor=donors[1], donor_name=donors[1].name, warehouse=warehouse,
+                                            posting_date=start, remarks="سلال غذائية من مؤسسة الخير")
+    in_kind.items.create(item=basket, qty=40, rate=250)  # تبرع عيني مقيد بقيمته العادلة
+    _submit(in_kind)
     aid = AidDisbursement.objects.create(beneficiary=beneficiaries[1], program=AidProgram.objects.get(name="السلة الغذائية"),
                                          warehouse=warehouse, posting_date=day(12))
     aid.items.create(item=basket, qty=2)

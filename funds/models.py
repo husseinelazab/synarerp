@@ -375,3 +375,106 @@ def generate_dues(period):
             SponsorshipDue.objects.create(sponsorship=sponsorship, period=period, amount=sponsorship.monthly_amount)
             created += 1
     return created
+
+
+# ───────────────────────────── التبرعات العينية ─────────────────────────────
+
+IN_KIND_ACCOUNTS = {"unrestricted": "31202001", "restricted": "31103003"}  # غير مقيدة / مقيدة - أسر محتاجة
+IN_KIND_BRANCHES = {"unrestricted": "312", "restricted": "311"}
+
+
+class InKindDonation(SubmittableDocument):
+    """سند تبرع عيني: يدخل الأصناف المتبرع بها المستودع بقيمتها العادلة مقابل إيراد التبرعات العينية."""
+
+    naming_prefix = "INK"
+
+    donor = models.ForeignKey(Donor, models.PROTECT, null=True, blank=True, related_name="in_kind",
+                              limit_choices_to={"is_active": True}, verbose_name="الداعم")
+    donor_name = models.CharField("اسم المتبرع", max_length=150, blank=True, help_text="اتركه فارغاً لـ«فاعل خير»")
+    restriction = models.CharField("نوع التبرع", max_length=12, default="restricted",
+                                   choices=[("restricted", "مقيد بغرض (مثل سلال للأسر المحتاجة)"),
+                                            ("unrestricted", "غير مقيد")])
+    fund = models.ForeignKey(Fund, models.PROTECT, null=True, blank=True, related_name="+",
+                             limit_choices_to={"is_active": True}, verbose_name="الصندوق",
+                             help_text="اختياري للتبرع المقيد لتتبع رصيده")
+    warehouse = models.ForeignKey("stock.Warehouse", models.PROTECT, related_name="+", verbose_name="المستودع")
+    income_account = models.ForeignKey(Account, models.PROTECT, null=True, blank=True, related_name="+",
+                                       limit_choices_to={"is_group": False, "root_type": RootType.INCOME},
+                                       verbose_name="حساب الإيراد", help_text="يُحدد تلقائياً حسب نوع التبرع")
+    total = models.DecimalField("القيمة العادلة الإجمالية", max_digits=18, decimal_places=2, default=0,
+                                editable=False)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "سند تبرع عيني"
+        verbose_name_plural = "سندات التبرعات العينية"
+
+    def clean(self):
+        if self.donor_id and not self.donor_name:
+            self.donor_name = self.donor.name
+        fund = self.fund if self.fund_id else None
+        if fund is not None and self.restriction == "unrestricted" and fund.fund_type != FundType.UNRESTRICTED:
+            raise ValidationError({"fund": "التبرع غير المقيد لا يُقيد في صندوق مقيد."})
+        if fund is not None and fund.fund_type == FundType.ENDOWMENT:
+            raise ValidationError({"fund": "للأوقاف العينية استخدم إدارة الأوقاف."})
+        if self.income_account_id and self.company_id:
+            from accounts.chart import uses_nonprofit_chart
+
+            branch = IN_KIND_BRANCHES[self.restriction]
+            if uses_nonprofit_chart(self.company) and not self.income_account.number.startswith(branch):
+                raise ValidationError({"income_account": f"التبرع العيني {self.get_restriction_display()} "
+                                                         f"يُقيد في حسابات الفرع {branch}."})
+
+    def calculate_totals(self):
+        total = flt(0)
+        if self.pk:
+            for row in self.items.all():
+                row.amount = flt(flt(row.qty, 3) * flt(row.rate))
+                row.save(update_fields=["amount"])
+                total += row.amount
+        self.total = total
+        if not self.income_account_id:
+            self.income_account = Account.objects.filter(number=IN_KIND_ACCOUNTS[self.restriction],
+                                                         is_group=False).first()
+
+    def validate_for_submit(self):
+        self.clean()
+        rows = list(self.items.select_related("item"))
+        if not rows:
+            raise ValidationError("أضف الأصناف المتبرع بها.")
+        for row in rows:
+            if not row.item.is_stock_item or row.qty <= 0 or row.rate <= 0:
+                raise ValidationError(f"الصنف {row.item} يجب أن يكون مخزنياً بكمية وقيمة عادلة أكبر من صفر.")
+        if not self.income_account_id:
+            raise ValidationError("حدد حساب إيراد التبرعات العينية.")
+
+    def on_submit(self):
+        from stock.ledger import make_stock_ledger_entry
+
+        value = flt(0)
+        for row in self.items.select_related("item"):
+            value += make_stock_ledger_entry(self, row.item, self.warehouse, row.qty, row.rate)
+        if value:
+            make_gl_entries(self, [
+                {"account": self.company.require_account("default_stock_account"), "debit": value},
+                {"account": self.income_account, "credit": value, "fund": self.fund},
+            ], remarks=f"تبرع عيني من {self.donor_name or 'فاعل خير'}")
+
+    def on_cancel(self):
+        from stock.ledger import cancel_stock_ledger_entries
+
+        cancel_stock_ledger_entries(self)
+        cancel_gl_entries(self)
+
+
+class InKindDonationItem(models.Model):
+    parent = models.ForeignKey(InKindDonation, models.CASCADE, related_name="items")
+    item = models.ForeignKey("stock.Item", models.PROTECT, limit_choices_to={"disabled": False, "is_stock_item": True},
+                             verbose_name="الصنف")
+    qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
+    rate = models.DecimalField("القيمة العادلة للوحدة", max_digits=18, decimal_places=2, default=0)
+    amount = models.DecimalField("القيمة", max_digits=18, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name = "صنف متبرع به"
+        verbose_name_plural = "الأصناف المتبرع بها"
+        ordering = ["id"]

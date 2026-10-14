@@ -1,0 +1,15 @@
+<div class="login-page">
+  <form method="post" class="card login-card" novalidate>{% csrf_token %}
+    {% if invalid %}
+      <h1>رابط غير صالح</h1><div class="alert alert-error">الرابط غير صحيح أو تالف.</div>
+    {% else %}
+      <h1>{{ company.name }}</h1>
+      {% if done %}
+        <div class="alert alert-success">تم إيقاف رسائلنا البريدية إلى <span dir="ltr">{{ email }}</span>. نشكر لك دعمك.</div>
+      {% else %}
+        <p>هل تريد إيقاف رسائل {{ company.name }} البريدية إلى <b dir="ltr">{{ email }}</b>؟</p>
+        <button class="btn btn-primary btn-lg">تأكيد الإيقاف</button>
+      {% endif %}
+    {% endif %}
+  </form>
+</div>

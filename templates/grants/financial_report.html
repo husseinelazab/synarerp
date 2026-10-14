@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}التقرير المالي للمانح{% endblock %}
+{% block content %}
+<div class="toolbar no-print"><div><a class="btn" href="{{ grant.get_absolute_url }}">← المنحة</a></div>
+  <div class="actions"><button type="button" class="btn btn-primary" onclick="window.print()">طباعة</button></div></div>
+<div class="card">
+  <h3>التقرير المالي لمنحة «{{ grant.title }}»</h3>
+  <p>السادة / <strong>{{ grant.grantor.name }}</strong> المحترمين، نرفق لكم التقرير المالي للمنحة{% if grant.agreement_number %} بموجب الاتفاقية رقم {{ grant.agreement_number }}{% endif %}.</p>
+  <table class="table"><tbody>
+    <tr><th>مدة المنحة</th><td>{{ grant.start_date|date:"Y/m/d" }} — {{ grant.end_date|date:"Y/m/d" }}</td><th>المشروع</th><td>{{ grant.project|default:"—" }}</td></tr>
+    <tr><th>الصندوق المقيد</th><td>{{ grant.fund|default:"—" }}</td><th>حالة المنحة</th><td>{{ grant.get_status_display }}</td></tr>
+  </tbody></table>
+</div>
+<div class="card"><h3>ملخص المنحة</h3><table class="table report"><tbody>
+  <tr><td>المبلغ المعتمد</td><td class="num">{{ summary.approved|cur }}</td></tr>
+  <tr><td>المستلم من المانح ({{ summary.received_percent|floatformat:1 }}%)</td><td class="num">{{ summary.received|cur }}</td></tr>
+  <tr><td>المتبقي على المانح</td><td class="num">{{ summary.not_received|cur }}</td></tr>
+  <tr><td>المصروف خلال الفترة</td><td class="num">{{ summary.spent|cur }}</td></tr>
+  <tr><th>الرصيد المتبقي في صندوق المنحة</th><th class="num">{{ summary.fund_balance|cur }}</th></tr>
+</tbody></table></div>
+<div class="card"><h3>الموازنة مقابل الفعلي</h3>{% include "grants/_bva_table.html" %}</div>
+<div class="card"><h3>الدفعات المستلمة</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الاستحقاق</th><th>سند الاستلام</th><th>تاريخ الاستلام</th><th class="num">المبلغ</th></tr></thead><tbody>
+{% for i in installments %}<tr><td>{{ i.due_date|date:"Y/m/d" }}</td><td>{{ i.receipt.name|default:"—" }}</td><td>{{ i.receipt.posting_date|date:"Y/m/d"|default:"لم تُستلم" }}</td><td class="num">{{ i.amount|money }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted center">لا دفعات</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

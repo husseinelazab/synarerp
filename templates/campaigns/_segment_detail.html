@@ -1,0 +1,15 @@
+{% with p=obj.preview %}
+<div class="kpis">
+  <div class="kpi"><span>عدد المستلمين</span><b>{{ p.count }}</b><span>بعد إزالة التكرار</span></div>
+  <div class="kpi"><span>لهم جوال</span><b>{{ p.phones }}</b></div>
+  <div class="kpi"><span>لهم بريد</span><b>{{ p.emails }}</b></div>
+</div>
+<div class="card"><h3>معاينة (أول 20)</h3>
+  <p class="muted small">تُحسب الشريحة لحظياً عند كل عرض أو إرسال؛ تُستبعد عند الإرسال أرقام قائمة الإيقاف.</p>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>الجوال</th><th>البريد</th><th>المصدر</th></tr></thead><tbody>
+  {% for r in p.rows %}<tr><td>{{ r.name|default:"—" }}</td><td dir="ltr">{{ r.phone|default:"—" }}</td><td dir="ltr">{{ r.email|default:"—" }}</td><td>{{ r.source }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted center">لا يوجد مستلمون مطابقون</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p><a class="btn btn-primary" href="{% url 'doc_new' 'campaign' %}?segment={{ obj.pk }}">+ حملة لهذه الشريحة</a></p>
+</div>
+{% endwith %}

@@ -325,6 +325,18 @@ def _demo_new_modules(company, user, today, day):
     FuelLog.objects.create(vehicle=van, date=day(3), liters=Decimal("60"), amount=Decimal("139.20"), odometer=48260,
                            station="محطة الدريس")
     _demo_digital(company, today, day)
+    _demo_outreach(company, today)
+
+
+def _demo_outreach(company, today):
+    """بوابة المستفيد وإدارة المنح وحملات التواصل ومعيار حوكمة المركز الوطني."""
+    from campaigns.demo import seed_demo as campaigns_demo
+    from grants.demo import seed_demo as grants_demo
+    from portal.demo import seed_demo as portal_demo
+
+    portal_demo(company)
+    grants_demo(company, today)
+    campaigns_demo(company)
 
 
 DEMO_PDF = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj "

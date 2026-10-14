@@ -1,0 +1,25 @@
+{% with s=obj.stats sms=obj.sms_info %}
+<div class="kpis">
+  <div class="kpi"><span>المستلمون</span><b>{{ s.total }}</b></div>
+  <div class="kpi kpi-good"><span>أُرسلت</span><b>{{ s.sent }}</b></div>
+  <div class="kpi {% if s.failed %}kpi-bad{% endif %}"><span>فشلت</span><b>{{ s.failed }}</b></div>
+  <div class="kpi"><span>مستبعد (إيقاف)</span><b>{{ s.skipped }}</b></div>
+  <div class="kpi"><span>في الانتظار</span><b>{{ s.queued }}</b></div>
+</div>
+<div class="card"><h3>نص الرسالة</h3>
+  <p style="white-space:pre-wrap">{{ obj.message }}</p>
+  {% if obj.channel != 'email' %}<p class="muted small">{{ sms.length }} حرفاً — {{ sms.segments }} جزء SMS ({{ sms.encoding }}: {{ sms.single }} للرسالة الواحدة، {{ sms.multi }} للمتعددة) قبل تعويض المتغيرات وتذييل الإيقاف.</p>{% endif %}
+  <p class="muted small">المستهدفون حالياً في الشريحة «{{ obj.segment }}»: <a href="{{ obj.segment.get_absolute_url }}">{{ obj.segment.preview.count }}</a></p>
+</div>
+<form method="post" action="{% url 'campaign_test_send' obj.pk %}" class="card inline-form">{% csrf_token %}
+  <h3>إرسال تجريبي</h3>
+  <input name="target" class="form-control" dir="ltr" placeholder="05xxxxxxxx أو name@example.com" style="max-width:280px" required>
+  <button class="btn">إرسال تجريبي</button>
+  <p class="muted small">يرسل نص الحملة لرقم أو بريد واحد للمراجعة، ولا يُحسب ضمن مستلمي الحملة.</p>
+</form>
+{% if s.total %}<div class="card"><h3>المستلمون</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الاسم</th><th>القناة</th><th>العنوان</th><th>المصدر</th><th>الحالة</th><th>السبب</th><th>الوقت</th></tr></thead><tbody>
+{% for r in obj.recipients.all|slice:":500" %}<tr><td>{{ r.name|default:"—" }}</td><td>{% if r.channel == 'sms' %}SMS{% else %}بريد{% endif %}</td><td dir="ltr">{{ r.address }}</td>
+<td>{{ r.source }}</td><td>{{ r.get_status_display }}</td><td class="small {% if r.status == 'failed' %}neg{% endif %}">{{ r.error }}</td><td>{{ r.attempted_at|date:"Y-m-d H:i"|default:"" }}</td></tr>{% endfor %}
+</tbody></table></div>{% if s.total > 500 %}<p class="muted small">يُعرض أول 500 مستلم.</p>{% endif %}</div>{% endif %}
+{% endwith %}

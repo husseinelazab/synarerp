@@ -1,0 +1,25 @@
+{% extends "portal/_base.html" %}
+{% block page_title %}المستندات{% endblock %}
+{% block portal %}
+{% if done %}<div class="notice ok" role="status">{{ done }}</div><br>{% endif %}
+{% if error %}<div class="notice err" role="alert">{{ error }}</div><br>{% endif %}
+<div class="portal-panel">
+  <h2><i class="i" data-i="up"></i> رفع مستندات داعمة</h2>
+  <p class="muted">مثل صك الإعالة أو عقد الإيجار أو التقارير الطبية أو تعريف الراتب. الأنواع المسموحة PDF و JPG و PNG، بحد أقصى 5 ميجابايت للملف و{{ max_files }} ملفات في المرة الواحدة.</p>
+  <form method="post" enctype="multipart/form-data" class="site-form">{% csrf_token %}
+    <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="form-grid">
+      <div class="field"><label for="id_files">الملفات</label><input type="file" name="files" id="id_files" multiple required accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+      <div class="field"><label for="id_description">وصف المستندات (اختياري)</label><input type="text" name="description" id="id_description" maxlength="150"></div>
+    </div>
+    <button class="btn-brand" type="submit">رفع</button>
+  </form>
+</div>
+<div class="portal-panel portal-table">
+  <h2>المستندات المرفوعة من البوابة</h2>
+  <table class="plain"><thead><tr><th>الملف</th><th>تاريخ الرفع</th><th class="num">الحجم</th></tr></thead><tbody>
+  {% for d in documents %}<tr><td>{{ d.file_name }}</td><td>{{ d.uploaded_at|date:"Y-m-d" }}</td><td class="num">{{ d.size|filesizeformat }}</td></tr>
+  {% empty %}<tr><td colspan="3" class="muted">لم ترفع مستندات بعد.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

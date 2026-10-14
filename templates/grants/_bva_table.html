@@ -1,0 +1,9 @@
+{% load erp %}<div class="table-wrap"><table class="table report">
+  <thead><tr><th>البند</th><th>حساب المصروف</th><th class="num">الموازنة</th><th class="num">الفعلي</th><th class="num">الفرق (المتبقي)</th><th class="num">نسبة الصرف</th></tr></thead>
+  <tbody>{% for r in bva.rows %}<tr{% if r.over %} class="row-loss"{% endif %}><td>{{ r.label }}</td><td>{% if r.account %}{{ r.account.number }} {{ r.account.name }}{% endif %}</td>
+    <td class="num">{{ r.budget|money }}</td><td class="num">{{ r.actual|money }}</td><td class="num {% if r.variance < 0 %}neg{% endif %}">{{ r.variance|money }}</td>
+    <td class="num">{% if r.percent is not None %}{{ r.percent|floatformat:1 }}%{% else %}—{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="muted center">لا بنود موازنة؛ أضفها من تعديل المنحة</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><th colspan="2">الإجمالي</th><th class="num">{{ bva.totals.budget|cur }}</th><th class="num">{{ bva.totals.actual|cur }}</th>
+    <th class="num">{{ bva.totals.variance|cur }}</th><th class="num">{% if bva.totals.percent is not None %}{{ bva.totals.percent|floatformat:1 }}%{% endif %}</th></tr></tfoot>
+</table></div>

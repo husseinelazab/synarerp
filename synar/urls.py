@@ -50,6 +50,7 @@ urlpatterns = [
     path("resources/", include("funds.resource_urls")),
     path("governance/", include("governance.urls")),
     path("awqaf/", include("awqaf.urls")),
+    path("grants/", include("grants.urls")),
     path("volunteering/", include("volunteering.urls")),
     path("v/", include("volunteering.public_urls")),
     path("programs/", include("programs.urls")),
@@ -57,6 +58,8 @@ urlpatterns = [
     path("excellence/", include("excellence.urls")),
     path("relations/", include("relations.urls")),
     path("s/", include("relations.public_urls")),
+    path("campaigns/", include("campaigns.urls")),
+    path("u/", include("campaigns.public_urls")),  # إلغاء الاشتراك برابط موقّع (عام)
     path("fleet/", include("fleet.urls")),
     path("website/", include("website.urls")),
     path("store/", include("store.urls")),

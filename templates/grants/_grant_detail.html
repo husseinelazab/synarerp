@@ -1,0 +1,29 @@
+{% load erp %}{% with s=obj.financial_summary bva=obj.budget_vs_actual %}
+<div class="kpis">
+  <div class="kpi"><span>المبلغ المعتمد</span><b>{{ s.approved|money }}</b></div>
+  <div class="kpi kpi-good"><span>المستلم من المانح</span><b>{{ s.received|money }}</b><span>{{ s.received_percent|floatformat:1 }}% — متبقٍ {{ s.not_received|money }}</span></div>
+  <div class="kpi"><span>المصروف خلال مدة المنحة</span><b>{{ s.spent|money }}</b><span>{{ obj.burn_rate|floatformat:1 }}% من المعتمد — انقضى {{ obj.time_elapsed|floatformat:0 }}% من المدة</span></div>
+  <div class="kpi {% if s.fund_balance < 0 %}kpi-bad{% endif %}"><span>رصيد صندوق المنحة</span><b>{{ s.fund_balance|money }}</b>{% if not obj.fund %}<span>لا صندوق بعد</span>{% endif %}</div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>الموازنة مقابل الفعلي</h3><span><a class="btn btn-sm" href="{% url 'grant_financial_report' obj.pk %}">التقرير المالي للمانح</a></span></div>
+  <p class="muted small">الفعلي = صافي المدين على حساب البند ببعد صندوق المنحة من {{ obj.start_date|date:"Y-m-d" }} إلى {{ obj.end_date|date:"Y-m-d" }} (القيود المعتمدة).</p>
+  {% include "grants/_bva_table.html" %}
+</div>
+<div class="grid-2">
+<div class="card">
+  <div class="card-head"><h3>دفعات المنحة</h3><span><a class="btn btn-sm" href="{% url 'doc_new' 'grant-installment' %}?grant={{ obj.pk }}">+ دفعة</a></span></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>الاستحقاق</th><th class="num">المبلغ</th><th>الحالة</th><th>سند الاستلام</th></tr></thead><tbody>
+  {% for i in obj.installments.all %}<tr{% if i.is_overdue %} class="row-loss"{% endif %}><td><a href="{{ i.get_absolute_url }}">{{ i.due_date|date:"Y-m-d" }}</a></td><td class="num">{{ i.amount|money }}</td>
+  <td>{{ i.get_status_display }}{% if i.is_overdue %} (متأخرة){% endif %}</td><td>{% if i.receipt %}<a href="{{ i.receipt.get_absolute_url }}">{{ i.receipt.name }}</a>{% else %}—{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted center">لا دفعات</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="card">
+  <div class="card-head"><h3>تقارير المانح</h3><span><a class="btn btn-sm" href="{% url 'doc_new' 'grant-report' %}?grant={{ obj.pk }}">+ تقرير</a></span></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>التقرير</th><th>الموعد</th><th>الحالة</th></tr></thead><tbody>
+  {% for r in obj.reports.all %}<tr{% if r.is_overdue %} class="row-loss"{% endif %}><td><a href="{{ r.get_absolute_url }}">{{ r.get_kind_display }}</a></td><td>{{ r.due_date|date:"Y-m-d" }}</td>
+  <td>{{ r.get_status_display }}{% if r.submitted_date %} {{ r.submitted_date|date:"Y-m-d" }}{% elif r.is_overdue %} (متأخر){% endif %}</td></tr>
+  {% empty %}<tr><td colspan="3" class="muted center">لا تقارير</td></tr>{% endfor %}</tbody></table></div>
+</div>
+</div>
+{% endwith %}

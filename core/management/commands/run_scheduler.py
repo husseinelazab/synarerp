@@ -44,6 +44,8 @@ class Command(BaseCommand):
             self.run("relations_alerts")
             self.run("fleet_alerts")
             self.run("store_recurring")
+            self.run("grants_alerts")
+            self.run("campaigns_run")
             self.run("zatca_submit")
             from core.jobs import run_pending
 
@@ -64,6 +66,7 @@ class Command(BaseCommand):
             if hour_key != last_hourly:
                 last_hourly = hour_key
                 self.run("zatca_submit")
+                self.run("campaigns_run")  # الحملات المجدولة تُرسل في ساعتها
             if now.hour >= reminders_hour and now.date() != last_daily:
                 last_daily = now.date()
                 self.run("hr_reminders")
@@ -81,4 +84,5 @@ class Command(BaseCommand):
                 self.run("relations_alerts")
                 self.run("fleet_alerts")
                 self.run("store_recurring")
+                self.run("grants_alerts")
             time.sleep(int(os.environ.get("SYNAR_SCHEDULER_TICK", "5")))

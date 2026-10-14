@@ -18,6 +18,7 @@ PERMISSION_MODULES = [
     ("members", "إدارة الأعضاء المشاركين (الجمعية العمومية والمجلس والاجتماعات)"),
     ("governance", "إدارة الحوكمة"),
     ("awqaf", "إدارة الأوقاف"),
+    ("grants", "إدارة المنح (طلبات المنح والمنح المعتمدة وتقارير المانحين)"),
     ("volunteering", "إدارة التطوع"),
     ("office", "المكتب الإلكتروني (الطلبات الإدارية والتعاميم)"),
     ("documents", "إدارة التوثيق والمستندات (الصادر والوارد والأرشيف)"),
@@ -33,7 +34,7 @@ PERMISSION_MODULES = [
 ]
 
 # وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
-NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "volunteering", "office", "documents",
+NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "grants", "volunteering", "office", "documents",
                      "beneficiaries", "entities", "programs", "excellence", "relations", "fleet", "statistics",
                      "website", "store"}
 # الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
@@ -97,6 +98,7 @@ PATH_MODULES = [
     ("/governance/members/", "members"),
     ("/governance/", "governance"),
     ("/awqaf/", "awqaf"),
+    ("/grants/", "grants"),
     ("/volunteering/", "volunteering"),
     ("/office/documents/", "documents"),
     ("/office/", "office"),
@@ -107,6 +109,7 @@ PATH_MODULES = [
     ("/statistics/", "statistics"),
     ("/website/", "website"),
     ("/store/", "store"),
+    ("/campaigns/", "resources"),
     ("/beneficiaries/entities/", "entities"),
     ("/beneficiaries/", "beneficiaries"),
 ]

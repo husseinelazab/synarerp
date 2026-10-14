@@ -90,15 +90,20 @@ def mail_enabled(company=None):
     return active_config(company) is not None
 
 
-def send(company, subject, body, recipients, link=""):
-    """يرسل رسالة إن كان البريد مفعّلاً؛ يعيد True عند الإرسال. الفشل يُسجل ولا يوقف العملية."""
+def send(company, subject, body, recipients, link="", attachments=(), prefix=True):
+    """يرسل رسالة إن كان البريد مفعّلاً؛ يعيد True عند الإرسال. الفشل يُسجل ولا يوقف العملية.
+
+    attachments: [(اسم الملف، المحتوى، النوع)]. prefix=False للرسائل الموجهة لعملاء المنشأة (دون اسم النظام).
+    """
     config = active_config(company)
     recipients = sorted({r for r in recipients if r})
     if config is None or not recipients:
         return False
     if link and config.site_url:
         body = f"{body}\n\n{config.site_url.rstrip('/')}{link}"
-    message = EmailMessage(f"[{settings.ERP_NAME}] {subject}", body, config.sender, recipients)
+    message = EmailMessage(f"[{settings.ERP_NAME}] {subject}" if prefix else subject, body, config.sender, recipients)
+    for name, content, mimetype in attachments:
+        message.attach(name, content, mimetype)
 
     def deliver():
         try:

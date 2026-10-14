@@ -9,6 +9,16 @@
     });
   });
 
+  // نسخ رابط (مثل رابط المستند PDF للعميل)
+  document.querySelectorAll("button[data-copy]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var text = btn.dataset.copy, label = btn.textContent;
+      function done() { btn.textContent = "✓ نُسخ الرابط"; setTimeout(function () { btn.textContent = label; }, 1800); }
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () { window.prompt("انسخ الرابط:", text); });
+      else window.prompt("انسخ الرابط:", text);
+    });
+  });
+
   var table = document.querySelector(".child-table");
   if (!table) return;
 

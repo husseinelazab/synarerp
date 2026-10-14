@@ -5,20 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ obj.name }} — {{ p.title }}</title>
 <link rel="stylesheet" href="{% static 'css/currency.css' %}">
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+{% if not pdf %}<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">{% endif %}
 <link rel="stylesheet" href="{% static 'css/print.css' %}">
+{% if pdf %}<link rel="stylesheet" href="{% static 'css/print-pdf.css' %}">
+<style>
+  .tpl-classic .items th { background: {{ tints.12 }}; }
+  .tpl-modern .title-band { border-bottom-color: {{ tints.25 }}; }
+  .tpl-modern .box, .tpl-modern .words, .tpl-modern .totals th, .tpl-modern .totals td { background: {{ tints.6 }}; }
+  .tpl-modern .totals { background: none; }
+  .tpl-modern .items tbody tr:nth-child(even) td { background: {{ tints.4 }}; }
+</style>{% endif %}
 <style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }{% if landscape %} @page { size: A4 landscape; margin: 8mm; }{% endif %}</style>
 </head>
 <body class="tpl-{{ template }}">
-<div class="toolbar no-print">
+{% if not pdf %}<div class="toolbar no-print">
   <a class="tb-btn" href="{% url 'doc_detail' dt.slug obj.pk %}">→ رجوع للمستند</a>
   <span class="tb-group">
     <span class="tb-label">القالب:</span>
     {% for value, label in templates %}<a class="tb-chip{% if value == template %} active{% endif %}" href="?template={{ value }}">{{ label }}</a>{% endfor %}
   </span>
   {% if can_customize %}<a class="tb-btn" href="{% url 'print_settings' %}">⚙ إعدادات الطباعة</a>{% endif %}
-  <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
-</div>
+  <a class="tb-btn" href="{% url 'doc_pdf' dt.slug obj.pk %}">⬇ تنزيل PDF</a>
+  <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة</button>
+</div>{% endif %}
 
 <main class="sheet{% if landscape %} landscape{% endif %}">
   {% if obj.is_draft %}<div class="watermark">مسودة</div>{% elif obj.is_cancelled %}<div class="watermark">ملغاة</div>{% endif %}
@@ -54,6 +63,7 @@
       {% if p.party.address %}<div><span class="k">العنوان{% en "Address" %}</span>{{ p.party.address }}</div>{% endif %}
       {% if p.party.phone %}<div><span class="k">الجوال{% en "Phone" %}</span><span dir="ltr">{{ p.party.phone }}</span></div>{% endif %}
     </div>
+    {% if pdf %}<div class="gap"></div>{% endif %}
     {% endif %}
     <div class="box meta">
       <div><span class="k">رقم المستند{% en "No." %}</span><b dir="ltr">{{ obj.name }}</b></div>
@@ -116,6 +126,7 @@
       {% endif %}
       {% if qr %}<div class="qr">{{ qr|safe }}</div>{% endif %}
     </div>
+    {% if pdf %}<div class="gap"></div>{% endif %}
     <table class="totals">
       <tr><th>الإجمالي قبل الضريبة{% en "Subtotal" %}</th><td>{{ p.totals.gross|cur:p.currency }}</td></tr>
       {% if p.totals.discount %}<tr><th>الخصم{% en "Discount" %}</th><td>- {{ p.totals.discount|cur:p.currency }}</td></tr>
@@ -147,7 +158,7 @@
   </table>
   {% endif %}
   {% if totals %}
-  <section class="summary"><div class="summary-side"></div>
+  <section class="summary"><div class="summary-side"></div>{% if pdf %}<div class="gap"></div>{% endif %}
     <table class="totals">{% for label, value in totals %}<tr{% if forloop.last and totals|length == 1 %} class="grand"{% endif %}><th>{{ label }}</th><td>{{ value|abs|cur:doc_currency }}</td></tr>{% endfor %}</table>
   </section>
   {% endif %}

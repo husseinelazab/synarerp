@@ -16,7 +16,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from messaging.models import MessageLog, MessagingSettings
-        from messaging.service import compose, invoice_context, send
+        from messaging.service import compose, invoice_context, send, with_invoice_link
         from selling.models import SalesInvoice
 
         today = timezone.localdate()
@@ -34,7 +34,8 @@ class Command(BaseCommand):
                     if MessageLog.objects.filter(reference=inv.name, event="overdue", created_at__gte=since).exists():
                         continue
                     try:
-                        send(company, inv.customer.phone, compose(company, "overdue", **invoice_context(inv)),
+                        body = with_invoice_link(company, compose(company, "overdue", **invoice_context(inv)), inv)
+                        send(company, inv.customer.phone, body,
                              event="overdue", reference=inv.name, customer=inv.customer, mode="provider")
                         sent += 1
                     except ValueError:

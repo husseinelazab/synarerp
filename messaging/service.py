@@ -68,6 +68,18 @@ def invoice_context(invoice):
             "days": (timezone.localdate() - due).days if due else 0}
 
 
+def with_invoice_link(company, body, invoice, request=None):
+    """يضيف رابط الفاتورة PDF للرسالة (رابط موقّع يفتحه العميل بلا دخول) ما لم يكن موجوداً فيها."""
+    from core.pdf import share_url
+
+    link = share_url(request, company, "sales-invoice", invoice)
+    if not link:
+        return body
+    if "{link}" in body:
+        return body.replace("{link}", link)
+    return body if link in body else f"{body}\n\nالفاتورة (PDF): {link}"
+
+
 def statement_context(customer):
     from selling.models import SalesInvoice
 

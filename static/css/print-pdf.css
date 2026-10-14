@@ -1,0 +1,36 @@
+/* تعديلات ملف PDF المولّد على الخادم (WeasyPrint): يرتب الأقسام الشبكية بالجداول لأنها أدق في الاتجاه من اليمين لليسار */
+@font-face { font-family: "Tajawal"; src: url("../fonts/tajawal/Tajawal-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Tajawal"; src: url("../fonts/tajawal/Tajawal-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Tajawal"; src: url("../fonts/tajawal/Tajawal-Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "Tajawal"; src: url("../fonts/tajawal/Tajawal-ExtraBold.ttf"); font-weight: 800 900; }
+
+.toolbar, .no-print { display: none !important; }
+body { background: #fff; }
+.sheet, .sheet.landscape { display: block; box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 3mm 6mm;
+  overflow: visible; }
+
+.info, .summary { display: table; width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.info > *, .summary > * { display: table-cell; vertical-align: top; }
+.info > .box { width: 54%; }
+.info > .gap + .box { width: 44%; }
+.info > .box:only-child { width: 100%; }
+.info > .box + .box, .summary > * + * { border-inline-start-width: 1px; }
+.info > .gap, .summary > .gap { width: 2%; border: 0; padding: 0; }
+.summary > :last-child { width: 88mm; }
+.summary-side > * + * { margin-top: 10px; }
+.generic-fields { display: block; }
+.generic-fields > * { display: inline-block; width: 48%; vertical-align: top; margin-inline-end: 2%; }
+.signatures { display: table; width: 100%; table-layout: fixed; border-spacing: 18px 0; margin-top: 30px; }
+.signatures > div { display: table-cell; }
+
+/* صفوف «العنوان: القيمة» داخل الصناديق: عمود ثابت للعنوان حتى لا يتداخل مع القيمة */
+.box > div:not(.box-title):not(.party-name), .bank > div:not(.box-title) { display: table; width: 100%; }
+.box > div > .k, .bank > div > .k { display: table-cell; width: 128px; padding-inline-end: 8px; vertical-align: baseline; }
+.bank > div > .k { width: 80px; }
+/* المسافة بين الشعار واسم المنشأة (خاصية gap في الصفوف المرنة غير مدعومة كاملاً) */
+.brand > .logo + div { margin-right: 12px; }
+.brand .logo { flex-shrink: 0; }
+/* عنوان القالب الحديث: العربي ثم الإنجليزي على السطر نفسه */
+.tpl-modern .title-band { display: block; text-align: right; }
+.tpl-modern .title-band h1 { display: inline-block; }
+.tpl-modern .title-band .title-en { display: inline-block; margin-right: 12px; }

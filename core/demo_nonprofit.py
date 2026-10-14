@@ -13,21 +13,12 @@ def _submit(doc):
 
 
 def _demo_logo():
-    """شعار بسيط مرسوم (دائرة وورقتان) كصورة PNG مضمّنة، لتظهر ترويسة التقارير كاملة في التجربة."""
+    """شعار تجريبي جاهز (PNG مضمّن) لتظهر ترويسة التقارير كاملة في التجربة."""
     import base64
-    import io
+    from pathlib import Path
 
-    from PIL import Image, ImageDraw
-
-    image = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((8, 8, 232, 232), fill=(30, 110, 90, 255))
-    draw.ellipse((62, 52, 150, 190), fill=(255, 255, 255, 255))
-    draw.ellipse((90, 52, 178, 190), fill=(30, 110, 90, 255))
-    draw.ellipse((118, 70, 190, 160), fill=(214, 178, 94, 255))
-    buffer = io.BytesIO()
-    image.save(buffer, "PNG")
-    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+    data = (Path(__file__).parent / "data" / "demo_logo.png").read_bytes()
+    return "data:image/png;base64," + base64.b64encode(data).decode()
 
 
 def _profile(company):

@@ -37,5 +37,24 @@ def backup_status():
         problems.append(f"آخر نسخة ناجحة أقدم من {STALE_HOURS} ساعة.")
     if latest is not None and not latest["encrypted"]:
         problems.append("آخر نسخة غير مشفّرة: اضبط SYNAR_BACKUP_PASSPHRASE في ملف .env.")
+    remote = _remote_status(folder)
+    if remote is None:
+        problems.append("النسخ محفوظة على نفس الخادم فقط: إن تعطل الخادم ضاعت معه. اضبط SYNAR_BACKUP_REMOTE "
+                        "لرفعها مشفّرة إلى تخزين خارجي (انظر DEPLOY.md).")
+    elif not remote.get("ok"):
+        problems.append(f"فشل النسخ خارج الخادم: {remote.get('message', '')}")
+    elif timezone.now() - remote["time"] > datetime.timedelta(hours=STALE_HOURS):
+        problems.append(f"آخر رفع خارج الخادم أقدم من {STALE_HOURS} ساعة.")
     return {"available": True, "latest": latest, "last_attempt": last, "count": len(files),
-            "total_size": sum(f["size"] for f in files), "problems": problems}
+            "total_size": sum(f["size"] for f in files), "remote": remote, "problems": problems}
+
+
+def _remote_status(folder):
+    """حالة آخر رفع للنسخ خارج الخادم كما يكتبها backup.sh، أو None إن لم يُضبط الرفع بعد."""
+    try:
+        with open(os.path.join(folder, "remote_status.json"), encoding="utf-8") as fh:
+            remote = json.load(fh)
+        remote["time"] = datetime.datetime.fromisoformat(remote["time"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return remote

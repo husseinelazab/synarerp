@@ -1,0 +1,14 @@
+<div class="card">
+  <h3>صفحة المتجر لاستخدام القسائم</h3>
+  <p class="muted">أرسل هذا الرابط لمسؤول المتجر فقط. يفتحه على جوال أو جهاز الكاشير دون تسجيل دخول، فيدخل رقم القسيمة
+    وآخر 4 أرقام من هوية المستفيد ومبلغ المشتريات. تصبح القيمة مستحقة للمورد «{{ obj.supplier }}»، وتُسدَّد له بسند صرف عادي.</p>
+  {% with link=request.scheme|add:"://"|add:request.get_host %}
+  <p><code dir="ltr">{{ link }}{% url 'voucher_merchant_portal' obj.token %}</code></p>
+  <div class="actions">
+    <button type="button" class="btn" data-copy="{{ link }}{% url 'voucher_merchant_portal' obj.token %}">نسخ الرابط</button>
+    {% if request.membership.can_manage %}
+    <form method="post" action="{% url 'merchant_regenerate' obj.pk %}" onsubmit="return confirm('إنشاء رابط جديد وإبطال الحالي؟')">{% csrf_token %}<button class="btn btn-danger-outline">إبطال الرابط وإنشاء جديد</button></form>
+    {% endif %}
+  </div>
+  {% endwith %}
+</div>

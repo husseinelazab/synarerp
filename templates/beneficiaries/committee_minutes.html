@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}محضر {{ case.committee }}{% endblock %}{% block heading %}محضر قرار {{ case.committee }}{% endblock %}
+{% block content %}
+<div class="actions no-print" style="margin-bottom:12px">
+  <button class="btn btn-primary" onclick="window.print()">طباعة المحضر</button>
+  {% if doc %}<a class="btn" href="{{ doc.get_absolute_url }}">المستند</a>{% endif %}
+  <a class="btn" href="{% url 'committee_page' %}">قرارات اللجنة</a>
+</div>
+<div class="card">
+  <table class="table">
+    <tr><th>الموضوع</th><td>{{ case.title }}</td></tr>
+    {% if case.amount %}<tr><th>القيمة</th><td>{{ case.amount|money }}</td></tr>{% endif %}
+    <tr><th>تاريخ العرض</th><td>{{ case.referred_at|date:"Y-m-d H:i" }}{% if case.referred_by %} — عرضه {{ case.referred_by.get_full_name|default:case.referred_by.username }}{% endif %}</td></tr>
+    <tr><th>النصاب وطريقة القرار</th><td>{{ case.committee.quorum }} أصوات — {{ case.committee.get_decision_rule_display }}</td></tr>
+    <tr><th>القرار</th><td><b>{{ case.get_status_display }}</b>{% if case.decided_at %} في {{ case.decided_at|date:"Y-m-d" }} الموافق {{ hijri }}{% endif %}
+      (موافق {{ approve }} — غير موافق {{ reject }})</td></tr>
+  </table>
+</div>
+{% if doc.findings %}<div class="card"><h3>توصية الباحث الاجتماعي</h3><p>{{ doc.findings|linebreaksbr }}</p></div>{% endif %}
+<div class="card">
+  <h3>أصوات الأعضاء</h3>
+  <table class="table"><thead><tr><th>العضو</th><th>الصوت</th><th>الملاحظة</th><th>الوقت</th><th>التوقيع</th></tr></thead><tbody>
+    {% for v in votes %}<tr><td>{{ v.user.get_full_name|default:v.user.username }}</td><td>{{ v.get_vote_display }}</td><td>{{ v.note }}</td>
+      <td>{{ v.voted_at|date:"Y-m-d H:i" }}</td><td style="min-width:120px"></td></tr>
+    {% empty %}<tr><td colspan="5" class="muted">لم يصوّت أحد بعد.</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="muted small">صُوِّت إلكترونياً من حسابات الأعضاء في النظام، وكل صوت مسجل باسم صاحبه ووقته.</p>
+</div>
+{% endblock %}

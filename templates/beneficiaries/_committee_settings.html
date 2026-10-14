@@ -1,0 +1,8 @@
+<div class="card">
+  <h3>الأعضاء</h3>
+  <p>{% for m in obj.members.all %}{{ m.get_full_name|default:m.username }}{% if not forloop.last %}، {% endif %}{% empty %}<span class="neg">لا يوجد أعضاء بعد.</span>{% endfor %}</p>
+  <p class="muted small">يصدر القرار عند اكتمال النصاب ({{ obj.quorum }} أصوات) {{ obj.get_decision_rule_display }}.
+    {% if obj.review_assessments %}تُعرض كل دراسات الحالة.{% endif %}
+    {% if obj.disbursement_threshold %}وتُعرض المساعدات التي تبلغ {{ obj.disbursement_threshold }} فأكثر.{% endif %}</p>
+  <a class="btn" href="{% url 'committee_page' %}">قرارات اللجنة</a>
+</div>

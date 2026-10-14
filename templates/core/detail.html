@@ -12,7 +12,7 @@
   </div>
   <div class="actions">
     <a class="btn" href="{% url 'doc_list' dt.slug %}">رجوع للقائمة</a>
-    {% if not dt.is_submittable or obj.is_draft %}
+    {% if not dt.read_only and not dt.is_submittable or not dt.read_only and obj.is_draft %}
       <a class="btn" href="{% url 'doc_edit' dt.slug obj.pk %}">تعديل</a>
     {% endif %}
     {% if dt.slug == 'customer' and obj.phone %}{% include "messaging/_send_buttons.html" with send_kind="customer" %}{% endif %}
@@ -71,7 +71,7 @@
         {% if key == 'reject' %}<input name="reason" class="form-control" placeholder="سبب الرفض (يظهر للموظف)" style="max-width:220px">{% endif %}
         <button class="btn btn-danger-outline">{{ label }}</button></form>
     {% endfor %}
-    {% if not dt.is_submittable or obj.is_draft %}
+    {% if not dt.read_only and not dt.is_submittable or not dt.read_only and obj.is_draft %}
       <form method="post" action="{% url 'doc_action' dt.slug obj.pk 'delete' %}" onsubmit="return confirm('حذف السجل نهائياً؟')">{% csrf_token %}<button class="btn btn-danger-outline">حذف</button></form>
     {% endif %}
   </div>

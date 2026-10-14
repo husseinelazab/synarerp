@@ -1,0 +1,24 @@
+{% load erp %}<div class="card">
+  <h3>استخدام القسيمة</h3>
+  <p>القيمة {{ obj.amount|money }} · المستخدم {{ obj.used|money }} · <b>المتبقي {{ obj.balance|money }}</b> · صالحة حتى {{ obj.expires_on|date:"Y-m-d" }}
+    {% if obj.is_locked %} · <span class="neg">مقفلة لكثرة المحاولات الخاطئة</span>{% endif %}</p>
+  <div class="actions">
+    <a class="btn" href="{% url 'doc_detail' 'aid-disbursement' obj.disbursement_id %}">صرف المساعدة</a>
+    {% if obj.status == 'active' %}
+      <form method="post" action="{% url 'voucher_resend' obj.pk %}">{% csrf_token %}<button class="btn">إعادة إرسال الرسالة للمستفيد</button></form>
+      <a class="btn" href="{% url 'doc_new' 'voucher-redemption' %}?voucher={{ obj.pk }}">تسجيل استخدام يدوياً</a>
+    {% endif %}
+    {% if obj.is_locked and request.membership.can_manage %}
+      <form method="post" action="{% url 'voucher_unlock' obj.pk %}">{% csrf_token %}<button class="btn btn-primary">فك القفل</button></form>
+    {% endif %}
+  </div>
+  {% with rows=obj.redemptions.all %}
+  {% if rows %}
+  <table class="table"><thead><tr><th>العملية</th><th>التاريخ</th><th>النوع</th><th>المتجر</th><th>فاتورة المتجر</th><th>المبلغ</th><th>الحالة</th></tr></thead><tbody>
+    {% for r in rows %}<tr><td><a href="{% url 'doc_detail' 'voucher-redemption' r.pk %}">{{ r.name }}</a></td><td>{{ r.posting_date|date:"Y-m-d" }}</td>
+      <td>{{ r.get_kind_display }}</td><td>{{ r.merchant|default:"—" }}</td><td>{{ r.invoice_no|default:"—" }}</td><td class="num">{{ r.amount|money }}</td>
+      <td>{{ r.get_docstatus_display }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% endif %}
+  {% endwith %}
+</div>

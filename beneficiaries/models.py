@@ -310,6 +310,14 @@ class CaseAssessment(SubmittableDocument):
         self.is_eligible = bool(self.max_score) and self.score_percent >= self.company.eligibility_threshold
 
     def validate_for_submit(self):
+        self.validate_scores()
+        from beneficiaries.committee import check_before_submit
+
+        case = check_before_submit(self)
+        if case is not None:  # قرار اللجنة هو الذي يحدد الاستحقاق
+            self.is_eligible = case.status == "approved"
+
+    def validate_scores(self):
         scores = list(self.scores.all())
         if not scores:
             raise ValidationError("لا توجد معايير في الدراسة. أضف معايير من «معايير دراسة الحالة».")
@@ -485,6 +493,7 @@ class EntityRequest(TenantModel):
 class AidType(models.TextChoices):
     CASH = "cash", "نقدية"
     IN_KIND = "in_kind", "عينية (من المستودع)"
+    VOUCHER = "voucher", "قسيمة شرائية لدى متجر شريك"
 
 
 class AidProgram(TenantModel):
@@ -504,6 +513,10 @@ class AidProgram(TenantModel):
                                                     help_text="صفر = بلا حد")
     categories = models.ManyToManyField(BeneficiaryCategory, blank=True, related_name="+",
                                         verbose_name="الفئات المستحقة", help_text="فارغ = كل الفئات")
+    voucher_valid_days = models.PositiveSmallIntegerField(
+        "صلاحية القسيمة بالأيام", default=30, help_text="للقسائم الشرائية: ما لم يُستخدم بعدها يعود للبرنامج والصندوق")
+    merchants = models.ManyToManyField("beneficiaries.VoucherMerchant", blank=True, related_name="programs",
+                                       verbose_name="المتاجر المعتمدة للقسائم", help_text="فارغ = كل المتاجر الشريكة")
     is_active = models.BooleanField("مفعّل", default=True)
     description = models.TextField("الوصف والشروط", blank=True)
 
@@ -569,11 +582,11 @@ class AidDisbursement(SubmittableDocument):
         self.aid_type = self.program.aid_type
         if not self.fund_id and self.program.fund_id:
             self.fund = self.program.fund
-        if self.aid_type == AidType.CASH:
+        if self.aid_type in (AidType.CASH, AidType.VOUCHER):
             if not self.amount and self.program.default_amount:
                 self.amount = self.program.default_amount
-            if not self.payment_account_id:
-                self.payment_account = self.company.default_cash_account
+        if self.aid_type == AidType.CASH and not self.payment_account_id:
+            self.payment_account = self.company.default_cash_account
 
     def clean(self):
         if self.amount is not None and self.amount < 0:
@@ -607,6 +620,10 @@ class AidDisbursement(SubmittableDocument):
                 raise ValidationError("أدخل مبلغ المساعدة النقدية.")
             if not self.payment_account_id:
                 raise ValidationError("حدد الصندوق أو البنك الذي تُصرف منه المساعدة.")
+        elif self.aid_type == AidType.VOUCHER:
+            from beneficiaries.vouchers import validate_issue
+
+            validate_issue(self)
         else:
             if not self.warehouse_id:
                 raise ValidationError("حدد المستودع الذي تُصرف منه المساعدة العينية.")
@@ -616,7 +633,11 @@ class AidDisbursement(SubmittableDocument):
             for row in rows:
                 if not row.item.is_stock_item or row.qty <= 0:
                     raise ValidationError(f"الصنف {row.item} يجب أن يكون مخزنياً بكمية أكبر من صفر.")
-        if self.company.require_aid_otp:
+        from beneficiaries.committee import check_before_submit
+
+        check_before_submit(self)
+        # القسيمة تصل المستفيد برسالة، ويتحقق المتجر من هويته عند الشراء؛ لا تسليم يدوي يُؤكَّد
+        if self.company.require_aid_otp and self.aid_type != AidType.VOUCHER:
             if not self.received_at:
                 raise ValidationError("أكّد استلام المستفيد برمز التحقق المرسل إلى جواله قبل الاعتماد.")
             if self.receipt_fingerprint != self.content_fingerprint():
@@ -626,6 +647,11 @@ class AidDisbursement(SubmittableDocument):
         from accounts.ledger import make_gl_entries
 
         remarks = f"{self.program} — {self.beneficiary.full_name}"
+        if self.aid_type == AidType.VOUCHER:
+            from beneficiaries.vouchers import issue_voucher
+
+            issue_voucher(self, remarks)
+            return
         if self.aid_type == AidType.CASH:
             make_gl_entries(self, [{"account": self.program.expense_account, "debit": self.amount, "fund": self.fund},
                                    {"account": self.payment_account, "credit": self.amount}], remarks=remarks)
@@ -645,6 +671,12 @@ class AidDisbursement(SubmittableDocument):
                 {"account": self.program.expense_account, "debit": total, "fund": self.fund},
                 {"account": self.company.require_account("default_stock_account"), "credit": total},
             ], remarks=remarks)
+
+    def before_cancel(self):
+        if self.aid_type == AidType.VOUCHER:
+            from beneficiaries.vouchers import void_voucher
+
+            void_voucher(self)
 
     def on_cancel(self):
         from accounts.ledger import cancel_gl_entries
@@ -721,3 +753,218 @@ class AidDisbursementItem(models.Model):
         verbose_name = "صنف مساعدة"
         verbose_name_plural = "أصناف المساعدة"
         ordering = ["id"]
+
+
+# ───────────────────────────── لجنة المساعدات ─────────────────────────────
+
+class CommitteeRule(models.TextChoices):
+    MAJORITY = "majority", "أغلبية الأصوات"
+    UNANIMOUS = "unanimous", "إجماع الأصوات"
+
+
+class AidCommittee(TenantModel):
+    """لجنة المساعدات: تعرض عليها دراسات الحالة والمساعدات الكبيرة، ويصوت أعضاؤها عن بُعد من حساباتهم."""
+
+    name = models.CharField("اسم اللجنة", max_length=100, default="لجنة المساعدات")
+    is_active = models.BooleanField("مفعّلة", default=True)
+    members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="+", verbose_name="أعضاء اللجنة")
+    quorum = models.PositiveSmallIntegerField("النصاب", default=3,
+                                              help_text="أقل عدد من الأصوات يصدر به القرار")
+    decision_rule = models.CharField("طريقة القرار", max_length=10, choices=CommitteeRule.choices,
+                                     default=CommitteeRule.MAJORITY)
+    review_assessments = models.BooleanField("تُعرض دراسات الحالة على اللجنة", default=True,
+                                             help_text="قرار اللجنة هو الذي يحدد استحقاق المستفيد")
+    disbursement_threshold = models.DecimalField(
+        "تُعرض المساعدات التي تبلغ قيمتها", max_digits=14, decimal_places=2, default=0,
+        help_text="صفر = لا تُعرض المساعدات على اللجنة")
+
+    class Meta:
+        verbose_name = "لجنة المساعدات"
+        verbose_name_plural = "لجنة المساعدات"
+        constraints = [models.UniqueConstraint(fields=["company"], name="one_aid_committee_per_company")]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        if not self.quorum:
+            raise ValidationError({"quorum": "النصاب صوت واحد على الأقل."})
+
+    @classmethod
+    def active_for(cls, company):
+        return cls.all_objects.filter(company=company, is_active=True).first()
+
+
+class CaseStatus(models.TextChoices):
+    PENDING = "pending", "بانتظار قرار اللجنة"
+    APPROVED = "approved", "وافقت اللجنة"
+    REJECTED = "rejected", "رفضت اللجنة"
+
+
+class CommitteeCase(TenantModel):
+    """عرض مستند (دراسة حالة أو صرف مساعدة) على اللجنة وقرارها فيه."""
+
+    committee = models.ForeignKey(AidCommittee, models.CASCADE, related_name="cases", verbose_name="اللجنة")
+    doctype = models.CharField("نوع المستند", max_length=50)
+    object_id = models.PositiveBigIntegerField("المعرّف")
+    title = models.CharField("الموضوع", max_length=255)
+    amount = models.DecimalField("القيمة", max_digits=14, decimal_places=2, default=0)
+    status = models.CharField("القرار", max_length=10, choices=CaseStatus.choices, default=CaseStatus.PENDING)
+    fingerprint = models.CharField(max_length=64, editable=False)
+    referred_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, related_name="+",
+                                    verbose_name="عرضها")
+    referred_at = models.DateTimeField("تاريخ العرض", auto_now_add=True)
+    decided_at = models.DateTimeField("تاريخ القرار", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "عرض على لجنة المساعدات"
+        verbose_name_plural = "قرارات لجنة المساعدات"
+        ordering = ["-referred_at"]
+        constraints = [models.UniqueConstraint(fields=["company", "doctype", "object_id"],
+                                               name="one_committee_case_per_document")]
+
+    def __str__(self):
+        return self.title
+
+
+class VoteChoice(models.TextChoices):
+    APPROVE = "approve", "موافق"
+    REJECT = "reject", "غير موافق"
+
+
+class CommitteeVote(models.Model):
+    case = models.ForeignKey(CommitteeCase, models.CASCADE, related_name="votes")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, related_name="+", verbose_name="العضو")
+    vote = models.CharField("الصوت", max_length=10, choices=VoteChoice.choices)
+    note = models.CharField("الملاحظة", max_length=255, blank=True)
+    voted_at = models.DateTimeField("الوقت", auto_now=True)
+
+    class Meta:
+        verbose_name = "صوت عضو"
+        verbose_name_plural = "أصوات الأعضاء"
+        ordering = ["voted_at"]
+        constraints = [models.UniqueConstraint(fields=["case", "user"], name="one_vote_per_member")]
+
+
+# ───────────────────────────── القسائم الشرائية ─────────────────────────────
+
+class VoucherMerchant(TenantModel):
+    """متجر شريك يقبل القسائم الشرائية للمستفيدين؛ يستخدمها من صفحة برابط سري خاص به."""
+
+    supplier = models.ForeignKey("buying.Supplier", models.PROTECT, related_name="+", verbose_name="المورد (المتجر)",
+                                 help_text="تُقيد قيمة القسائم المستخدمة مستحقةً له في حسابه")
+    name = models.CharField("اسم الفرع / المتجر", max_length=150, blank=True,
+                            help_text="فارغ = اسم المورد")
+    phone = models.CharField("جوال المسؤول", max_length=20, blank=True)
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    is_active = models.BooleanField("مفعّل", default=True)
+
+    class Meta:
+        verbose_name = "متجر شريك"
+        verbose_name_plural = "المتاجر الشريكة للقسائم"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name or str(self.supplier)
+
+    def save(self, *args, **kwargs):
+        import secrets
+
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        if not self.name and self.supplier_id:
+            self.name = self.supplier.name
+        super().save(*args, **kwargs)
+
+    def regenerate_token(self):
+        import secrets
+
+        self.token = secrets.token_urlsafe(32)
+        self.save(update_fields=["token"])
+
+
+class VoucherStatus(models.TextChoices):
+    ACTIVE = "active", "سارية"
+    USED = "used", "مستخدمة بالكامل"
+    EXPIRED = "expired", "منتهية"
+    VOID = "void", "ملغاة"
+
+
+VOUCHER_MAX_ATTEMPTS = 5
+
+
+class AidVoucher(TenantModel):
+    """قسيمة شرائية تصدر عند اعتماد صرف مساعدة من نوع «قسيمة»، ويخصم منها المتجر الشريك حتى تنفد أو تنتهي."""
+
+    disbursement = models.OneToOneField(AidDisbursement, models.PROTECT, related_name="voucher",
+                                        verbose_name="صرف المساعدة")
+    beneficiary = models.ForeignKey(Beneficiary, models.PROTECT, related_name="vouchers", verbose_name="المستفيد")
+    code = models.CharField("رقم القسيمة", max_length=12, unique=True, editable=False)
+    amount = models.DecimalField("القيمة", max_digits=14, decimal_places=2)
+    balance = models.DecimalField("الرصيد المتبقي", max_digits=14, decimal_places=2)
+    expires_on = models.DateField("صالحة حتى")
+    status = models.CharField("الحالة", max_length=10, choices=VoucherStatus.choices, default=VoucherStatus.ACTIVE)
+    failed_attempts = models.PositiveSmallIntegerField("محاولات تحقق خاطئة", default=0)
+    created_at = models.DateTimeField("تاريخ الإصدار", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "قسيمة شرائية"
+        verbose_name_plural = "القسائم الشرائية"
+        ordering = ["-id"]
+
+    def __str__(self):
+        return f"قسيمة {self.code}"
+
+    @property
+    def is_locked(self):
+        return self.failed_attempts >= VOUCHER_MAX_ATTEMPTS
+
+    @property
+    def used(self):
+        return flt(self.amount - self.balance) if self.status != VoucherStatus.VOID else flt(0)
+
+    @classmethod
+    def new_code(cls):
+        import secrets
+
+        while True:
+            code = "".join(str(secrets.randbelow(10)) for _ in range(12))
+            if code[0] != "0" and not cls.all_objects.filter(code=code).exists():
+                return code
+
+
+class RedemptionKind(models.TextChoices):
+    REDEEM = "redeem", "شراء لدى المتجر"
+    EXPIRE = "expire", "انتهاء الصلاحية (إرجاع الرصيد)"
+
+
+class VoucherRedemption(SubmittableDocument):
+    """استخدام قسيمة لدى متجر شريك (يصبح المبلغ مستحقاً للمتجر)، أو إرجاع رصيدها المنتهي للبرنامج."""
+
+    naming_prefix = "VRD"
+
+    voucher = models.ForeignKey(AidVoucher, models.PROTECT, related_name="redemptions", verbose_name="القسيمة")
+    kind = models.CharField("النوع", max_length=10, choices=RedemptionKind.choices, default=RedemptionKind.REDEEM)
+    merchant = models.ForeignKey(VoucherMerchant, models.PROTECT, null=True, blank=True, related_name="redemptions",
+                                 verbose_name="المتجر")
+    amount = models.DecimalField("المبلغ", max_digits=14, decimal_places=2)
+    invoice_no = models.CharField("رقم فاتورة المتجر", max_length=60, blank=True)
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "استخدام قسيمة"
+        verbose_name_plural = "عمليات القسائم الشرائية"
+
+    def validate_for_submit(self):
+        from beneficiaries.vouchers import validate_redemption
+
+        validate_redemption(self)
+
+    def on_submit(self):
+        from beneficiaries.vouchers import post_redemption
+
+        post_redemption(self)
+
+    def on_cancel(self):
+        from beneficiaries.vouchers import reverse_redemption
+
+        reverse_redemption(self)

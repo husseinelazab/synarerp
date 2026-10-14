@@ -133,3 +133,20 @@ class BackupStatusTests(TestCase):
             self.assertTrue(any("فشلت آخر محاولة" in p for p in status["problems"]))
         with override_settings(SYNAR_BACKUP_DIR="/nonexistent-dir"):
             self.assertFalse(backup_status()["available"])
+
+    def test_reports_offsite_copy(self):
+        from django.utils import timezone
+
+        with tempfile.TemporaryDirectory() as tmp, override_settings(SYNAR_BACKUP_DIR=tmp):
+            open(os.path.join(tmp, "synar-20260102-020000.sql.gz.gpg"), "wb").write(b"x")
+            self.assertTrue(any("نفس الخادم فقط" in p for p in backup_status()["problems"]))
+            with open(os.path.join(tmp, "remote_status.json"), "w") as fh:
+                json.dump({"time": timezone.now().isoformat(), "ok": False, "target": "offsite:synar",
+                           "message": "فشل رفع النسخة إلى offsite:synar"}, fh)
+            self.assertTrue(any("فشل النسخ خارج الخادم" in p for p in backup_status()["problems"]))
+            with open(os.path.join(tmp, "remote_status.json"), "w") as fh:
+                json.dump({"time": timezone.now().isoformat(), "ok": True, "target": "offsite:synar",
+                           "files": "synar-x.sql.gz.gpg", "message": "رُفعت"}, fh)
+            status = backup_status()
+            self.assertTrue(status["remote"]["ok"])
+            self.assertFalse(any("خارج الخادم" in p or "نفس الخادم" in p for p in status["problems"]))

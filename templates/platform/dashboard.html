@@ -12,7 +12,11 @@
     — {{ backup.latest.size|filesizeformat }} —
     {% if backup.latest.encrypted %}<span class="ok">✓ مشفّرة</span>{% else %}<span class="text-danger">غير مشفّرة</span>{% endif %}
     {% if backup.last_attempt.ok %} — <span class="ok">✓ فُحصت سلامتها</span>{% endif %}</p>
-  <p class="muted small">عدد النسخ المحفوظة: {{ backup.count }} بحجم {{ backup.total_size|filesizeformat }}. النسخ على نفس الخادم؛ انسخها دورياً إلى مكان خارجي.</p>
+  <p class="muted small">عدد النسخ المحفوظة على الخادم: {{ backup.count }} بحجم {{ backup.total_size|filesizeformat }}.</p>
+  {% endif %}
+  {% if backup.remote %}
+  <p>خارج الخادم ({{ backup.remote.target }}): {% if backup.remote.ok %}<span class="ok">✓ آخر رفع {{ backup.remote.time|date:"Y-m-d H:i" }}</span>
+    <span class="muted small">— {{ backup.remote.files }}</span>{% else %}<span class="text-danger">{{ backup.remote.message }}</span>{% endif %}</p>
   {% endif %}
 </div>
 {% endif %}

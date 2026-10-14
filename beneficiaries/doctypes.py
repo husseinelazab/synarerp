@@ -1,6 +1,8 @@
-from beneficiaries.models import (AidDisbursement, AidDisbursementItem, AidProgram, AssessmentCriterion,
-                                  AssessmentScore, Beneficiary, BeneficiaryCategory, BeneficiaryEntity, CaseAssessment,
-                                  EntityRequest, FamilyMember)
+from beneficiaries.forms import AidCommitteeForm
+from beneficiaries.models import (AidCommittee, AidDisbursement, AidDisbursementItem, AidProgram, AidVoucher,
+                                  AssessmentCriterion, AssessmentScore, Beneficiary, BeneficiaryCategory,
+                                  BeneficiaryEntity, CaseAssessment, EntityRequest, FamilyMember, VoucherMerchant,
+                                  VoucherRedemption)
 from core.registry import ChildTable, DocType, register
 
 register(DocType(
@@ -19,6 +21,7 @@ register(DocType(
     search_fields=["name", "beneficiary__full_name", "beneficiary__national_id", "beneficiary__file_number"],
     child=ChildTable(AssessmentScore, ["criterion", "max_score", "score", "comment"], label="المعايير والدرجات",
                      min_rows=0, help="اترك الجدول فارغاً لتُجلب المعايير المفعّلة عند الحفظ، ثم أدخل درجة كل معيار."),
+    detail_template="beneficiaries/_committee.html",
 ))
 register(DocType(
     slug="beneficiary-category", model=BeneficiaryCategory, module="beneficiaries",
@@ -45,6 +48,28 @@ register(DocType(
     slug="aid-program", model=AidProgram, module="beneficiaries",
     list_fields=["name", "aid_type", "expense_account", "fund", "default_amount", "max_per_year", "is_active"],
     search_fields=["name"],
+))
+register(DocType(
+    slug="aid-committee", model=AidCommittee, module="beneficiaries", form_class=AidCommitteeForm,
+    list_fields=["name", "is_active", "quorum", "decision_rule", "review_assessments", "disbursement_threshold"],
+    search_fields=["name"], detail_template="beneficiaries/_committee_settings.html",
+))
+register(DocType(
+    slug="voucher-merchant", model=VoucherMerchant, module="beneficiaries",
+    list_fields=["name", "supplier", "phone", "is_active"], form_fields=["supplier", "name", "phone", "is_active"],
+    search_fields=["name", "supplier__name", "phone"], detail_template="beneficiaries/_merchant_detail.html",
+))
+register(DocType(
+    slug="aid-voucher", model=AidVoucher, module="beneficiaries", read_only=True,
+    list_fields=["code", "beneficiary", "amount", "balance", "expires_on", "status"],
+    search_fields=["code", "beneficiary__full_name", "beneficiary__national_id", "beneficiary__file_number"],
+    detail_template="beneficiaries/_voucher_detail.html",
+))
+register(DocType(
+    slug="voucher-redemption", model=VoucherRedemption, module="beneficiaries",
+    list_fields=["name", "posting_date", "voucher", "kind", "merchant", "amount", "invoice_no"],
+    form_fields=["voucher", "merchant", "posting_date", "amount", "invoice_no", "remarks"],
+    search_fields=["name", "voucher__code", "merchant__name", "invoice_no"],
 ))
 register(DocType(
     slug="aid-disbursement", model=AidDisbursement, module="beneficiaries",

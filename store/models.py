@@ -35,6 +35,8 @@ class StoreSettings(TenantModel):
     thank_you_message = models.TextField("رسالة الشكر", blank=True,
                                          default="جزاكم الله خيراً على تبرعكم، تقبّل الله منكم.")
     allow_recurring = models.BooleanField("السماح بالتبرع الشهري", default=True)
+    # ملف توثيق نطاق Apple Pay الذي تعطيه ميسّر؛ يُعرض على نطاق موقع الجمعية في المسار الذي تطلبه Apple
+    apple_pay_domain_file = models.TextField(blank=True, editable=False)
     gold_gram_price = models.DecimalField(
         "سعر جرام الذهب (عيار 24)", max_digits=10, decimal_places=2, null=True, blank=True,
         help_text="يُعرض مبدئياً في حاسبة الزكاة لحساب النصاب (85 جراماً)، ويمكن للمتبرع تعديله")

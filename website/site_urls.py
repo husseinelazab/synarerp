@@ -1,6 +1,7 @@
 """مسارات موقع الجمعية العام: تُخدم على نطاقها المستقل مباشرة، وعلى المنصة تحت /site/<المعرّف>/ للمعاينة."""
 from django.urls import include, path
 
+from store import views as store_views
 from website import extra_views
 from website import public_views as views
 
@@ -27,6 +28,8 @@ urlpatterns = [
     path("donate/", include("store.site_urls")),
     path("portal/", include("portal.site_urls")),
     path("robots.txt", views.robots, name="site_robots"),
+    path(".well-known/apple-developer-merchantid-domain-association", store_views.apple_pay_domain_file,
+         name="site_apple_pay_domain"),
     path("sitemap.xml", views.sitemap, name="site_sitemap"),
     # روابط التسجيل العامة للبرامج والفرص التطوعية والاستبيانات تعمل على نطاق الجمعية أيضاً
     path("t/verify/<str:code>/", views.program_verify, name="program_verify"),

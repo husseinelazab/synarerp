@@ -6,6 +6,7 @@ from core import password_reset, two_factor
 from core import pdf as core_pdf
 from core import views as core_views
 from hr import adms
+from store import views as store_views
 from website import tls as website_tls
 
 admin.site.site_header = "سِينار Synar ERP - لوحة الإدارة"
@@ -14,6 +15,8 @@ admin.site.index_title = "إدارة النظام"
 
 urlpatterns = [
     path("healthz/", core_views.healthz, name="healthz"),
+    path(".well-known/apple-developer-merchantid-domain-association", store_views.apple_pay_domain_file,
+         name="apple_pay_domain"),
     path("api/v1/", include("core.api_urls")),
     # أجهزة البصمة (ZKTeco ADMS) — عناوين ثابتة يفرضها برنامج الجهاز
     re_path(r"^iclock/cdata(?:\.aspx)?/?$", adms.cdata),

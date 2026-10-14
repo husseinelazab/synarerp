@@ -9,11 +9,23 @@
   <ol class="muted small">
     <li>من لوحة ميسّر ← الإعدادات ← مفاتيح API انسخ المفتاح العام (pk_…) والمفتاح السري (sk_…). استخدم مفاتيح test للتجربة ثم live بعد تفعيل الحساب.</li>
     <li>من لوحة ميسّر ← Webhooks أضف الرابط <code dir="ltr">{{ webhook_url }}</code> واختر الحدث <code dir="ltr">payment_paid</code> (ويمكن إضافة payment_failed)، واكتب رمزاً سرياً (Secret Token) ثم اكتب الرمز نفسه هنا.</li>
-    <li>بطاقات مدى وفيزا وماستركارد تعمل مباشرة. Apple Pay يتطلب توثيق نطاق موقع الجمعية في لوحة ميسّر (Apple Pay ← إضافة نطاق) ورفع ملف التوثيق على النطاق. STC Pay يتطلب تفعيله من ميسّر.</li>
+    <li>بطاقات مدى وفيزا وماستركارد تعمل مباشرة. STC Pay يتطلب تفعيله من ميسّر.</li>
+    <li><b>Apple Pay</b>: من لوحة ميسّر ← Apple Pay ← إضافة نطاق، اكتب نطاق موقع الجمعية ونزّل ملف التوثيق، ثم ارفعه في الحقل «ملف توثيق Apple Pay» أدناه، وبعدها اضغط «تحقق» في لوحة ميسّر.</li>
     <li>تُقيد التبرعات الإلكترونية في «حساب التسوية» بسندات تبرع معتمدة، ويُسوّى عند تحويل ميسّر للمبالغ إلى بنك الجمعية.</li>
   </ol>
 </div>
-<form method="post" class="card" autocomplete="off">{% csrf_token %}
+<div class="card">
+  <h3>Apple Pay</h3>
+  {% if site.domain %}
+  <p>ملف التوثيق: {% if obj.apple_pay_domain_file %}<span class="ok">مرفوع</span> ويُعرض على
+    <a href="https://{{ site.domain }}{{ apple_pay_path }}" target="_blank" rel="noopener" dir="ltr">https://{{ site.domain }}{{ apple_pay_path }}</a>
+    — افتح الرابط للتأكد ثم اضغط «تحقق» في لوحة ميسّر.{% else %}<span class="neg">لم يُرفع بعد</span> — Apple Pay لن يظهر للمتبرعين حتى يُرفع ويُوثَّق النطاق.{% endif %}</p>
+  {% else %}
+  <p class="muted">Apple Pay يحتاج نطاقاً مستقلاً لموقع الجمعية (مثل albirr.org.sa) لأن Apple توثّق النطاق كاملاً.
+    اربط نطاقك من <a href="{% url 'website_settings' %}">إعدادات الموقع</a>، ثم ارفع ملف التوثيق هنا.</p>
+  {% endif %}
+</div>
+<form method="post" class="card" autocomplete="off" enctype="multipart/form-data">{% csrf_token %}
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
   <div class="form-grid">{% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endfor %}</div>
   <div class="actions" style="margin-top:14px"><button class="btn btn-primary">حفظ</button></div>

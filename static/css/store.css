@@ -16,13 +16,6 @@
 .badge-count { background: var(--brand); color: #fff; border-radius: 20px; padding: 0 7px; font-size: 12px; line-height: 20px; min-width: 20px; text-align: center; display: inline-block; }
 .store-page { padding-top: 28px; }
 
-/* سلة التبرعات في رأس الموقع */
-.nav-cart { position: relative; display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: var(--ink); margin-inline-start: 6px; }
-.nav-cart:hover { background: var(--soft); color: var(--brand); text-decoration: none; }
-.nav-cart .i { font-size: 20px; }
-.nav-cart .badge-count { position: absolute; top: -2px; inset-inline-end: -4px; }
-.nav-cart-label { display: none; }
-
 /* أدوات التصفية */
 .store-tools { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
 .kind-chips { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -228,11 +221,7 @@
 .certificate .verify { font-size: 13px; color: var(--muted); margin-top: 26px; direction: ltr; }
 .print-bar { text-align: center; margin: 16px; }
 
-@media (max-width: 1180px) {
-  .nav-cart { width: 100%; height: auto; justify-content: flex-start; display: flex; gap: 8px; padding: 12px; margin: 0; }
-  .nav-cart .badge-count { position: static; }
-  .nav-cart-label { display: inline; font-weight: 500; }
-}
+
 @media (max-width: 900px) {
   .op-detail, .checkout-grid, .zakat-layout, .detail-grid { grid-template-columns: 1fr; }
   .op-side, .summary, .zakat-result { position: static; }

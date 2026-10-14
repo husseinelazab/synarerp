@@ -74,3 +74,14 @@ def site_view(view):
 def site_url(request, name, *args):
     """رابط صفحة في موقع الجمعية يعمل على النطاق المستقل وفي المعاينة."""
     return getattr(request, "site_prefix", "") + reverse(name, args=args, urlconf=SITE_URLCONF)
+
+
+def render_public(request, standalone, body, title, context, parent=""):
+    """صفحة عامة لوحدة (تسجيل برنامج، تطوع، استبيان، تحقق شهادة): داخل إطار موقع الجمعية متى فُتحت من نطاقه
+    أو معاينته، وإلا بالقالب المستقل على رابط المنصة."""
+    from django.shortcuts import render
+
+    if getattr(request, "site", None) is None:
+        return render(request, standalone, context)
+    return render(request, "website/embedded.html",
+                  dict(context, embed_body=body, embed_title=title, embed_parent=parent))

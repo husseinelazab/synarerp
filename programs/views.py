@@ -16,6 +16,7 @@ from core.tenancy import tenant_context
 from core.utils import flt
 from programs.models import (ADMITTED_STATUSES, EnrollmentStatus, ProgramEnrollment, ProgramStatus, SessionAttendance,
                              TrainingProgram)
+from website.site import render_public
 
 
 @login_required
@@ -168,11 +169,13 @@ def public_register(request, token):
                                         reverse("doc_detail", args=["program-enrollment", enrollment.pk]))
                     except Exception:  # التنبيه لا يعطل التسجيل
                         pass
-    return render(request, "programs/public_register.html",
-                  {"program": program, "form": form, "closed": closed, "full": full, "done": done})
+    return render_public(request, "programs/public_register.html", "programs/_public_register_body.html",
+                         program.title, {"program": program, "form": form, "closed": closed, "full": full,
+                                         "done": done}, parent="البرامج التدريبية")
 
 
 def public_verify(request, code):
     enrollment = ProgramEnrollment.all_objects.select_related("program", "company").filter(
         certificate_code=code.upper(), status=EnrollmentStatus.PASSED).first()
-    return render(request, "programs/public_verify.html", {"e": enrollment, "code": code})
+    return render_public(request, "programs/public_verify.html", "programs/_public_verify_body.html",
+                         "التحقق من شهادة تدريب", {"e": enrollment, "code": code}, parent="الخدمات الإلكترونية")

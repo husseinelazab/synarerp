@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.shortcuts import render
 
-from accounts.funds import CLOSING_VOUCHER, branch_class
+from accounts.funds import CLOSING_VOUCHER, row_class
 from accounts.models import Account, Fund, FundType, GLEntry, RootType
 from accounts.reports import _period
 from core.utils import flt
@@ -56,7 +56,7 @@ def activities_data(from_date, to_date):
     sums = {}
     for r in period.values("account_id", "account__number", "account__root_type", "fund__fund_type").annotate(
             d=Sum("debit"), c=Sum("credit")):
-        cls = r["fund__fund_type"] or branch_class(r["account__number"])
+        cls = row_class(r["account__number"], r["fund__fund_type"])
         sign = 1 if r["account__root_type"] == RootType.INCOME else -1
         amount = flt((flt(r["c"]) - flt(r["d"])) * sign)
         sums.setdefault(r["account_id"], {}).setdefault(cls, flt(0))

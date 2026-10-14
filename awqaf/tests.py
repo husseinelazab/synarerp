@@ -27,7 +27,8 @@ class WaqfTests(TestCase):
         self.ctx = tenant_context(self.company)
         self.ctx.__enter__()
         self.addCleanup(self.ctx.__exit__, None, None, None)
-        self.waqf = Waqf.objects.create(name="عمارة الخير", waqif="فاعل خير", deed_number="123", asset_value=2000000)
+        self.waqf = Waqf.objects.create(name="عمارة الخير", waqif="فاعل خير", deed_number="123", asset_value=2000000,
+                                        revenue_restriction="restricted")
         self.reserve = Fund.objects.create(name="احتياطي عمارة الخير", fund_type="restricted")
         self.orphans = Fund.objects.get(name="صندوق الكفالات")
         for name, percent, fund in (("النظارة", 10, None), ("عمارة الوقف", 20, self.reserve),
@@ -35,7 +36,7 @@ class WaqfTests(TestCase):
             self.waqf.shares.create(name=name, percent=percent, target_fund=fund)
 
     def lease(self, **kwargs):
-        lease = WaqfLease.objects.create(waqf=self.waqf, unit=kwargs.pop("unit", "معرض 1"), tenant_name="مؤسسة النور",
+        lease = WaqfLease.objects.create(waqf=kwargs.pop("waqf", self.waqf), unit=kwargs.pop("unit", "معرض 1"), tenant_name="مؤسسة النور",
                                          start_date=kwargs.pop("start_date", TODAY.replace(day=1)),
                                          end_date=kwargs.pop("end_date", TODAY.replace(day=1) + datetime.timedelta(days=364)),
                                          annual_rent=kwargs.pop("annual_rent", 120000), **kwargs)
@@ -102,6 +103,23 @@ class WaqfTests(TestCase):
         again.save()
         with self.assertRaisesMessage(ValidationError, "لا يكفي"):
             again.submit()
+
+    def test_unrestricted_revenue_by_default(self):
+        general = Waqf.objects.create(name="وقف البر العام", asset_value=500000)
+        self.assertEqual(general.revenue_fund.fund_type, "unrestricted")
+        share = general.shares.model(parent=general, name="الأيتام", percent=100, target_fund=self.orphans)
+        with self.assertRaisesMessage(ValidationError, "غير مقيدة"):
+            share.full_clean()
+        # الغلة تُصنف غير مقيدة في قائمة الأنشطة
+        lease = self.lease(waqf=general, unit="محل 2", annual_rent=12000, frequency="annual")
+        self.collect(lease.installments.first())
+        net = activities_data(TODAY.replace(month=1, day=1), TODAY)["net"]
+        self.assertEqual(net[0], Decimal("12000"))  # غير مقيدة
+        self.assertEqual(GLEntry.objects.get(account__number="31303001", fund=general.revenue_fund).credit,
+                         Decimal("12000"))
+        general.revenue_restriction = "restricted"
+        with self.assertRaisesMessage(ValidationError, "لا يُغيَّر تصنيف الغلة"):
+            general.full_clean()
 
     def test_shares_must_total_100(self):
         self.waqf.shares.filter(name="النظارة").delete()

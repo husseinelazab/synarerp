@@ -44,6 +44,11 @@ class WaqfType(models.TextChoices):
     MOVABLE = "movable", "منقول"
 
 
+class RevenueRestriction(models.TextChoices):
+    UNRESTRICTED = "unrestricted", "غير مقيدة (أعمال البر وأغراض الجمعية عامة)"
+    RESTRICTED = "restricted", "مقيدة بشرط الواقف (مصارف محددة)"
+
+
 class Waqf(TenantModel):
     name = models.CharField("اسم الوقف", max_length=150)
     waqf_type = models.CharField("نوع الوقف", max_length=12, choices=WaqfType.choices, default=WaqfType.REAL_ESTATE)
@@ -53,6 +58,9 @@ class Waqf(TenantModel):
     location = models.CharField("الموقع / العنوان", max_length=255, blank=True)
     asset_value = models.DecimalField("قيمة الأصل الموقوف", max_digits=18, decimal_places=2, default=0)
     conditions = models.TextField("شرط الواقف", blank=True)
+    revenue_restriction = models.CharField(
+        "تصنيف الغلة", max_length=12, choices=RevenueRestriction.choices, default=RevenueRestriction.UNRESTRICTED,
+        help_text="وفق معيار المنشآت غير الهادفة للربح: الغلة غير مقيدة ما لم يشترط الواقف صرفها في مصارف محددة")
     principal_fund = models.ForeignKey(Fund, models.PROTECT, null=True, blank=True, related_name="+", editable=False,
                                        verbose_name="صندوق أصل الوقف")
     revenue_fund = models.ForeignKey(Fund, models.PROTECT, null=True, blank=True, related_name="+", editable=False,
@@ -68,6 +76,12 @@ class Waqf(TenantModel):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        fund = self.revenue_fund if self.revenue_fund_id else None
+        if fund is not None and fund.fund_type != self.revenue_restriction and fund.gl_entries.exists():
+            raise ValidationError({"revenue_restriction": "لا يُغيَّر تصنيف الغلة بعد تسجيل حركات على صندوقها؛ "
+                                                          "عالج الفرق بقيد إعادة تصنيف."})
+
     @transaction.atomic
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -78,9 +92,12 @@ class Waqf(TenantModel):
             changed.append("principal_fund")
         if self.revenue_fund_id is None:
             self.revenue_fund = Fund.objects.create(company=self.company, name=f"غلة {self.name}",
-                                                    fund_type=FundType.RESTRICTED,
+                                                    fund_type=self.revenue_restriction,
                                                     purpose=f"تُوزع حسب شرط واقف {self.name}")
             changed.append("revenue_fund")
+        elif self.revenue_fund.fund_type != self.revenue_restriction:
+            self.revenue_fund.fund_type = self.revenue_restriction
+            self.revenue_fund.save(update_fields=["fund_type"])
         if changed:
             super().save(update_fields=changed)
 
@@ -126,6 +143,10 @@ class WaqfShare(models.Model):
             raise ValidationError({"percent": "النسبة بين 0 و100."})
         if self.target_fund_id and self.target_fund.fund_type == FundType.ENDOWMENT:
             raise ValidationError({"target_fund": "لا تُحوّل الغلة إلى صندوق وقف؛ اختر صندوقاً مقيداً أو اتركه فارغاً."})
+        if (self.target_fund_id and self.target_fund.fund_type == FundType.RESTRICTED and self.parent_id
+                and self.parent.revenue_restriction == RevenueRestriction.UNRESTRICTED):
+            raise ValidationError({"target_fund": "غلة هذا الوقف غير مقيدة، ولا يُقيدها إلا شرط الواقف؛ "
+                                                  "غيّر تصنيف الغلة إن كان الصك يحدد المصارف."})
 
 
 class LeaseStatus(models.TextChoices):

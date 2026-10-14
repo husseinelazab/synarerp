@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from accounts.models import Account, Fund, JournalEntry, PeriodClosingVoucher
+from accounts.models import Account, Fund, GLEntry, JournalEntry, PeriodClosingVoucher
 from beneficiaries.tests import make_nonprofit
 from core.models import FiscalYear
 from core.tenancy import tenant_context
@@ -110,3 +110,31 @@ class StatementsPackageTests(TestCase):
         _, user = make_company("منشأة تجارية للقوائم", "fs_biz")
         self.client.force_login(user)
         self.assertRedirects(self.client.get("/funds/statements/"), "/", fetch_redirect_response=False)
+
+    def test_waqf_classification_follows_socpa(self):
+        c = self.year.start_date
+        # أصل الوقف: تبرع لإنشاء وقف ثم شراء مبنى وقفي
+        self.journal(c, ("13101001", 100000, 0, None), ("31301003", 0, 100000, None))
+        self.journal(c + datetime.timedelta(days=1), ("13402001", 100000, 0, None), ("13101001", 0, 100000, None))
+        # غلة وقف دون شرط بمصارف محددة: غير مقيدة
+        self.journal(c + datetime.timedelta(days=2), ("11103001", 5000, 0, None), ("31303001", 0, 5000, None))
+        # استهلاك المبنى الوقفي
+        self.journal(c + datetime.timedelta(days=3), ("43103001", 2000, 0, None), ("2270100201", 0, 2000, None))
+
+        package = build_package(self.company, self.year)
+        self.assertEqual(package["checks"], {"balanced": True, "cash": True, "net_assets": True})
+        activities = package["activities"]
+        self.assertEqual(dict(activities["closing"]), {"unrestricted": Decimal("5000"), "restricted": Decimal("0"),
+                                                      "endowment": Decimal("98000")})
+        expense = activities["sections"][1]
+        depreciation = next(l for l in expense["lines"] if l["code"] == "43103")
+        self.assertEqual(dict(depreciation["values"]), {"unrestricted": Decimal("2000"), "restricted": Decimal("0"),
+                                                        "endowment": Decimal("0")})
+        reclass = activities["transfers"][-1]
+        self.assertIn("استهلاك أصول الأوقاف", reclass["label"])
+        self.assertEqual((reclass["values"]["unrestricted"], reclass["values"]["endowment"]),
+                         (Decimal("2000"), Decimal("-2000")))
+        PeriodClosingVoucher.objects.create(fiscal_year=self.year).submit()
+        closed = {n: sum((e.credit - e.debit for e in GLEntry.objects.filter(account__number=n, is_cancelled=False)),
+                         Decimal(0)) for n in ("23101001", "23103001")}
+        self.assertEqual(closed, {"23101001": Decimal("5000"), "23103001": Decimal("98000")})

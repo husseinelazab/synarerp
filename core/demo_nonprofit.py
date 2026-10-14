@@ -150,7 +150,8 @@ def create_nonprofit_demo(company, user=None):
 
     # ── الأوقاف ──
     waqf = Waqf.objects.create(name="عمارة الخير الوقفية", waqif="فاعل خير", deed_number="4310001",
-                               asset_value=3500000, conditions="تُصرف الغلة على الأيتام والأسر المحتاجة")
+                               asset_value=3500000, conditions="تُصرف الغلة على الأيتام والأسر المحتاجة",
+                               revenue_restriction="restricted")
     waqf.shares.create(name="النظارة", percent=10)
     waqf.shares.create(name="كفالة الأيتام", percent=60, target_fund=Fund.objects.get(name="صندوق الكفالات"))
     waqf.shares.create(name="الأسر المحتاجة", percent=30, target_fund=Fund.objects.get(name="صندوق الزكاة"))

@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 from django.db.models import Sum
 
-from accounts.funds import CLOSING_VOUCHER, branch_class, row_class
+from accounts.funds import CLOSING_VOUCHER, WAQF_DEPRECIATION, branch_class, row_class
 from accounts.models import Account, GLEntry
 from core.utils import flt
 
@@ -234,14 +234,27 @@ def statement_of_activities(ledger, start, end, prior_start, prior_end):
         sections.append({"title": title, "lines": lines, "totals": totals,
                          "total": sum(totals.values(), flt(0)), "prior": sum((l["prior"] for l in lines), flt(0))})
     income, expense = sections
-    transfers = groups.get(("transfer", "transfers"))
-    if transfers is not None:
-        transfers["total"] = sum(transfers["values"].values(), flt(0))
-        if not any(transfers["values"].values()):
-            transfers = None
-    transfer_values = transfers["values"] if transfers else OrderedDict((k, flt(0)) for k in CLASS_KEYS)
-    change = OrderedDict((k, income["totals"][k] - expense["totals"][k] + transfer_values[k]) for k in CLASS_KEYS)
-    change_prior = income["prior"] - expense["prior"] + (transfers["prior"] if transfers else flt(0))
+    transfers = []
+    transfer = groups.get(("transfer", "transfers"))
+    if transfer is not None:
+        transfer["total"] = sum(transfer["values"].values(), flt(0))
+        if any(transfer["values"].values()):
+            transfers.append(transfer)
+    # استهلاك أصول الأوقاف يُعرض في المصروفات غير المقيدة، ويُعاد تصنيف مبلغ مماثل من صافي أصول الأوقاف
+    depreciation = groups.get(("expense", WAQF_DEPRECIATION))
+    if depreciation is not None and depreciation["values"]["endowment"]:
+        amount = depreciation["values"]["endowment"]
+        depreciation["values"]["unrestricted"] += amount
+        depreciation["values"]["endowment"] = flt(0)
+        expense["totals"]["unrestricted"] += amount
+        expense["totals"]["endowment"] -= amount
+        values = OrderedDict((k, flt(0)) for k in CLASS_KEYS)
+        values["unrestricted"], values["endowment"] = amount, -amount
+        transfers.append({"label": "إعادة تصنيف: استهلاك أصول الأوقاف من صافي أصول الأوقاف", "values": values,
+                          "total": flt(0), "prior": flt(0)})
+    change = OrderedDict((k, income["totals"][k] - expense["totals"][k]
+                          + sum((t["values"][k] for t in transfers), flt(0))) for k in CLASS_KEYS)
+    change_prior = income["prior"] - expense["prior"] + sum((t["prior"] for t in transfers), flt(0))
     # قيود مباشرة على حسابات صافي الأصول خلال السنة (غير الإقفال)، مثل الأرصدة الافتتاحية
     direct, direct_prior = OrderedDict((k, flt(0)) for k in CLASS_KEYS), flt(0)
     for period, target in (((start, end), "now"), ((prior_start, prior_end), "prior")):
@@ -311,6 +324,7 @@ def cash_flows(ledger, start, end):
 DEFAULT_POLICIES = """أُعدت القوائم المالية وفقاً لمعيار المنشآت غير الهادفة للربح الصادر عن الهيئة السعودية للمراجعين والمحاسبين، وتُعرض بالريال السعودي.
 استخدام التقديرات: يتطلب إعداد القوائم المالية استخدام تقديرات وافتراضات تؤثر على مبالغ الأصول والالتزامات والإيرادات والمصروفات، وقد تختلف النتائج الفعلية عنها.
 التبرعات والمنح: تُثبت عند تلقيها أو عند وجود تعهد يمكن قياسه بدرجة معقولة من الثقة، وتُصنف إلى غير مقيدة ومقيدة وأوقاف حسب شروط المتبرع.
+الأوقاف: يُصنف أصل الوقف (التبرعات لإنشاء الأوقاف أو شرائها ومكاسب وخسائر أصولها) ضمن صافي أصول الأوقاف، وتُصنف غلته (الريع وأرباح الاستثمار) غير مقيدة ما لم يشترط الواقف صرفها في مصارف محددة فتُصنف مقيدة حتى صرفها، ويُثبت استهلاك أصول الأوقاف ضمن المصروفات غير المقيدة مع إعادة تصنيف مبلغ مماثل من صافي أصول الأوقاف إلى صافي الأصول غير المقيدة.
 التبرعات العينية والخدمات التطوعية: تُثبت بقيمتها العادلة عند إمكانية قياسها، وتُقابل الخدمات التطوعية بمصروف مساوٍ.
 المصروفات: تُثبت المصروفات العمومية والإدارية ومصروفات البرامج والأنشطة وفق مبدأ الاستحقاق، وتُحمل مصروفات الأموال المقيدة على الصناديق المقيدة الخاصة بها.
 الأصول الثابتة: تُثبت بالتكلفة مطروحاً منها مجمع الإهلاك، ويُحسب الإهلاك بطريقة القسط الثابت على العمر الإنتاجي المقدر.

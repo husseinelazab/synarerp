@@ -84,8 +84,7 @@ def statements_export(request):
                       + [num(line["total"]), num(line["prior"])])
         ws.append([f"إجمالي {section['title']}", None] + [num(v) for v in section["totals"].values()]
                   + [num(section["total"]), num(section["prior"])])
-    if act["transfers"]:
-        t = act["transfers"]
+    for t in act["transfers"]:
         ws.append([t["label"], None] + [num(v) for v in t["values"].values()] + [num(t["total"]), num(t["prior"])])
     for label, values, total, prior in (
             ("التغير في صافي الأصول من الأنشطة", act["change"], act["change_total"], act["change_prior"]),

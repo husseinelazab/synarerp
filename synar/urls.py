@@ -57,6 +57,9 @@ urlpatterns = [
     path("relations/", include("relations.urls")),
     path("s/", include("relations.public_urls")),
     path("fleet/", include("fleet.urls")),
+    path("website/", include("website.urls")),
+    path("store/", include("store.urls")),
+    path("site/<slug:site_slug>/", include("website.site_urls")),  # معاينة موقع الجمعية على المنصة
     path("office/", include("office.urls")),
     path("me/", include("hr.portal_urls")),
     path("", include("buying.urls")),

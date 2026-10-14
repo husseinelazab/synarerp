@@ -29,6 +29,8 @@ ICONS = {
     "excellence": '<circle cx="12" cy="9" r="6"/><path d="M8.5 14l-1.5 8 5-3 5 3-1.5-8"/>',
     "relations": '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12"/>',
     "fleet": '<path d="M3 13l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5v4h-2M5 17H3v-4h18"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>',
+    "website": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    "store": '<path d="M4 4h2l2 11h10l2-8H7"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>',
     "statistics": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     "einvoice": '<path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h2v2H9zM13 13h2v2h-2zM9 17h2v2H9z"/>',
 }
@@ -243,6 +245,7 @@ NONPROFIT_GROUPS = [
     ("الخدمات والبرامج", ["beneficiaries", "entities", "programs", "volunteering", "projects"]),
     ("الموارد والمالية", ["resources", "accounts", "awqaf", "stock"]),
     ("الحوكمة والتميز", ["members", "governance", "excellence", "relations"]),
+    ("القنوات الرقمية", ["store", "website"]),
     ("الخدمات المساندة", ["hr", "fleet", "statistics", "settings"]),
     ("المنصة", ["platform"]),
 ]
@@ -272,7 +275,7 @@ def _keys(module):
 
 # ترتيب وحدات الجهة غير الربحية
 NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
-                   "volunteering", "stock", "programs", "excellence", "relations", "fleet", "statistics", "settings"]
+                   "volunteering", "stock", "programs", "excellence", "relations", "fleet", "statistics", "website", "store", "settings"]
 
 
 def nonprofit_modules(modules, doc):
@@ -370,6 +373,12 @@ def nonprofit_modules(modules, doc):
         {"title": "الحركة", "items": [_item("لوحة الحركة والصيانة", "fleet_dashboard"), doc("طلبات السيارات", "vehicle-request"),
                                      doc("السيارات", "vehicle"), doc("سجل الوقود", "fuel-log")]},
         {"title": "الصيانة", "items": [doc("طلبات الصيانة", "maintenance-request"), _item("تقرير الحركة والصيانة", "fleet_report")]},
+    ]}
+    by_key["website"] = {"key": "website", "label": "إدارة الموقع الإلكتروني", "sections": [
+        {"items": [_item("إعدادات الموقع", "website_settings")]},
+    ]}
+    by_key["store"] = {"key": "store", "label": "المتجر الإلكتروني", "sections": [
+        {"items": [_item("لوحة المتجر", "store_dashboard")]},
     ]}
     by_key["statistics"] = {"key": "statistics", "label": "إدارة التقارير والإحصائيات", "sections": [
         {"items": [_item("مركز التقارير والإحصائيات", "statistics_center")]},

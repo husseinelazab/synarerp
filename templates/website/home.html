@@ -1,0 +1,17 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block content %}
+<section class="hero"{% if request.site.hero_image %} style="--hero: url('{{ request.site.hero_image }}')"{% endif %}>
+  <div class="wrap">
+    <h1>{{ request.site.hero_title|default:request.site.company.name }}</h1>
+    {% if request.site.hero_subtitle %}<p>{{ request.site.hero_subtitle }}</p>{% endif %}
+    <div class="hero-actions">
+      <a class="btn-brand" href="{% site_url 'store_home' %}">تبرع الآن</a>
+      <a class="btn-ghost" href="{% site_url 'site_about' %}">تعرّف علينا</a>
+    </div>
+  </div>
+</section>
+<section class="stats wrap">
+  {% for label, value in stats %}<div class="stat"><b>{{ value }}</b><span>{{ label }}</span></div>{% endfor %}
+</section>
+{% block home_sections %}{% endblock %}
+{% endblock %}

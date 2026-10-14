@@ -10,7 +10,7 @@ SESSION_KEY = "company_id"
 
 # مسارات لا تحتاج شركة حالية
 PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/favicon.ico", "/password-reset/", "/healthz/", "/api/v1/", "/iclock/",
-                   "/v/", "/t/", "/s/")
+                   "/v/", "/t/", "/s/", "/site/", "/store/webhook/")
 # مسارات متاحة حتى مع انتهاء الاشتراك
 BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")
 # ما يُسمح للكاشير بالوصول إليه
@@ -30,6 +30,8 @@ class TenantMiddleware:
     def __call__(self, request):
         request.company = None
         request.membership = None
+        if getattr(request, "site", None) is not None:  # موقع جمعية على نطاقه المستقل: صفحات عامة
+            return self.get_response(request)
         path = request.path
         if not request.user.is_authenticated or path.startswith(PUBLIC_PREFIXES):
             return self.get_response(request)

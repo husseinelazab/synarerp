@@ -22,6 +22,13 @@ if os.environ.get("CODESPACE_NAME"):
     ALLOWED_HOSTS.append(f".{_domain}")
     CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ['CODESPACE_NAME']}-8000.{_domain}")
 
+# مواقع الجمعيات على نطاقاتها المستقلة (.sa): عند التفعيل تُقبل نطاقات المواقع المسجلة تلقائياً، وأي نطاق غيرها
+# وغير نطاقات المنصة يُرفض في SiteHostMiddleware
+DYNAMIC_SITE_HOSTS = os.environ.get("SYNAR_DYNAMIC_SITE_HOSTS", "") == "1"
+PLATFORM_HOSTS = {h.lstrip(".") for h in ALLOWED_HOSTS}
+if DYNAMIC_SITE_HOSTS:
+    ALLOWED_HOSTS = ["*"]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -55,10 +62,13 @@ INSTALLED_APPS = [
     "excellence",
     "relations",
     "fleet",
+    "website",
+    "store",
     "office",
 ]
 
 MIDDLEWARE = [
+    "website.middleware.SiteHostMiddleware",  # النطاقات المستقلة لمواقع الجمعيات
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

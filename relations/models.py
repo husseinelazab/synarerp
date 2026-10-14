@@ -1,0 +1,2 @@
+"""العلاقات العامة والإعلام."""
+from django.db import models  # noqa: F401

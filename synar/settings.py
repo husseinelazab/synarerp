@@ -51,6 +51,10 @@ INSTALLED_APPS = [
     "governance",
     "awqaf",
     "volunteering",
+    "programs",
+    "excellence",
+    "relations",
+    "fleet",
     "office",
 ]
 

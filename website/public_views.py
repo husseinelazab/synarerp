@@ -21,6 +21,7 @@ from volunteering.models import VolunteerOpportunity
 from website.forms import ApplyForm, ContactForm
 from website.models import (APPLY_NOTE, WEB_SUBMISSION, Album, DocumentCategory, NewsCategory, NewsPost, Partner,
                             PublishedDocument)
+from website.ratelimit import LIMIT_MESSAGE, too_many
 from website.site import site_url, site_view
 
 logger = logging.getLogger(__name__)
@@ -246,6 +247,8 @@ def apply(request):
         company = request.site.company
         if data["website"]:
             done = True  # بوت: لا نحفظ شيئاً
+        elif too_many(request, "apply", 5):
+            form.add_error(None, LIMIT_MESSAGE)
         elif (Beneficiary.objects.filter(national_id=data["national_id"]).exists()
               or FamilyMember.objects.filter(national_id=data["national_id"], parent__company=company).exists()):
             form.add_error(None, "سبق تسجيل طلب بهذا الرقم لدى الجمعية، وسيتواصل معك فريقنا. "
@@ -283,6 +286,8 @@ def contact(request):
         company = request.site.company
         if data["website"]:
             done = True
+        elif too_many(request, "contact", 5):
+            form.add_error(None, LIMIT_MESSAGE)
         else:
             contact_line = " — ".join(v for v in (data["name"], data["phone"], data["email"]) if v)
             item = Correspondence(

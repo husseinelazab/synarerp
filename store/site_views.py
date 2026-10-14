@@ -18,6 +18,7 @@ from store.models import (DonationOrder, DonationOrderLine, DonorLogin, Marketer
                           OpportunityKind, OrderStatus, RecurringDonation, StoreSettings)
 from store.public import attach_raised, open_opportunities
 from store.service import fetch_and_finalize, finalize, phone_variants, to_decimal
+from website.ratelimit import LIMIT_MESSAGE, too_many
 from website.site import site_url, site_view
 
 MIN_AMOUNT = Decimal("1")
@@ -197,6 +198,9 @@ def store_checkout(request):
         data = form.cleaned_data
         if data["website"]:
             return redirect(site_url(request, "store_home"))
+        if too_many(request, "checkout", 20):
+            form.add_error(None, LIMIT_MESSAGE)
+            return render(request, "store/site/checkout.html", _base(request, form=form, lines=lines, total=total))
         code = request.session.get(_key(request, "ref"))
         marketer = Marketer.objects.filter(code=code, is_active=True).first() if code else None
         with transaction.atomic():
@@ -308,7 +312,9 @@ def store_account(request):
             return redirect(site_url(request, "store_account"))
         if action == "send":
             phone_form = PhoneForm(request.POST)
-            if phone_form.is_valid():
+            if phone_form.is_valid() and too_many(request, "otp", 10):
+                error = LIMIT_MESSAGE
+            elif phone_form.is_valid():
                 target = phone_form.cleaned_data["phone"]
                 last = DonorLogin.objects.filter(phone=target).order_by("-sent_at").first()
                 if last and (timezone.now() - last.sent_at).total_seconds() < OTP_RESEND_SECONDS:

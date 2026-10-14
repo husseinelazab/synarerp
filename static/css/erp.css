@@ -486,3 +486,10 @@ tr.row-low td { background: #fff8e8; }
 .form-advanced { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
 .form-advanced > summary { cursor: pointer; font-weight: 700; color: var(--primary); padding: 4px 0; }
 .form-advanced[open] > summary { margin-bottom: 10px; }
+
+/* لجنة المساعدات */
+.vote-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.vote-form .form-control { flex: 1; min-width: 200px; }
+.committee-item { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;
+                  padding: 10px 0; border-bottom: 1px solid var(--border); }
+.committee-item:last-child { border-bottom: 0; }

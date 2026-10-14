@@ -3,6 +3,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path, re_path
 
 from core import password_reset, two_factor
+from beneficiaries import views as beneficiary_views
 from core import pdf as core_pdf
 from core import views as core_views
 from hr import adms
@@ -64,7 +65,8 @@ urlpatterns = [
     path("s/", include("relations.public_urls")),
     path("campaigns/", include("campaigns.urls")),
     path("u/", include("campaigns.public_urls")),  # إلغاء الاشتراك برابط موقّع (عام)
-    path("d/<str:token>/", core_pdf.public_pdf, name="document_pdf_public"),  # مستند PDF شاركته المنشأة مع عميلها
+    path("d/<str:token>/", core_pdf.public_pdf, name="document_pdf_public"),
+    path("vm/<str:token>/", beneficiary_views.merchant_portal, name="voucher_merchant_portal"),  # صفحة المتجر الشريك  # مستند PDF شاركته المنشأة مع عميلها
     path("fleet/", include("fleet.urls")),
     path("website/", include("website.urls")),
     path("store/", include("store.urls")),

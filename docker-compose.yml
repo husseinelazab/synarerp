@@ -82,10 +82,17 @@ services:
       BACKUP_KEEP_DAYS: ${SYNAR_BACKUP_KEEP_DAYS:-14}
       BACKUP_HOUR: ${SYNAR_BACKUP_HOUR:-2}
       BACKUP_PASSPHRASE: ${SYNAR_BACKUP_PASSPHRASE:-}
+      BACKUP_REMOTE: ${SYNAR_BACKUP_REMOTE:-}
+      BACKUP_REMOTE_KEEP_DAYS: ${SYNAR_BACKUP_REMOTE_KEEP_DAYS:-30}
       TZ: Asia/Riyadh
+    # إعدادات وجهة النسخ الخارجية (rclone) في ملف مستقل حتى لا تصل بقية أسرار النظام لهذه الحاوية
+    env_file:
+      - path: ./deploy/offsite.env
+        required: false
     volumes:
       - ./backups:/backups
       - ./deploy/backup.sh:/backup.sh:ro
+      - media:/media:ro  # المرفقات تُضم للنسخة الخارجية مشفّرة
     entrypoint: ["/bin/sh", "/backup.sh", "loop"]
     depends_on:
       db:

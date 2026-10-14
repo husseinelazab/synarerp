@@ -1,0 +1,40 @@
+{% load committee %}
+{% committee_panel obj request.user as panel %}
+{% if panel %}
+<div class="card committee-panel">
+  <h3>{{ panel.committee }}</h3>
+  {% if not panel.case %}
+    <p>يحتاج هذا المستند قرار اللجنة قبل اعتماده. بعد إكمال البيانات اعرضه على اللجنة ليصوّت الأعضاء من حساباتهم.</p>
+    <form method="post" action="{% url 'committee_refer' dt.slug obj.pk %}">{% csrf_token %}<button class="btn btn-primary">عرض على اللجنة</button></form>
+  {% else %}
+    {% with case=panel.case %}
+    <p>
+      <span class="badge {% if case.status == 'approved' %}status-1{% elif case.status == 'rejected' %}status-2{% else %}status-0{% endif %}">{{ case.get_status_display }}</span>
+      <span class="muted small">عُرض {{ case.referred_at|date:"Y-m-d H:i" }}{% if case.referred_by %} بواسطة {{ case.referred_by.get_full_name|default:case.referred_by.username }}{% endif %}
+        · موافق {{ panel.approve }} · غير موافق {{ panel.reject }} · النصاب {{ panel.committee.quorum }} ({{ panel.committee.get_decision_rule_display }})</span>
+      <a class="btn btn-sm" href="{% url 'committee_minutes' case.pk %}" target="_blank">المحضر</a>
+    </p>
+    {% if panel.stale %}
+      <div class="alert alert-error">تغيّرت بيانات المستند بعد عرضه على اللجنة، فلا يُعتد بالأصوات السابقة.
+        <form method="post" action="{% url 'committee_refer' dt.slug obj.pk %}" class="inline-form">{% csrf_token %}<button class="btn btn-sm">إعادة العرض على اللجنة</button></form></div>
+    {% endif %}
+    {% if panel.votes %}
+    <table class="table"><thead><tr><th>العضو</th><th>الصوت</th><th>الملاحظة</th><th>الوقت</th></tr></thead><tbody>
+      {% for v in panel.votes %}<tr><td>{{ v.user.get_full_name|default:v.user.username }}</td>
+        <td class="{% if v.vote == 'approve' %}ok{% else %}neg{% endif %}">{{ v.get_vote_display }}</td><td>{{ v.note }}</td><td class="muted small">{{ v.voted_at|date:"Y-m-d H:i" }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+    {% if case.status == 'pending' and panel.is_member and not panel.stale and obj.is_draft %}
+    <form method="post" action="{% url 'committee_vote' case.pk %}" class="vote-form">{% csrf_token %}
+      <strong>{% if panel.my_vote %}صوتك: {{ panel.my_vote.get_vote_display }} — يمكنك تعديله حتى صدور القرار{% else %}صوتك{% endif %}</strong>
+      <input name="note" class="form-control" placeholder="ملاحظة (مطلوبة عند عدم الموافقة)" value="{{ panel.my_vote.note|default:'' }}">
+      <button class="btn btn-success" name="vote" value="approve">موافق</button>
+      <button class="btn btn-danger-outline" name="vote" value="reject">غير موافق</button>
+    </form>
+    {% endif %}
+    {% if case.status == 'approved' and obj.is_draft %}<p class="ok">وافقت اللجنة. يمكنك الآن اعتماد المستند.</p>{% endif %}
+    {% if case.status == 'rejected' and obj.is_draft %}<p class="neg">{% if dt.slug == 'case-assessment' %}رفضت اللجنة: عند اعتماد الدراسة يصبح المستفيد «غير مستحق».{% else %}رفضت اللجنة صرف هذه المساعدة؛ لا يمكن اعتمادها.{% endif %}</p>{% endif %}
+    {% endwith %}
+  {% endif %}
+</div>
+{% endif %}

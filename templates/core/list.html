@@ -16,9 +16,9 @@
   </form>
   <div class="actions">
   {% for label, url_name in dt.list_actions %}<form method="post" action="{% url url_name %}">{% csrf_token %}<button class="btn">{{ label }}</button></form>{% endfor %}
-  <a class="btn" href="{% url 'doc_import' dt.slug %}">استيراد</a>
+  {% if not dt.read_only %}<a class="btn" href="{% url 'doc_import' dt.slug %}">استيراد</a>{% endif %}
   <a class="btn" href="{% url 'doc_export' dt.slug %}?{{ request.GET.urlencode }}">تصدير Excel</a>
-  <a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}{% if filter_query %}?{{ filter_query }}{% endif %}">+ {% if filter_label %}{{ filter_label }}{% else %}{{ dt.label }}{% endif %} جديد</a>
+  {% if not dt.read_only %}<a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}{% if filter_query %}?{{ filter_query }}{% endif %}">+ {% if filter_label %}{{ filter_label }}{% else %}{{ dt.label }}{% endif %} جديد</a>{% endif %}
   </div>
 </div>
 <div class="card">

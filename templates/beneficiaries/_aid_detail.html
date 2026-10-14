@@ -1,4 +1,6 @@
-{% if obj.is_draft %}
+{% include "beneficiaries/_committee.html" %}
+{% if obj.aid_type == "voucher" %}{% include "beneficiaries/_aid_voucher_box.html" %}{% endif %}
+{% if obj.is_draft and obj.aid_type != "voucher" %}
 <div class="card">
   <h3>تأكيد استلام المستفيد</h3>
   {% if obj.received_at %}

@@ -4,6 +4,11 @@
 #   sh backup.sh once   ← نسخة فورية
 #   sh backup.sh loop   ← يومياً في الساعة BACKUP_HOUR (يستخدمه docker compose)
 # حالة آخر نسخة تُكتب في /backups/status.json ليعرضها النظام في لوحة إدارة المنصة.
+#
+# النسخ خارج الخادم (اختياري ومُوصى به): اضبط BACKUP_REMOTE على وجهة rclone (مثل offsite:synar-backups)
+# وإعدادات الوجهة في deploy/offsite.env (تخزين متوافق مع S3 أو خادم SFTP، ويُفضّل داخل المملكة).
+# بعد كل نسخة ناجحة تُرفع النسخة المشفّرة وأرشيف مشفّر لملفات المرفقات، وتُحذف النسخ الخارجية الأقدم
+# من BACKUP_REMOTE_KEEP_DAYS. لا يُرفع شيء غير مشفّر. حالة الرفع في /backups/remote_status.json.
 set -e
 DIR=${BACKUP_DIR:-/backups}
 mkdir -p "$DIR"
@@ -25,6 +30,37 @@ PASS
 write_status() {
   printf '{"time": "%s", "ok": %s, "file": "%s", "size": %s, "encrypted": %s, "message": "%s"}\n' \
     "$(date -Iseconds)" "$1" "$2" "${3:-0}" "$4" "$5" > "$DIR/status.json.tmp" && chmod 644 "$DIR/status.json.tmp" && mv "$DIR/status.json.tmp" "$DIR/status.json"
+}
+
+write_remote_status() {
+  printf '{"time": "%s", "ok": %s, "target": "%s", "files": "%s", "message": "%s"}\n' \
+    "$(date -Iseconds)" "$1" "$BACKUP_REMOTE" "$2" "$3" > "$DIR/remote_status.json.tmp" \
+    && chmod 644 "$DIR/remote_status.json.tmp" && mv "$DIR/remote_status.json.tmp" "$DIR/remote_status.json"
+}
+
+# رفع النسخة المشفّرة (وأرشيف المرفقات المشفّر) إلى الوجهة الخارجية
+upload_remote() {
+  [ -n "$BACKUP_REMOTE" ] || return 0
+  if [ "$2" != "true" ]; then
+    write_remote_status false "" "لم تُرفع: النسخ خارج الخادم يتطلب تشفير النسخ (SYNAR_BACKUP_PASSPHRASE)"
+    echo "لم تُرفع النسخة: اضبط SYNAR_BACKUP_PASSPHRASE لتشفير النسخ قبل رفعها خارج الخادم."; return 1
+  fi
+  uploaded=$(basename "$1")
+  rclone copyto "$1" "$BACKUP_REMOTE/$uploaded" --retries 3 || {
+    write_remote_status false "" "فشل رفع النسخة إلى $BACKUP_REMOTE"; echo "فشل رفع النسخة"; return 1; }
+  media=${MEDIA_DIR:-/media}
+  if [ -d "$media" ] && [ -n "$(ls -A "$media" 2>/dev/null)" ]; then
+    archive="$DIR/media-$3.tar.gz.gpg"
+    { tar -C "$media" -czf - . | encrypt > "$archive.tmp"; } && mv "$archive.tmp" "$archive" \
+      && rclone copyto "$archive" "$BACKUP_REMOTE/$(basename "$archive")" --retries 3 || {
+        rm -f "$archive" "$archive.tmp"
+        write_remote_status false "$uploaded" "رُفعت قاعدة البيانات وفشل رفع أرشيف المرفقات"; echo "فشل رفع المرفقات"; return 1; }
+    rm -f "$archive"
+    uploaded="$uploaded $(basename "$archive")"
+  fi
+  rclone delete "$BACKUP_REMOTE" --min-age "${BACKUP_REMOTE_KEEP_DAYS:-30}d" --include 'synar-*.sql.gz.gpg' --include 'media-*.tar.gz.gpg' || true
+  write_remote_status true "$uploaded" "رُفعت إلى $BACKUP_REMOTE"
+  echo "رُفعت النسخة خارج الخادم: $uploaded"
 }
 
 # فشل pg_dump في منتصف الأنبوب يُعلَّم بملف (sh لا يدعم pipefail في كل الإصدارات)
@@ -58,6 +94,7 @@ backup_once() {
   write_status true "$(basename "$file")" "$size" "$encrypted" "تمت النسخة وفُحصت سلامتها"
   echo "تمت النسخة وفُحصت سلامتها: $file ($(du -h "$file" | cut -f1))"
   find "$DIR" -name 'synar-*.sql.gz*' -mtime +"${BACKUP_KEEP_DAYS:-14}" -delete
+  upload_remote "$file" "$encrypted" "$stamp" || true
 }
 
 run() {

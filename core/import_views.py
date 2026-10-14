@@ -40,6 +40,10 @@ class ImportForm(forms.Form):
 @login_required
 def import_page(request, slug):
     dt = get_doctype(slug)
+    if dt.read_only:
+        from django.http import Http404
+
+        raise Http404
     membership = getattr(request, "membership", None)
     form = ImportForm(dt, request.POST or None, request.FILES or None,
                       may_submit=membership is None or membership.may_submit)

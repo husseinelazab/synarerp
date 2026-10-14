@@ -112,6 +112,9 @@ def doc_list(request, slug):
 @login_required
 def doc_form(request, slug, pk=None):
     dt = get_doctype(slug)
+    if dt.read_only:
+        messages.info(request, f"{dt.label_plural} يُنشئها النظام تلقائياً ولا تُعدَّل يدوياً.")
+        return redirect("doc_detail", slug=slug, pk=pk) if pk else redirect("doc_list", slug=slug)
     instance = get_object_or_404(_scoped(request, dt), pk=pk) if pk else None
     if instance is not None and dt.is_submittable and not instance.is_draft:
         messages.warning(request, "لا يمكن تعديل مستند معتمد أو ملغى.")
@@ -446,6 +449,9 @@ def _run_action(request, dt, obj, action):
 def doc_action(request, slug, pk, action):
     dt = get_doctype(slug)
     obj = get_object_or_404(_scoped(request, dt), pk=pk)
+    if action == "delete" and dt.read_only:
+        messages.error(request, f"لا يمكن حذف {dt.label} يدوياً.")
+        return redirect("doc_detail", slug=slug, pk=pk)
     if action == "delete":
         from core.permissions import require_action
 

@@ -1,0 +1,12 @@
+{% load erp %}<div class="card">
+  <h3>القسيمة الشرائية</h3>
+  {% if obj.is_draft %}
+    <p class="muted">عند الاعتماد تصدر قسيمة بقيمة المساعدة، تصل المستفيد برسالة، ويستخدمها لدى المتاجر الشريكة بإبراز هويته.
+      تُقيد القيمة على مصروف البرنامج، وتصبح مستحقة للمتجر عند الشراء.</p>
+  {% elif obj.voucher %}
+    {% with v=obj.voucher %}
+    <p><a href="{% url 'doc_detail' 'aid-voucher' v.pk %}">قسيمة {{ v.code }}</a> — {{ v.get_status_display }} ·
+      القيمة {{ v.amount|money }} · المتبقي <b>{{ v.balance|money }}</b> · صالحة حتى {{ v.expires_on|date:"Y-m-d" }}</p>
+    {% endwith %}
+  {% endif %}
+</div>

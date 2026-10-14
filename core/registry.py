@@ -70,7 +70,9 @@ class DocType:
     type_field: str = ""
     type_titles: dict = field(default_factory=dict)
     # حقول نادرة الاستخدام تُطوى في «خيارات إضافية» أسفل الحقول الأساسية حتى يبقى النموذج بسيطاً
-    advanced_fields: list = field(default_factory=list)  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
+    advanced_fields: list = field(default_factory=list)
+    # سجلات ينشئها النظام نفسه (مثل القسائم عند صرف المساعدة): تُعرض ولا تُنشأ أو تُعدَّل يدوياً
+    read_only: bool = False  # [(العنوان، اسم المسار)] أزرار إضافية (POST) في صفحة القائمة  # حقول يعرضها القالب الإضافي بدلاً من التفاصيل العامة
 
     @property
     def label(self):

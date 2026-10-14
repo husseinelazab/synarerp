@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% if not committee %}
+<div class="card"><p>لم تُشكَّل لجنة المساعدات بعد. <a class="btn btn-primary" href="{% url 'doc_new' 'aid-committee' %}">تشكيل اللجنة</a></p>
+  <p class="muted small">حدد الأعضاء والنصاب وطريقة القرار، وهل تُعرض دراسات الحالة والمساعدات التي تتجاوز قيمة معينة.</p></div>
+{% else %}
+<div class="card">
+  <h3>بانتظار صوتك</h3>
+  {% if not is_member %}<p class="muted">لست عضواً في {{ committee }}.</p>{% endif %}
+  {% for case in mine %}
+  <div class="committee-item">
+    <div><a href="{% url 'committee_minutes' case.pk %}" target="_blank">{{ case.title }}</a>
+      <div class="muted small">عُرض {{ case.referred_at|date:"Y-m-d H:i" }} · موافق {{ case.approve_count }} · غير موافق {{ case.reject_count }} · النصاب {{ committee.quorum }}</div></div>
+    <form method="post" action="{% url 'committee_vote' case.pk %}" class="vote-form">{% csrf_token %}<input type="hidden" name="next" value="committee">
+      <input name="note" class="form-control" placeholder="ملاحظة (مطلوبة عند عدم الموافقة)">
+      <button class="btn btn-success" name="vote" value="approve">موافق</button>
+      <button class="btn btn-danger-outline" name="vote" value="reject">غير موافق</button></form>
+  </div>
+  {% empty %}{% if is_member %}<p class="muted">لا توجد مواضيع بانتظار صوتك.</p>{% endif %}{% endfor %}
+</div>
+<div class="card">
+  <h3>المعروض على اللجنة</h3>
+  <table class="table"><thead><tr><th>الموضوع</th><th>القيمة</th><th>عُرض</th><th>الأصوات</th></tr></thead><tbody>
+  {% for case in pending %}<tr><td><a href="{% url 'committee_minutes' case.pk %}" target="_blank">{{ case.title }}</a></td><td class="num">{% if case.amount %}{{ case.amount|money }}{% else %}—{% endif %}</td>
+    <td class="muted small">{{ case.referred_at|date:"Y-m-d" }}</td><td>{{ case.approve_count }} موافق · {{ case.reject_count }} غير موافق</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted">لا يوجد.</td></tr>{% endfor %}</tbody></table>
+</div>
+<div class="card">
+  <h3>القرارات الأخيرة</h3>
+  <table class="table"><thead><tr><th>الموضوع</th><th>القرار</th><th>التاريخ</th><th>الأصوات</th><th></th></tr></thead><tbody>
+  {% for case in decided %}<tr><td>{{ case.title }}</td>
+    <td><span class="badge {% if case.status == 'approved' %}status-1{% else %}status-2{% endif %}">{{ case.get_status_display }}</span></td>
+    <td class="muted small">{{ case.decided_at|date:"Y-m-d" }}</td><td>{{ case.approve_count }} / {{ case.reject_count }}</td>
+    <td><a class="btn btn-sm" href="{% url 'committee_minutes' case.pk %}" target="_blank">المحضر</a></td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">لا يوجد.</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endif %}
+{% endblock %}

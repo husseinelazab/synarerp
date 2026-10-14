@@ -197,15 +197,30 @@ def financial_position(ledger, end, prior_end):
 TRANSFER_PREFIXES = ("314", "47")
 
 
+# عرض المصروفات حسب وظيفتها (معيار العرض والإفصاح): البرامج والأنشطة، ثم الأوقاف، ثم الأنشطة المساندة
+FUNCTION_ROWS = {"44": "مصروفات جمع الأموال", "45": "مصروفات الاستثمار", "46": "مصروفات الحوكمة"}
+EXPENSE_ORDER = ["42", "43", "44", "41", "46", "45", "413"]
+
+
 def activity_group(number):
-    """بند قائمة الأنشطة الذي يُجمع فيه الحساب: المجموعة ذات الخمس خانات، والعمومية والإدارية بند واحد."""
+    """بند قائمة الأنشطة الذي يُجمع فيه الحساب: المجموعة ذات الخمس خانات للإيرادات والبرامج والأوقاف،
+    وكل وظيفة مساندة (العمومية والإدارية، جمع الأموال، الحوكمة، الاستثمار) بند واحد، والإهلاك بند مستقل."""
     if number.startswith(TRANSFER_PREFIXES):
         return "transfers", "التحويلات وإعادة التصنيف بين فئات صافي الأصول"
     if number.startswith("413"):
         return "413", "مصاريف الإهلاك والاستنفاذ"
     if number.startswith("41"):
         return "41", "المصروفات العمومية والإدارية"
+    if number[:2] in FUNCTION_ROWS:
+        return number[:2], FUNCTION_ROWS[number[:2]]
     return number[:5], None
+
+
+def _expense_order(code):
+    for index, prefix in enumerate(EXPENSE_ORDER[::-1]):
+        if code.startswith(prefix):
+            return (len(EXPENSE_ORDER) - 1 - index, code)
+    return (len(EXPENSE_ORDER), code)
 
 
 def statement_of_activities(ledger, start, end, prior_start, prior_end):
@@ -226,7 +241,8 @@ def statement_of_activities(ledger, start, end, prior_start, prior_end):
         groups[(root, code)]["prior"] += -amount if root == "expense" else amount
     sections = []
     for root, title in (("income", "الإيرادات والمكاسب"), ("expense", "المصروفات والخسائر")):
-        lines = [g for (r, _), g in sorted(groups.items(), key=lambda kv: kv[0][1]) if r == root
+        order = _expense_order if root == "expense" else (lambda code: code)
+        lines = [g for (r, _), g in sorted(groups.items(), key=lambda kv: order(kv[0][1])) if r == root
                  and (any(g["values"].values()) or g["prior"])]
         for line in lines:
             line["total"] = sum(line["values"].values(), flt(0))
@@ -277,6 +293,35 @@ def statement_of_activities(ledger, start, end, prior_start, prior_end):
     }
 
 
+# ───────────────────────────── قائمة التغيرات في صافي الأصول ─────────────────────────────
+
+def _changes_block(activities, label):
+    def row(title, values, kind=""):
+        values = OrderedDict((k, values[k]) for k in CLASS_KEYS)
+        return {"label": title, "values": values, "total": sum(values.values(), flt(0)), "kind": kind}
+
+    income, expense = activities["sections"]
+    rows = [row("الرصيد في بداية السنة", activities["opening"], "subtotal"),
+            row("الإيرادات والمكاسب", income["totals"]),
+            row("المصروفات والخسائر", OrderedDict((k, -v) for k, v in expense["totals"].items()))]
+    for transfer in activities["transfers"]:
+        rows.append(row(transfer["label"], transfer["values"]))
+    rows.append(row("التغير في صافي الأصول خلال السنة", activities["change"], "subtotal"))
+    if any(activities["direct"].values()):
+        rows.append(row("قيود مباشرة على صافي الأصول (أرصدة افتتاحية وتسويات)", activities["direct"]))
+    rows.append(row("الرصيد في نهاية السنة", activities["closing"], "grand"))
+    return {"label": label, "rows": rows}
+
+
+def changes_in_net_assets(ledger, activities, start, end, prior_start, prior_end):
+    """قائمة التغيرات في صافي الأصول لكل فئة (غير مقيدة، مقيدة، أوقاف) للسنة الحالية والسابقة."""
+    before_start, before_end = previous_period(prior_start, prior_end)
+    prior = statement_of_activities(ledger, prior_start, prior_end, before_start, before_end)
+    return {"columns": [label for _, label in CLASSES],
+            "blocks": [_changes_block(prior, f"السنة المنتهية في {prior_end:%Y/%m/%d}"),
+                       _changes_block(activities, f"السنة المنتهية في {end:%Y/%m/%d}")]}
+
+
 # ───────────────────────────── قائمة التدفقات النقدية (غير مباشرة) ─────────────────────────────
 
 OPERATING_ASSETS = ("112", "114", "115", "116", "117", "118", "132")
@@ -321,15 +366,20 @@ def cash_flows(ledger, start, end):
 
 # ───────────────────────────── الإيضاحات والحزمة ─────────────────────────────
 
-DEFAULT_POLICIES = """أُعدت القوائم المالية وفقاً لمعيار المنشآت غير الهادفة للربح الصادر عن الهيئة السعودية للمراجعين والمحاسبين، وتُعرض بالريال السعودي.
+DEFAULT_POLICIES = """أسس الإعداد: أُعدت القوائم المالية وفقاً للمعايير المحاسبية للمنشآت غير الهادفة للربح الصادرة عن الهيئة السعودية للمراجعين والمحاسبين (معيار العرض والإفصاح للقوائم المالية ومعيار التبرعات)، وعلى أساس الاستحقاق ومبدأ التكلفة التاريخية، وتُعرض بالريال السعودي.
+القوائم المالية: تتكون من قائمة المركز المالي، وقائمة الأنشطة، وقائمة التغيرات في صافي الأصول، وقائمة التدفقات النقدية (بالطريقة غير المباشرة)، والإيضاحات المتممة لها.
+فئات صافي الأصول: تُصنف صافي الأصول إلى غير مقيدة، ومقيدة بقيود من المتبرعين على الغرض أو الوقت، وأوقاف. وعند انتهاء القيد بتحقق الغرض أو مضي الوقت يُعاد تصنيف المبلغ إلى صافي الأصول غير المقيدة، وتُعرض التحويلات بين الفئات بقيمها الإجمالية.
 استخدام التقديرات: يتطلب إعداد القوائم المالية استخدام تقديرات وافتراضات تؤثر على مبالغ الأصول والالتزامات والإيرادات والمصروفات، وقد تختلف النتائج الفعلية عنها.
-التبرعات والمنح: تُثبت عند تلقيها أو عند وجود تعهد يمكن قياسه بدرجة معقولة من الثقة، وتُصنف إلى غير مقيدة ومقيدة وأوقاف حسب شروط المتبرع.
+التبرعات والمنح: تُثبت إيراداً عند تلقيها أو عند الحصول على وعد غير مشروط بها يمكن قياسه بدرجة معقولة من الثقة، وتُصنف حسب قيود المتبرع. ولا تُثبت الوعود المشروطة حتى يتحقق شرطها، ويُفصح عنها.
+الزكاة: تُثبت ضمن التبرعات المقيدة، ولا تُصرف إلا في مصارفها الشرعية من صندوق مستقل.
 الأوقاف: يُصنف أصل الوقف (التبرعات لإنشاء الأوقاف أو شرائها ومكاسب وخسائر أصولها) ضمن صافي أصول الأوقاف، وتُصنف غلته (الريع وأرباح الاستثمار) غير مقيدة ما لم يشترط الواقف صرفها في مصارف محددة فتُصنف مقيدة حتى صرفها، ويُثبت استهلاك أصول الأوقاف ضمن المصروفات غير المقيدة مع إعادة تصنيف مبلغ مماثل من صافي أصول الأوقاف إلى صافي الأصول غير المقيدة.
-التبرعات العينية والخدمات التطوعية: تُثبت بقيمتها العادلة عند إمكانية قياسها، وتُقابل الخدمات التطوعية بمصروف مساوٍ.
-المصروفات: تُثبت المصروفات العمومية والإدارية ومصروفات البرامج والأنشطة وفق مبدأ الاستحقاق، وتُحمل مصروفات الأموال المقيدة على الصناديق المقيدة الخاصة بها.
-الأصول الثابتة: تُثبت بالتكلفة مطروحاً منها مجمع الإهلاك، ويُحسب الإهلاك بطريقة القسط الثابت على العمر الإنتاجي المقدر.
+التبرعات العينية: تُثبت بقيمتها العادلة في تاريخ استلامها، وإذا تعذر قياسها بموثوقية يُفصح عنها دون إثبات.
+الخدمات التطوعية: تُثبت بقيمتها العادلة إيراداً ومصروفاً متساويين متى أنشأت أو حسّنت أصولاً غير مالية أو تطلبت مهارات متخصصة كانت الجمعية ستشتريها لو لم يُتبرع بها.
+المصروفات: تُثبت وفق مبدأ الاستحقاق وتُعرض في قائمة الأنشطة حسب وظيفتها (البرامج والأنشطة، والأوقاف، وجمع الأموال، والعمومية والإدارية، والحوكمة)، ويُفصح عنها حسب طبيعتها، وتُحمل مصروفات الأموال المقيدة على الصناديق المقيدة الخاصة بها.
+الأصول الثابتة: تُثبت بالتكلفة مطروحاً منها مجمع الإهلاك، ويُحسب الإهلاك بطريقة القسط الثابت على العمر الإنتاجي المقدر، وتُثبت الأصول المتبرع بها بقيمتها العادلة في تاريخ التبرع.
 مكافأة نهاية الخدمة: يُكوّن لها مخصص وفق نظام العمل في المملكة العربية السعودية.
-النقد وما في حكمه: يشمل النقد في الصناديق والحسابات الجارية لدى البنوك والنقدية الموقوفة."""
+النقد وما في حكمه: يشمل النقد في الصناديق والحسابات الجارية لدى البنوك والنقدية الموقوفة.
+سياسة قبول التبرعات: تقبل الجمعية التبرعات النقدية والعينية والزكاة والهبات والمنح والوصايا والأوقاف بما يتوافق مع أهدافها ونظامها الأساسي والأنظمة ذات العلاقة، وتلتزم بشروط المتبرعين والواقفين في صرفها."""
 
 
 def _breakdown(ledger, now, before, code, contras, debit_nature):
@@ -410,6 +460,84 @@ def accounts_detail(ledger, start, end, prior_start, prior_end, prefixes, exclud
     return rows
 
 
+FUNCTIONS = [("42", "البرامج والأنشطة"), ("43", "الأوقاف"), ("44", "جمع الأموال"), ("41", "العمومية والإدارية"),
+             ("46", "الحوكمة"), ("45", "الاستثمار")]
+NATURES = [
+    ("salaries", "الرواتب والأجور", ("الرواتب", "الأجور", "تكاليف العاملين")),
+    ("benefits", "المزايا والحوافز", ("مزايا", "حوافز", "بدل", "تأمينات")),
+    ("volunteer", "الخدمات التطوعية", ("تطوعية",)),
+    ("aid", "المساعدات والبرامج المباشرة", ("مصارف الزكاة", "برامج", "توزيعات", "المنح", "مستفيدي")),
+    ("supplies", "المستهلكات", ("المستهلكات",)),
+    ("maintenance", "الصيانة والإصلاح", ("الصيانة",)),
+    ("utilities", "المنافع والخدمات والتأمين", ("المنافع",)),
+    ("depreciation", "الإهلاك والاستنفاذ", ("الاستهلاك", "الإستهلاك", "إهلاك", "الاستنفاذ")),
+    ("other", "مصروفات أخرى", ()),
+]
+
+
+def expense_nature(number, name):
+    """طبيعة المصروف من اسم مجموعته في الدليل الموحد (الرواتب، المستهلكات، الإهلاك...)."""
+    if number.startswith(("413", "43103")):
+        return "depreciation"
+    for key, _, words in NATURES:
+        if any(word in name for word in words):
+            return key
+    return "other"
+
+
+def expenses_by_nature(ledger, start, end):
+    """إيضاح المصروفات حسب طبيعتها ووظيفتها: صف لكل طبيعة وعمود لكل وظيفة."""
+    names = official_names()
+    moves = ledger.movements(start, end, include_closing=False)
+    columns = [(prefix, label) for prefix, label in FUNCTIONS]
+    cells = {}
+    for number, amount in moves.items():
+        function = next((prefix for prefix, _ in columns if number.startswith(prefix)), None)
+        if function is None or not amount:
+            continue
+        group = names.get(number[:5]) or names.get(number[:3]) or ""
+        nature = expense_nature(number, f"{group} {names.get(number, '')}")
+        cells[(nature, function)] = cells.get((nature, function), flt(0)) - amount
+    used = [prefix for prefix, _ in columns if any(cells.get((n, prefix)) for n, _, _ in NATURES)]
+    rows = []
+    for key, label, _ in NATURES:
+        values = [cells.get((key, prefix), flt(0)) for prefix in used]
+        if any(values):
+            rows.append({"label": label, "values": values, "total": sum(values, flt(0))})
+    totals = [sum((r["values"][i] for r in rows), flt(0)) for i in range(len(used))]
+    return {"columns": [label for prefix, label in columns if prefix in used], "rows": rows, "totals": totals,
+            "total": sum(totals, flt(0))}
+
+
+def conditional_pledges(end):
+    """الوعود المشروطة القائمة في نهاية السنة (غير مثبتة، يُفصح عنها)."""
+    from funds.models import Pledge
+
+    pledges = (Pledge.objects.filter(docstatus=1, is_conditional=True, posting_date__lte=end)
+               .exclude(condition_met_on__lte=end).select_related("donor", "fund").order_by("posting_date"))
+    return [{"donor": str(p.donor), "condition": p.condition, "fund": str(p.fund or "غير مقيد"),
+             "amount": flt(p.amount), "date": p.posting_date} for p in pledges]
+
+
+def awqaf_note(start, end):
+    """الإفصاح الإضافي عن الأوقاف: لكل وقف قيمته وغلته وتوزيعاتها خلال السنة ورصيد غلته في نهايتها."""
+    from awqaf.models import Waqf, WaqfDistribution
+
+    rows = []
+    for waqf in Waqf.objects.select_related("revenue_fund").order_by("name"):
+        fund = waqf.revenue_fund
+        income = (GLEntry.objects.filter(fund=fund, is_cancelled=False, account__root_type="income",
+                                         posting_date__gte=start, posting_date__lte=end)
+                  .exclude(voucher_type=CLOSING_VOUCHER).aggregate(c=Sum("credit"), d=Sum("debit")))
+        distributed = WaqfDistribution.objects.filter(waqf=waqf, docstatus=1, posting_date__gte=start,
+                                                      posting_date__lte=end).aggregate(t=Sum("amount"))["t"]
+        rows.append({"name": waqf.name, "type": waqf.get_waqf_type_display(), "deed": waqf.deed_number,
+                     "classification": waqf.get_revenue_restriction_display().split(" (")[0],
+                     "asset_value": flt(waqf.asset_value), "revenue": flt(income["c"]) - flt(income["d"]),
+                     "distributed": flt(distributed), "balance": fund.totals(to_date=end)["balance"] if fund else 0})
+    return rows
+
+
 def restricted_funds_note(end, prior_end):
     from accounts.models import Fund, FundType
 
@@ -429,6 +557,7 @@ def build_package(company, fiscal_year):
     position = financial_position(ledger, end, prior_end)
     activities = statement_of_activities(ledger, start, end, prior_start, prior_end)
     flows, flows_prior = cash_flows(ledger, start, end), cash_flows(ledger, prior_start, prior_end)
+    changes = changes_in_net_assets(ledger, activities, start, end, prior_start, prior_end)
     now, before = ledger.balances(end), ledger.balances(prior_end)
 
     notes = [
@@ -477,6 +606,16 @@ def build_package(company, fiscal_year):
             for line in activities["sections"][1]["lines"]:
                 if line["code"].startswith(code_prefix) and line["code"] != "413":
                     line["note"] = number
+    waqf_rows = awqaf_note(start, end)
+    if waqf_rows:
+        add("الأوقاف", "awqaf", awqaf=waqf_rows)
+    pledges = conditional_pledges(end)
+    if pledges:
+        add("وعود التبرع المشروطة (غير مثبتة)", "pledges", pledges=pledges,
+            pledges_total=sum((p["amount"] for p in pledges), flt(0)))
+    matrix = expenses_by_nature(ledger, start, end)
+    if matrix["rows"]:
+        add("المصروفات حسب طبيعتها ووظيفتها", "matrix", matrix=matrix)
     rows = restricted_funds_note(end, prior_end)
     restricted = next(n for n in position["net_assets"] if n["key"] == "restricted")
     residual = (restricted["value"] - sum((r["value"] for r in rows), flt(0)),
@@ -494,7 +633,7 @@ def build_package(company, fiscal_year):
             note["total"] = sum((r["value"] for r in note["rows"]), flt(0))
             note["total_prior"] = sum((r["prior"] for r in note["rows"]), flt(0))
     return {"company": company, "year": fiscal_year, "start": start, "end": end, "prior_start": prior_start,
-            "prior_end": prior_end, "position": position, "activities": activities, "flows": flows,
+            "prior_end": prior_end, "position": position, "activities": activities, "changes": changes, "flows": flows,
             "flows_prior": flows_prior, "notes": notes,
             "checks": {"balanced": position["balanced"], "cash": flows["reconciles"] and flows_prior["reconciles"],
                        "net_assets": [round(activities["closing"][k], 2) for k in CLASS_KEYS]

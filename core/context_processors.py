@@ -24,7 +24,9 @@ def erp(request):
         })
         company = getattr(request, "company", None)
         if company is not None:
-            from core.models import Notification
+            from core.models import Notification, PrintSettings
+
+            context["letterhead"] = PrintSettings.for_company(company)
 
             context["unread_notifications"] = Notification.all_objects.filter(
                 company=company, user=request.user, is_read=False).count()

@@ -87,6 +87,18 @@ class StatementsPackageTests(TestCase):
         self.assertEqual((restricted_note["total"], restricted_note["total_prior"]), (Decimal("5000"), Decimal("8000")))
         expenses = notes["مصروفات البرامج والأنشطة المقيدة حسب الغرض"]
         self.assertEqual(expenses["total"], activities["sections"][1]["totals"]["restricted"])
+        # قائمة التغيرات في صافي الأصول: السنة السابقة ثم الحالية، وتنتهي بأرصدة المركز المالي
+        prior_block, current_block = package["changes"]["blocks"]
+        closing = current_block["rows"][-1]
+        self.assertEqual([closing["values"][k] for k in CLASS_KEYS], [Decimal("19000"), Decimal("5000"), Decimal("0")])
+        self.assertEqual(prior_block["rows"][0]["total"], 0)
+        self.assertEqual(prior_block["rows"][-1]["total"], current_block["rows"][0]["total"])
+        # المصروفات حسب طبيعتها ووظيفتها تساوي إجمالي المصروفات
+        matrix = notes["المصروفات حسب طبيعتها ووظيفتها"]["matrix"]
+        self.assertEqual(matrix["total"], activities["sections"][1]["total"])
+        self.assertEqual(matrix["columns"], ["البرامج والأنشطة", "العمومية والإدارية"])
+        natures = {r["label"]: r["total"] for r in matrix["rows"]}
+        self.assertEqual(natures, {"المزايا والحوافز": Decimal("400"), "المساعدات والبرامج المباشرة": Decimal("3000")})
 
     def test_pages_and_excel(self):
         self.donate(1000, self.year.start_date)
@@ -102,8 +114,8 @@ class StatementsPackageTests(TestCase):
         import openpyxl
 
         book = openpyxl.load_workbook(io.BytesIO(export.content))
-        self.assertEqual(book.sheetnames, ["قائمة المركز المالي", "قائمة الأنشطة", "قائمة التدفقات النقدية",
-                                           "الإيضاحات"])
+        self.assertEqual(book.sheetnames, ["قائمة المركز المالي", "قائمة الأنشطة", "قائمة التغيرات في صافي الأصول",
+                                           "قائمة التدفقات النقدية", "الإيضاحات"])
         self.assertContains(self.client.get("/reports/accounts/trial-balance/"), "حزمة القوائم المالية")
 
     def test_business_cannot_open(self):

@@ -99,6 +99,9 @@ class DonationReceipt(SubmittableDocument):
                                         related_name="receipts", editable=False, verbose_name="استحقاق الكفالة")
     membership_fee = models.ForeignKey("governance.MembershipFee", models.PROTECT, null=True, blank=True,
                                        related_name="receipts", editable=False, verbose_name="اشتراك العضوية")
+    pledge = models.ForeignKey("funds.Pledge", models.PROTECT, null=True, blank=True, related_name="receipts",
+                               editable=False, verbose_name="وعد التبرع",
+                               help_text="تحصيل وعد تبرع أُثبت إيراده عند الوعد: يُخفض الذمة ولا يُثبت إيراداً جديداً")
 
     class Meta(SubmittableDocument.Meta):
         verbose_name = "سند تبرع"
@@ -139,12 +142,24 @@ class DonationReceipt(SubmittableDocument):
 
     def validate_for_submit(self):
         self.clean()
+        if self.pledge_id:
+            pledge = self.pledge
+            if not pledge.is_submitted or pledge.is_conditional:
+                raise ValidationError("لا يُحصّل إلا وعد تبرع معتمد غير مشروط.")
+            if self.amount > pledge.outstanding:
+                raise ValidationError(f"المبلغ أكبر من المتبقي على الوعد ({pledge.outstanding:,.2f}).")
+            return
         if not self.income_account_id:
             raise ValidationError(f"حساب الإيراد {INCOME_ACCOUNTS[self.donation_type]} غير موجود في دليل الحسابات. "
                                   "حدد حساب الإيراد يدوياً.")
 
     def on_submit(self):
         remarks = f"{self.get_donation_type_display()} من {self.donor_display}"
+        if self.pledge_id:  # الإيراد أُثبت عند الوعد؛ التحصيل يُخفض ذمة الوعد
+            make_gl_entries(self, [{"account": self.account, "debit": self.amount},
+                                   {"account": self.pledge.receivable_account, "credit": self.amount}],
+                            remarks=self.remarks or f"تحصيل وعد التبرع {self.pledge.name} من {self.donor_display}")
+            return
         make_gl_entries(self, [{"account": self.account, "debit": self.amount},
                                {"account": self.income_account, "credit": self.amount, "fund": self.fund}],
                         remarks=self.remarks or remarks)
@@ -478,3 +493,112 @@ class InKindDonationItem(models.Model):
         verbose_name = "صنف متبرع به"
         verbose_name_plural = "الأصناف المتبرع بها"
         ordering = ["id"]
+
+
+# ───────────────────────────── وعود التبرع ─────────────────────────────
+
+# معيار التبرعات: الوعد غير المشروط يُثبت إيراداً وذمة عند الوعد، والمشروط لا يُثبت حتى يتحقق شرطه ويُفصح عنه
+PLEDGE_ACCOUNTS = {"restricted": ("11601001", "31102002"), "unrestricted": ("11602001", "31201001")}
+
+
+class Pledge(SubmittableDocument):
+    """وعد تبرع (تعهد): يُثبت عند اعتماده إن كان غير مشروط، ويُحصّل بسندات تبرع تُخفض ذمته."""
+
+    naming_prefix = "PLG"
+
+    donor = models.ForeignKey(Donor, models.PROTECT, related_name="pledges", limit_choices_to={"is_active": True},
+                              verbose_name="الداعم")
+    restriction = models.CharField("نوع التبرع", max_length=12, default="unrestricted",
+                                   choices=[("unrestricted", "غير مقيد"), ("restricted", "مقيد بغرض")])
+    fund = models.ForeignKey(Fund, models.PROTECT, null=True, blank=True, related_name="+",
+                             limit_choices_to={"is_active": True}, verbose_name="الصندوق",
+                             help_text="إلزامي للوعد المقيد")
+    amount = models.DecimalField("مبلغ الوعد", max_digits=18, decimal_places=2)
+    due_date = models.DateField("تاريخ الاستحقاق المتوقع", null=True, blank=True)
+    is_conditional = models.BooleanField("وعد مشروط", default=False,
+                                         help_text="مشروط بحدث مستقبلي غير مؤكد (مثل تحقيق مستهدف أو موافقة جهة): "
+                                                   "لا يُثبت إيراداً حتى يتحقق الشرط، ويُفصح عنه في الإيضاحات")
+    condition = models.CharField("الشرط", max_length=300, blank=True)
+    condition_met_on = models.DateField("تاريخ تحقق الشرط", null=True, blank=True, editable=False)
+    receivable_account = models.ForeignKey(Account, models.PROTECT, null=True, blank=True, related_name="+",
+                                           limit_choices_to={"is_group": False}, verbose_name="حساب ذمة الوعد",
+                                           help_text="يُحدد تلقائياً من فرع «تبرعات مستحقة» 116")
+    income_account = models.ForeignKey(Account, models.PROTECT, null=True, blank=True, related_name="+",
+                                       limit_choices_to={"is_group": False, "root_type": RootType.INCOME},
+                                       verbose_name="حساب الإيراد", help_text="يُحدد تلقائياً حسب نوع التبرع")
+
+    class Meta(SubmittableDocument.Meta):
+        verbose_name = "وعد تبرع"
+        verbose_name_plural = "وعود التبرع"
+
+    def clean(self):
+        if self.amount is not None and self.amount <= 0:
+            raise ValidationError({"amount": "المبلغ يجب أن يكون أكبر من صفر."})
+        fund = self.fund if self.fund_id else None
+        if self.restriction == "restricted" and (fund is None or fund.fund_type != FundType.RESTRICTED):
+            raise ValidationError({"fund": "الوعد المقيد يُقيد في صندوق مقيد."})
+        if self.restriction == "unrestricted" and fund is not None and fund.fund_type != FundType.UNRESTRICTED:
+            raise ValidationError({"fund": "الوعد غير المقيد لا يُقيد في صندوق مقيد."})
+        if self.is_conditional and not self.condition:
+            raise ValidationError({"condition": "اكتب الشرط الذي يتوقف عليه الوعد."})
+
+    def calculate_totals(self):
+        receivable, income = PLEDGE_ACCOUNTS[self.restriction]
+        if not self.receivable_account_id:
+            self.receivable_account = Account.objects.filter(number=receivable, is_group=False).first()
+        if not self.income_account_id:
+            self.income_account = Account.objects.filter(number=income, is_group=False).first()
+
+    def validate_for_submit(self):
+        self.clean()
+        if not (self.receivable_account_id and self.income_account_id):
+            raise ValidationError("حدد حساب ذمة الوعد وحساب الإيراد.")
+
+    def on_submit(self):
+        if self.is_conditional:
+            return  # يُفصح عنه فقط حتى يتحقق الشرط
+        make_gl_entries(self, [{"account": self.receivable_account, "debit": self.amount},
+                               {"account": self.income_account, "credit": self.amount, "fund": self.fund}],
+                        remarks=self.remarks or f"وعد تبرع من {self.donor}")
+
+    def on_cancel(self):
+        if self.receipts.filter(docstatus=1).exists():
+            raise ValidationError("ألغِ سندات تحصيل هذا الوعد أولاً.")
+        cancel_gl_entries(self)
+
+    @property
+    def collected(self):
+        return flt(self.receipts.filter(docstatus=1).aggregate(t=models.Sum("amount"))["t"])
+
+    @property
+    def outstanding(self):
+        return flt(self.amount) - self.collected
+
+    @property
+    def available_actions(self):
+        if not self.is_submitted:
+            return []
+        if self.is_conditional:
+            return [] if self.condition_met_on else [("condition_met", "تحقق الشرط (إثبات الوعد)")]
+        return [("collect", "تسجيل التحصيل")] if self.outstanding > 0 else []
+
+    def condition_met(self, user):
+        """تحقق شرط الوعد: يُنشأ وعد غير مشروط بنفس البيانات (مسودة تُعتمد) ويُغلق المشروط."""
+        if not self.is_conditional or self.condition_met_on:
+            raise ValidationError("هذا الوعد ليس مشروطاً أو سبق إثباته.")
+        today = timezone.localdate()
+        self.condition_met_on = today
+        self.save(update_fields=["condition_met_on"])
+        return Pledge.objects.create(donor=self.donor, restriction=self.restriction, fund=self.fund,
+                                     amount=self.amount, due_date=self.due_date, posting_date=today,
+                                     created_by=user, remarks=f"تحقق شرط الوعد {self.name}: {self.condition}")
+
+    def collect(self, user):
+        """مسودة سند تبرع بالمتبقي من الوعد تُراجع وتُعتمد."""
+        if self.outstanding <= 0:
+            raise ValidationError("حُصّل الوعد بالكامل.")
+        return DonationReceipt.objects.create(
+            donor=self.donor, donor_name=self.donor.name, donor_phone=self.donor.phone,
+            donation_type=DonationType.RESTRICTED if self.restriction == "restricted" else DonationType.GENERAL,
+            fund=self.fund, amount=self.outstanding, account=self.company.default_cash_account, pledge=self,
+            created_by=user, remarks=f"تحصيل وعد التبرع {self.name}")

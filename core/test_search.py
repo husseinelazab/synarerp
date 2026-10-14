@@ -130,3 +130,17 @@ class PageLayoutTests(TestCase):
         for module in modules:
             items = sum(len(s["items"]) for s in module["sections"])
             self.assertEqual(module["flat"], items <= FLAT_LIMIT, module["label"])
+
+    def test_report_letterhead_for_print(self):
+        from core.models import PrintSettings
+
+        self.company.tax_id, self.company.address = "310000000000003", "طريق الملك فهد، الرياض"
+        self.company.save()
+        PrintSettings.objects.create(company=self.company, logo="data:image/png;base64,AAAA", name_en="Layout Co")
+        self.client.force_login(self.owner)
+        html = self.client.get("/reports/accounts/trial-balance/").content.decode()
+        head = html.split('class="letterhead')[1].split("</header>")[0]
+        for text in ("شركة التخطيط", "Layout Co", "310000000000003", "طريق الملك فهد", "data:image/png", "عن الفترة من"):
+            self.assertIn(text, head)
+        self.assertIn('class="signatures"', html)  # التقارير المالية بخانات توقيع، والقوائم العادية بدونها
+        self.assertNotIn('class="signatures"', self.client.get("/app/customer/").content.decode())

@@ -1,6 +1,6 @@
 from core.registry import ChildTable, DocType, register
-from funds.models import (DonationReceipt, Donor, InKindDonation, InKindDonationItem, Sponsorship, SponsorshipDue,
-                          SponsorshipType)
+from funds.models import (DonationReceipt, Donor, InKindDonation, InKindDonationItem, Pledge, Sponsorship,
+                          SponsorshipDue, SponsorshipType)
 
 register(DocType(
     slug="donation-receipt", model=DonationReceipt, module="resources",
@@ -39,4 +39,11 @@ register(DocType(
     child=ChildTable(InKindDonationItem, ["item", "qty", "rate"], label="الأصناف المتبرع بها",
                      display_fields=["item", "qty", "rate", "amount"],
                      help="القيمة العادلة: سعر السوق للصنف عند الاستلام (تُثبت بها في المخزون والإيراد)."),
+))
+register(DocType(
+    slug="pledge", model=Pledge, module="resources",
+    list_fields=["name", "posting_date", "donor", "restriction", "amount", "is_conditional", "due_date"],
+    form_fields=["posting_date", "donor", "restriction", "fund", "amount", "due_date", "is_conditional", "condition",
+                 "receivable_account", "income_account", "remarks"],
+    search_fields=["name", "donor__name", "condition"],
 ))

@@ -80,6 +80,7 @@
       </div>
     </header>
     <main class="content">
+      {% if current_company %}{% include "core/_letterhead.html" %}{% endif %}
       <div class="page-head">
         {% if nav_trail %}<nav class="crumbs" aria-label="مسار الصفحة">{% for label, url in nav_trail %}<a href="{{ url }}">{{ label }}</a>{% if not forloop.last %}<span>›</span>{% endif %}{% endfor %}</nav>{% endif %}
         <h1>{% block heading %}{% endblock %}</h1>
@@ -91,6 +92,7 @@
         <div class="alert alert-{{ message.tags }}">{{ message }}</div>
       {% endfor %}
       {% block content %}{% endblock %}
+      {% if current_company %}{% include "core/_report_footer.html" %}{% endif %}
     </main>
   </div>
 </div>

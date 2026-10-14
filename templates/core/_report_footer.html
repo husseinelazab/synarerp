@@ -1,0 +1,11 @@
+<footer class="report-footer print-only">
+  {% if from_date or to_date or as_of %}
+  <div class="signatures">
+    <div><span>أعدّه</span><i></i></div>
+    <div><span>{% if current_company.is_nonprofit %}المدير المالي{% else %}راجعه{% endif %}</span><i></i></div>
+    <div><span>{% if current_company.is_nonprofit %}أمين الصندوق{% else %}اعتمده{% endif %}</span><i></i></div>
+    {% if current_company.is_nonprofit %}<div><span>رئيس مجلس الإدارة</span><i></i></div>{% endif %}
+  </div>
+  {% endif %}
+  <div class="printed-by">طُبع بواسطة {{ user.get_full_name|default:user.username }} في {% now "Y/m/d H:i" %}{% if letterhead.footer_text %} — {{ letterhead.footer_text }}{% endif %}</div>
+</footer>

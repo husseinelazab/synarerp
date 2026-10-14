@@ -93,6 +93,14 @@ def statements_export(request):
             ("صافي الأصول في نهاية السنة", act["closing"], act["closing_total"], act["closing_prior"])):
         ws.append([label, None] + [num(v) for v in values.values()] + [num(total), num(prior)])
 
+    ws = sheet("قائمة التغيرات في صافي الأصول", ["البيان"] + [f"صافي الأصول {label}" for _, label in CLASSES]
+               + ["الإجمالي"])
+    for block in p["changes"]["blocks"]:
+        ws.append([block["label"]])
+        ws.cell(ws.max_row, 1).font = bold
+        for row in block["rows"]:
+            ws.append([row["label"]] + [num(v) for v in row["values"].values()] + [num(row["total"])])
+
     ws = sheet("قائمة التدفقات النقدية", ["البيان", cur, pri])
     f, fp = p["flows"], p["flows_prior"]
 
@@ -132,6 +140,23 @@ def statements_export(request):
                 ws.append([row["label"]] + [num(row[k]) for k in ("cost_open", "additions", "disposals", "cost_close",
                                                                  "dep_open", "dep_charge", "dep_disposals",
                                                                  "dep_close", "nbv")])
+        if note["kind"] == "awqaf":
+            ws.append(["الوقف", "النوع", "رقم الصك", "تصنيف الغلة", "قيمة الأصل الموقوف", "غلة السنة",
+                       "الموزع خلال السنة", "رصيد الغلة آخر السنة"])
+            for w in note["awqaf"]:
+                ws.append([w["name"], w["type"], w["deed"], w["classification"], num(w["asset_value"]),
+                           num(w["revenue"]), num(w["distributed"]), num(w["balance"])])
+        if note["kind"] == "pledges":
+            ws.append(["الداعم", "الشرط", "الصندوق", "تاريخ الوعد", "المبلغ"])
+            for row in note["pledges"]:
+                ws.append([row["donor"], row["condition"], row["fund"], row["date"].isoformat(), num(row["amount"])])
+            ws.append(["الإجمالي", None, None, None, num(note["pledges_total"])])
+        if note["kind"] == "matrix":
+            m = note["matrix"]
+            ws.append(["طبيعة المصروف"] + m["columns"] + ["الإجمالي"])
+            for row in m["rows"]:
+                ws.append([row["label"]] + [num(v) for v in row["values"]] + [num(row["total"])])
+            ws.append(["الإجمالي"] + [num(v) for v in m["totals"]] + [num(m["total"])])
         if note["kind"] == "provision":
             m = note["movement"]
             for label, key in (("الرصيد أول العام", "opening"), ("المكون خلال العام", "additions"),

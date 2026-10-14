@@ -27,6 +27,7 @@
   tr.group td { font-weight: 800; padding-top: 10px; text-decoration: underline; }
   tr.sub td { font-weight: 700; } tr.total td { font-weight: 800; border-top: 1px solid var(--line); }
   tr.grand td { font-weight: 800; border-top: 1.5px solid var(--line); border-bottom: 3px double var(--line); }
+  tr.subtotal td { font-weight: 700; border-top: 1px solid var(--line); }
   .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
   .cover img { max-height: 110px; margin-bottom: 24px; } .cover h1 { font-size: 26px; } .cover p { font-size: 18px; margin: 6px; }
   .contents td { font-size: 16px; padding: 10px 4px; }
@@ -35,8 +36,13 @@
   .note-title { font-weight: 800; text-decoration: underline; margin: 18px 0 8px; font-size: 15px; }
   .policies p { line-height: 1.9; margin: 4px 0; font-size: 13.5px; } .footnote { color: var(--muted); font-size: 12px; }
   .footer { margin-top: 18px; text-align: center; font-size: 12px; color: var(--muted); }
-  @media print { body { background: #fff; } .toolbar { display: none; } .page { margin: 0; box-shadow: none; width: auto; min-height: auto; }
-                 @page { size: A4; margin: 12mm; } }
+  .head .lh { display: flex; align-items: center; gap: 10px; } .head .lh img { max-height: 44px; max-width: 110px; }
+  .head .reg { font-size: 11px; color: var(--muted); }
+  @page { size: A4; margin: 12mm;
+          @bottom-center { content: counter(page); font-family: Tajawal, sans-serif; font-size: 9pt; color: #666; } }
+  @page wide { size: A4 landscape; margin: 12mm; }
+  @media print { body { background: #fff; } .toolbar { display: none; } .page { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 0; }
+                 .page.landscape { page: wide; width: auto; min-height: auto; } }
 </style>
 </head>
 <body>
@@ -67,16 +73,16 @@
 
 <!-- المحتويات -->
 <div class="page">
-  <div class="head"><h1>{{ company.name }}</h1><div class="title">القوائم المالية كما في {{ end|date:"j F Y" }}م</div></div>
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">القوائم المالية كما في {{ end|date:"j F Y" }}م</div></div>
   <table class="contents"><thead><tr><th style="text-align:right">المحتويات</th></tr></thead><tbody>
     <tr><td>تقرير المراجع المستقل</td></tr><tr><td>قائمة المركز المالي</td></tr><tr><td>قائمة الأنشطة</td></tr>
-    <tr><td>قائمة التدفقات النقدية</td></tr><tr><td>الإيضاحات المتممة للقوائم المالية ({{ notes|length }} إيضاحاً)</td></tr>
+    <tr><td>قائمة التغيرات في صافي الأصول</td></tr><tr><td>قائمة التدفقات النقدية</td></tr><tr><td>الإيضاحات المتممة للقوائم المالية ({{ notes|length }} إيضاحاً)</td></tr>
   </tbody></table>
 </div>
 
 <!-- قائمة المركز المالي -->
 <div class="page">
-  <div class="head"><h1>{{ company.name }}</h1><div class="title">قائمة المركز المالي</div>
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة المركز المالي</div>
     <div>كما في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
   <table><thead><tr><th style="text-align:right"></th><th>إيضاح</th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
     <tr class="group"><td colspan="4">الموجودات</td></tr>
@@ -104,7 +110,7 @@
 
 <!-- قائمة الأنشطة -->
 <div class="page landscape">
-  <div class="head"><h1>{{ company.name }}</h1><div class="title">قائمة الأنشطة</div>
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة الأنشطة</div>
     <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
   <table><thead><tr><th style="text-align:right">البيان</th><th>إيضاح</th>{% for c in activities.columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
     {% for s in activities.sections %}
@@ -121,9 +127,22 @@
   <div class="footer">إن الإيضاحات المرفقة من رقم (1) إلى رقم ({{ notes|length }}) جزء لا يتجزأ من القوائم المالية</div>
 </div>
 
+<!-- قائمة التغيرات في صافي الأصول -->
+<div class="page landscape">
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة التغيرات في صافي الأصول</div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+  <table><thead><tr><th style="text-align:right">البيان</th>{% for c in changes.columns %}<th class="num">صافي الأصول {{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead><tbody>
+    {% for b in changes.blocks %}
+      <tr class="group"><td colspan="5">{{ b.label }}</td></tr>
+      {% for r in b.rows %}<tr class="{{ r.kind }}"><td>{{ r.label }}</td>{% for v in r.values.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ r.total|acct }}</td></tr>{% endfor %}
+    {% endfor %}
+  </tbody></table>
+  <div class="footer">إن الإيضاحات المرفقة من رقم (1) إلى رقم ({{ notes|length }}) جزء لا يتجزأ من القوائم المالية</div>
+</div>
+
 <!-- قائمة التدفقات النقدية -->
 <div class="page">
-  <div class="head"><h1>{{ company.name }}</h1><div class="title">قائمة التدفقات النقدية</div>
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة التدفقات النقدية</div>
     <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
   <table><thead><tr><th style="text-align:right"></th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
     <tr class="group"><td colspan="3">التدفقات النقدية من الأنشطة التشغيلية</td></tr>
@@ -146,7 +165,7 @@
 
 <!-- الإيضاحات -->
 <div class="page">
-  <div class="head"><h1>{{ company.name }}</h1><div class="title">الإيضاحات المتممة للقوائم المالية</div>
+  <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">الإيضاحات المتممة للقوائم المالية</div>
     <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م</div></div>
   {% for n in notes %}
     <div class="note-title">({{ n.number }}) {{ n.title }}</div>
@@ -158,6 +177,23 @@
         {% if company.objectives %}<tr><td>أهداف الجمعية</td><td style="white-space:pre-line">{{ company.objectives }}</td></tr>{% endif %}
         <tr><td>السنة المالية</td><td>تبدأ في {{ start|date:"Y/n/j" }}م وتنتهي في {{ end|date:"Y/n/j" }}م</td></tr>
       </tbody></table>
+    {% elif n.kind == "awqaf" %}
+      <table class="schedule"><thead><tr><th style="text-align:right">الوقف</th><th>النوع</th><th>رقم الصك</th><th>تصنيف الغلة</th><th class="num">قيمة الأصل الموقوف</th><th class="num">غلة السنة</th><th class="num">الموزع خلال السنة</th><th class="num">رصيد الغلة آخر السنة</th></tr></thead><tbody>
+        {% for w in n.awqaf %}<tr><td>{{ w.name }}</td><td>{{ w.type }}</td><td>{{ w.deed|default:"-" }}</td><td>{{ w.classification }}</td><td class="num">{{ w.asset_value|acct }}</td><td class="num">{{ w.revenue|acct }}</td><td class="num">{{ w.distributed|acct }}</td><td class="num">{{ w.balance|acct }}</td></tr>{% endfor %}
+      </tbody></table>
+      <p class="footnote">تُدار الأوقاف وفق شروط الواقفين، ويُصرف من غلتها دون المساس بأصولها.</p>
+    {% elif n.kind == "pledges" %}
+      <table><thead><tr><th style="text-align:right">الداعم</th><th style="text-align:right">الشرط</th><th>الصندوق</th><th>تاريخ الوعد</th><th class="num">المبلغ</th></tr></thead><tbody>
+        {% for p in n.pledges %}<tr><td>{{ p.donor }}</td><td>{{ p.condition }}</td><td>{{ p.fund }}</td><td>{{ p.date|date:"Y/m/d" }}</td><td class="num">{{ p.amount|acct }}</td></tr>{% endfor %}
+        <tr class="grand"><td colspan="4">الإجمالي</td><td class="num">{{ n.pledges_total|acct }}</td></tr>
+      </tbody></table>
+      <p class="footnote">لا تُثبت هذه الوعود إيراداً حتى يتحقق شرطها.</p>
+    {% elif n.kind == "matrix" %}
+      <table class="schedule"><thead><tr><th style="text-align:right">طبيعة المصروف</th>{% for c in n.matrix.columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead><tbody>
+        {% for r in n.matrix.rows %}<tr><td>{{ r.label }}</td>{% for v in r.values %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ r.total|acct }}</td></tr>{% endfor %}
+        <tr class="grand"><td>الإجمالي</td>{% for v in n.matrix.totals %}<td class="num">{{ v|acct }}</td>{% endfor %}<td class="num">{{ n.matrix.total|acct }}</td></tr>
+      </tbody></table>
+      <p class="footnote">عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م.</p>
     {% elif n.kind == "text" %}
       <div class="policies">{% for p in n.text.splitlines %}{% if p %}<p>{{ p }}</p>{% endif %}{% endfor %}</div>
     {% else %}

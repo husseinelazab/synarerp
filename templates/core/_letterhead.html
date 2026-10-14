@@ -1,0 +1,25 @@
+{% load erp %}{% with c=current_company ps=letterhead %}
+<header class="letterhead print-only" style="--accent: {{ ps.accent_color|default:'#1f4e79' }}">
+  <div class="lh-entity">
+    {% if ps.logo %}<img class="lh-logo" src="{{ ps.logo }}" alt="">{% endif %}
+    <div>
+      <div class="lh-name">{{ c.name }}</div>
+      {% if ps.name_en %}<div class="lh-name-en">{{ ps.name_en }}</div>{% endif %}
+      <div class="lh-details">
+        {% if c.is_nonprofit %}{% if c.license_number %}<span>مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي برقم {{ c.license_number }}</span>{% endif %}
+        {% else %}{% if c.commercial_register %}<span>س.ت {{ c.commercial_register }}</span>{% endif %}{% endif %}
+        {% if c.tax_id %}<span>الرقم الضريبي {{ c.tax_id }}</span>{% endif %}
+      </div>
+      <div class="lh-details">
+        {% if c.address %}<span>{{ c.address|linebreaksbr }}</span>{% elif c.headquarters %}<span>{{ c.headquarters }}</span>{% endif %}
+        {% if c.phone %}<span>هاتف {{ c.phone }}</span>{% endif %}{% if c.email %}<span>{{ c.email }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="lh-meta">
+    {% if from_date and to_date %}<div>عن الفترة من {{ from_date|date:"Y/m/d" }} إلى {{ to_date|date:"Y/m/d" }}</div>
+    {% elif as_of %}<div>كما في {{ as_of|date:"Y/m/d" }}</div>{% elif to_date %}<div>حتى {{ to_date|date:"Y/m/d" }}</div>{% endif %}
+    <div>المبالغ بالريال السعودي</div>
+  </div>
+</header>
+{% endwith %}

@@ -12,13 +12,48 @@ def _submit(doc):
     return doc
 
 
+def _demo_logo():
+    """شعار بسيط مرسوم (دائرة وورقتان) كصورة PNG مضمّنة، لتظهر ترويسة التقارير كاملة في التجربة."""
+    import base64
+    import io
+
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((8, 8, 232, 232), fill=(30, 110, 90, 255))
+    draw.ellipse((62, 52, 150, 190), fill=(255, 255, 255, 255))
+    draw.ellipse((90, 52, 178, 190), fill=(30, 110, 90, 255))
+    draw.ellipse((118, 70, 190, 160), fill=(214, 178, 94, 255))
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+
+def _profile(company):
+    from core.models import PrintSettings
+
+    for field, value in (("license_number", "1234"), ("headquarters", "الرياض"), ("phone", "0112345678"),
+                         ("address", "حي النسيم، الرياض 12345"), ("email", "info@albirr.example")):
+        if not getattr(company, field):
+            setattr(company, field, value)
+    company.save()
+    settings = PrintSettings.for_company(company)
+    if not settings.logo:
+        settings.logo = _demo_logo()
+        settings.accent_color = "#1e6e5a"
+        settings.name_en = "Al-Birr Charitable Association (Demo)"
+        settings.save()
+
+
 def create_nonprofit_demo(company, user=None):
     """تُستدعى داخل tenant_context للجمعية بعد تأسيسها."""
     from accounts.models import Fund
     from awqaf.models import Waqf, WaqfDistribution, WaqfLease
     from beneficiaries.models import (AidDisbursement, AidProgram, Beneficiary, BeneficiaryCategory,
                                       BeneficiaryEntity, CaseAssessment, EntityRequest)
-    from funds.models import DonationReceipt, Donor, InKindDonation, Sponsorship, SponsorshipType, generate_dues
+    from funds.models import (DonationReceipt, Donor, InKindDonation, Pledge, Sponsorship, SponsorshipType,
+                              generate_dues)
     from governance.models import BoardTerm, Meeting, MeetingDecision, Member, MembershipCategory, generate_fees
     from office.models import AdminRequest, AdminRequestType, Circular, Correspondence
     from stock.models import UOM, Item, ItemGroup, Warehouse
@@ -26,6 +61,7 @@ def create_nonprofit_demo(company, user=None):
 
     if Beneficiary.objects.exists():
         return
+    _profile(company)
     today = timezone.localdate()
     start = today.replace(day=1)
 
@@ -108,6 +144,17 @@ def create_nonprofit_demo(company, user=None):
     if user is not None:
         aid.confirm_manually(user, "بيانات تجريبية")
         _submit(aid)
+
+    # ── وعود التبرع: وعد غير مشروط حُصّل جزء منه، ووعد مشروط يُفصح عنه ──
+    pledge = Pledge.objects.create(donor=donors[1], amount=20000, posting_date=day(3), due_date=day(3) + datetime.timedelta(days=90),
+                                   remarks="دعم البرامج العامة للجمعية")
+    _submit(pledge)
+    if user is not None:
+        receipt = pledge.collect(user)
+        receipt.amount, receipt.posting_date = Decimal("5000"), day(10)
+        _submit(receipt)
+    _submit(Pledge.objects.create(donor=donors[0], amount=100000, posting_date=day(4), is_conditional=True,
+                                  condition="عند استكمال 50% من تمويل مشروع مركز الأسرة"))
 
     # ── الكفالات ──
     orphan_type = SponsorshipType.objects.get(name="كفالة يتيم")

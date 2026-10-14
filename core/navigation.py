@@ -271,7 +271,8 @@ def nonprofit_modules(modules, doc):
     by_key["resources"] = {"key": "resources", "label": "إدارة الموارد المالية", "sections": [
         {"title": "التبرعات", "items": [_item("لوحة الموارد المالية", "resources_dashboard"),
                                        doc("سندات التبرعات", "donation-receipt"),
-                                       doc("التبرعات العينية", "in-kind-donation"), doc("الداعمون", "donor")]},
+                                       doc("التبرعات العينية", "in-kind-donation"), doc("وعود التبرع", "pledge"),
+                                       doc("الداعمون", "donor")]},
         {"title": "الكفالات", "items": [doc("الكفالات", "sponsorship"), doc("استحقاقات الكفالات", "sponsorship-due"),
                                        doc("أنواع الكفالات", "sponsorship-type")]},
     ]}

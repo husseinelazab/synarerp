@@ -54,6 +54,11 @@ def filtered_queryset(request, dt):
     from core.permissions import scope_queryset
 
     qs = scope_queryset(request, dt.model, dt.model.objects.all())
+    # أعمدة الربط (الصنف، العميل، المجموعة...) تُجلب في الاستعلام نفسه بدل استعلام لكل سطر
+    related = [f for f in dt.list_fields
+               if (field := dt.model._meta.get_field(f)).many_to_one or field.one_to_one]
+    if related:
+        qs = qs.select_related(*related)
     query = request.GET.get("q", "").strip()
     if query and dt.search_fields:
         from core.search import text_query

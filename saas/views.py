@@ -1,7 +1,10 @@
+import os
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q, Sum
@@ -12,6 +15,7 @@ from django.views.decorators.http import require_POST
 from core.middleware import SESSION_KEY
 from core.models import Company, Membership, Role
 from core.provisioning import provision_company
+from core.utils import client_ip
 from saas.backups import backup_status
 from saas.forms import (CompanySettingsForm, MemberCreateForm, MemberRoleForm, PlanForm, RecordPaymentForm,
                         SignupForm)
@@ -32,6 +36,17 @@ def landing(request):
     return render(request, "saas/landing.html", {"plans": Plan.objects.filter(is_public=True)})
 
 
+# حد التسجيل من عنوان IP واحد: كل تسجيل يبني شركة كاملة (شجرة حسابات وإعدادات)، فلا يُترك مفتوحاً للبرامج الآلية
+SIGNUP_LIMIT = int(os.environ.get("SYNAR_SIGNUP_LIMIT", "5"))
+SIGNUP_WINDOW_SECONDS = 24 * 3600
+# حقل مخفي عن المستخدم (مصيدة): البرامج الآلية تملأ كل الحقول فيُكشف بها
+SIGNUP_HONEYPOT = "website_url"
+
+
+def _signup_key(request):
+    return f"signup:ip:{client_ip(request)}"
+
+
 def signup(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
@@ -40,6 +55,12 @@ def signup(request):
     if request.GET.get("plan"):
         initial["plan"] = Plan.objects.filter(code=request.GET["plan"]).first()
     form = SignupForm(request.POST or None, initial=initial)
+    if request.method == "POST":
+        if request.POST.get(SIGNUP_HONEYPOT):
+            return render(request, "saas/signup.html", {"form": SignupForm(initial=initial)}, status=400)
+        if (cache.get(_signup_key(request)) or 0) >= SIGNUP_LIMIT:
+            form.add_error(None, "تجاوزت عدد الحسابات المسموح بإنشائها من هذا الجهاز اليوم. حاول غداً أو تواصل مع الدعم.")
+            return render(request, "saas/signup.html", {"form": form}, status=429)
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         first, _, last = data["full_name"].partition(" ")
@@ -49,6 +70,9 @@ def signup(request):
             company = provision_company(data["company_name"], owner=user, tax_id=data["tax_id"],
                                         phone=data["phone"], plan=data["plan"],
                                         organization_type=data["organization_type"])
+        key = _signup_key(request)
+        if cache.add(key, 1, SIGNUP_WINDOW_SECONDS) is False:
+            cache.incr(key)
         login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
         request.session[SESSION_KEY] = company.pk
         messages.success(request, f"مرحباً بك في {settings.ERP_NAME}! تم تأسيس «{company}» وبدأت فترتك التجريبية "

@@ -41,6 +41,15 @@
     document.documentElement.dataset.printOrientation = orientation;
   }
 
+  // التواريخ والأرقام القصيرة لا تنكسر على سطرين في الطباعة (2026-10-01 مثلاً)
+  var COMPACT = /^[\d\s,.\-\/:()%٫٬\u0660-\u0669\u20c1]+$/;
+  function keepCompact() {
+    document.querySelectorAll(".content td, .content th").forEach(function (cell) {
+      var text = cell.textContent.trim();
+      if (text && text.length <= 22 && COMPACT.test(text)) cell.classList.add("nowrap-print");
+    });
+  }
+
   function current() { return stored() || auto(); }
 
   function mark(tools) {
@@ -63,16 +72,18 @@
           // النقر على الاتجاه المثبت يلغي التثبيت ويعود للاختيار التلقائي
           store(stored() === button.dataset.orientation ? "" : button.dataset.orientation);
           mark(tools);
+          keepCompact();
           apply(current());
           window.print();
         } else if (button.dataset.print) {
+          keepCompact();
           apply(current());
           window.print();
         }
       });
     }
     // Ctrl+P وأزرار «طباعة» الموجودة في التقارير تأخذ نفس الاتجاه
-    window.addEventListener("beforeprint", function () { apply(current()); });
+    window.addEventListener("beforeprint", function () { keepCompact(); apply(current()); });
   }
 
   window.SynarPrint = { auto: auto, apply: apply };

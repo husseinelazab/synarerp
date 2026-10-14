@@ -38,10 +38,11 @@
   .footer { margin-top: 18px; text-align: center; font-size: 12px; color: var(--muted); }
   .head .lh { display: flex; align-items: center; gap: 10px; } .head .lh img { max-height: 44px; max-width: 110px; }
   .head .reg { font-size: 11px; color: var(--muted); }
-  @page { size: A4; margin: 12mm;
+  @page { size: A4; margin: 9mm 8mm 12mm;
           @bottom-center { content: counter(page); font-family: Tajawal, sans-serif; font-size: 9pt; color: #666; } }
-  @page wide { size: A4 landscape; margin: 12mm; }
-  @media print { body { background: #fff; } .toolbar { display: none; } .page { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 0; }
+  @page wide { size: A4 landscape; margin: 8mm 9mm 12mm; }
+  @media print { body { background: #fff; } .toolbar { display: none; } .page { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 3mm 6mm; }
+                 table { max-width: 100%; } td { overflow-wrap: break-word; }
                  .page.landscape { page: wide; width: auto; min-height: auto; } }
 </style>
 </head>

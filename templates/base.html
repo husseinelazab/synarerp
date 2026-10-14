@@ -14,44 +14,56 @@
 <div class="layout">
   <aside class="sidebar" id="sidebar">
     <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
+    <div class="nav-filter"><input type="search" id="nav-filter" placeholder="ابحث في القائمة…" aria-label="ابحث في القائمة" autocomplete="off"></div>
     <nav class="side-nav">
       {% if current_membership %}
       <a href="{% url 'dashboard' %}" class="nav-top {% if request.path == '/' %}active{% endif %}"><svg viewBox="0 0 24 24">{{ home_icon|safe }}</svg>لوحة التحكم</a>
       {% endif %}
       {% for module in nav_modules %}
       <details class="nav-module" {% if module.open %}open{% endif %}>
-        <summary class="{% if module.open %}current{% endif %}"><svg viewBox="0 0 24 24">{{ module.icon|safe }}</svg><span>{{ module.label }}</span><i class="chev"></i></summary>
+        <summary class="{% if module.open %}current{% endif %}" title="{{ module.label }}"><svg viewBox="0 0 24 24">{{ module.icon|safe }}</svg><span>{{ module.label }}</span><i class="chev"></i></summary>
         <div class="nav-children">
           {% for section in module.sections %}
             {% if section.title and module.sections|length > 1 %}
-            <details class="nav-group" {% if section.open %}open{% endif %}>
-              <summary class="nav-subtitle">{{ section.title }}<i class="chev"></i></summary>
-              {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}">{{ item.label }}</a>{% endfor %}
-            </details>
+              {% if module.flat %}
+              <div class="nav-heading">{{ section.title }}</div>
+              {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}" title="{{ item.label }}">{{ item.label }}</a>{% endfor %}
+              {% else %}
+              <details class="nav-group" {% if section.open %}open{% endif %}>
+                <summary class="nav-subtitle">{{ section.title }}<i class="chev"></i></summary>
+                {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}" title="{{ item.label }}">{{ item.label }}</a>{% endfor %}
+              </details>
+              {% endif %}
             {% else %}
-            {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}">{{ item.label }}</a>{% endfor %}
+            {% for item in section.items %}<a href="{{ item.url }}" class="nav-item {% if item.active %}active{% endif %}" title="{{ item.label }}">{{ item.label }}</a>{% endfor %}
             {% endif %}
           {% endfor %}
         </div>
       </details>
       {% endfor %}
+      <p class="nav-empty" hidden>لا توجد صفحة بهذا الاسم. جرّب البحث العام أعلى الصفحة.</p>
     </nav>
     <script>
-      // وحدة واحدة مفتوحة في كل مرة حتى لا تطول القائمة
+      // وحدة واحدة مفتوحة في كل مرة حتى لا تطول القائمة (إلا أثناء التصفية)
       document.querySelectorAll('.side-nav > .nav-module').forEach(function (d) {
         d.addEventListener('toggle', function () {
-          if (d.open) document.querySelectorAll('.side-nav > .nav-module[open]').forEach(function (o) { if (o !== d) o.open = false; });
+          if (d.open && !document.getElementById('sidebar').classList.contains('filtering'))
+            document.querySelectorAll('.side-nav > .nav-module[open]').forEach(function (o) { if (o !== d) o.open = false; });
         });
       });
+      // الوحدة المفتوحة تظهر في مجال الرؤية
+      (function () { var cur = document.querySelector('.nav-item.active'); if (cur) cur.scrollIntoView({block: 'center'}); })();
     </script>
   </aside>
   <div class="main">
     <header class="topbar">
       <button class="menu-toggle" type="button" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
-      <div class="topbar-title">{% block heading %}{% endblock %}</div>
-      {% if current_company %}<form method="get" action="{% url 'global_search' %}" class="global-search" role="search">
-        <input type="search" name="q" class="form-control" placeholder="بحث في النظام…  ( / )" aria-label="بحث في النظام" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">
-      </form>{% endif %}
+      {% if current_company %}<form method="get" action="{% url 'global_search' %}" class="global-search" role="search" data-suggest="{% url 'search_suggest' %}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" name="q" class="form-control" placeholder="ابحث عن مستفيد، متبرع، سند، أو صفحة…" aria-label="بحث في النظام" autocomplete="off" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">
+        <kbd>/</kbd>
+        <div class="suggest" role="listbox" hidden></div>
+      </form>{% else %}<div class="topbar-spacer"></div>{% endif %}
       <div class="user-box">
         {% if current_company %}
           {% if user_memberships|length > 1 %}
@@ -68,6 +80,10 @@
       </div>
     </header>
     <main class="content">
+      <div class="page-head">
+        {% if nav_trail %}<nav class="crumbs" aria-label="مسار الصفحة">{% for label, url in nav_trail %}<a href="{{ url }}">{{ label }}</a>{% if not forloop.last %}<span>›</span>{% endif %}{% endfor %}</nav>{% endif %}
+        <h1>{% block heading %}{% endblock %}</h1>
+      </div>
       {% if subscription and subscription.is_valid and subscription.status == 'trial' and subscription.days_left <= 7 %}
         <div class="alert alert-warning">تنتهي الفترة التجريبية خلال {{ subscription.days_left }} يوماً.{% if current_membership.can_manage %} <a href="{% url 'billing' %}">اشترك الآن</a> لتستمر دون انقطاع.{% endif %}</div>
       {% endif %}

@@ -1,17 +1,21 @@
 {% extends "base.html" %}{% load erp %}
 {% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
 {% block content %}
-<form method="get" class="filters card">
-  <input name="q" value="{{ query }}" class="form-control" type="search" autofocus
-         placeholder="ابحث باسم عميل أو مورد أو صنف، رقم فاتورة أو قيد، رقم شيك، جوال، رقم ضريبي…">
-  <button class="btn btn-primary">بحث</button>
-</form>
 {% if too_short %}
   <div class="card"><p class="muted">اكتب حرفين على الأقل.</p></div>
-{% elif query and not groups %}
+{% elif query and not groups and not pages %}
   <div class="card"><p class="muted">لا توجد نتائج لـ «{{ query }}» فيما تملك صلاحية الاطلاع عليه.</p></div>
-{% elif groups %}
-  <p class="muted small">{{ total }} نتيجة في {{ groups|length }} نوع.</p>
+{% elif groups or pages %}
+  <p class="muted small">{{ total }} نتيجة لـ «{{ query }}».</p>
+  {% if pages or actions %}
+  <div class="card search-group">
+    <h3>الصفحات والتقارير</h3>
+    <div class="page-links">
+      {% for a in actions %}<a class="page-link action" href="{{ a.url }}">+ {{ a.label }}<small>{{ a.module }}</small></a>{% endfor %}
+      {% for p in pages %}<a class="page-link" href="{{ p.url }}">{{ p.label }}<small>{{ p.module }}{% if p.section %} › {{ p.section }}{% endif %}</small></a>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
   {% for g in groups %}
   <div class="card search-group">
     <h3>{{ g.dt.label_plural }} <span class="muted small">· {{ g.module }}</span></h3>
@@ -23,6 +27,7 @@
   </div>
   {% endfor %}
 {% else %}
-  <div class="card"><p class="muted">ابحث في كل المستندات والبيانات الأساسية دفعة واحدة. يمكنك أيضاً البحث من المربع أعلى أي صفحة.</p></div>
+  <div class="card"><p class="muted">اكتب في مربع البحث أعلى الصفحة اسم مستفيد أو متبرع أو صنف، رقم سند أو هوية أو جوال، أو اسم صفحة مثل «قائمة الأنشطة».
+  تظهر الاقتراحات أثناء الكتابة، واضغط <kbd>/</kbd> أو <kbd>Ctrl</kbd>+<kbd>K</kbd> من أي صفحة للوصول إليه.</p></div>
 {% endif %}
 {% endblock %}

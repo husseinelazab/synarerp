@@ -318,12 +318,17 @@ def nonprofit_modules(modules, doc):
     return [by_key[key] for key in NONPROFIT_ORDER if key in by_key and key not in COMMERCIAL_MODULES]
 
 
+# الوحدة التي لا تتجاوز عناصرها هذا العدد تُعرض أقسامها عناوين ثابتة دون طي، والأكبر تُطوى أقسامها
+FLAT_LIMIT = 30
+
+
 def _mark_active(request, modules):
     # تحديد العنصر النشط (الأطول تطابقاً) وفتح وحدته
     path = request.get_full_path()
     best, best_len = None, 0
     for module in modules:
         module["icon"] = ICONS[module["key"]]
+        module["flat"] = sum(len(s["items"]) for s in module["sections"]) <= FLAT_LIMIT
         for section in module["sections"]:
             for item in section["items"]:
                 base = item["url"].split("?")[0]
@@ -339,3 +344,25 @@ def _mark_active(request, modules):
         active = next((s for s in sections if any(i.get("active") for i in s["items"])), None)
         (active or sections[0])["open"] = True
     return modules
+
+
+def breadcrumb(modules, path):
+    """مسار الصفحة الحالية في القائمة: [(النص، الرابط)] — الوحدة، ثم القسم، ثم صفحة القائمة إن كنا داخل أحد عناصرها."""
+    for module in modules:
+        for section in module["sections"]:
+            for item in section["items"]:
+                if not item.get("active"):
+                    continue
+                trail = [(module["label"], module["sections"][0]["items"][0]["url"])]
+                if section.get("title") and len(module["sections"]) > 1:
+                    trail.append((section["title"], section["items"][0]["url"]))
+                if item["url"].split("?")[0] != path:
+                    trail.append((item["label"], item["url"]))
+                return trail
+    return []
+
+
+def menu_pages(modules):
+    """كل صفحات القائمة المتاحة للمستخدم، للبحث العام: [{label, url, module, section}]."""
+    return [{"label": item["label"], "url": item["url"], "module": module["label"], "section": section.get("title") or ""}
+            for module in modules for section in module["sections"] for item in section["items"]]

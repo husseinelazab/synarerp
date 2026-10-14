@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% load erp %}
-{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}أهلاً {{ user.first_name|default:user.username }}{% endblock %}
 {% block content %}
-<div class="toolbar"><div><h2>أهلاً {{ user.first_name|default:user.username }}</h2><span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }}</span></div><div class="actions">
+<div class="toolbar"><div><span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }}</span></div><div class="actions">
   <a class="btn btn-primary" href="{% url 'doc_new' 'admin-request' %}">+ طلب إداري</a>
   {% if employee %}<a class="btn" href="{% url 'portal_leave' %}">طلب إجازة</a><a class="btn" href="{% url 'portal_attendance' %}">حضوري</a>{% endif %}
 </div></div>

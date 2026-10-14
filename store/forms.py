@@ -53,6 +53,13 @@ class StoreSettingsForm(forms.ModelForm):
                                      help_text="نفس الرمز الذي تكتبه عند إضافة الويب هوك في لوحة ميسّر. "
                                                "اتركه فارغاً للإبقاء على المحفوظ")
 
+    apple_pay_file = forms.FileField(
+        label="ملف توثيق Apple Pay", required=False,
+        help_text="الملف apple-developer-merchantid-domain-association من لوحة ميسّر (Apple Pay ← إضافة نطاق)")
+    remove_apple_pay_file = forms.BooleanField(label="حذف ملف توثيق Apple Pay المحفوظ", required=False)
+
+    APPLE_PAY_MAX = 32 * 1024
+
     class Meta:
         model = StoreSettings
         fields = ["enabled", "mode", "publishable_key", "secret_key", "webhook_secret", "clearing_account",
@@ -62,7 +69,24 @@ class StoreSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["clearing_account"].required = True
+        if not self.instance.apple_pay_domain_file:
+            del self.fields["remove_apple_pay_file"]
         style_form(self)
+
+    def clean_apple_pay_file(self):
+        upload = self.cleaned_data.get("apple_pay_file")
+        if not upload:
+            return ""
+        if upload.size > self.APPLE_PAY_MAX:
+            raise forms.ValidationError("حجم الملف أكبر من المتوقع لملف توثيق Apple Pay.")
+        try:
+            text = upload.read().decode("ascii").strip()
+        except UnicodeDecodeError:
+            raise forms.ValidationError("هذا ليس ملف توثيق Apple Pay (الملف الصحيح نص بلا امتداد من لوحة ميسّر).")
+        # الملف سلسلة رموز ست عشرية (وقد يأتي بصيغة JSON)، وليس صفحة ولا نصاً برمجياً
+        if not text or "<" in text or not all(32 <= ord(c) < 127 or c in "\r\n\t" for c in text):
+            raise forms.ValidationError("محتوى الملف غير صالح لتوثيق Apple Pay.")
+        return text
 
     def clean(self):
         data = super().clean()
@@ -88,6 +112,10 @@ class StoreSettingsForm(forms.ModelForm):
             obj.secret_key = self.cleaned_data["secret_key"].strip()
         if self.cleaned_data.get("webhook_secret"):
             obj.webhook_secret = self.cleaned_data["webhook_secret"].strip()
+        if self.cleaned_data.get("apple_pay_file"):
+            obj.apple_pay_domain_file = self.cleaned_data["apple_pay_file"]
+        elif self.cleaned_data.get("remove_apple_pay_file"):
+            obj.apple_pay_domain_file = ""
         if commit:
             obj.save()
         return obj

@@ -9,7 +9,7 @@ from core.utils import client_ip
 SESSION_KEY = "company_id"
 
 # مسارات لا تحتاج شركة حالية
-PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/favicon.ico", "/password-reset/", "/healthz/", "/api/v1/", "/iclock/",
+PUBLIC_PREFIXES = ("/static/", "/admin/", "/login/", "/logout/", "/signup/", "/favicon.ico", "/password-reset/", "/healthz/", "/.well-known/", "/api/v1/", "/iclock/",
                    "/v/", "/d/", "/t/", "/s/", "/site/", "/store/webhook/", "/site-domain-check/", "/u/")
 # مسارات متاحة حتى مع انتهاء الاشتراك
 BILLING_SAFE_PREFIXES = ("/billing/", "/switch-company/", "/platform/")

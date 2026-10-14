@@ -114,6 +114,8 @@ docker compose exec db sh -c 'dropdb -U "$POSTGRES_USER" synar_restore'
   ويرفض أي نطاق آخر غير نطاق المنصة (`SYNAR_DOMAIN` يجب أن يكون في `SYNAR_ALLOWED_HOSTS`).
 - النطاق المستقل يعرض صفحات الموقع والمتجر فقط؛ الدخول للنظام يبقى على نطاق المنصة.
 - **ميسّر (بوابة الدفع)**: في لوحة ميسّر أضف Webhook على `https://<نطاق المنصة>/store/webhook/` لحدث `payment_paid` بنفس «الرمز السري» المحفوظ
-  في إعدادات المتجر، ولتفعيل Apple Pay أضف كل نطاق جمعية في إعدادات Apple Pay بلوحة ميسّر وفق تعليماتها.
+  في إعدادات المتجر، ولتفعيل Apple Pay: الجمعية تضيف نطاقها في لوحة ميسّر (Apple Pay ← إضافة نطاق)، وترفع ملف التوثيق من
+  «المتجر الإلكتروني ← الإعدادات»، فيُعرض على `https://<نطاقها>/.well-known/apple-developer-merchantid-domain-association`،
+  ثم تضغط «تحقق» في ميسّر. لنطاق المنصة نفسه ضع مسار الملف في `SYNAR_APPLE_PAY_DOMAIN_FILE`.
 - **بدون Docker:** يعمل أيضاً بـ `gunicorn synar.wsgi` خلف Nginx مع PostgreSQL؛ اضبط متغيرات `.env` نفسها، ونفّذ
   `python manage.py migrate` و`collectstatic`، وشغّل `python manage.py run_scheduler` كخدمة دائمة.

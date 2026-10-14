@@ -191,6 +191,8 @@ if SYNAR_EMAIL_ENABLED:
 else:
     EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
 SYNAR_SITE_URL = os.environ.get("SYNAR_SITE_URL", "")
+# ملف توثيق Apple Pay لنطاق المنصة نفسه (للجمعيات التي يعمل موقعها تحت /site/ بلا نطاق مستقل)
+SYNAR_APPLE_PAY_DOMAIN_FILE = os.environ.get("SYNAR_APPLE_PAY_DOMAIN_FILE", "")
 # خلف وكيل عكسي (Caddy في الإنتاج) يُؤخذ عنوان العميل من X-Forwarded-For؛ بدونه يُتجاهل لأنه قابل للتزوير
 SYNAR_TRUST_PROXY = os.environ.get("SYNAR_TRUST_PROXY", "0" if DEBUG else "1") == "1"
 

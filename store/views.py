@@ -22,6 +22,9 @@ from store.service import fetch_and_finalize
 
 log = logging.getLogger(__name__)
 
+# المسار الذي تطلب منه Apple ملف توثيق النطاق قبل تفعيل Apple Pay على الموقع
+APPLE_PAY_PATH = "/.well-known/apple-developer-merchantid-domain-association"
+
 
 @login_required
 def store_dashboard(request):
@@ -66,7 +69,7 @@ def store_settings(request):
         messages.error(request, "إعدادات المتجر لمالك الحساب والمدير فقط.")
         return redirect("store_dashboard")
     obj = StoreSettings.for_company(request.company)
-    form = StoreSettingsForm(request.POST or None, instance=obj)
+    form = StoreSettingsForm(request.POST or None, request.FILES or None, instance=obj)
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "حُفظت إعدادات المتجر.")
@@ -76,6 +79,7 @@ def store_settings(request):
     return render(request, "store/settings.html", {
         "title": "إعدادات المتجر وبوابة الدفع", "form": form, "obj": obj, "site": Website.for_company(request.company),
         "webhook_url": request.build_absolute_uri("/store/webhook/"),
+        "apple_pay_path": APPLE_PAY_PATH,
     })
 
 
@@ -135,3 +139,24 @@ def webhook(request):
             log.warning("تعذر التحقق من عملية ميسّر %s: %s", payment_id, exc)
             return JsonResponse({"error": "gateway unavailable"}, status=502)  # يُعيد ميسّر المحاولة
     return JsonResponse({"status": order.status, "finalized": changed})
+
+
+def apple_pay_domain_file(request):
+    """ملف توثيق Apple Pay: على نطاق الجمعية من إعدادات متجرها، وعلى نطاق المنصة من SYNAR_APPLE_PAY_DOMAIN_FILE."""
+    from django.conf import settings
+    from django.http import Http404, HttpResponse
+
+    site = getattr(request, "site", None)
+    content = ""
+    if site is not None:
+        obj = StoreSettings.all_objects.filter(company=site.company).first()
+        content = obj.apple_pay_domain_file if obj else ""
+    elif getattr(settings, "SYNAR_APPLE_PAY_DOMAIN_FILE", ""):
+        try:
+            with open(settings.SYNAR_APPLE_PAY_DOMAIN_FILE, encoding="ascii") as fh:
+                content = fh.read().strip()
+        except OSError:
+            log.warning("تعذر قراءة ملف توثيق Apple Pay للمنصة: %s", settings.SYNAR_APPLE_PAY_DOMAIN_FILE)
+    if not content:
+        raise Http404
+    return HttpResponse(content, content_type="text/plain")

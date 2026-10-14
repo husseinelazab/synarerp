@@ -11,6 +11,7 @@ from core.tenancy import tenant_context
 from core.utils import flt
 from volunteering.models import (OpportunityStatus, ParticipationStatus, Volunteer, VolunteerOpportunity,
                                  VolunteerParticipation)
+from website.site import render_public
 
 
 @login_required
@@ -89,11 +90,13 @@ def public_register(request, token):
                     form.add_error(None, "أنت مسجل في هذه الفرصة مسبقاً، وسنتواصل معك.")
                 else:
                     done = True
-    return render(request, "volunteering/public_register.html",
-                  {"opportunity": opportunity, "form": form, "closed": closed, "done": done})
+    return render_public(request, "volunteering/public_register.html", "volunteering/_public_register_body.html",
+                         opportunity.title, {"opportunity": opportunity, "form": form, "closed": closed,
+                                             "done": done}, parent="التطوع")
 
 
 def public_verify(request, code):
     participation = VolunteerParticipation.all_objects.select_related("volunteer", "opportunity", "company").filter(
         certificate_code=code.upper(), status=ParticipationStatus.COMPLETED).first()
-    return render(request, "volunteering/public_verify.html", {"p": participation, "code": code})
+    return render_public(request, "volunteering/public_verify.html", "volunteering/_public_verify_body.html",
+                         "التحقق من شهادة تطوع", {"p": participation, "code": code}, parent="الخدمات الإلكترونية")

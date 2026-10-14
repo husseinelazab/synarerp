@@ -1,0 +1,6 @@
+{% extends "website/public_base.html" %}
+{% block title %}{{ embed_title }} | {{ request.site.company.name }}{% endblock %}
+{% block content %}
+{% include "website/_page_hero.html" with heading=embed_title parent=embed_parent %}
+<section class="wrap page narrow embedded">{% include embed_body %}</section>
+{% endblock %}

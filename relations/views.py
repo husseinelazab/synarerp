@@ -12,6 +12,7 @@ from core.tenancy import tenant_context
 from core.utils import flt
 from relations.models import (EventStatus, MediaChannel, MediaCoverage, Partnership, PartnershipStatus, PREvent,
                               QuestionType, Survey, SurveyResponse, Visit, VisitDirection, VisitStatus)
+from website.site import render_public
 
 
 @login_required
@@ -134,5 +135,6 @@ def survey_respond(request, token):
             with tenant_context(survey.company):
                 SurveyResponse.all_objects.create(company=survey.company, survey=survey, answers=answers)
         done = True
-    return render(request, "relations/survey_respond.html",
-                  {"survey": survey, "form": form, "closed": closed, "done": done})
+    return render_public(request, "relations/survey_respond.html", "relations/_survey_respond_body.html",
+                         survey.title, {"survey": survey, "form": form, "closed": closed, "done": done},
+                         parent="شاركنا رأيك")

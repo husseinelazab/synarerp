@@ -145,7 +145,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     # الملفات الثابتة تُخدم مضغوطة وبأسماء ثابتة التجزئة (WhiteNoise) في الإنتاج
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG
+    "staticfiles": {"BACKEND": "core.storage.VersionedStaticFilesStorage" if DEBUG
                     else "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 MEDIA_ROOT = Path(os.environ.get("SYNAR_MEDIA_ROOT", BASE_DIR / "media"))

@@ -287,7 +287,7 @@ class WebsiteContentTests(TestCase):
         self.client.post("/site/albirr/apply/", APPLY)
         self.client.post("/site/albirr/contact/", CONTACT)
         page = self.client.get("/website/")
-        self.assertEqual([v for _, v, _ in page.context["inbound"]], [1, 1])
+        self.assertEqual([v for _, v, _ in page.context["inbound"]], [1, 1, 0, 0])
 
     def test_album_photo_upload(self):
         self.client.force_login(self.user)

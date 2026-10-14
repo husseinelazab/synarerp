@@ -1,0 +1,16 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}الخدمات الإلكترونية — {{ request.site.company.name }}{% endblock %}
+{% block description %}الخدمات الإلكترونية في {{ request.site.company.name }}: طلب المساعدة والتطوع والعضوية والتبرع والتحقق من الشهادات{% endblock %}
+{% block content %}
+{% include "website/_page_hero.html" with heading="الخدمات الإلكترونية" parent="" intro="خدماتنا الإلكترونية في مكان واحد" %}
+<section class="wrap page">
+  <p class="muted">اختر الخدمة التي تحتاجها، وأنجزها إلكترونياً دون الحاجة لزيارة مقر الجمعية.</p>
+  <div class="services-grid">{% for service in services %}
+    <a class="service-tile" href="{{ service.url }}" data-service="{{ service.icon }}">
+      <span class="svc-icon" data-icon="{{ service.icon }}" aria-hidden="true"></span>
+      <strong>{{ service.title }}</strong>
+      <span class="muted">{{ service.description }}</span>
+    </a>{% endfor %}
+  </div>
+</section>
+{% endblock %}

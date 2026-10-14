@@ -37,6 +37,7 @@ class MemberStatus(models.TextChoices):
     ACTIVE = "active", "نشط"
     SUSPENDED = "suspended", "موقوف"
     ENDED = "ended", "منتهية عضويته"
+    PENDING = "pending", "طلب انضمام"
 
 
 class Member(TenantModel):

@@ -6,72 +6,166 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ company.name }}{% endblock %}</title>
   <meta name="description" content="{% block description %}{{ site.tagline|default:company.name }}{% endblock %}">
+  <meta name="theme-color" content="{{ site.primary_color }}">
+  <meta property="og:site_name" content="{{ company.name }}">
+  <meta property="og:title" content="{% block og_title %}{{ company.name }}{% endblock %}">
   {% if brand.logo %}<link rel="icon" href="{{ brand.logo }}">{% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/site.css' %}">
+  <link rel="stylesheet" href="{% static 'css/site-icons.css' %}">
   <style>:root { --brand: {{ site.primary_color }}; }</style>
   {% block head %}{% endblock %}
 </head>
 <body>
-{% if not site.is_published %}<div class="preview-bar">معاينة — الموقع غير منشور بعد، ولا يراه إلا مستخدمو الجمعية</div>{% endif %}
-<header class="site-header">
+<a class="skip" href="#main">تخطَّ إلى المحتوى</a>
+{% if not site.is_published %}<div class="preview-bar">معاينة: الموقع غير منشور بعد، ولا يراه إلا مستخدمو الجمعية</div>{% endif %}
+
+<div class="topbar">
+  <div class="wrap topbar-row">
+    <div class="topbar-info">
+      {% if company.phone %}<a href="tel:{{ company.phone }}"><i class="i" data-i="phone"></i><bdi>{{ company.phone }}</bdi></a>{% endif %}
+      {% if company.email %}<a href="mailto:{{ company.email }}"><i class="i" data-i="mail"></i>{{ company.email }}</a>{% endif %}
+      {% if site.working_hours %}<span class="hide-sm"><i class="i" data-i="clock"></i>{{ site.working_hours }}</span>{% endif %}
+    </div>
+    <div class="topbar-side">
+      {% if company.license_number %}<span class="hide-sm license-chip">مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي برقم <bdi>{{ company.license_number }}</bdi></span>{% endif %}
+      {% include "website/_social.html" %}
+    </div>
+  </div>
+</div>
+
+<header class="site-header" id="top">
   <div class="wrap header-row">
     <a class="site-brand" href="{% site_url 'site_home' %}">
-      {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ company.name }}">{% endif %}
+      {% if brand.logo %}<img src="{{ brand.logo }}" alt="شعار {{ company.name }}">{% endif %}
       <span><strong>{{ company.name }}</strong>{% if site.tagline %}<small>{{ site.tagline }}</small>{% endif %}</span>
     </a>
-    <button class="nav-toggle" type="button" aria-label="القائمة" onclick="document.body.classList.toggle('nav-open')">☰</button>
-    <nav class="site-nav" aria-label="القائمة الرئيسية">
-      <a href="{% site_url 'site_home' %}">الرئيسية</a>
-      <a href="{% site_url 'site_about' %}">عن الجمعية</a>
-      <a href="{% site_url 'site_programs' %}">البرامج والمشاريع</a>
-      <a href="{% site_url 'site_news' %}">المركز الإعلامي</a>
-      <a href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a>
-      <a href="{% site_url 'site_apply' %}">طلب مساعدة</a>
-      <a href="{% site_url 'site_contact' %}">تواصل معنا</a>
-      <a class="nav-donate" href="{% site_url 'store_home' %}">تبرع الآن</a>
+    <button class="nav-toggle" type="button" aria-label="القائمة" aria-expanded="false" aria-controls="site-nav" data-nav-toggle><i class="i" data-i="menu"></i></button>
+    <nav class="site-nav" id="site-nav" aria-label="القائمة الرئيسية">
+      <a class="nav-link" href="{% site_url 'site_home' %}">الرئيسية</a>
+      <div class="nav-item">
+        <button class="nav-link" type="button" aria-expanded="false">عن الجمعية <i class="i" data-i="chevron"></i></button>
+        <div class="nav-sub">
+          <a href="{% site_url 'site_about' %}">من نحن</a>
+          <a href="{% site_url 'site_about' %}#vision">الرؤية والرسالة والقيم</a>
+          <a href="{% site_url 'site_about' %}#goals">الأهداف الاستراتيجية</a>
+          <a href="{% site_url 'site_about' %}#board">مجلس الإدارة</a>
+          {% if site.org_chart %}<a href="{% site_url 'site_about' %}#structure">الهيكل التنظيمي</a>{% endif %}
+          <a href="{% site_url 'site_about' %}#facts">البيانات النظامية</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <button class="nav-link" type="button" aria-expanded="false">الحوكمة والشفافية <i class="i" data-i="chevron"></i></button>
+        <div class="nav-sub">
+          <a href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a>
+          <a href="{% site_url 'site_governance' %}#policies">اللوائح والسياسات</a>
+          <a href="{% site_url 'site_governance' %}#annual">التقارير السنوية</a>
+          <a href="{% site_url 'site_governance' %}#financials">القوائم المالية</a>
+          <a href="{% site_url 'site_governance' %}#assembly">محاضر الجمعية العمومية</a>
+          <a href="{% site_url 'site_governance' %}#licenses">الشهادات والتراخيص</a>
+        </div>
+      </div>
+      <a class="nav-link" href="{% site_url 'site_programs' %}">البرامج والمشاريع</a>
+      <div class="nav-item">
+        <button class="nav-link" type="button" aria-expanded="false">المركز الإعلامي <i class="i" data-i="chevron"></i></button>
+        <div class="nav-sub">
+          <a href="{% site_url 'site_news' %}">الأخبار والفعاليات</a>
+          <a href="{% site_url 'site_gallery' %}">معرض الصور</a>
+          <a href="{% site_url 'site_videos' %}">الفيديو</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <button class="nav-link" type="button" aria-expanded="false">الخدمات الإلكترونية <i class="i" data-i="chevron"></i></button>
+        <div class="nav-sub">
+          <a href="{% site_url 'site_apply' %}">طلب مساعدة</a>
+          <a href="{% site_url 'site_programs' %}#volunteering">التطوع</a>
+          {% if site.allow_membership_requests %}<a href="{% site_url 'site_membership' %}">طلب عضوية</a>{% endif %}
+          <a href="{% site_url 'site_verify' %}">التحقق من الشهادات</a>
+          <a href="{% site_url 'site_feedback' %}">الشكاوى والمقترحات</a>
+          <a href="{% site_url 'store_account' %}">تبرعاتي</a>
+          <a href="{% site_url 'site_services' %}">كل الخدمات</a>
+        </div>
+      </div>
+      <a class="nav-link" href="{% site_url 'site_contact' %}">تواصل معنا</a>
+      <a class="nav-donate" href="{% site_url 'store_home' %}"><i class="i" data-i="heart"></i> تبرع الآن</a>
     </nav>
   </div>
 </header>
-<main class="site-main">{% block content %}{% endblock %}</main>
+
+<main class="site-main" id="main">{% block content %}{% endblock %}</main>
+
+{% block newsletter %}<section class="newsletter">
+  <div class="wrap newsletter-row">
+    <div><h2>اشترك في النشرة البريدية</h2><p>تصلك أخبار الجمعية وبرامجها وفرص التبرع والتطوع أولاً بأول.</p></div>
+    <form method="post" action="{% site_url 'site_newsletter' %}" class="newsletter-form">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <label class="sr" for="nl-email">البريد الإلكتروني</label>
+      <input id="nl-email" type="email" name="email" placeholder="بريدك الإلكتروني" required dir="ltr">
+      <button class="btn-brand" type="submit">اشترك</button>
+    </form>
+    {% if request.GET.subscribed == "1" %}<p class="nl-msg ok" role="status">شكراً لك، تم اشتراكك في النشرة البريدية.</p>
+    {% elif request.GET.subscribed == "0" %}<p class="nl-msg err" role="status">تعذر الاشتراك، تأكد من البريد الإلكتروني.</p>{% endif %}
+  </div>
+</section>{% endblock %}
+
 <footer class="site-footer">
   <div class="wrap footer-grid">
-    <div>
-      <h4>{{ company.name }}</h4>
-      {% if site.about %}<p>{{ site.about|truncatewords:40 }}</p>{% endif %}
-      {% if company.license_number %}<p class="license">مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</p>{% endif %}
-      {% if site.fundraising_license_number %}<p class="license">ترخيص جمع التبرعات رقم ({{ site.fundraising_license_number }})</p>{% endif %}
-    </div>
-    <div>
-      <h4>روابط</h4>
-      <a href="{% site_url 'site_about' %}">عن الجمعية</a>
-      <a href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a>
-      <a href="{% site_url 'site_programs' %}">البرامج والمشاريع</a>
-      <a href="{% site_url 'store_home' %}">تبرع الآن</a>
-    </div>
-    <div>
-      <h4>تواصل معنا</h4>
-      {% if company.address %}<p>{{ company.address|linebreaksbr }}</p>{% endif %}
-      {% if company.phone %}<p>هاتف: <bdi>{{ company.phone }}</bdi></p>{% endif %}
-      {% if site.whatsapp %}<p>واتساب: <a href="https://wa.me/{{ site.whatsapp }}"><bdi>{{ site.whatsapp }}</bdi></a></p>{% endif %}
-      {% if company.email %}<p><a href="mailto:{{ company.email }}">{{ company.email }}</a></p>{% endif %}
-      {% if site.working_hours %}<p>{{ site.working_hours }}</p>{% endif %}
-      <div class="social">
-        {% if site.x_url %}<a href="{{ site.x_url }}" rel="noopener">X</a>{% endif %}
-        {% if site.instagram_url %}<a href="{{ site.instagram_url }}" rel="noopener">إنستغرام</a>{% endif %}
-        {% if site.snapchat_url %}<a href="{{ site.snapchat_url }}" rel="noopener">سناب</a>{% endif %}
-        {% if site.youtube_url %}<a href="{{ site.youtube_url }}" rel="noopener">يوتيوب</a>{% endif %}
-        {% if site.linkedin_url %}<a href="{{ site.linkedin_url }}" rel="noopener">لينكدإن</a>{% endif %}
+    <div class="footer-about">
+      <a class="footer-brand" href="{% site_url 'site_home' %}">
+        {% if brand.logo %}<img src="{{ brand.logo }}" alt="">{% endif %}<strong>{{ company.name }}</strong>
+      </a>
+      {% if site.about %}<p>{{ site.about|truncatewords:34 }}</p>{% endif %}
+      <div class="footer-badges">
+        {% if company.license_number %}<span class="badge-line"><i class="i" data-i="verify"></i>مسجلة لدى المركز الوطني لتنمية القطاع غير الربحي برقم (<bdi>{{ company.license_number }}</bdi>)</span>{% endif %}
+        {% if site.fundraising_license_number %}<span class="badge-line"><i class="i" data-i="verify"></i>ترخيص جمع التبرعات رقم (<bdi>{{ site.fundraising_license_number }}</bdi>)</span>{% endif %}
       </div>
     </div>
-    {% if site.bank_account_lines %}<div>
-      <h4>الحسابات البنكية</h4>
-      {% for line in site.bank_account_lines %}<p class="iban"><bdi>{{ line }}</bdi></p>{% endfor %}
-    </div>{% endif %}
+    <div>
+      <h3>عن الجمعية</h3>
+      <a href="{% site_url 'site_about' %}">من نحن</a>
+      <a href="{% site_url 'site_about' %}#board">مجلس الإدارة</a>
+      <a href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a>
+      <a href="{% site_url 'site_programs' %}">البرامج والمشاريع</a>
+      <a href="{% site_url 'site_news' %}">الأخبار</a>
+      <a href="{% site_url 'site_faq' %}">الأسئلة الشائعة</a>
+    </div>
+    <div>
+      <h3>الخدمات</h3>
+      <a href="{% site_url 'store_home' %}">تبرع الآن</a>
+      <a href="{% site_url 'site_apply' %}">طلب مساعدة</a>
+      <a href="{% site_url 'site_programs' %}#volunteering">التطوع</a>
+      {% if site.allow_membership_requests %}<a href="{% site_url 'site_membership' %}">طلب عضوية</a>{% endif %}
+      <a href="{% site_url 'site_verify' %}">التحقق من الشهادات</a>
+      <a href="{% site_url 'site_feedback' %}">الشكاوى والمقترحات</a>
+    </div>
+    <div class="footer-contact">
+      <h3>تواصل معنا</h3>
+      {% if company.address %}<p><i class="i" data-i="pin"></i><span>{{ company.address|linebreaksbr }}</span></p>{% endif %}
+      {% if company.phone %}<p><i class="i" data-i="phone"></i><a href="tel:{{ company.phone }}"><bdi>{{ company.phone }}</bdi></a></p>{% endif %}
+      {% if site.whatsapp %}<p><i class="i" data-i="whatsapp"></i><a href="https://wa.me/{{ site.whatsapp }}" rel="noopener"><bdi>{{ site.whatsapp }}</bdi></a></p>{% endif %}
+      {% if company.email %}<p><i class="i" data-i="mail"></i><a href="mailto:{{ company.email }}">{{ company.email }}</a></p>{% endif %}
+      {% if site.working_hours %}<p><i class="i" data-i="clock"></i><span>{{ site.working_hours }}</span></p>{% endif %}
+      {% if site.map_url %}<a class="map-link" href="{{ site.map_url }}" target="_blank" rel="noopener"><i class="i" data-i="pin"></i> موقعنا على الخريطة</a>{% endif %}
+      {% include "website/_social.html" %}
+    </div>
   </div>
-  <div class="wrap footer-bottom">© {% now "Y" %} {{ company.name }} — جميع الحقوق محفوظة</div>
+  {% if site.bank_account_lines %}<div class="wrap footer-banks">
+    <h3><i class="i" data-i="bank"></i> الحسابات البنكية للتبرع</h3>
+    <div class="bank-list">{% for item in site.bank_account_lines %}{% include "website/_bank_line.html" with line=item|bank_line %}{% endfor %}</div>
+  </div>{% endif %}
+  <div class="footer-bottom">
+    <div class="wrap footer-bottom-row">
+      <span>© {% now "Y" %} {{ company.name }}. جميع الحقوق محفوظة</span>
+      <span class="footer-legal"><a href="{% site_url 'site_privacy' %}">سياسة الخصوصية</a><a href="{% site_url 'site_contact' %}">تواصل معنا</a></span>
+    </div>
+  </div>
 </footer>
+
+{% if site.whatsapp %}<a class="wa-float" href="https://wa.me/{{ site.whatsapp }}" target="_blank" rel="noopener" aria-label="تواصل عبر واتساب"><i class="i" data-i="whatsapp"></i></a>{% endif %}
+<a class="to-top" href="#top" aria-label="العودة للأعلى"><i class="i" data-i="up"></i></a>
+<script src="{% static 'js/site.js' %}" defer></script>
 </body>
 </html>
 {% endwith %}

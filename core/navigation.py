@@ -378,6 +378,9 @@ def nonprofit_modules(modules, doc):
         {"items": [_item("لوحة الموقع", "website_dashboard"), doc("الأخبار", "news-post"), doc("ألبومات الصور", "album"),
                    doc("وثائق الحوكمة والإفصاح", "published-document"), doc("شركاء النجاح", "partner"),
                    _item("إعدادات الموقع", "website_settings")]},
+        {"title": "محتوى الواجهة", "items": [doc("شرائح الواجهة", "hero-slide"), doc("أرقام الأثر", "impact-counter"),
+                                            doc("الفيديوهات", "video"), doc("الأسئلة الشائعة", "faq"),
+                                            doc("مشتركو النشرة البريدية", "newsletter-subscriber")]},
     ]}
     by_key["store"] = {"key": "store", "label": "المتجر الإلكتروني", "sections": [
         {"items": [_item("لوحة المتجر", "store_dashboard"), doc("فرص التبرع", "donation-opportunity"),

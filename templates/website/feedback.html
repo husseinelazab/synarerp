@@ -1,0 +1,21 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}الشكاوى والمقترحات — {{ request.site.company.name }}{% endblock %}
+{% block description %}شاركنا شكواك أو اقتراحك أو شكرك لنطوّر خدمات {{ request.site.company.name }}{% endblock %}
+{% block content %}
+{% include "website/_page_hero.html" with heading="الشكاوى والمقترحات" parent="الخدمات الإلكترونية" intro="رأيك يهمنا ويساعدنا على التحسين" %}
+<section class="wrap page narrow">
+  {% if done %}<div class="notice ok" role="status">
+    <strong>شكراً لك، وصلتنا رسالتك.</strong>
+    {% if reference %}<p>رقم القيد: <bdi class="ref">{{ reference }}</bdi> — احتفظ به للمتابعة.</p>{% endif %}
+    <p>ستُدرس رسالتك من الجهة المختصة، ونتواصل معك عند الحاجة.</p>
+  </div>
+  <p><a href="{% site_url 'site_home' %}">العودة للرئيسية</a></p>
+  {% else %}
+  <p class="muted">نرحب بملاحظاتكم ونتعامل معها بسرية تامة. للشكاوى يلزم رقم الجوال أو البريد الإلكتروني لنتمكن من متابعتها والرد عليك.</p>
+  <form method="post" class="site-form" novalidate>{% csrf_token %}
+    {% include "website/_form_fields.html" %}
+    <button class="btn-brand" type="submit">إرسال</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

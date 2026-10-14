@@ -1,13 +1,19 @@
 """إعدادات موقع الجمعية وإدارة محتواه من داخل النظام."""
+import functools
+import operator
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from website.forms import AlbumPhotosForm, DocumentUploadForm, ImageUploadForm, WebsiteForm
-from website.models import APPLY_NOTE, WEB_SUBMISSION, Album, AlbumPhoto, NewsPost, Partner, PublishedDocument, Website
+from website.models import (APPLY_NOTE, FAQ, FEEDBACK_PREFIXES, MEMBERSHIP_NOTE, WEB_SUBMISSION, Album, AlbumPhoto,
+                            HeroSlide, ImpactCounter, NewsletterSubscriber, NewsPost, Partner, PublishedDocument, Video,
+                            Website)
 from website.site import clear_cache
 
 
@@ -34,6 +40,7 @@ def _can_write(request, slug):
 @login_required
 def website_dashboard(request):
     from beneficiaries.models import Beneficiary
+    from governance.models import Member
     from office.models import Correspondence, Direction
 
     site = Website.for_company(request.company)
@@ -43,13 +50,23 @@ def website_dashboard(request):
         ("وثائق الحوكمة والإفصاح", PublishedDocument.objects.filter(is_published=True).count(), "published-document"),
         ("ألبومات الصور", Album.objects.count(), "album"),
         ("شركاء النجاح", Partner.objects.filter(is_published=True).count(), "partner"),
+        ("شرائح الواجهة", HeroSlide.objects.filter(is_published=True).count(), "hero-slide"),
+        ("أرقام الأثر", ImpactCounter.objects.filter(is_published=True).count(), "impact-counter"),
+        ("الفيديوهات", Video.objects.filter(is_published=True).count(), "video"),
+        ("الأسئلة الشائعة", FAQ.objects.filter(is_published=True).count(), "faq"),
+        ("مشتركو النشرة البريدية", NewsletterSubscriber.objects.filter(is_active=True).count(),
+         "newsletter-subscriber"),
     ]
+    web_mail = Correspondence.objects.filter(direction=Direction.INCOMING, external_reference=WEB_SUBMISSION,
+                                             date__gte=month_start)
+    feedback = functools.reduce(operator.or_, (Q(subject__startswith=p) for p in FEEDBACK_PREFIXES))
     inbound = [
         ("طلبات المساعدة من الموقع هذا الشهر", Beneficiary.objects.filter(
             notes__startswith=APPLY_NOTE, registered_on__gte=month_start).count(), "beneficiary"),
-        ("رسائل «تواصل معنا» هذا الشهر", Correspondence.objects.filter(
-            direction=Direction.INCOMING, external_reference=WEB_SUBMISSION, date__gte=month_start).count(),
-         "correspondence"),
+        ("رسائل «تواصل معنا» هذا الشهر", web_mail.exclude(feedback).count(), "correspondence"),
+        ("طلبات العضوية من الموقع هذا الشهر", Member.objects.filter(
+            notes__startswith=MEMBERSHIP_NOTE, join_date__gte=month_start).count(), "member"),
+        ("الشكاوى والمقترحات هذا الشهر", web_mail.filter(feedback).count(), "correspondence"),
     ]
     return render(request, "website/dashboard.html", {
         "title": "إدارة الموقع الإلكتروني", "site": site, "stats": stats, "inbound": inbound,
@@ -94,6 +111,7 @@ def album_photo_delete(request, pk, photo_pk):
 UPLOADS = {
     "news": (NewsPost, "news-post", "cover"),
     "partner": (Partner, "partner", "logo"),
+    "slide": (HeroSlide, "hero-slide", "image"),
     "document": (PublishedDocument, "published-document", None),
 }
 

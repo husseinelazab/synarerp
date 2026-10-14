@@ -10,6 +10,10 @@
   <a class="btn" href="{% url 'doc_new' 'album' %}">+ ألبوم صور</a>
   <a class="btn" href="{% url 'doc_new' 'published-document' %}">+ وثيقة حوكمة</a>
   <a class="btn" href="{% url 'doc_new' 'partner' %}">+ شريك</a>
+  <a class="btn" href="{% url 'doc_new' 'hero-slide' %}">+ شريحة واجهة</a>
+  <a class="btn" href="{% url 'doc_new' 'impact-counter' %}">+ رقم أثر</a>
+  <a class="btn" href="{% url 'doc_new' 'video' %}">+ فيديو</a>
+  <a class="btn" href="{% url 'doc_new' 'faq' %}">+ سؤال شائع</a>
   <a class="btn" href="{% url 'website_settings' %}">إعدادات الموقع</a>
 </div></div>
 {% if not site.pk %}<div class="alert alert-warning">لم يُنشأ موقع الجمعية بعد. ابدأ من <a href="{% url 'website_settings' %}">إعدادات الموقع</a> لتحديد المعرّف والنطاق والهوية.</div>{% endif %}
@@ -27,7 +31,13 @@
 <tr><td><a href="{% url 'doc_list' 'album' %}">ألبومات الصور</a></td><td class="muted">معرض الصور: أنشئ ألبوماً ثم ارفع صوره دفعة واحدة</td></tr>
 <tr><td><a href="{% url 'doc_list' 'published-document' %}">وثائق الحوكمة والإفصاح</a></td><td class="muted">اللوائح والسياسات والتقارير السنوية والقوائم المالية المعتمدة ومحاضر الجمعية العمومية</td></tr>
 <tr><td><a href="{% url 'doc_list' 'partner' %}">شركاء النجاح</a></td><td class="muted">شعارات الشركاء والداعمين في الصفحة الرئيسية</td></tr>
-<tr><td><a href="{% url 'website_settings' %}">إعدادات الموقع</a></td><td class="muted">النطاق والنشر والهوية ونبذة الجمعية والحسابات البنكية ووسائل التواصل</td></tr>
+<tr><td><a href="{% url 'doc_list' 'hero-slide' %}">شرائح الواجهة</a></td><td class="muted">شرائح الصفحة الرئيسية بعنوان ونص وصورة وزر يوجّه إلى صفحة في الموقع</td></tr>
+<tr><td><a href="{% url 'doc_list' 'impact-counter' %}">أرقام الأثر</a></td><td class="muted">أرقام الإنجاز المعروضة في الصفحة الرئيسية مع أيقونة لكل رقم</td></tr>
+<tr><td><a href="{% url 'doc_list' 'video' %}">الفيديوهات</a></td><td class="muted">مكتبة فيديو من روابط يوتيوب تظهر في صفحة الفيديوهات</td></tr>
+<tr><td><a href="{% url 'doc_list' 'faq' %}">الأسئلة الشائعة</a></td><td class="muted">أسئلة وأجوبة مصنفة تظهر في صفحة الأسئلة الشائعة</td></tr>
+<tr><td><a href="{% url 'doc_list' 'newsletter-subscriber' %}">مشتركو النشرة البريدية</a></td><td class="muted">البريد الإلكتروني لمن اشترك في النشرة من الموقع</td></tr>
+<tr><td><a href="{% url 'website_settings' %}">إعدادات الموقع</a></td><td class="muted">النطاق والنشر والهوية ونبذة الجمعية والهيكل التنظيمي وسياسة الخصوصية والحسابات البنكية ووسائل التواصل</td></tr>
 </tbody></table></div>
-<p class="muted small">تُعرض في الموقع تلقائياً: الرؤية والرسالة والقيم والأهداف من الخطة الاستراتيجية المعتمدة، ومجلس الإدارة من الدورة السارية، وبرامج المساعدات المفعّلة، والبرامج التدريبية والفرص التطوعية المفتوحة والاستبيانات المفتوحة. وتصل طلبات المساعدة ملفات مستفيدين بحالة «جديد»، ورسائل «تواصل معنا» معاملات واردة.</p></div>
+<p class="muted small">تُعرض في الموقع تلقائياً: الرؤية والرسالة والقيم والأهداف من الخطة الاستراتيجية المعتمدة، ومجلس الإدارة من الدورة السارية، وبرامج المساعدات المفعّلة، والبرامج التدريبية والفرص التطوعية المفتوحة والاستبيانات المفتوحة. وتصل طلبات المساعدة ملفات مستفيدين بحالة «جديد»، ورسائل «تواصل معنا» والشكاوى والمقترحات معاملات واردة، وطلبات العضوية أعضاءً بحالة «طلب انضمام» في <a href="{% url 'doc_list' 'member' %}">أعضاء الجمعية العمومية</a>.</p>
+{% if site.pk %}<p class="muted small">الصفحات الإضافية: <a href="/site/{{ site.slug }}/services/" target="_blank">الخدمات الإلكترونية</a> · <a href="/site/{{ site.slug }}/faq/" target="_blank">الأسئلة الشائعة</a> · <a href="/site/{{ site.slug }}/videos/" target="_blank">الفيديوهات</a> · <a href="/site/{{ site.slug }}/membership/" target="_blank">طلب العضوية</a> · <a href="/site/{{ site.slug }}/feedback/" target="_blank">الشكاوى والمقترحات</a> · <a href="/site/{{ site.slug }}/verify/" target="_blank">التحقق من الشهادات</a> · <a href="/site/{{ site.slug }}/privacy/" target="_blank">سياسة الخصوصية</a></p>{% endif %}</div>
 {% endblock %}

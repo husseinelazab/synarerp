@@ -1,8 +1,8 @@
 {% extends "website/public_base.html" %}{% load site %}
 {% block title %}معرض الصور — {{ request.site.company.name }}{% endblock %}
 {% block content %}
+{% include "website/_page_hero.html" with heading="معرض الصور" parent="المركز الإعلامي" intro="" %}
 <section class="wrap page">
-  <div class="section-head"><h1>معرض الصور</h1><a href="{% site_url 'site_news' %}">المركز الإعلامي ←</a></div>
   {% if albums %}<div class="cards">{% for album in albums %}<article class="card">
     {% if album.cover %}<a href="{% site_url 'site_album' album.pk %}"><img class="cover" src="{{ album.cover }}" alt="{{ album.title }}" loading="lazy"></a>{% endif %}
     <div class="card-body"><h3><a href="{% site_url 'site_album' album.pk %}">{{ album.title }}</a></h3>

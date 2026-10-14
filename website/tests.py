@@ -40,7 +40,7 @@ class WebsiteFoundationTests(TestCase):
         page = self.client.get("/", HTTP_HOST="www.albirr.org.sa")
         self.assertContains(page, "معاً للخير")
         self.assertContains(page, 'href="/donate/"')
-        self.assertContains(page, "ترخيص جمع التبرعات رقم (FR-123)")
+        self.assertContains(page, "ترخيص جمع التبرعات رقم (<bdi>FR-123</bdi>)")
         self.assertNotContains(page, "معاينة — الموقع غير منشور")
         self.assertEqual(self.client.get("/reports/accounts/trial-balance/", HTTP_HOST="albirr.org.sa").status_code, 404)
 

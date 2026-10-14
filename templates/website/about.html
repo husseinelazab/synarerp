@@ -1,37 +1,81 @@
 {% extends "website/public_base.html" %}{% load site %}
-{% block title %}عن الجمعية — {{ request.site.company.name }}{% endblock %}
+{% block title %}عن الجمعية | {{ request.site.company.name }}{% endblock %}
 {% block description %}{{ request.site.about|default:request.site.company.objectives|default:request.site.company.name|truncatewords:30 }}{% endblock %}
 {% block content %}{% with company=request.site.company site=request.site %}
-<section class="wrap page">
-  <h1>عن الجمعية</h1>
-  {% if site.about %}<div class="prose lead">{{ site.about|linebreaks }}</div>{% endif %}
+{% include "website/_page_hero.html" with heading="عن الجمعية" intro=site.tagline %}
+<nav class="subnav" aria-label="أقسام الصفحة"><div class="wrap">
+  <a href="#who">من نحن</a>
+  {% if plan.vision or plan.mission or plan.values_list %}<a href="#vision">الرؤية والرسالة</a>{% endif %}
+  {% if goals or company.objectives %}<a href="#goals">الأهداف</a>{% endif %}
+  {% if seats %}<a href="#board">مجلس الإدارة</a>{% endif %}
+  {% if site.org_chart %}<a href="#structure">الهيكل التنظيمي</a>{% endif %}
+  <a href="#facts">البيانات النظامية</a>
+</div></nav>
 
-  {% if plan.vision or plan.mission %}<div class="cards two">
-    {% if plan.vision %}<div class="card highlight"><div class="card-body"><h3>رؤيتنا</h3><p>{{ plan.vision|linebreaksbr }}</p></div></div>{% endif %}
-    {% if plan.mission %}<div class="card highlight"><div class="card-body"><h3>رسالتنا</h3><p>{{ plan.mission|linebreaksbr }}</p></div></div>{% endif %}
-  </div>{% endif %}
+<section class="section" id="who">
+  <div class="wrap about-strip">
+    <div class="about-text">
+      <span class="eyebrow">من نحن</span>
+      <h2>{{ company.name }}</h2>
+      {% if site.about %}<div class="prose lead">{{ site.about|linebreaks }}</div>{% endif %}
+    </div>
+    <div class="about-cards">
+      {% if company.license_number %}<div class="vm-card"><i class="i" data-i="verify"></i><h3>جهة مسجلة</h3><p>لدى المركز الوطني لتنمية القطاع غير الربحي برقم (<bdi>{{ company.license_number }}</bdi>)</p></div>{% endif %}
+      {% if site.fundraising_license_number %}<div class="vm-card"><i class="i" data-i="heart"></i><h3>جمع تبرعات مرخص</h3><p>ترخيص رقم (<bdi>{{ site.fundraising_license_number }}</bdi>){% if site.fundraising_license_expiry %} ساري حتى {{ site.fundraising_license_expiry|date:"Y-m-d" }}{% endif %}</p></div>{% endif %}
+    </div>
+  </div>
+</section>
 
-  {% if plan.values_list %}<h2 class="sub">قيمنا</h2>
-  <ul class="chips">{% for value in plan.values_list %}<li>{{ value }}</li>{% endfor %}</ul>{% endif %}
+{% if plan.vision or plan.mission or plan.values_list %}<section class="section tint" id="vision">
+  <div class="wrap">
+    <div class="section-head"><div><span class="eyebrow">توجهنا</span><h2>الرؤية والرسالة والقيم</h2></div></div>
+    <div class="cards two" style="margin-top:0">
+      {% if plan.vision %}<div class="vm-card"><i class="i" data-i="eye"></i><h3>رؤيتنا</h3><p>{{ plan.vision|linebreaksbr }}</p></div>{% endif %}
+      {% if plan.mission %}<div class="vm-card"><i class="i" data-i="target"></i><h3>رسالتنا</h3><p>{{ plan.mission|linebreaksbr }}</p></div>{% endif %}
+    </div>
+    {% if plan.values_list %}<h3 style="margin:28px 0 12px">قيمنا</h3>
+    <div class="values-grid">{% for value in plan.values_list %}<div class="value-item"><i class="i" data-i="star"></i>{{ value }}</div>{% endfor %}</div>{% endif %}
+  </div>
+</section>{% endif %}
 
-  {% if goals %}<h2 class="sub">أهدافنا الاستراتيجية{% if plan %} <small class="muted">{{ plan.title }}</small>{% endif %}</h2>
-  <div class="cards">{% for goal in goals %}<div class="card"><div class="card-body">
-    <div class="meta">{% if goal.code %}<span class="tag">{{ goal.code }}</span>{% endif %}{% if goal.vision2030_pillar %}<span>رؤية 2030: {{ goal.get_vision2030_pillar_display }}</span>{% endif %}</div>
-    <h3>{{ goal.title }}</h3>{% if goal.description %}<p class="muted">{{ goal.description|truncatewords:30 }}</p>{% endif %}
-  </div></div>{% endfor %}</div>
-  {% elif company.objectives %}<h2 class="sub">أهداف الجمعية</h2><div class="prose">{{ company.objectives|linebreaks }}</div>{% endif %}
+{% if goals or company.objectives %}<section class="section" id="goals">
+  <div class="wrap">
+    <div class="section-head"><div><span class="eyebrow">إلى أين نتجه</span><h2>{% if goals %}أهدافنا الاستراتيجية{% else %}أهداف الجمعية{% endif %}</h2></div>{% if plan %}<span class="muted">{{ plan.title }}</span>{% endif %}</div>
+    {% if goals %}<div class="program-grid">{% for goal in goals %}<article class="program-card">
+      <span class="program-icon"><i class="i" data-i="target"></i></span>
+      <h3>{{ goal.title }}</h3>
+      {% if goal.description %}<p>{{ goal.description|truncatewords:30 }}</p>{% endif %}
+      {% if goal.vision2030_pillar %}<span class="tag">رؤية 2030: {{ goal.get_vision2030_pillar_display }}</span>{% endif %}
+    </article>{% endfor %}</div>
+    {% else %}<div class="prose">{{ company.objectives|linebreaks }}</div>{% endif %}
+  </div>
+</section>{% endif %}
 
-  {% if seats %}<h2 class="sub">مجلس الإدارة{% if term %} <small class="muted">{{ term.name }} ({{ term.start_date|date:"Y" }}–{{ term.end_date|date:"Y" }})</small>{% endif %}</h2>
-  {% include "website/_board.html" %}{% endif %}
+{% if seats %}<section class="section tint" id="board">
+  <div class="wrap">
+    <div class="section-head"><div><span class="eyebrow">القيادة</span><h2>مجلس الإدارة</h2></div>{% if term %}<span class="muted">{{ term.name }} ({{ term.start_date|date:"Y" }}–{{ term.end_date|date:"Y" }})</span>{% endif %}</div>
+    {% include "website/_board.html" %}
+  </div>
+</section>{% endif %}
 
-  <h2 class="sub">البيانات النظامية</h2>
-  <table class="plain facts-table">
-    <tr><th>اسم الجمعية</th><td>{{ company.name }}</td></tr>
-    {% if company.license_number %}<tr><th>رقم التسجيل لدى المركز الوطني لتنمية القطاع غير الربحي</th><td><bdi>{{ company.license_number }}</bdi></td></tr>{% endif %}
-    {% if company.registration_date %}<tr><th>تاريخ التسجيل</th><td>{{ company.registration_date }}</td></tr>{% endif %}
-    {% if company.headquarters %}<tr><th>المقر الرئيسي</th><td>{{ company.headquarters }}</td></tr>{% endif %}
-    {% if site.fundraising_license_number %}<tr><th>ترخيص جمع التبرعات</th><td><bdi>{{ site.fundraising_license_number }}</bdi>{% if site.fundraising_license_expiry %} — ساري حتى {{ site.fundraising_license_expiry|date:"Y-m-d" }}{% endif %}</td></tr>{% endif %}
-  </table>
-  <p><a class="btn-brand" href="{% site_url 'site_governance' %}">الحوكمة والإفصاح</a></p>
+{% if site.org_chart %}<section class="section" id="structure">
+  <div class="wrap">
+    <div class="section-head"><div><span class="eyebrow">التنظيم</span><h2>الهيكل التنظيمي</h2></div></div>
+    <div class="org-chart"><img src="{{ site.org_chart }}" alt="الهيكل التنظيمي لـ{{ company.name }}" loading="lazy"></div>
+  </div>
+</section>{% endif %}
+
+<section class="section{% if site.org_chart %} tint{% endif %}" id="facts">
+  <div class="wrap">
+    <div class="section-head"><div><span class="eyebrow">الشفافية</span><h2>البيانات النظامية</h2></div><a class="more" href="{% site_url 'site_governance' %}">الحوكمة والإفصاح <i class="i" data-i="arrow"></i></a></div>
+    <table class="plain facts-table">
+      <tr><th>اسم الجمعية</th><td>{{ company.name }}</td></tr>
+      {% if company.license_number %}<tr><th>رقم التسجيل لدى المركز الوطني لتنمية القطاع غير الربحي</th><td><bdi>{{ company.license_number }}</bdi></td></tr>{% endif %}
+      {% if company.registration_date %}<tr><th>تاريخ التسجيل</th><td>{{ company.registration_date }}</td></tr>{% endif %}
+      {% if company.headquarters %}<tr><th>المقر الرئيسي</th><td>{{ company.headquarters }}</td></tr>{% endif %}
+      {% if site.fundraising_license_number %}<tr><th>ترخيص جمع التبرعات</th><td><bdi>{{ site.fundraising_license_number }}</bdi>{% if site.fundraising_license_expiry %} (ساري حتى {{ site.fundraising_license_expiry|date:"Y-m-d" }}){% endif %}</td></tr>{% endif %}
+      {% if company.tax_id %}<tr><th>الرقم الضريبي</th><td><bdi>{{ company.tax_id }}</bdi></td></tr>{% endif %}
+    </table>
+  </div>
 </section>
 {% endwith %}{% endblock %}

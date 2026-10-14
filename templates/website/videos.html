@@ -1,0 +1,28 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}الفيديوهات — {{ request.site.company.name }}{% endblock %}
+{% block description %}مكتبة فيديو {{ request.site.company.name }}: برامجنا وفعالياتنا وأثرنا{% endblock %}
+{% block head %}<style>
+  .video-frame { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 10px 10px 0 0; overflow: hidden; }
+  .video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video-intro { max-width: 860px; margin: 0 auto 28px; }
+  .video-intro .video-frame { border-radius: 12px; }
+</style>{% endblock %}
+{% block content %}
+{% include "website/_page_hero.html" with heading="الفيديوهات" parent="المركز الإعلامي" intro="" %}
+<section class="wrap page">
+  {% if intro_embed %}<div class="video-intro"><div class="video-frame">
+    <iframe src="{{ intro_embed }}" title="فيديو تعريفي عن {{ request.site.company.name }}" loading="lazy"
+            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+  </div></div>{% endif %}
+  {% if videos %}<div class="cards">{% for video in videos %}<article class="card">
+    <div class="video-frame"><iframe src="{{ video.embed_url }}" title="{{ video.title }}" loading="lazy"
+         allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>
+    <div class="card-body">
+      <h3>{{ video.title }}</h3>
+      {% if video.description %}<p class="muted">{{ video.description }}</p>{% endif %}
+      <time class="muted" datetime="{{ video.published_on|date:'Y-m-d' }}">{{ video.published_on|date:"Y-m-d" }}</time>
+    </div>
+  </article>{% endfor %}</div>
+  {% elif not intro_embed %}<p class="muted">ستُنشر فيديوهاتنا هنا قريباً.</p>{% endif %}
+</section>
+{% endblock %}

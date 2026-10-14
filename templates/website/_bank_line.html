@@ -1,0 +1,5 @@
+<div class="bank-line">
+  <span class="bank-name">{{ line.bank|default:"حساب التبرعات" }}</span>
+  <code class="bank-iban" dir="ltr">{{ line.iban }}</code>
+  {% if line.iban %}<button class="copy-btn" type="button" data-copy="{{ line.iban_raw }}" aria-label="نسخ الآيبان"><i class="i" data-i="copy"></i><span>نسخ</span></button>{% endif %}
+</div>

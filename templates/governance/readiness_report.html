@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar no-print"><div>
+  {% if assessments %}<form method="get" class="inline-form">
+    <select name="assessment" class="form-select" onchange="this.form.submit()">
+      {% for a in assessments %}<option value="{{ a.pk }}" {% if a.pk == assessment.pk %}selected{% endif %}>{{ a.name }} — {{ a.year }} — {{ a.get_framework_display }}{% if a.is_draft %} (مسودة){% endif %}</option>{% endfor %}
+    </select>
+  </form>{% endif %}
+</div><div class="actions">
+  <a class="btn" href="{% url 'governance_dashboard' %}">لوحة الحوكمة</a>
+  {% if assessment %}<a class="btn" href="{{ assessment.get_absolute_url }}">فتح التقييم الذاتي</a>
+  <button type="button" class="btn btn-primary" onclick="window.print()">طباعة</button>{% endif %}
+</div></div>
+
+{% if not assessment %}
+<div class="card"><p>لا يوجد تقييم ذاتي بعد.</p>
+  <p class="muted small">حمّل معيار المركز الوطني من لوحة الحوكمة، ثم أنشئ تقييماً ذاتياً باختيار الإطار «معيار المركز الوطني».</p>
+  <a class="btn btn-primary" href="{% url 'doc_new' 'governance-assessment' %}">+ تقييم ذاتي</a></div>
+{% else %}
+<div class="card">
+  <h3>التقييم {{ assessment.name }} — سنة التقييم {{ assessment.year }}</h3>
+  <p class="muted small">{{ assessment.get_framework_display }}{% if assessment.framework_version %} — إصدار {{ assessment.framework_version }}{% endif %}
+    · الحالة: {{ assessment.get_docstatus_display }} · الشواهد المرفقة لسنة التقييم: {{ report.evidence_total }}</p>
+</div>
+
+<div class="kpis">
+  <div class="kpi {% if report.overall >= 80 %}kpi-good{% elif report.overall < 50 %}kpi-bad{% endif %}"><span>النتيجة الكلية</span><b>{{ report.overall }}%</b><span>{{ report.band }}</span></div>
+  {% for s in report.standards %}<div class="kpi"><span>{{ s.standard.name }}{% if s.standard.weight_percent %} ({{ s.standard.weight_percent|floatformat:"-2" }}%){% endif %}</span>
+    <b>{% if s.percent is not None %}{{ s.percent }}%{% else %}—{% endif %}</b><span>{{ s.band }}</span></div>{% endfor %}
+</div>
+
+<div class="card"><h3>النتيجة حسب المعيار</h3>
+<div class="table-wrap"><table class="table"><thead><tr><th>المعيار</th><th class="num">وزن المعيار</th><th class="num">الدرجة</th><th class="num">من</th><th class="num">النسبة</th><th>التقدير</th><th class="num">المحقق / المؤشرات</th><th class="num">غير مقيّم</th><th class="num">الشواهد</th></tr></thead><tbody>
+{% for s in report.standards %}<tr><td>{{ s.standard.code }} {{ s.standard.name }}</td>
+  <td class="num">{% if s.standard.weight_percent %}{{ s.standard.weight_percent|floatformat:"-2" }}%{% if s.standard.is_estimated %} <span class="muted small">(تقديري)</span>{% endif %}{% else %}—{% endif %}</td>
+  <td class="num">{{ s.score|floatformat:"-2" }}</td><td class="num">{{ s.max|floatformat:"-2" }}</td>
+  <td class="num">{% if s.percent is not None %}{{ s.percent }}%{% else %}—{% endif %}</td><td>{{ s.band }}</td>
+  <td class="num">{{ s.met }} / {{ s.count }}</td><td class="num">{{ s.unscored }}</td><td class="num">{{ s.evidence }}</td></tr>{% endfor %}
+<tr><th>الإجمالي</th><th></th><th></th><th></th><th class="num">{{ report.overall }}%</th><th>{{ report.band }}</th><th></th><th></th><th class="num">{{ report.evidence_total }}</th></tr>
+</tbody></table></div>
+<p class="muted small">{% if report.weighted %}النتيجة الكلية = متوسط نسب المعايير مرجحاً بأوزانها.{% else %}النتيجة الكلية = مجموع الدرجات ÷ مجموع الدرجات القصوى.{% endif %}
+  المحقق = الدرجة كاملة، المحقق جزئياً = نصفها، والمؤشرات غير المقيّمة تُحتسب صفراً في هذا التقرير. شرائح التقدير:
+  {% for b in framework.rating_bands %}{{ b.label }} ≥ {{ b.min }}%{% if not forloop.last %}، {% endif %}{% endfor %}.</p>
+{% if report.estimated %}<p class="alert alert-warning small">بعض الأوزان أو الدرجات «{{ framework.estimated_marker }}». راجعها مع الدليل المعتمد قبل الاعتماد على النتيجة؛ {{ framework.rating_bands_note }}.</p>{% endif %}
+</div>
+
+<div class="card"><h3>الفجوات: المؤشرات غير المحققة ({{ report.gaps|length }})</h3>
+<div class="table-wrap"><table class="table"><thead><tr><th>الرمز</th><th>المؤشر</th><th>الحالة</th><th class="num">الدرجة المفقودة</th><th>الشواهد المطلوبة</th><th>التحقق من النظام</th><th class="num">شواهد مرفقة</th><th class="no-print">المعالجة</th></tr></thead><tbody>
+{% for g in report.gaps %}<tr><td><a href="{{ g.indicator.get_absolute_url }}">{{ g.indicator.code }}</a></td>
+  <td>{% if g.indicator.group %}<span class="muted small">{{ g.indicator.group }} · </span>{% endif %}{{ g.indicator.text }}</td>
+  <td>{{ g.status }}</td><td class="num">{{ g.lost|floatformat:"-2" }}</td>
+  <td class="small">{{ g.indicator.evidence_hint }}</td><td class="small muted">{{ g.row.auto_result }}</td>
+  <td class="num">{{ g.evidence_count }}</td>
+  <td class="no-print"><a class="btn btn-sm" href="{{ g.fix_url }}">معالجة</a></td></tr>
+{% empty %}<tr><td colspan="8" class="muted center">لا فجوات — كل المؤشرات المنطبقة محققة.</td></tr>{% endfor %}
+</tbody></table></div></div>
+
+{% if assessment.framework == 'ncnp' %}<div class="card small muted"><h3>المصادر</h3><ul>
+{% for s in framework.sources %}<li>{{ s.title }} — {{ s.publisher }} ({{ s.date }})</li>{% endfor %}</ul></div>{% endif %}
+{% endif %}
+{% endblock %}

@@ -5,7 +5,17 @@
   <a class="btn btn-primary" href="{% url 'doc_new' 'governance-assessment' %}">+ تقييم ذاتي</a>
   <a class="btn" href="{% url 'doc_new' 'governance-indicator' %}">+ مؤشر</a>
   <a class="btn" href="{% url 'doc_import' 'governance-indicator' %}">استيراد المؤشرات من Excel</a>
+  <a class="btn" href="{% url 'governance_readiness' %}">تقرير الجاهزية لتقييم الحوكمة</a>
 </div></div>
+<div class="card">
+  <h3>معيار المركز الوطني لتنمية القطاع غير الربحي</h3>
+  {% if ncnp_loaded %}<p class="small">الإصدار المحمّل: <b>{{ ncnp_loaded }}</b>{% if ncnp_update %} — يتوفر إصدار أحدث ({{ ncnp_available }}).{% endif %}
+    أنشئ تقييماً ذاتياً واختر الإطار «معيار المركز الوطني» لتظهر اقتراحات التحقق من بيانات النظام.</p>
+  {% else %}<p class="small">حمّل قالب مؤشرات حوكمة الجمعيات الأهلية (الامتثال والالتزام، الشفافية والإفصاح، السلامة المالية) — إصدار {{ ncnp_available }}.</p>{% endif %}
+  {% if ncnp_update %}<form method="post" action="{% url 'load_ncnp_framework' %}" class="inline-form">{% csrf_token %}
+    <button class="btn btn-primary">{% if ncnp_loaded %}تحديث معيار المركز الوطني{% else %}تحميل معيار المركز الوطني{% endif %}</button></form>{% endif %}
+  <p class="muted small">التحميل لا يحذف تقييماتك السابقة؛ الأوزان والدرجات قابلة للتعديل، والموسوم منها «تقديري» يُحدَّث من دليل المركز.</p>
+</div>
 <div class="kpis">
   <div class="kpi"><span>المؤشرات المفعّلة</span><b>{{ indicators|length }}</b></div>
   <div class="kpi {% if without_evidence %}kpi-bad{% endif %}"><span>مؤشرات بلا شواهد</span><b>{{ without_evidence }}</b></div>

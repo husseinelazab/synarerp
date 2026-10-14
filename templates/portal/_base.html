@@ -1,0 +1,20 @@
+{% extends "website/public_base.html" %}{% load static site %}
+{% block title %}{% block page_title %}بوابة المستفيد{% endblock %} | {{ request.site.company.name }}{% endblock %}
+{% block description %}بوابة المستفيد لدى {{ request.site.company.name }}: ملفك والمساعدات وطلباتك{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/portal.css' %}"><meta name="robots" content="noindex">{% endblock %}
+{% block newsletter %}{% endblock %}
+{% block content %}
+{% include "website/_page_hero.html" with heading="بوابة المستفيد" parent="الخدمات الإلكترونية" intro="" %}
+<section class="wrap page">
+{% if beneficiary %}
+  <div class="portal-bar">
+    <span class="who"><i class="i" data-i="user"></i>{{ beneficiary.full_name }} · <bdi>{{ beneficiary.file_number }}</bdi></span>
+    <form method="post" action="{% site_url 'portal_logout' %}">{% csrf_token %}<button class="btn-outline" type="submit">تسجيل الخروج</button></form>
+  </div>
+  <nav aria-label="أقسام البوابة"><ul class="portal-tabs">
+    {% for name, label, icon in tabs %}<li><a href="{% site_url name %}"{% if name == active %} aria-current="page"{% endif %}><i class="i" data-i="{{ icon }}"></i>{{ label }}</a></li>{% endfor %}
+  </ul></nav>
+{% endif %}
+{% block portal %}{% endblock %}
+</section>
+{% endblock %}

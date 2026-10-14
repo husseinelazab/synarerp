@@ -1,0 +1,26 @@
+{% extends "portal/_base.html" %}{% load site %}
+{% block page_title %}دخول بوابة المستفيد{% endblock %}
+{% block portal %}
+<div class="portal-login">
+{% if message %}<div class="notice ok" role="status">{{ message }}</div><br>{% endif %}
+{% if error %}<div class="notice err" role="alert">{{ error }}</div><br>{% endif %}
+{% if pending %}
+<form method="post" class="portal-panel site-form" autocomplete="off">{% csrf_token %}{{ code_form.website }}
+  <h2>أدخل رمز التحقق</h2>
+  <p class="muted">أرسلنا رمزاً من 6 أرقام إلى جوالك المسجل لدى الجمعية، وهو صالح 10 دقائق.</p>
+  <div class="field"><label for="id_code">رمز التحقق</label><input class="otp-input" type="text" name="code" id="id_code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required>{{ code_form.code.errors }}</div>
+  <div class="actions-row"><button class="btn-brand" name="action" value="verify">دخول</button>
+  <button class="btn-outline" name="action" value="change" formnovalidate>تغيير البيانات</button></div>
+</form>
+{% else %}
+<form method="post" class="portal-panel site-form" novalidate>{% csrf_token %}{{ login_form.website }}
+  <h2><i class="i" data-i="user"></i> دخول المستفيد</h2>
+  <p class="muted">لرب الأسرة المسجل لدى الجمعية: ادخل برقم الهوية ورقم الجوال المسجل في ملفك، ليصلك رمز تحقق برسالة نصية.</p>
+  <div class="field"><label for="id_national_id">{{ login_form.national_id.label }}</label><input type="text" name="national_id" id="id_national_id" inputmode="numeric" dir="ltr" maxlength="14" required value="{{ login_form.national_id.value|default:'' }}">{{ login_form.national_id.errors }}</div>
+  <div class="field"><label for="id_phone">{{ login_form.phone.label }}</label><input type="tel" name="phone" id="id_phone" inputmode="tel" dir="ltr" placeholder="05xxxxxxxx" maxlength="20" required value="{{ login_form.phone.value|default:'' }}">{{ login_form.phone.errors }}</div>
+  <button class="btn-brand" name="action" value="send">إرسال رمز التحقق</button>
+</form>
+<p class="muted">لم تسجل لدى الجمعية بعد؟ <a href="{% site_url 'site_apply' %}">قدّم طلب مساعدة</a>. تغيّر رقم جوالك؟ <a href="{% site_url 'site_contact' %}">تواصل معنا</a>.</p>
+{% endif %}
+</div>
+{% endblock %}

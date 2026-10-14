@@ -1,0 +1,18 @@
+{% extends "portal/_base.html" %}
+{% block page_title %}المساعدات المصروفة{% endblock %}
+{% block portal %}
+<div class="portal-stats">
+  <div class="portal-stat"><small>عدد المساعدات في {{ totals.year }}</small><strong>{{ totals.count }}</strong></div>
+  <div class="portal-stat"><small>المساعدات النقدية في {{ totals.year }}</small><strong>{{ totals.cash|floatformat:"-2g" }} ريال</strong></div>
+  <div class="portal-stat"><small>المساعدات العينية في {{ totals.year }}</small><strong>{{ totals.in_kind }}</strong></div>
+</div>
+<div class="portal-panel portal-table">
+  <h2>سجل المساعدات</h2>
+  <table class="plain"><thead><tr><th>التاريخ</th><th>البرنامج</th><th>النوع</th><th>المبلغ / الأصناف</th><th>الاستلام</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td>{{ r.date|date:"Y-m-d" }}</td><td>{{ r.program }}</td><td>{{ r.type }}</td>
+    <td>{% if r.is_cash %}<strong>{{ r.amount|floatformat:"-2g" }} ريال</strong>{% else %}{{ r.items|default:"—" }}{% endif %}</td>
+    <td>{% if r.received %}<span class="tag status-done">تم الاستلام</span>{% else %}<span class="tag status-pending">بانتظار التأكيد</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">لا توجد مساعدات مصروفة لك بعد.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

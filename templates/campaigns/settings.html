@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+{% if not sms_ok %}<div class="alert alert-info">التذكيرات الآلية تُرسل عبر مزوّد SMS فقط؛ فعّله من <a href="{% url 'messaging_settings' %}">الإعدادات ← الرسائل</a>.</div>{% endif %}
+<form method="post" novalidate>{% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card"><h3>رسائل الحملات</h3>{% include "core/_field.html" with field=form.sms_optout_footer %}</div>
+  <div class="card"><h3>تذكير الكافلين بموعد الكفالة</h3>
+    <div class="form-grid">{% include "core/_field.html" with field=form.due_reminder_enabled %}{% include "core/_field.html" with field=form.due_days_before %}</div>
+    {% include "core/_field.html" with field=form.due_text %}
+    <p class="muted small">يُرسل مرة واحدة لكل كافل في الشهر قبل أول الشهر بالمدة المحددة، بمجموع كفالاته السارية.</p></div>
+  <div class="card"><h3>تذكير بالاستحقاقات المتأخرة</h3>
+    {% include "core/_field.html" with field=form.overdue_reminder_enabled %}{% include "core/_field.html" with field=form.overdue_text %}
+    <p class="muted small">مرة واحدة شهرياً لكل كافل عليه استحقاقات غير محصّلة من الأشهر السابقة.</p></div>
+  <div class="form-actions"><button class="btn btn-primary btn-lg">حفظ</button></div>
+</form>
+<div class="card"><h3>آخر التذكيرات الآلية</h3><div class="table-wrap"><table class="table"><tbody>
+{% for r in reminders %}<tr><td>{{ r.created_at|date:"Y-m-d H:i" }}</td><td dir="ltr">{{ r.phone }}</td><td>{{ r.key }}</td><td>{% if r.status == 'sent' %}أُرسلت{% else %}فشلت{% endif %}</td><td class="small">{{ r.error }}</td></tr>
+{% empty %}<tr><td class="muted">لا تذكيرات بعد</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

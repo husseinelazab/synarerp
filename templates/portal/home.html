@@ -1,0 +1,37 @@
+{% extends "portal/_base.html" %}{% load site %}
+{% block page_title %}ملفي{% endblock %}
+{% block portal %}
+<div class="portal-stats">
+  <div class="portal-stat"><small>حالة الملف</small><strong><span class="tag status-{{ beneficiary.status }}">{{ beneficiary.get_status_display }}</span></strong></div>
+  <div class="portal-stat"><small>مساعدات {{ totals.year }}</small><strong>{{ totals.count }}</strong></div>
+  <div class="portal-stat"><small>المساعدات النقدية {{ totals.year }}</small><strong>{{ totals.cash|floatformat:"-2g" }} ريال</strong></div>
+  <div class="portal-stat"><small>طلبات مفتوحة</small><strong>{{ open_requests }}</strong></div>
+</div>
+{% if pending_update %}<div class="notice" role="status">لديك طلب تحديث بيانات قيد المراجعة. <a href="{% site_url 'portal_requests' %}">تابع طلباتك</a></div><br>{% endif %}
+<div class="portal-panel">
+  <h2>بيانات الملف</h2>
+  <dl class="portal-facts">
+    <div><dt>رقم الملف</dt><dd><bdi>{{ beneficiary.file_number }}</bdi></dd></div>
+    <div><dt>اسم رب الأسرة</dt><dd>{{ beneficiary.full_name }}</dd></div>
+    <div><dt>الحالة</dt><dd>{{ beneficiary.get_status_display }}</dd></div>
+    <div><dt>الفئة</dt><dd>{{ beneficiary.category|default:"—" }}</dd></div>
+    <div><dt>موعد إعادة الدراسة</dt><dd>{{ beneficiary.next_review_date|date:"Y-m-d"|default:"—" }}</dd></div>
+    <div><dt>تاريخ التسجيل</dt><dd>{{ beneficiary.registered_on|date:"Y-m-d" }}</dd></div>
+    <div><dt>الجوال</dt><dd><bdi>{{ beneficiary.phone }}</bdi></dd></div>
+    <div><dt>المدينة / الحي</dt><dd>{{ beneficiary.city|default:"—" }}{% if beneficiary.district %} / {{ beneficiary.district }}{% endif %}</dd></div>
+  </dl>
+</div>
+<div class="portal-panel">
+  <h2>آخر دراسة حالة</h2>
+  {% if last_study %}<p>بتاريخ <strong>{{ last_study.posting_date|date:"Y-m-d" }}</strong> — النتيجة: <span class="tag {% if last_study.is_eligible %}status-approved{% else %}status-rejected{% endif %}">{% if last_study.is_eligible %}مستحق{% else %}غير مستحق{% endif %}</span></p>
+  {% else %}<p class="muted">لم تُعتمد دراسة حالة لملفك بعد. سيتواصل معك الباحث الاجتماعي.</p>{% endif %}
+  {% if beneficiary.review_due %}<p class="muted">حان موعد إعادة دراسة حالتك. يمكنك <a href="{% site_url 'portal_requests' %}">تقديم طلب إعادة دراسة</a>.</p>{% endif %}
+</div>
+<div class="portal-panel portal-table">
+  <h2>أفراد الأسرة</h2>
+  <table class="plain"><thead><tr><th>الاسم</th><th>صلة القرابة</th></tr></thead><tbody>
+  {% for name, relation in members %}<tr><td>{{ name }}</td><td>{{ relation }}</td></tr>
+  {% empty %}<tr><td colspan="2" class="muted">لا يوجد أفراد مسجلون في الملف.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

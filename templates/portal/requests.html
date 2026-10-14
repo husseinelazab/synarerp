@@ -1,0 +1,28 @@
+{% extends "portal/_base.html" %}
+{% block page_title %}طلباتي{% endblock %}
+{% block portal %}
+{% if done %}<div class="notice ok" role="status">استلمنا طلبك برقم <bdi class="ref">{{ done }}</bdi>، وسيظهر رد الجمعية هنا.</div><br>{% endif %}
+<div class="portal-panel portal-table">
+  <h2>طلبات الخدمة</h2>
+  <table class="plain"><thead><tr><th>الرقم</th><th>التاريخ</th><th>النوع</th><th>الحالة</th></tr></thead><tbody>
+  {% for r in requests %}<tr><td><bdi>{{ r.number }}</bdi></td><td>{{ r.created_at|date:"Y-m-d" }}</td>
+    <td>{{ r.get_kind_display }}<div class="muted">{{ r.description|truncatechars:120 }}</div>{% if r.reply %}<div class="portal-reply"><strong>رد الجمعية:</strong> {{ r.reply|linebreaksbr }}</div>{% endif %}</td>
+    <td><span class="tag status-{{ r.status }}">{{ r.get_status_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="4" class="muted">لم تقدم طلبات بعد.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% if updates %}<div class="portal-panel portal-table">
+  <h2>طلبات تحديث البيانات</h2>
+  <table class="plain"><thead><tr><th>الرقم</th><th>التاريخ</th><th>الحالة</th></tr></thead><tbody>
+  {% for u in updates %}<tr><td><bdi>{{ u.number }}</bdi></td><td>{{ u.created_at|date:"Y-m-d" }}</td>
+    <td><span class="tag status-{{ u.status }}">{{ u.get_status_display }}</span>{% if u.reply %}<div class="portal-reply">{{ u.reply }}</div>{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+</div>{% endif %}
+<div class="portal-panel">
+  <h2><i class="i" data-i="plus"></i> طلب مساعدة جديد / إعادة دراسة</h2>
+  <form method="post" class="site-form" novalidate>{% csrf_token %}
+    {% include "website/_form_fields.html" %}
+    <button class="btn-brand" type="submit">إرسال الطلب</button>
+  </form>
+</div>
+{% endblock %}

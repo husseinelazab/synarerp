@@ -1,0 +1,14 @@
+{% extends "portal/_base.html" %}
+{% block page_title %}تحديث بياناتي{% endblock %}
+{% block portal %}
+{% if done %}<div class="notice ok" role="status">استلمنا طلب التحديث برقم <bdi class="ref">{{ done }}</bdi>، ولن تتغير بيانات ملفك إلا بعد مراجعته واعتماده من الجمعية.</div><br>
+{% elif pending %}<div class="notice" role="status">لديك طلب تحديث ({{ pending.number }}) قيد المراجعة منذ {{ pending.created_at|date:"Y-m-d" }}.</div><br>{% endif %}
+<div class="portal-panel">
+  <h2>بيانات التواصل والسكن</h2>
+  <p class="muted">عدّل ما تغيّر من بياناتك، وسيراجع فريق الجمعية الطلب قبل تطبيقه على ملفك.</p>
+  <form method="post" class="site-form" novalidate>{% csrf_token %}
+    {% include "website/_form_fields.html" %}
+    <button class="btn-brand" type="submit"{% if pending %} disabled{% endif %}>إرسال طلب التحديث</button>
+  </form>
+</div>
+{% endblock %}

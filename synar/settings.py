@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "funds",
     "governance",
     "awqaf",
+    "grants",
     "volunteering",
     "programs",
     "excellence",
@@ -65,6 +66,8 @@ INSTALLED_APPS = [
     "website",
     "store",
     "office",
+    "portal",
+    "campaigns",
 ]
 
 MIDDLEWARE = [

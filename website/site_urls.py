@@ -25,6 +25,7 @@ urlpatterns = [
     path("privacy/", extra_views.privacy, name="site_privacy"),
     path("newsletter/", extra_views.newsletter, name="site_newsletter"),
     path("donate/", include("store.site_urls")),
+    path("portal/", include("portal.site_urls")),
     path("robots.txt", views.robots, name="site_robots"),
     path("sitemap.xml", views.sitemap, name="site_sitemap"),
     # روابط التسجيل العامة للبرامج والفرص التطوعية والاستبيانات تعمل على نطاق الجمعية أيضاً

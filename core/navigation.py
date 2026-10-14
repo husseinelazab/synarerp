@@ -19,6 +19,7 @@ ICONS = {
     "members": '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/>',
     "governance": '<path d="M12 3l9 4H3zM5 10v7M10 10v7M14 10v7M19 10v7M3 21h18"/>',
     "awqaf": '<path d="M4 21V10l8-6 8 6v11M9 21v-5a3 3 0 0 1 6 0v5M2 21h20"/>',
+    "grants": '<path d="M3 11l4-4 4 3 4-4 6 5"/><path d="M3 20h18M6 20v-5M11 20v-7M16 20v-4M20 20v-6"/>',
     "volunteering": '<path d="M7 11V7a2 2 0 0 1 4 0v4M11 9a2 2 0 0 1 4 0v2M15 10a2 2 0 0 1 4 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a2 2 0 0 1 3-2l2 2"/>',
     "office": '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/>',
     "documents": '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
@@ -243,7 +244,7 @@ def build_menu(request):
 NONPROFIT_GROUPS = [
     ("العمل اليومي", ["office", "documents"]),
     ("الخدمات والبرامج", ["beneficiaries", "entities", "programs", "volunteering", "projects"]),
-    ("الموارد والمالية", ["resources", "accounts", "awqaf", "stock"]),
+    ("الموارد والمالية", ["resources", "grants", "accounts", "awqaf", "stock"]),
     ("الحوكمة والتميز", ["members", "governance", "excellence", "relations"]),
     ("القنوات الرقمية", ["store", "website"]),
     ("الخدمات المساندة", ["hr", "fleet", "statistics", "settings"]),
@@ -274,7 +275,7 @@ def _keys(module):
 
 
 # ترتيب وحدات الجهة غير الربحية
-NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "awqaf", "projects", "entities", "beneficiaries", "governance",
+NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "grants", "awqaf", "projects", "entities", "beneficiaries", "governance",
                    "volunteering", "stock", "programs", "excellence", "relations", "fleet", "statistics", "website", "store", "settings"]
 
 
@@ -302,6 +303,8 @@ def nonprofit_modules(modules, doc):
         {"title": "المستفيدون", "items": [_item("لوحة المتابعة", "beneficiaries_dashboard"),
                                          doc("ملفات المستفيدين", "beneficiary"), doc("دراسات الحالة", "case-assessment")]},
         {"title": "المساعدات", "items": [doc("صرف المساعدات", "aid-disbursement"), doc("برامج المساعدات", "aid-program")]},
+        {"title": "بوابة المستفيد", "items": [doc("طلبات تحديث البيانات", "portal-profile-update"),
+                                             doc("طلبات الخدمة", "portal-service-request")]},
         {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"),
                                       doc("معايير دراسة الحالة", "assessment-criterion")]},
     ]}
@@ -312,6 +315,10 @@ def nonprofit_modules(modules, doc):
                                        doc("الداعمون", "donor")]},
         {"title": "الكفالات", "items": [doc("الكفالات", "sponsorship"), doc("استحقاقات الكفالات", "sponsorship-due"),
                                        doc("أنواع الكفالات", "sponsorship-type")]},
+        {"title": "حملات التواصل", "items": [_item("لوحة الحملات", "campaigns_dashboard"), doc("الحملات", "campaign"),
+                                            doc("الشرائح", "campaign-segment"),
+                                            doc("قائمة الإيقاف", "campaign-optout"),
+                                            _item("إعدادات التذكير", "campaigns_settings")]},
     ]}
     by_key["members"] = {"key": "members", "label": "إدارة الأعضاء المشاركين", "sections": [
         {"title": "الجمعية العمومية", "items": [_item("لوحة الأعضاء", "members_dashboard"), doc("الأعضاء", "member"),
@@ -323,7 +330,13 @@ def nonprofit_modules(modules, doc):
     ]}
     by_key["governance"] = {"key": "governance", "label": "إدارة الحوكمة", "sections": [
         {"items": [_item("لوحة الحوكمة", "governance_dashboard"), doc("التقييم الذاتي", "governance-assessment"),
-                   doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard")]},
+                   doc("مؤشرات الحوكمة", "governance-indicator"), doc("معايير الحوكمة", "governance-standard"),
+                   _item("تقرير الجاهزية لتقييم الحوكمة", "governance_readiness")]},
+    ]}
+    by_key["grants"] = {"key": "grants", "label": "إدارة المنح", "sections": [
+        {"items": [_item("لوحة المنح", "grants_dashboard"), doc("طلبات المنح", "grant-application"),
+                   doc("المنح المعتمدة", "grant"), doc("دفعات المنح", "grant-installment"),
+                   doc("تقارير المانحين", "grant-report"), doc("الجهات المانحة", "donor")]},
     ]}
     by_key["awqaf"] = {"key": "awqaf", "label": "إدارة الأوقاف", "sections": [
         {"items": [_item("لوحة الأوقاف", "awqaf_dashboard"), doc("الأوقاف", "waqf"), doc("عقود الإيجار", "waqf-lease"),

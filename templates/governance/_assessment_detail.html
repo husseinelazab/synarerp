@@ -3,3 +3,13 @@
   <div class="kpi kpi-good"><span>النتيجة</span><b>{{ obj.score_percent }}%</b><span>{{ obj.total_score }} من {{ obj.total_weight }}</span></div>
   {% for s in obj.by_standard %}<div class="kpi"><span>{{ s.standard.name }}</span><b>{% if s.percent is not None %}{{ s.percent }}%{% else %}—{% endif %}</b></div>{% endfor %}
 </div>
+{% if obj.framework %}
+<div class="toolbar"><div></div><div class="actions"><a class="btn" href="{% url 'governance_readiness' %}?assessment={{ obj.pk }}">تقرير الجاهزية لتقييم الحوكمة</a></div></div>
+<div class="card"><h3>اقتراحات التحقق من بيانات النظام</h3>
+<p class="muted small">الاقتراح لا يعتمد الدرجة: حدد حالة كل مؤشر بنفسك من «تعديل»، أو استخدم زر «اعتماد الحالات المقترحة» للمؤشرات التي لم تقيّمها بعد ثم راجعها.</p>
+<div class="table-wrap"><table class="table"><thead><tr><th>الرمز</th><th>المؤشر</th><th>المقترح</th><th>الشرح</th><th>الحالة المعتمدة</th></tr></thead><tbody>
+{% for r in obj.scores.all %}{% if r.suggested_status %}<tr class="{% if r.suggested_status == 'not_met' %}row-loss{% endif %}">
+<td>{{ r.indicator.code }}</td><td>{{ r.indicator.text }}</td><td>{{ r.get_suggested_status_display }}</td>
+<td class="small muted">{{ r.auto_result }}</td><td>{% if r.status %}{{ r.get_status_display }}{% else %}<span class="muted">لم تُحدد</span>{% endif %}</td></tr>{% endif %}
+{% empty %}<tr><td colspan="5" class="muted center">لا مؤشرات</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}

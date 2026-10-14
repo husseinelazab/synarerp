@@ -39,19 +39,20 @@ register(DocType(
 ))
 register(DocType(
     slug="governance-standard", model=GovernanceStandard, module="governance",
-    list_fields=["code", "name"], search_fields=["code", "name"],
+    list_fields=["code", "name", "weight_percent", "version"], search_fields=["code", "name"],
 ))
 register(DocType(
     slug="governance-indicator", model=GovernanceIndicator, module="governance",
-    list_fields=["code", "standard", "text", "weight", "auto_check", "is_active"],
-    search_fields=["code", "text"], detail_template="governance/_indicator_detail.html",
+    list_fields=["code", "standard", "group", "text", "weight", "auto_check", "check_key", "is_active"],
+    search_fields=["code", "text", "group"], detail_template="governance/_indicator_detail.html",
 ))
 register(DocType(
     slug="governance-assessment", model=GovernanceAssessment, module="governance",
-    list_fields=["name", "year", "posting_date", "score_percent"],
-    form_fields=["year", "posting_date", "notes", "remarks"],
+    list_fields=["name", "year", "framework", "posting_date", "score_percent"],
+    form_fields=["year", "framework", "posting_date", "notes", "remarks"],
     child=ChildTable(GovernanceScore, ["indicator", "weight", "status", "note"], label="المؤشرات", min_rows=0,
-                     display_fields=["indicator", "weight", "status", "auto_result", "note"],
-                     help="اتركه فارغاً لتُجلب المؤشرات المفعّلة؛ المؤشرات الآلية تُقيّم من بيانات النظام عند كل حفظ."),
+                     display_fields=["indicator", "weight", "suggested_status", "status", "auto_result", "note"],
+                     help="اتركه فارغاً لتُجلب مؤشرات الإطار المختار؛ المؤشرات الآلية تُقيّم من بيانات النظام عند كل حفظ، "
+                          "ومؤشرات معيار المركز الوطني تُعرض لها حالة مقترحة تؤكدها أنت."),
     detail_template="governance/_assessment_detail.html",
 ))

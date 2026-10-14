@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'campaign' %}">+ حملة جديدة</a>
+  <a class="btn" href="{% url 'doc_new' 'campaign-segment' %}">+ شريحة</a>
+  <a class="btn" href="{% url 'doc_list' 'campaign-optout' %}">قائمة الإيقاف</a>
+  <a class="btn" href="{% url 'campaigns_settings' %}">إعدادات التذكير</a></div></div>
+{% if not sms_ok %}<div class="alert alert-info">لا يوجد مزوّد رسائل SMS مفعّل؛ رسائل الحملات ستُسجل «فشلت» حتى تفعّله من
+  <a href="{% url 'messaging_settings' %}">الإعدادات ← الرسائل</a>.</div>{% endif %}
+{% if not mail_ok %}<div class="alert alert-info">البريد الإلكتروني غير مفعّل؛ حملات البريد لن تُرسل حتى يُضبط خادم البريد.</div>{% endif %}
+<div class="kpi-row">
+  <a class="card kpi-card" href="{% url 'doc_list' 'campaign' %}?status=sent"><span class="kpi-label">حملات أُرسلت هذا الشهر</span><span class="kpi-value">{{ campaigns_sent }}</span></a>
+  <div class="card kpi-card"><span class="kpi-label">رسائل مُرسلة هذا الشهر</span><span class="kpi-value">{{ messages_sent }}</span><span class="kpi-foot">الحملات والتذكيرات الآلية</span></div>
+  <div class="card kpi-card"><span class="kpi-label">إخفاقات هذا الشهر</span><span class="kpi-value {% if failures %}neg{% endif %}">{{ failures }}</span></div>
+  <a class="card kpi-card" href="{% url 'doc_list' 'campaign-optout' %}"><span class="kpi-label">طلبات الإيقاف</span><span class="kpi-value">{{ optouts }}</span><span class="kpi-foot">{{ optouts_month }} هذا الشهر</span></a>
+</div>
+{% if scheduled %}<div class="card"><h3>حملات مجدولة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for c in scheduled %}<tr><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td>{{ c.get_channel_display }}</td><td>{{ c.scheduled_at|date:"Y-m-d H:i" }}</td></tr>{% endfor %}
+</tbody></table></div></div>{% endif %}
+<div class="card"><h3>أحدث الحملات</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>الحملة</th><th>القناة</th><th>الشريحة</th><th>الحالة</th><th>التاريخ</th><th class="num">المستلمون</th><th class="num">أُرسلت</th><th class="num">فشلت</th><th class="num">مستبعد</th></tr></thead><tbody>
+{% for c in recent %}<tr><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td>{{ c.get_channel_display }}</td><td>{{ c.segment }}</td>
+<td>{{ c.get_status_display }}</td><td>{{ c.sent_at|date:"Y-m-d"|default:"—" }}</td><td class="num">{{ c.n_total }}</td>
+<td class="num">{{ c.n_sent }}</td><td class="num {% if c.n_failed %}neg{% endif %}">{{ c.n_failed }}</td><td class="num">{{ c.n_skipped }}</td></tr>
+{% empty %}<tr><td colspan="9" class="muted center">لا حملات بعد — <a href="{% url 'doc_new' 'campaign' %}">أنشئ حملتك الأولى</a></td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

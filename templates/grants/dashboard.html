@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% load erp %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><div></div><div class="actions">
+  <a class="btn btn-primary" href="{% url 'doc_new' 'grant-application' %}">+ طلب منحة</a>
+  <a class="btn" href="{% url 'doc_new' 'grant' %}">+ منحة</a>
+  <a class="btn" href="{% url 'doc_new' 'grant-report' %}">+ تقرير للمانح</a></div></div>
+<div class="kpis">
+  <div class="kpi"><span>المنح السارية</span><b>{{ active_count }}</b></div>
+  <div class="kpi"><span>إجمالي المعتمد</span><b>{{ approved_total|money }}</b></div>
+  <div class="kpi kpi-good"><span>المستلم</span><b>{{ received_total|money }}</b></div>
+  <div class="kpi"><span>المصروف</span><b>{{ spent_total|money }}</b></div>
+  <div class="kpi"><span>دفعات متوقعة خلال 30 يوماً</span><b>{{ upcoming_total|money }}</b><span>{{ upcoming_installments|length }} دفعة</span></div>
+  <div class="kpi"><span>تقارير مستحقة خلال 30 يوماً</span><b>{{ reports_due|length }}</b></div>
+  <div class="kpi {% if reports_overdue %}kpi-bad{% endif %}"><span>تقارير متأخرة</span><b>{{ reports_overdue|length }}</b></div>
+</div>
+<div class="card"><h3>المنح السارية</h3><div class="table-wrap"><table class="table">
+<thead><tr><th>المنحة</th><th>المانح</th><th>المدة</th><th class="num">المعتمد</th><th class="num">المستلم</th><th class="num">المصروف</th><th class="num">رصيد الصندوق</th><th class="num">نسبة الصرف</th><th class="num">المدة المنقضية</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><a href="{{ r.grant.get_absolute_url }}">{{ r.grant }}</a></td><td>{{ r.grant.grantor }}</td><td>{{ r.grant.start_date|date:"Y-m-d" }} — {{ r.grant.end_date|date:"Y-m-d" }}</td>
+<td class="num">{{ r.approved|money }}</td><td class="num">{{ r.received|money }}</td><td class="num">{{ r.spent|money }}</td><td class="num {% if r.balance < 0 %}neg{% endif %}">{{ r.balance|money }}</td>
+<td class="num {% if r.burn > 100 %}neg{% endif %}">{{ r.burn|floatformat:1 }}%</td><td class="num">{{ r.elapsed|floatformat:0 }}%</td></tr>
+{% empty %}<tr><td colspan="9" class="muted center">لا منح سارية</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="grid-2">
+<div class="card"><h3>دفعات متوقعة ومتأخرة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for i in overdue_installments %}<tr class="row-loss"><td><a href="{{ i.get_absolute_url }}">{{ i.grant }}</a></td><td>{{ i.due_date|date:"Y-m-d" }} (متأخرة)</td><td class="num">{{ i.amount|money }}</td></tr>{% endfor %}
+{% for i in upcoming_installments %}<tr><td><a href="{{ i.get_absolute_url }}">{{ i.grant }}</a></td><td>{{ i.due_date|date:"Y-m-d" }}</td><td class="num">{{ i.amount|money }}</td></tr>{% endfor %}
+{% if not overdue_installments and not upcoming_installments %}<tr><td class="muted">لا دفعات خلال 30 يوماً</td></tr>{% endif %}
+</tbody></table></div></div>
+<div class="card"><h3>تقارير المانحين المستحقة</h3><div class="table-wrap"><table class="table"><tbody>
+{% for r in reports_overdue %}<tr class="row-loss"><td><a href="{{ r.get_absolute_url }}">{{ r }}</a></td><td>{{ r.due_date|date:"Y-m-d" }} (متأخر)</td></tr>{% endfor %}
+{% for r in reports_due %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r }}</a></td><td>{{ r.due_date|date:"Y-m-d" }}</td></tr>{% endfor %}
+{% if not reports_overdue and not reports_due %}<tr><td class="muted">لا تقارير مستحقة خلال 30 يوماً</td></tr>{% endif %}
+</tbody></table></div></div>
+</div>
+{% endblock %}

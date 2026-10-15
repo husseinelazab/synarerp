@@ -46,6 +46,19 @@ class ResetView(auth_views.PasswordResetView):
             return render(request, "registration/reset_unavailable.html")
         return super().dispatch(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        from django.shortcuts import redirect
+
+        from website.ratelimit import too_many
+
+        # حد للطلبات من الجهاز نفسه حتى لا يُستغل لإغراق بريد أحد؛ الرد نفسه حتى لا يُعرف أن الطلب أُوقف
+        if too_many(self.request, "password_reset", 5):
+            from core.security_log import event
+
+            event("password_reset_locked", self.request)
+            return redirect(self.success_url)
+        return super().form_valid(form)
+
 
 sent = auth_views.PasswordResetDoneView.as_view(template_name="registration/reset_sent.html")
 confirm = auth_views.PasswordResetConfirmView.as_view(template_name="registration/reset_confirm.html",

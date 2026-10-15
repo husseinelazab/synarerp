@@ -14,6 +14,7 @@ class CoreConfig(AppConfig):
                     "programs", "excellence", "relations", "fleet", "website", "store"):
             import_module(f"{app}.doctypes")
         from core import audit  # noqa: F401 — تفعيل سجل التعديلات
+        from core import security_log  # noqa: F401 — سجل أحداث الأمان
 
         # عزل الشركات داخل PostgreSQL: الدور المقيد لكل اتصال تشغيل، والسياسات بعد كل ترحيل
         from django.db.backends.signals import connection_created

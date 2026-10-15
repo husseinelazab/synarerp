@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.permissions import sees_costs
 from core.utils import flt
 from stock import barcode
 from stock.models import Bin, Item, ItemGroup, StockCount
@@ -71,7 +72,9 @@ def lookup_api(request):
     if item is None:
         return JsonResponse({"error": "لا يوجد صنف بهذا الباركود أو الكود."}, status=404)
     data = item_json(item, request.company, unit=unit)
-    data.update(selling_rate=str(item.selling_rate), buying_rate=str(item.buying_rate))
+    data.update(selling_rate=str(item.selling_rate))
+    if sees_costs(request):
+        data["buying_rate"] = str(item.buying_rate)
     if scale_qty is not None:
         # باركود ميزان: الوزن وقيمة العبوة شاملة الضريبة
         data.update(qty=str(scale_qty), weighed=True,

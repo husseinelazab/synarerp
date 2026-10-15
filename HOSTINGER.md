@@ -181,11 +181,15 @@ cd ~/synar && docker compose exec backup sh /backup.sh once
 عند وجود تحديثات جديدة في GitHub:
 ```bash
 cd ~/synar
-docker compose exec backup sh /backup.sh once     # نسخة احتياطية قبل التحديث
-git pull                                          # سيسألك اسم المستخدم والمفتاح مرة أخرى
-docker compose up -d --build
+sh deploy/update.sh      # نسخة احتياطية ← تحديث ← فحص؛ قد يسألك اسم المستخدم والمفتاح
 ```
-التحديث يأخذ دقائق، والبيانات لا تتأثر.
+التحديث يأخذ دقائق، والبيانات لا تتأثر. إن لم يعمل النظام بعد التحديث يرجع السكربت للنسخة السابقة تلقائياً.
+
+**لو ظهرت مشكلة بعد التحديث بساعات** (صفحة لا تعمل مثلاً):
+```bash
+cd ~/synar
+sh deploy/rollback.sh    # يرجع للنسخة السابقة خلال دقيقة؛ اكتب «نعم» للتأكيد
+```
 
 > حتى لا يسألك عن المفتاح كل مرة، نفّذ مرة واحدة: `git config --global credential.helper store`
 > (يحفظ المفتاح على الخادم في ملف `~/.git-credentials`؛ مناسب لأنه مفتاح قراءة فقط).
@@ -216,5 +220,7 @@ cd synar
 sudo bash deploy/setup.sh
 
 # عند التحديث
-cd ~/synar && docker compose exec backup sh /backup.sh once && git pull && docker compose up -d --build
+cd ~/synar && sh deploy/update.sh
+# الرجوع للنسخة السابقة
+cd ~/synar && sh deploy/rollback.sh
 ```

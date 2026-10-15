@@ -9,8 +9,14 @@ import time
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
-from django.db import close_old_connections
+from django.db import close_old_connections, connection
 from django.utils import timezone
+
+
+def refresh_connections():
+    # داخل معاملة (اختبار أو استدعاء من كود آخر) يُغلق الاتصال الجاري فتفشل المعاملة؛ المجدول نفسه لا يعمل داخل معاملة
+    if not connection.in_atomic_block:
+        close_old_connections()
 
 
 class Command(BaseCommand):
@@ -20,7 +26,7 @@ class Command(BaseCommand):
         parser.add_argument("--once", action="store_true", help="تشغيل كل المهام مرة واحدة ثم الخروج")
 
     def run(self, name, *args):
-        close_old_connections()
+        refresh_connections()
         try:
             call_command(name, *args, stdout=self.stdout)
         except Exception as exc:  # فشل مهمة لا يوقف المجدول
@@ -57,7 +63,7 @@ class Command(BaseCommand):
         from core.jobs import run_pending
 
         while True:
-            close_old_connections()
+            refresh_connections()
             try:
                 run_pending()
             except Exception as exc:  # خطأ في الطابور لا يوقف المهام الدورية

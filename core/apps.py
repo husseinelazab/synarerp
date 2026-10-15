@@ -14,3 +14,18 @@ class CoreConfig(AppConfig):
                     "programs", "excellence", "relations", "fleet", "website", "store"):
             import_module(f"{app}.doctypes")
         from core import audit  # noqa: F401 — تفعيل سجل التعديلات
+
+        # عزل الشركات داخل PostgreSQL: الدور المقيد لكل اتصال تشغيل، والسياسات بعد كل ترحيل
+        from django.db.backends.signals import connection_created
+        from django.db.models.signals import post_migrate
+
+        from core import rls
+
+        connection_created.connect(rls.on_connection_created, dispatch_uid="synar-rls-role")
+        post_migrate.connect(_install_rls, sender=self, dispatch_uid="synar-rls-install")
+
+
+def _install_rls(sender, using="default", **kwargs):
+    from core import rls
+
+    rls.install(using)

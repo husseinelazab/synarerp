@@ -24,3 +24,35 @@ jobs:
         run: python manage.py check
       - name: الاختبارات
         run: python manage.py test --parallel 4
+
+  # نفس الاختبارات على PostgreSQL بالدور المقيد: تتأكد أن عزل الشركات في قاعدة البيانات (RLS) لا يكسر أي مسار
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: synar
+          POSTGRES_USER: synar
+          POSTGRES_PASSWORD: synar
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U synar" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      SYNAR_DB_NAME: synar
+      SYNAR_DB_USER: synar
+      SYNAR_DB_PASSWORD: synar
+      SYNAR_DB_HOST: 127.0.0.1
+      SYNAR_TEST_RLS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: مكتبات توليد PDF
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0
+      - name: تثبيت المتطلبات
+        run: pip install -r requirements.txt
+      - name: الاختبارات بعزل الشركات في قاعدة البيانات
+        run: python manage.py test --noinput

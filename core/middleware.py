@@ -45,7 +45,9 @@ class TenantMiddleware:
             return render(request, "core/no_company.html", status=403)
 
         request.membership, request.company = membership, membership.company
-        token = set_current_company(membership.company)
+        # لوحة المنصة لمدير المنصة تعمل على كل الشركات، فلا تُقيَّد قاعدة البيانات بشركته الحالية
+        sync_db = not path.startswith("/platform/")
+        token = set_current_company(membership.company, sync_db=sync_db)
         user_token = set_current_user(request.user)
         ip_token = _current_ip.set(client_ip(request))
         try:
@@ -56,7 +58,7 @@ class TenantMiddleware:
             blocked = self._check_access(request, path)
             return blocked or self.get_response(request)
         finally:
-            reset_current_company(token)
+            reset_current_company(token, sync_db=sync_db)
             _current_user.reset(user_token)
             _current_ip.reset(ip_token)
 

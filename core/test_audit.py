@@ -5,7 +5,7 @@ from django.test import TestCase
 from core.models import AuditLog, Company, Membership, Role
 from core.tenancy import _current_user, set_current_user
 from selling.models import Customer, SalesInvoice
-from stock.models import Item
+from stock.models import Item, Warehouse
 
 
 class AuditTests(TestCase):
@@ -75,7 +75,7 @@ class AuditTests(TestCase):
 
         self.assertEqual(_value(F(), "abc"), "***")
         inv = SalesInvoice.objects.create(company=self.company, customer=Customer.objects.first(), update_stock=True,
-                                          warehouse_id=1)
+                                          warehouse=Warehouse.all_objects.filter(company=self.company).order_by("pk").first())
         inv.items.create(item=Item.objects.get(code="MOU-001"), qty=1, rate=75)
         inv.calculate_totals()
         inv.save()

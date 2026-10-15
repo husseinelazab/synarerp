@@ -31,12 +31,15 @@ case "$1" in
     if [ -n "$SYNAR_ADMIN_USER" ] && [ -n "$SYNAR_ADMIN_PASSWORD" ]; then
       python manage.py setup_erp --no-company --admin "$SYNAR_ADMIN_USER" --password "$SYNAR_ADMIN_PASSWORD"
     fi
+    # التشغيل بالدور المقيد حتى تسري سياسات عزل الشركات في قاعدة البيانات (الترحيلات أعلاه بالمالك)
+    export SYNAR_DB_RUNTIME_ROLE=1
     exec gunicorn synar.wsgi:application --bind 0.0.0.0:8000 \
       --workers "${SYNAR_WORKERS:-3}" --threads "${SYNAR_THREADS:-2}" --timeout 120 \
       --access-logfile - --error-logfile - --forwarded-allow-ips "*"
     ;;
   scheduler)
     wait_for_db
+    export SYNAR_DB_RUNTIME_ROLE=1
     exec python manage.py run_scheduler
     ;;
   *)

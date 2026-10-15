@@ -313,9 +313,10 @@ def collection(request, slug):
             qs = qs.filter(cond)
         names = {f.name: f for f in dt.model._meta.concrete_fields}
         for key, value in request.GET.items():
-            base = key.split("__")[0]
-            if base in names and base not in HIDDEN and key.split("__")[-1] in (base, "gte", "lte", "in"):
-                qs = qs.filter(**{key: value.split(",") if key.endswith("__in") else value})
+            # حقل مباشر فقط (مع gte/lte/in): لا عبور للعلاقات حتى لا يُستعلم عن بيانات شركات أخرى أو المستخدمين
+            base, _, lookup = key.partition("__")
+            if base in names and base not in HIDDEN and lookup in ("", "gte", "lte", "in"):
+                qs = qs.filter(**{key: value.split(",") if lookup == "in" else value})
         if "modified_since" in request.GET and "modified_at" in names:
             qs = qs.filter(modified_at__gte=request.GET["modified_since"])
         try:

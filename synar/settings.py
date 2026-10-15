@@ -104,6 +104,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "synar.wsgi.application"
 
+# عزل الشركات داخل PostgreSQL (Row Level Security) طبقةً ثانية تحت ترشيح التطبيق: core/rls.py
+SYNAR_DB_RLS = os.environ.get("SYNAR_DB_RLS", "1") == "1"
+SYNAR_DB_RLS_ROLE = os.environ.get("SYNAR_DB_RLS_ROLE", "synar_tenant")
+TEST_RUNNER = "core.test_runner.SynarTestRunner"
+
 if os.environ.get("SYNAR_DB_NAME"):
     DATABASES = {
         "default": {

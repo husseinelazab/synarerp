@@ -33,21 +33,33 @@ def get_current_company():
     return _current_company.get()
 
 
-def set_current_company(company):
-    return _current_company.set(company)
+def _sync_database(company):
+    # طبقة العزل الثانية: قاعدة البيانات نفسها لا تُظهر إلا صفوف هذه الشركة (core/rls.py)
+    from core.rls import sync_company
+
+    sync_company(company)
 
 
-def reset_current_company(token):
+def set_current_company(company, sync_db=True):
+    token = _current_company.set(company)
+    if sync_db:
+        _sync_database(company)
+    return token
+
+
+def reset_current_company(token, sync_db=True):
     _current_company.reset(token)
+    if sync_db:
+        _sync_database(_current_company.get())
 
 
 @contextmanager
 def tenant_context(company):
-    token = _current_company.set(company)
+    token = set_current_company(company)
     try:
         yield company
     finally:
-        _current_company.reset(token)
+        reset_current_company(token)
 
 
 class TenantManager(models.Manager):

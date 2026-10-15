@@ -20,6 +20,14 @@
   {% endif %}
 </div>
 {% endif %}
+{% if isolation.available %}
+<div class="card">
+  <h3>عزل بيانات الشركات في قاعدة البيانات</h3>
+  {% if isolation.enforced %}<p class="ok">✓ مفعّل: {{ isolation.protected }} جدولاً لا تُظهر قاعدة البيانات فيها إلا صفوف الشركة صاحبة الطلب.</p>
+  {% else %}<div class="alert alert-error">غير مفعّل بالكامل ({{ isolation.protected }} من {{ isolation.tables }} جدولاً، والاتصال بالمستخدم «{{ isolation.user }}»).
+    يعمل النظام بترشيح التطبيق وحده. شغّل الترحيلات وتأكد أن الخادم يعمل بالدور المقيد (deploy/entrypoint.sh).</div>{% endif %}
+</div>
+{% endif %}
 {% if expiring %}
 <div class="card"><h3>اشتراكات تنتهي خلال 7 أيام</h3>
 <div class="table-wrap"><table class="table"><tbody>{% for s in expiring %}<tr><td><a href="{% url 'platform_company' s.company_id %}">{{ s.company }}</a></td><td>{{ s.plan }}</td><td>{{ s.get_status_display }}</td><td>{{ s.period_end|date:"Y-m-d" }}</td></tr>{% endfor %}</tbody></table></div></div>

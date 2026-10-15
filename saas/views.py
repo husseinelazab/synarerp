@@ -219,8 +219,17 @@ def platform_dashboard(request):
     return render(request, "platform/dashboard.html", {
         "stats": stats, "companies": companies[:300], "query": query,
         "expiring": valid.filter(period_end__lte=today + timezone.timedelta(days=7)).order_by("period_end"),
-        "backup": backup_status(),
+        "backup": backup_status(), "isolation": _isolation_status(),
     })
+
+
+def _isolation_status():
+    from core import rls
+
+    try:
+        return rls.status()
+    except Exception:  # عرض فقط: لا يعطل لوحة المنصة
+        return {"available": False}
 
 
 @user_passes_test(_superuser)

@@ -149,7 +149,8 @@ class SegmentTests(CampaignTestBase):
             Donor.objects.create(name="داعم الجمعية الأخرى", phone="0557777777")
             other_seg = Segment.objects.create(name="الكل", rule=SegmentRule.ALL_DONORS)
         self.assertNotIn("داعم الجمعية الأخرى", self.names(self.segment()))
-        self.assertEqual(self.names(other_seg), ["داعم الجمعية الأخرى"])
+        with tenant_context(self.other):
+            self.assertEqual(self.names(other_seg), ["داعم الجمعية الأخرى"])
         self.assertFalse(Segment.objects.filter(pk=other_seg.pk).exists())
 
 

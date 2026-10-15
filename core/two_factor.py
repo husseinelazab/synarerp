@@ -36,16 +36,25 @@ def _lock_keys(request, username):
     return [f"login-fail:user:{(username or '').strip().lower()}", f"login-fail:ip:{client_ip(request)}"]
 
 
+def _code_key(username):
+    # رموز التحقق الخاطئة: عدّاد مستقل لا يُصفّره إدخال كلمة المرور الصحيحة، وإلا أمكن تخمين الرمز بلا نهاية
+    return f"login-2fa-fail:user:{(username or '').strip().lower()}"
+
+
 def is_locked(request, username):
-    return any((cache.get(key) or 0) >= MAX_FAILURES * (4 if ":ip:" in key else 1) for key in _lock_keys(request, username))
+    limits = [(key, MAX_FAILURES * (4 if ":ip:" in key else 1)) for key in _lock_keys(request, username)]
+    limits.append((_code_key(username), MAX_FAILURES * 2))
+    return any((cache.get(key) or 0) >= limit for key, limit in limits)
+
+
+def _bump(key):
+    # get + set (لا incr): الزيادة في بعض أنواع الذاكرة المؤقتة تعيد مدة الإيقاف للمدة الافتراضية
+    cache.set(key, (cache.get(key) or 0) + 1, LOCK_SECONDS)
 
 
 def record_failure(request, username):
     for key in _lock_keys(request, username):
-        try:
-            cache.incr(key)
-        except ValueError:
-            cache.set(key, 1, LOCK_SECONDS)
+        _bump(key)
 
 
 def clear_failures(request, username):
@@ -58,6 +67,9 @@ class LoginView(auth_views.LoginView):
     def post(self, request, *args, **kwargs):
         username = request.POST.get("username", "")
         if is_locked(request, username):
+            from core.security_log import event
+
+            event("login_locked", request, username)
             form = self.get_form()
             form.errors.clear()
             return self.render_to_response(self.get_context_data(
@@ -99,6 +111,7 @@ def verify_login(request):
             if step is not None:
                 record.last_step = step
             record.save(update_fields=["last_step", "recovery_codes"])
+            cache.delete(_code_key(user.username))
             next_url = request.session.get(SESSION_NEXT) or settings.LOGIN_REDIRECT_URL
             backend = request.session.get(SESSION_BACKEND)
             for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES):
@@ -110,6 +123,15 @@ def verify_login(request):
             if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
                 next_url = settings.LOGIN_REDIRECT_URL
             return redirect(next_url)
+        _bump(_code_key(user.username))
+        from core.security_log import event
+
+        event("two_factor_failed", request, user.username)
+        if is_locked(request, user.username):
+            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES):
+                request.session.pop(key, None)
+            messages.error(request, f"تجاوزت عدد المحاولات. حاول بعد {LOCK_SECONDS // 60} دقيقة.")
+            return redirect("login")
         tries = request.session.get(SESSION_TRIES, 0) + 1
         request.session[SESSION_TRIES] = tries
         if tries >= MAX_CODE_ATTEMPTS:
@@ -142,6 +164,9 @@ def two_factor_setup(request):
                 "enabled_at": timezone.now()})
             request.session.pop("2fa_pending_secret", None)
             request.session["2fa_new_codes"] = codes
+            from core.security_log import event
+
+            event("two_factor_enabled", request, request.user.username)
             messages.success(request, "تم تفعيل التحقق الثنائي. احفظ رموز الاسترداد في مكان آمن.")
             return redirect("two_factor_setup")
         if action in ("disable", "regenerate") and enabled:
@@ -154,6 +179,9 @@ def two_factor_setup(request):
                     messages.error(request, "شركتك تشترط التحقق الثنائي؛ لا يمكن إلغاؤه.")
                     return redirect("two_factor_setup")
                 record.delete()
+                from core.security_log import event
+
+                event("two_factor_disabled", request, request.user.username)
                 messages.success(request, "تم إلغاء التحقق الثنائي.")
             else:
                 codes, record.recovery_codes = totp.new_recovery_codes()
@@ -168,3 +196,13 @@ def two_factor_setup(request):
         uri = totp.provisioning_uri(secret, request.user.username, settings.ERP_NAME_EN)
         context.update({"secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)), "qr": _qr_svg(uri)})
     return render(request, "registration/two_factor.html", context)
+
+
+def admin_login(request):
+    """لوحة Django لا تملك دخولاً خاصاً بها: التحويل لصفحة الدخول الموحدة ثم العودة للوحة."""
+    from django.contrib.auth.views import redirect_to_login
+
+    next_url = request.GET.get("next") or "/admin/"
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        next_url = "/admin/"
+    return redirect_to_login(next_url, settings.LOGIN_URL)

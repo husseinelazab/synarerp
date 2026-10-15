@@ -805,6 +805,16 @@ class RecurringDocument(TenantModel):
     def __str__(self):
         return self.title
 
+    def clean(self):
+        # الاعتماد الآلي اعتماد لاحق باسم من أنشأه: لا يضبطه إلا من يملك صلاحية الاعتماد
+        from core.tenancy import get_current_user
+
+        user = get_current_user()
+        if self.submit_automatically and user is not None and self.company_id:
+            membership = Membership.objects.filter(user=user, company_id=self.company_id).first()
+            if membership is not None and not membership.may_submit:
+                raise ValidationError({"submit_automatically": "صلاحيتك إنشاء المسودات فقط؛ لا يمكنك تفعيل الاعتماد الآلي."})
+
     @property
     def source(self):
         from core.registry import REGISTRY

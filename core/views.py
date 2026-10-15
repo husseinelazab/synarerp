@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from core.display import detail_fields, display_value, field_label
 from core.forms import build_form_class, build_formset_class, style_form
 from core.models import Attachment, DocStatus
+from core.permissions import sees_costs
 from core.registry import get_doctype
 from core.utils import client_ip, flt
 
@@ -520,7 +521,13 @@ def item_api(request, pk):
         "uoms": {str(u["uom"]): {"name": u["name"], "factor": str(u["factor"]), "selling_rate": str(u["selling_rate"]),
                                  "buying_rate": str(u["buying_rate"])} for u in item.uom_options()},
     }
+    if not sees_costs(request):
+        data.pop("buying_rate")
+        for unit in data["uoms"].values():
+            unit.pop("buying_rate")
     kind = request.GET.get("kind")
+    if kind == "buying" and not sees_costs(request):
+        kind = None
     if kind in ("selling", "buying"):
         data["priced"] = _priced(request, item, kind)
     return JsonResponse(data)
@@ -571,6 +578,10 @@ def make_recurring(request, slug, pk):
         from django.utils.dateparse import parse_date
 
         try:
+            if request.POST.get("submit_automatically"):
+                from core.permissions import require_submit
+
+                require_submit(request)
             rec = create(obj, frequency, parse_date(request.POST.get("next_date") or ""),
                          parse_date(request.POST.get("end_date") or ""), bool(request.POST.get("submit_automatically")))
         except ValidationError as exc:

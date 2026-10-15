@@ -1,5 +1,6 @@
 """إعدادات نظام سِينار (Synar ERP)."""
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -229,7 +230,9 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": os.environ.get("SYNAR_LOG_LEVEL", "INFO")},
     "loggers": {"django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
                 # مولّد PDF: رسائل تقسيم الخطوط تفصيلية جداً ولا تفيد في السجل
-                "fontTools": {"level": "ERROR"}, "weasyprint": {"level": "ERROR"}},
+                "fontTools": {"level": "ERROR"}, "weasyprint": {"level": "ERROR"},
+                # أحداث الأمان (الدخول والإيقاف والتحقق الثنائي): تُكتم في الاختبارات فقط
+                "synar.security": {"level": "CRITICAL" if "test" in sys.argv[1:2] else "INFO"}},
 }
 
 # مجلد النسخ الاحتياطية (للقراءة فقط) لعرض حالتها في لوحة إدارة المنصة

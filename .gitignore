@@ -8,3 +8,4 @@ venv/
 /media/
 /backups/
 deploy/offsite.env
+/.deploy/

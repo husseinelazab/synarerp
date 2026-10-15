@@ -16,6 +16,7 @@ from core.tenancy import tenant_context
 from core.utils import flt
 from programs.models import (ADMITTED_STATUSES, EnrollmentStatus, ProgramEnrollment, ProgramStatus, SessionAttendance,
                              TrainingProgram)
+from website.ratelimit import LIMIT_MESSAGE, too_many
 from website.site import render_public
 
 
@@ -144,6 +145,9 @@ def public_register(request, token):
         full = program.is_full
     form = RegistrationForm(request.POST or None)
     done = False
+    # حد للتسجيل من الجهاز نفسه: الصفحة عامة بلا دخول
+    if request.method == "POST" and not closed and too_many(request, "public_register", 10) and form.is_valid():
+        form.add_error(None, LIMIT_MESSAGE)
     if request.method == "POST" and not closed and not full and form.is_valid():
         data = form.cleaned_data
         if data["website"]:

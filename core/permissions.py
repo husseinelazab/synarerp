@@ -125,7 +125,9 @@ PATH_MODULES = [
     ("/beneficiaries/", "beneficiaries"),
 ]
 # مستندات مشتركة بين أكثر من وحدة
-SHARED_DOCTYPES = {"payment-entry": {"selling", "buying", "accounts"},
+SHARED_DOCTYPES = {"exchange-rate": {"accounts"},
+                   "recurring-document": {"selling", "buying", "accounts"},
+                   "payment-entry": {"selling", "buying", "accounts"},
                    "payment-reconciliation": {"selling", "buying", "accounts"},
                    "price-list": {"selling", "buying", "stock"}, "item-price": {"selling", "buying", "stock"},
                    "pricing-rule": {"selling", "buying", "stock"},
@@ -181,6 +183,12 @@ def path_allowed(membership, path):
         return False
     modules = modules_for_path(path)
     return modules is None or any(membership.allows_module(m) for m in modules)
+
+
+def sees_costs(request):
+    """أسعار الشراء والتقييم: تُحجب عمن أُخفيت عنه التكاليف (في الصفحات وواجهات JSON)."""
+    membership = getattr(request, "membership", None)
+    return membership is None or membership.may("costs")
 
 
 def require_action(request, action):

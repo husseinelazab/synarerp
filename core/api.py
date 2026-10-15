@@ -4,6 +4,7 @@
 كل طلب يعمل بصلاحيات المستخدم المرتبط بالمفتاح (الوحدات، الاعتماد، الفروع)، والتحقق من البيانات
 يمر بنفس نماذج الواجهة فتنطبق كل قواعد النظام.
 """
+import contextvars
 import datetime
 import json
 from decimal import Decimal
@@ -66,11 +67,13 @@ def api_view(view):
         request.user, request.membership, request.company, request.api_key = key.user, membership, key.company, key
         token = set_current_company(key.company)
         user_token = set_current_user(key.user)
+        costs_token = _hide_costs.set(not membership.may("costs"))
         try:
             return view(request, *args, **kwargs)
         finally:
             reset_current_company(token)
             _current_user.reset(user_token)
+            _hide_costs.reset(costs_token)
     return wrapper
 
 
@@ -85,10 +88,16 @@ def _value(obj, field):
     return value
 
 
+# أسعار الشراء والتقييم: تُحذف من الردود لمن أُخفيت عنه التكاليف (يُضبط مع كل طلب في api_view)
+COST_FIELDS = {"buying_rate", "valuation_rate", "stock_value", "price_list_rate", "incoming_rate"}
+_hide_costs = contextvars.ContextVar("api_hide_costs", default=False)
+
+
 def serialize(obj, child=None):
+    hidden = HIDDEN | COST_FIELDS if _hide_costs.get() else HIDDEN
     data = {"id": obj.pk}
     for field in obj._meta.concrete_fields:
-        if field.name in HIDDEN or field.name == "id":
+        if field.name in hidden or field.name == "id":
             continue
         data[field.name] = _value(obj, field)
         if field.is_relation and data[field.name] is not None:
@@ -133,15 +142,21 @@ def doctype_schema(dt):
 
 # ---------------- الصلاحيات ----------------
 
-def _doctype(request, slug):
-    from core.permissions import modules_for_path
+def _doctype(request, slug, sub=""):
+    """صلاحيات الواجهة نفسها لمسار الصفحة المقابل (/app/<slug>/<sub>): الوحدة، والمستندات المحجوبة أو للاطلاع فقط،
+    وصفحات المدير، وباقة الاشتراك."""
+    from core.middleware import MANAGER_PREFIXES
+    from core.permissions import path_allowed, plan_allows_path
 
     dt = REGISTRY.get(slug)
     if dt is None:
         return None, error("نوع المستند غير موجود.", 404, "not_found")
-    modules = modules_for_path(f"/app/{slug}/")
-    if modules and not any(request.membership.allows_module(m) for m in modules):
-        return None, error("ليست لديك صلاحية على هذه الوحدة.", 403, "forbidden")
+    path = f"/app/{slug}/{sub}"
+    membership = request.membership
+    subscription = getattr(request.company, "subscription", None)
+    if ((path.startswith(MANAGER_PREFIXES) and not membership.can_manage) or not path_allowed(membership, path)
+            or not plan_allows_path(getattr(subscription, "plan", None), path)):
+        return None, error("ليست لديك صلاحية على هذه الوحدة أو هذا الإجراء.", 403, "forbidden")
     return dt, None
 
 
@@ -260,6 +275,10 @@ def _run(request, obj, action):
     with transaction.atomic():
         if action in ("submit", "cancel"):
             require_submit(request)
+            if action == "cancel":
+                from core.permissions import require_action
+
+                require_action(request, "cancel")
             getattr(obj, action)()
             return None
         allowed = dict(list(getattr(obj, "available_actions", [])) + list(getattr(obj, "draft_actions", [])))
@@ -300,7 +319,7 @@ def index(request):
 
 @api_view
 def collection(request, slug):
-    dt, err = _doctype(request, slug)
+    dt, err = _doctype(request, slug, "new/" if request.method == "POST" else "")
     if err:
         return err
     if request.method == "GET":
@@ -313,9 +332,11 @@ def collection(request, slug):
             qs = qs.filter(cond)
         names = {f.name: f for f in dt.model._meta.concrete_fields}
         for key, value in request.GET.items():
-            base = key.split("__")[0]
-            if base in names and base not in HIDDEN and key.split("__")[-1] in (base, "gte", "lte", "in"):
-                qs = qs.filter(**{key: value.split(",") if key.endswith("__in") else value})
+            # حقل مباشر فقط (مع gte/lte/in): لا عبور للعلاقات حتى لا يُستعلم عن بيانات شركات أخرى أو المستخدمين
+            base, _, lookup = key.partition("__")
+            hidden = HIDDEN | COST_FIELDS if _hide_costs.get() else HIDDEN
+            if base in names and base not in hidden and lookup in ("", "gte", "lte", "in"):
+                qs = qs.filter(**{key: value.split(",") if lookup == "in" else value})
         if "modified_since" in request.GET and "modified_at" in names:
             qs = qs.filter(modified_at__gte=request.GET["modified_since"])
         try:
@@ -346,7 +367,8 @@ def collection(request, slug):
 
 @api_view
 def item(request, slug, pk):
-    dt, err = _doctype(request, slug)
+    sub = {"PATCH": "edit/", "PUT": "edit/", "DELETE": "delete/"}.get(request.method, "")
+    dt, err = _doctype(request, slug, f"{pk}/{sub}")
     if err:
         return err
     obj = _queryset(request, dt).filter(pk=pk).first()
@@ -369,6 +391,12 @@ def item(request, slug, pk):
     if request.method == "DELETE":
         if not editable:
             return error("يمكن حذف المسودات فقط؛ ألغِ المستند بدلاً من ذلك.", 409, "not_editable")
+        from core.permissions import require_action
+
+        try:
+            require_action(request, "delete")
+        except ValidationError as exc:
+            return error(exc.messages[0], 403, "forbidden")
         try:
             obj.delete()
         except (ProtectedError, ValidationError):
@@ -381,7 +409,7 @@ def item(request, slug, pk):
 def action(request, slug, pk, name):
     if request.method != "POST":
         return error("استخدم POST.", 405, "method_not_allowed")
-    dt, err = _doctype(request, slug)
+    dt, err = _doctype(request, slug, f"{pk}/{name}/")
     if err:
         return err
     obj = _queryset(request, dt).filter(pk=pk).first()
@@ -411,8 +439,9 @@ def stock_balance(request):
         qs = qs.filter(item_id=request.GET["item"])
     return ok({"results": [{"item": b.item_id, "item_code": b.item.code, "item_name": b.item.name,
                             "warehouse": b.warehouse_id, "warehouse_name": b.warehouse.name,
-                            "qty": str(b.actual_qty), "valuation_rate": str(b.valuation_rate),
-                            "stock_value": str(b.stock_value)} for b in qs]})
+                            "qty": str(b.actual_qty),
+                            **({} if _hide_costs.get() else {"valuation_rate": str(b.valuation_rate),
+                                                             "stock_value": str(b.stock_value)})} for b in qs]})
 
 
 @api_view

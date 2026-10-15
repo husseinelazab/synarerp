@@ -23,6 +23,8 @@ urlpatterns = [
     re_path(r"^iclock/cdata(?:\.aspx)?/?$", adms.cdata),
     re_path(r"^iclock/getrequest(?:\.aspx)?/?$", adms.getrequest),
     re_path(r"^iclock/devicecmd(?:\.aspx)?/?$", adms.devicecmd),
+    # دخول لوحة Django يمر بصفحة الدخول نفسها (التحقق الثنائي والإيقاف بعد المحاولات الخاطئة)
+    path("admin/login/", two_factor.admin_login),
     path("admin/", admin.site.urls),
     path("login/", two_factor.LoginView.as_view(), name="login"),
     path("login/verify/", two_factor.verify_login, name="login_verify"),

@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import DocStatus, SubmittableDocument, TenantModel
 from core.tenancy import tenant_unique
@@ -242,7 +243,7 @@ class Employee(TenantModel):
         """ملخص لصفحة الموظف: مدة الخدمة، تقدير المكافأة، المخصص، الإجازات، حضور الشهر."""
         from hr.eos import SeparationReason, calculate, describe_duration
 
-        today = as_of or datetime.date.today()
+        today = as_of or timezone.localdate()
         end = min(today, self.relieving_date) if self.relieving_date else today
         settings = PayrollSettings.for_company(self.company)
         wage = settings.eos_wage(self)
@@ -769,11 +770,11 @@ MONTHS = [(1, "يناير"), (2, "فبراير"), (3, "مارس"), (4, "أبري
 
 
 def _current_year():
-    return datetime.date.today().year
+    return timezone.localdate().year
 
 
 def _current_month():
-    return datetime.date.today().month
+    return timezone.localdate().month
 
 
 class PayrollRun(SubmittableDocument):

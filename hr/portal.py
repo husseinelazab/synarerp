@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 
 from core.forms import formfield_callback, style_form
 from hr.models import (MONTHS, Attendance, DocStatus, Employee, EmployeeLoan, LeaveApplication, LeaveType, PayrollLine,
@@ -55,7 +56,7 @@ class LoanRequestForm(forms.Form):
 
 @portal_view
 def portal_home(request, employee):
-    today = datetime.date.today()
+    today = timezone.localdate()
     payslips = PayrollLine.objects.filter(employee=employee, parent__docstatus=DocStatus.SUBMITTED).select_related(
         "parent").order_by("-parent__year", "-parent__month")[:12]
     return render(request, "hr/portal/home.html", {
@@ -96,7 +97,7 @@ def portal_leave(request, employee):
 
 @portal_view
 def portal_loan(request, employee):
-    today = datetime.date.today()
+    today = timezone.localdate()
     nxt = today.replace(day=1) + datetime.timedelta(days=32)
     form = LoanRequestForm(request.POST or None, initial={"start_month": nxt.month, "start_year": nxt.year})
     style_form(form)
@@ -138,7 +139,7 @@ def portal_payslip(request, employee, pk):
 
 @portal_view
 def portal_attendance(request, employee):
-    today = datetime.date.today()
+    today = timezone.localdate()
     try:
         year, month = int(request.GET.get("year", today.year)), int(request.GET.get("month", today.month))
         start, end = month_bounds(year, month)

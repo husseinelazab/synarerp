@@ -16,6 +16,7 @@ from django.db import transaction
 
 from hr.eos import calculate, describe_duration
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 
 from hr.models import (FIXED_HOLIDAYS, MONTHS, Attendance, AttendanceStatus, DocStatus, Employee, Holiday,
                        LeaveApplication, LeaveType, PayrollRun, PayrollSettings, eos_provision_balance, holiday_dates,
@@ -50,7 +51,7 @@ def payroll_settings(request):
 
 @login_required
 def leave_balances(request):
-    today = datetime.date.today()
+    today = timezone.localdate()
     try:
         year = int(request.GET.get("year", today.year))
     except ValueError:
@@ -140,7 +141,7 @@ def attendance_daily(request):
     try:
         day = datetime.date.fromisoformat(request.GET.get("date") or request.POST.get("date") or "")
     except ValueError:
-        day = datetime.date.today()
+        day = timezone.localdate()
     settings = PayrollSettings.for_company(request.company)
     employees = list(Employee.objects.filter(date_of_joining__lte=day).exclude(relieving_date__lt=day)
                      .select_related("department", "shift"))
@@ -207,7 +208,7 @@ def attendance_daily(request):
 
 @login_required
 def attendance_monthly(request):
-    today = datetime.date.today()
+    today = timezone.localdate()
     try:
         year, month = int(request.GET.get("year", today.year)), int(request.GET.get("month", today.month))
         start, end = month_bounds(year, month)
@@ -278,7 +279,7 @@ def eos_provision(request):
     try:
         as_of = datetime.date.fromisoformat(request.GET.get("as_of", ""))
     except ValueError:
-        as_of = datetime.date.today()
+        as_of = timezone.localdate()
     settings = PayrollSettings.for_company(request.company)
     rows, totals = [], {"liability": Decimal(0), "provision": Decimal(0), "resign": Decimal(0)}
     for emp in Employee.objects.filter(date_of_joining__lte=as_of).exclude(relieving_date__lt=as_of).exclude(
@@ -303,7 +304,7 @@ def eos_provision(request):
 def add_fixed_holidays(request):
     from hr.models import add_official_holidays
 
-    year = int(request.POST.get("year") or datetime.date.today().year)
+    year = int(request.POST.get("year") or timezone.localdate().year)
     added = add_official_holidays(year)
     if added:
         messages.success(request, f"أُضيفت عطل {year}: " + "، ".join(
@@ -422,7 +423,7 @@ def hr_dashboard(request):
 
     from hr.models import EmployeeLoan, EmployeeStatus, PayrollLine
 
-    today = datetime.date.today()
+    today = timezone.localdate()
     active = Employee.objects.filter(date_of_joining__lte=today).exclude(relieving_date__lt=today).exclude(
         status=EmployeeStatus.LEFT)
     on_leave = LeaveApplication.objects.filter(docstatus=DocStatus.SUBMITTED, from_date__lte=today,

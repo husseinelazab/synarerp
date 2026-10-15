@@ -6,6 +6,7 @@ import datetime
 
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
+from django.utils import timezone
 
 from core.models import Company, Notification
 from core.notify import notify_managers
@@ -21,7 +22,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from stock.models import Batch
 
-        today = datetime.date.today()
+        today = timezone.localdate()
         horizon = today + datetime.timedelta(days=options["days"])
         sent = 0
         for company in Company.objects.all():

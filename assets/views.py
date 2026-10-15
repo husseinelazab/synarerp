@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from assets.models import Asset, AssetCategory, AssetDepreciation, AssetStatus
 from assets.services import dispose, pending_rows, post_depreciation
@@ -22,7 +23,7 @@ def _error(exc):
 @login_required
 def depreciation(request):
     """ترحيل أقساط الإهلاك المستحقة حتى تاريخ (عادة نهاية الشهر)."""
-    today = datetime.date.today()
+    today = timezone.localdate()
     try:
         upto = datetime.date.fromisoformat(request.POST.get("upto") or request.GET.get("upto") or "")
     except ValueError:
@@ -72,7 +73,7 @@ def dispose_asset(request, pk):
     if asset.status == AssetStatus.DISPOSED:
         messages.info(request, "الأصل مستبعد مسبقاً.")
         return redirect(asset.get_absolute_url())
-    form = DisposeForm(request.POST or None, initial={"date": datetime.date.today()})
+    form = DisposeForm(request.POST or None, initial={"date": timezone.localdate()})
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
@@ -93,7 +94,7 @@ def asset_register(request):
     try:
         as_of = datetime.date.fromisoformat(request.GET.get("as_of", ""))
     except ValueError:
-        as_of = datetime.date.today()
+        as_of = timezone.localdate()
     assets = Asset.objects.filter(docstatus=DocStatus.SUBMITTED, purchase_date__lte=as_of).select_related(
         "category", "custodian").order_by("category__name", "name")
     rows, groups = [], {}

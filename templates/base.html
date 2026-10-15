@@ -13,7 +13,10 @@
 {% if user.is_authenticated %}
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
+    <div class="brand-row">
+      <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
+      <button class="menu-close" type="button" aria-label="إغلاق القائمة" onclick="toggleMenu(false)">✕</button>
+    </div>
     <div class="nav-filter"><input type="search" id="nav-filter" placeholder="ابحث في القائمة…" aria-label="ابحث في القائمة" autocomplete="off"></div>
     <nav class="side-nav">
       {% if current_membership %}
@@ -52,13 +55,29 @@
             document.querySelectorAll('.side-nav > .nav-module[open]').forEach(function (o) { if (o !== d) o.open = false; });
         });
       });
-      // الوحدة المفتوحة تظهر في مجال الرؤية
-      (function () { var cur = document.querySelector('.nav-item.active'); if (cur) cur.scrollIntoView({block: 'center'}); })();
+      // الصفحة الحالية تظهر في منتصف القائمة: تمرير القائمة وحدها (scrollIntoView قد يحرك الصفحة جانبياً في الجوال)
+      (function () {
+        var side = document.getElementById('sidebar'), cur = side.querySelector('.nav-item.active');
+        if (cur) side.scrollTop += cur.getBoundingClientRect().top - side.getBoundingClientRect().top - side.clientHeight / 2;
+      })();
+      // قائمة الجوال: خلفية معتمة، والإغلاق بلمس خارجها أو Esc أو عند فتح صفحة
+      function toggleMenu(open) {
+        var side = document.getElementById('sidebar');
+        open = open === undefined ? !side.classList.contains('open') : open;
+        side.classList.toggle('open', open);
+        document.body.classList.toggle('menu-open', open);
+        var button = document.querySelector('.menu-toggle');
+        if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') toggleMenu(false); });
+      document.getElementById('sidebar').addEventListener('click', function (e) { if (e.target.closest('a[href]')) toggleMenu(false); });
+      window.addEventListener('pageshow', function () { toggleMenu(false); });
     </script>
   </aside>
+  <div class="menu-backdrop" onclick="toggleMenu(false)" aria-hidden="true"></div>
   <div class="main">
     <header class="topbar">
-      <button class="menu-toggle" type="button" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <button class="menu-toggle" type="button" aria-label="القائمة" aria-controls="sidebar" aria-expanded="false" onclick="toggleMenu()">☰</button>
       {% if current_company %}<form method="get" action="{% url 'global_search' %}" class="global-search" role="search" data-suggest="{% url 'search_suggest' %}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input type="search" name="q" class="form-control" placeholder="{% if current_company.is_nonprofit %}ابحث عن مستفيد، متبرع، سند، أو صفحة…{% else %}ابحث عن عميل، صنف، فاتورة، أو صفحة…{% endif %}" aria-label="بحث في النظام" autocomplete="off" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">

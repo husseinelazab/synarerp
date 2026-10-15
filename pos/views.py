@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 
 from core.utils import currency_symbol_html
 from core.zatca import invoice_qr_svg
@@ -117,8 +118,6 @@ def items_api(request):
     if shift is None:
         return JsonResponse({"error": "لا توجد وردية مفتوحة."}, status=400)
     stock = dict(Bin.objects.filter(warehouse=shift.profile.warehouse).values_list("item_id", "actual_qty"))
-    import datetime
-
     from django.db.models import Q
 
     price_list = pos_price_list(shift.profile, shift.profile.default_customer)
@@ -126,7 +125,7 @@ def items_api(request):
     if price_list is not None:
         from pricing.models import ItemPrice
 
-        today = datetime.date.today()
+        today = timezone.localdate()
         for p in (ItemPrice.objects.filter(price_list=price_list)
                   .filter(Q(valid_from__isnull=True) | Q(valid_from__lte=today),
                           Q(valid_upto__isnull=True) | Q(valid_upto__gte=today)).select_related("item")

@@ -5,7 +5,6 @@
 - لا تُصدَّر الأسرار: كلمات المرور والرموز والمفاتيح (حتى المشفّرة منها)، ولا كلمات مرور المستخدمين.
 - الجداول المشتركة بين كل الشركات (العملات، الباقات) لا تُصدَّر.
 """
-import datetime
 import io
 import json
 import zipfile
@@ -105,4 +104,4 @@ def write_export(company, stream, user=None):
 
 
 def export_filename(company):
-    return f"synar-company-{company.pk}-{datetime.date.today():%Y%m%d}.zip"
+    return f"synar-company-{company.pk}-{timezone.localdate():%Y%m%d}.zip"

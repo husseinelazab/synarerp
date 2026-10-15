@@ -8,6 +8,7 @@ import datetime
 
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
+from django.utils import timezone
 
 from core.utils import flt
 
@@ -57,7 +58,7 @@ def auto_batch_no(item, doc):
     """رقم تشغيلة تلقائي: كود الصنف + تاريخ المستند، مع رقم تسلسلي عند التكرار."""
     from stock.models import Batch
 
-    posting = getattr(doc, "posting_date", None) or datetime.date.today()
+    posting = getattr(doc, "posting_date", None) or timezone.localdate()
     base = f"{item.code}-{posting:%y%m%d}"
     existing = set(Batch.all_objects.filter(company_id=item.company_id, item=item, batch_no__startswith=base)
                    .values_list("batch_no", flat=True))

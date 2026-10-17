@@ -1,4 +1,4 @@
-{% load erp static %}<!doctype html>
+{% load erp static %}{% document_layout ps "reports" as studio %}<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -16,6 +16,7 @@
   .tpl-modern .items tbody tr:nth-child(even) td { background: {{ tints.4 }}; }
 </style>{% endif %}
 <style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }{% if landscape %} @page { size: A4 landscape; margin: 8mm; }{% endif %}</style>
+{% if studio.configured %}<style>.sheet{padding:{{ studio.margin }}mm;font-size:{{ studio.font_size }}px;line-height:{{ studio.line_height }}}.logo{max-width:{{ studio.logo_width }}mm}{% if studio.identity_side == "left" %}.doc-header{flex-direction:row-reverse}{% endif %}</style>{% endif %}
 </head>
 <body class="tpl-{{ template }}">
 {% if not pdf %}<div class="toolbar no-print">

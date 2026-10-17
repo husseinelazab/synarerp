@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -129,7 +130,10 @@ class ApiTests(TestCase):
         original = api.RATE_LIMIT_PER_MINUTE
         api.RATE_LIMIT_PER_MINUTE = 3
         try:
-            codes = [self.call("get", "/api/v1/").status_code for _ in range(4)]
+            from django.utils import timezone
+            now=timezone.now()
+            with patch("core.api.timezone.now",return_value=now):
+                codes = [self.call("get", "/api/v1/").status_code for _ in range(4)]
         finally:
             api.RATE_LIMIT_PER_MINUTE = original
         self.assertEqual(codes, [200, 200, 200, 429])

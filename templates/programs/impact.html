@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
 {% block content %}
+<div class="toolbar"><a class="btn btn-primary" href="{% url 'impact_center' %}">لوحة الأهداف والنتائج والتكلفة</a></div>
 <form method="get" class="filters card">
   <label>من تاريخ <input type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" class="form-control"></label>
   <label>إلى تاريخ <input type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" class="form-control"></label>
   <button class="btn btn-primary">عرض</button>
   <button type="button" class="btn" onclick="window.print()">طباعة</button>
 </form>
-<div class="card"><p class="muted small">{{ company.name }} — البرامج المنفذة من {{ from_date|date:"Y-m-d" }} إلى {{ to_date|date:"Y-m-d" }}. التحسن = (متوسط البعدي − متوسط القبلي) ÷ متوسط القبلي.</p>
+<div class="card"><p class="muted small">{{ company.name }} — البرامج المنفذة من {{ from_date|date:"Y-m-d" }} إلى {{ to_date|date:"Y-m-d" }}. التحسن يقارن متوسطات الأشخاص الذين لديهم قياس قبلي وبعدي معًا؛ غياب القياس لا يُحسب صفرًا.</p>
 <div class="table-wrap"><table class="table report">
 <thead><tr><th>البرنامج</th><th>النوع</th><th>المسار</th><th>الفترة</th><th>الحالة</th><th class="num">الساعات</th><th class="num">الملتحقون</th><th class="num">المجتازون</th><th class="num">نسبة الإتمام</th>
 <th class="num">متوسط القبلي</th><th class="num">متوسط البعدي</th><th class="num">التحسن</th><th class="num">الرضا</th><th class="num">ساعات تدريبية منفذة</th></tr></thead><tbody>

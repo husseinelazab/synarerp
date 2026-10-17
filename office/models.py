@@ -1,4 +1,6 @@
 """إدارة التوثيق والمستندات (الصادر والوارد ومسار المعاملة والأرشيف) والمكتب الإلكتروني (الطلبات الإدارية والتعاميم)."""
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -33,6 +35,7 @@ class CorrespondenceStatus(models.TextChoices):
 
 
 class Correspondence(TenantModel):
+    verification_uuid = models.UUIDField(default=uuid.uuid4,unique=True,editable=False)
     """معاملة صادرة أو واردة أو داخلية برقم قيد تلقائي لكل نوع وسنة، ومسار إحالة موثق."""
 
     direction = models.CharField("النوع", max_length=10, choices=Direction.choices, default=Direction.INCOMING)

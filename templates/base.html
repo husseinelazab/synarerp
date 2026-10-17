@@ -4,24 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ ERP_NAME }}{% endblock %} | {{ ERP_NAME }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#102d40">
   <link rel="stylesheet" href="{% static 'css/erp.css' %}">
   <link rel="stylesheet" href="{% static 'css/currency.css' %}">
   <link rel="stylesheet" href="{% static 'css/workspace.css' %}">
   <link rel="stylesheet" href="{% static 'css/work-center.css' %}">
+  <link rel="stylesheet" href="{% static 'css/impact.css' %}">
+  <link rel="stylesheet" href="{% static 'css/interface.css' %}">
 </head>
 <body>
 {% if user.is_authenticated %}
+<a class="skip-link" href="#main-content">انتقل إلى المحتوى</a>
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <button type="button" class="sidebar-dismiss" aria-label="إغلاق القائمة" onclick="document.getElementById('sidebar').classList.remove('open')">×</button>
-    <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
+    <button type="button" class="sidebar-dismiss icon-button" aria-label="إغلاق القائمة" data-nav-close>{% include "core/_icon.html" with name="close" %}</button>
+    <a class="brand" href="{% url 'dashboard' %}"><span class="brand-symbol">{% include "core/_icon.html" with name="grid" %}</span><span>{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></span></a>
     <div class="nav-filter"><input type="search" id="nav-filter" placeholder="ابحث في القائمة…" aria-label="ابحث في القائمة" autocomplete="off"></div>
     <nav class="side-nav">
       {% if current_membership %}
       <a href="{% url 'dashboard' %}" class="nav-top {% if request.path == '/' %}active{% endif %}"><svg viewBox="0 0 24 24">{{ home_icon|safe }}</svg>لوحة التحكم</a>
-      {% if current_membership.role != "cashier" and current_membership.role != "employee" %}<a href="{% url 'work_center' %}" class="nav-top">مركز عملي</a>{% endif %}
+      {% if current_membership.role != "cashier" and current_membership.role != "employee" %}<a href="{% url 'work_center' %}" class="nav-top {% if request.resolver_match.url_name == 'work_center' %}active{% endif %}">{% include "core/_icon.html" with name="work" %}مركز عملي</a><a href="{% url 'assistant_chat' %}" class="nav-top {% if request.resolver_match.url_name == 'assistant_chat' %}active{% endif %}">{% include "core/_icon.html" with name="spark" %}مساعد سينار</a>{% endif %}
       {% endif %}
       {% for module in nav_modules %}
       {% ifchanged module.group %}{% if module.group %}<div class="nav-group-title">{{ module.group }}</div>{% endif %}{% endifchanged %}
@@ -59,10 +61,12 @@
       // الوحدة المفتوحة تظهر في مجال الرؤية
       (function () { var cur = document.querySelector('.nav-item.active'); if (cur) cur.scrollIntoView({block: 'center'}); })();
     </script>
+    <div class="sidebar-foot">{% include "core/_icon.html" with name="shield" %}<span>مساحة عمل جهتك<small>كل أدواتك، في مكان واحد</small></span></div>
   </aside>
+  <button class="nav-backdrop" type="button" aria-label="إغلاق قائمة التنقل" data-nav-close hidden></button>
   <div class="main">
     <header class="topbar">
-      <button class="menu-toggle" type="button" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <button class="menu-toggle icon-button" type="button" data-nav-toggle aria-controls="sidebar" aria-expanded="false" aria-label="فتح قائمة التنقل">{% include "core/_icon.html" with name="menu" %}</button>
       {% if current_company %}<form method="get" action="{% url 'global_search' %}" class="global-search" role="search" data-suggest="{% url 'search_suggest' %}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input type="search" name="q" class="form-control" placeholder="{% if current_company.is_nonprofit %}ابحث عن مستفيد، متبرع، سند، أو صفحة…{% else %}ابحث عن عميل، صنف، فاتورة، أو صفحة…{% endif %}" aria-label="بحث في النظام" autocomplete="off" value="{% if request.resolver_match.url_name == 'global_search' %}{{ request.GET.q }}{% endif %}">
@@ -77,21 +81,22 @@
           </form>
           {% else %}<strong class="company-name">{{ current_company }}</strong>{% endif %}
         {% endif %}
-        <span>{{ user.get_full_name|default:user.username }}{% if current_membership %} · {{ current_membership.get_role_display }}{% endif %}</span>
+
         {% if current_company %}<a href="{% url 'notifications' %}" class="bell" title="التنبيهات"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>{% if unread_notifications %}<b>{{ unread_notifications }}</b>{% endif %}</a>{% endif %}
-        <a href="{% url 'profile' %}">حسابي</a>
-        {% if user.is_superuser %}<a href="{% url 'admin:index' %}">لوحة Django</a>{% endif %}
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link-btn">تسجيل الخروج</button></form>
+        <details class="account-menu">
+          <summary aria-label="قائمة حسابي"><span class="user-avatar">{{ user.first_name|default:user.username|slice:":1" }}</span><span class="account-label">{{ user.get_full_name|default:user.username }}<small>{% if current_membership %}{{ current_membership.get_role_display }}{% else %}حسابي{% endif %}</small></span>{% include "core/_icon.html" with name="chevron" %}</summary>
+          <div class="account-panel"><div class="account-intro"><strong>{{ user.get_full_name|default:user.username }}</strong><small>{{ current_company|default:ERP_NAME }}</small></div>{% if user_memberships|length > 1 %}<form method="post" class="mobile-company-switch" onchange="this.action='/switch-company/'+this.company.value+'/';this.submit()">{% csrf_token %}<label for="mobile-company">مساحة العمل</label><select id="mobile-company" name="company" class="form-select">{% for m in user_memberships %}<option value="{{ m.company_id }}" {% if m.company_id == current_company.pk %}selected{% endif %}>{{ m.company }}</option>{% endfor %}</select></form>{% endif %}<a href="{% url 'profile' %}">{% include "core/_icon.html" with name="user" %}حسابي وإعداداتي</a>{% if user.is_superuser %}<a href="{% url 'admin:index' %}">{% include "core/_icon.html" with name="grid" %}إدارة النظام</a>{% endif %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">{% include "core/_icon.html" with name="logout" %}تسجيل الخروج</button></form></div>
+        </details>
       </div>
     </header>
-    <main class="content">
+    <main class="content" id="main-content" tabindex="-1">
       {% if current_company %}{% include "core/_letterhead.html" %}{% endif %}
       <div class="page-head">
         {% if nav_trail %}<nav class="crumbs" aria-label="مسار الصفحة">{% for label, url in nav_trail %}<a href="{{ url }}">{{ label }}</a>{% if not forloop.last %}<span>›</span>{% endif %}{% endfor %}</nav>{% endif %}
         <div class="page-title-row">
           <h1>{% block heading %}{% endblock %}</h1>
           <div class="print-tools" hidden>
-            <button type="button" class="btn" data-print="auto" title="طباعة أو حفظ PDF بالاتجاه المناسب لعرض الجدول">🖨 طباعة</button>
+            <button type="button" class="btn" data-print="auto" title="طباعة أو حفظ PDF بالاتجاه المناسب لعرض الجدول">{% include "core/_icon.html" with name="print" %} طباعة</button>
             <div class="seg" role="group" aria-label="اتجاه الصفحة">
               <button type="button" data-orientation="portrait" title="طولي">▯ طولي</button>
               <button type="button" data-orientation="landscape" title="عرضي">▭ عرضي</button>
@@ -110,11 +115,13 @@
     </main>
   </div>
 </div>
+{% if current_membership %}<nav class="mobile-dock" aria-label="التنقل السريع"><a href="{% url 'dashboard' %}" {% if request.path == '/' %}aria-current="page"{% endif %}>{% include "core/_icon.html" with name="home" %}<span>الرئيسية</span></a>{% if current_membership.role != "cashier" and current_membership.role != "employee" %}<a href="{% url 'work_center' %}" {% if request.resolver_match.url_name == 'work_center' %}aria-current="page"{% endif %}>{% include "core/_icon.html" with name="work" %}<span>عملي</span></a>{% endif %}<button type="button" data-nav-toggle aria-controls="sidebar" aria-expanded="false">{% include "core/_icon.html" with name="grid" %}<span>الوحدات</span></button><a href="{% url 'profile' %}" {% if request.resolver_match.url_name == 'profile' %}aria-current="page"{% endif %}>{% include "core/_icon.html" with name="user" %}<span>حسابي</span></a></nav>{% endif %}
 {% else %}
   {% block auth_content %}{% endblock %}
 {% endif %}
 <script src="{% static 'js/erp.js' %}"></script>
 <script src="{% static 'js/search.js' %}"></script>
 <script src="{% static 'js/print.js' %}"></script>
+<script src="{% static 'js/interface.js' %}" defer></script>
 </body>
 </html>

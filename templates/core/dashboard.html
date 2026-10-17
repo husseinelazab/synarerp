@@ -3,12 +3,13 @@
 {% block title %}لوحة التحكم{% endblock %}
 {% block heading %}أهلاً {{ user.first_name|default:user.username }}{% endblock %}
 {% block content %}
+{% include "core/_dashboard_welcome.html" %}
 <div class="dash-head">
   <div>
         <span class="muted">{{ today|date:"l j F Y" }} · {{ today|hijri }} · {{ current_company }}</span>
   </div>
   <details class="dropdown">
-    <summary class="btn btn-primary">+ إنشاء جديد</summary>
+    <summary class="btn btn-primary">{% include "core/_icon.html" with name="plus" %} إنشاء جديد</summary>
     <div class="dropdown-menu">
       <a href="{% url 'doc_new' 'quotation' %}">عرض سعر</a>
       <a href="{% url 'doc_new' 'sales-order' %}">أمر بيع</a>
@@ -41,7 +42,7 @@
 <div class="kpi-row">
   {% for k in kpis %}
   <a class="card kpi-card" href="{{ k.url }}">
-    <div class="kpi-label">{{ k.label }}</div>
+    <span class="kpi-glyph">{% include "core/_icon.html" with name="chart" %}</span><div class="kpi-label">{{ k.label }}</div>
     <div class="kpi-value {% if k.value < 0 %}neg{% endif %}">{{ k.value|cur }}</div>
     <div class="kpi-foot">
       {% if k.change is not None %}<span class="trend {% if k.change >= 0 %}up{% else %}down{% endif %}">{% if k.change >= 0 %}▲{% else %}▼{% endif %} {{ k.change|abs }}%</span> عن الشهر الماضي

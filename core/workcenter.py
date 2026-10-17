@@ -53,7 +53,30 @@ def center(request):
                 if any(r.can_approve(request.membership) for r in next_rules) and path_allowed(request.membership,f"/app/{slug}/{doc.pk}/submit/"):
                     due=getattr(doc,"needed_by",None) or getattr(doc,"due_date",None)
                     approvals.append({"title":str(doc),"kind":str(dt.label),"url":doc.get_absolute_url(),"due":due,"overdue":bool(due and due<today)})
+    from programs.impact_center import rows_for as impact_rows
+    from programs.models import ImpactMeasurement
+    impact=impact_rows(request,today)
+    for row in impact:
+        goal=row["goal"]
+        if goal.owner_id==request.user.pk and not row["achieved"]:
+            tasks.append({"title":goal.title,"kind":"قياس أثر","due":goal.due_date,"overdue":row["overdue"],"url":goal.get_absolute_url()})
+    if request.membership.can_manage:
+        pending_ids=set(ImpactMeasurement.objects.filter(company=request.company,goal_id__in=[r["goal"].pk for r in impact],status="pending").values_list("goal_id",flat=True))
+        for row in impact:
+            goal=row["goal"]
+            if goal.pk in pending_ids:
+                approvals.append({"title":goal.title,"kind":"مراجعة قياسات الأثر","due":goal.due_date,"overdue":row["overdue"],"url":goal.get_absolute_url()})
+    from portal.models import ServiceBooking
+    if can_read(request,"service-booking"):
+        for booking in scoped(request,ServiceBooking).filter(slot__officer=request.user,status__in=["pending","confirmed"]).select_related("slot")[:100]:
+            due=timezone.localtime(booking.slot.starts_at).date()
+            tasks.append({"title":booking.slot.title,"kind":"حجز خدمة","due":due,"overdue":due<today,"url":booking.get_absolute_url()})
+    from programs.models import DawahFollowUp,UmrahChecklist
+    for slug,model in [("dawah-follow-up",DawahFollowUp),("umrah-checklist",UmrahChecklist)]:
+        if can_read(request,slug):
+            add(slug,scoped(request,model).filter(assigned_to=request.user,completed=False),"title","due_date")
     tasks.sort(key=lambda r:(not r["overdue"],r["due"] or today,r["title"]))
     safe_urls={row["url"] for row in tasks+approvals} | {c.get_absolute_url() for c in cases+pending}
     notes=[n for n in Notification.objects.filter(company=request.company,user=request.user,is_read=False)[:100] if n.url in safe_urls][:10]
-    return render(request,"work/center.html",{"tasks":tasks,"pending":pending,"cases":cases[:30],"approvals":approvals,"notifications":notes,"overdue_count":sum(t["overdue"] for t in tasks+approvals)+sum(bool(c.overdue) for c in pending)})
+    from core.field import supported
+    return render(request,"work/center.html",{"field_enabled":bool(supported(request)),"tasks":tasks,"pending":pending,"cases":cases[:30],"approvals":approvals,"notifications":notes,"overdue_count":sum(t["overdue"] for t in tasks+approvals)+sum(bool(c.overdue) for c in pending)})

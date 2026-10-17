@@ -151,6 +151,8 @@ def modules_for_path(path):
     """مجموعة الوحدات التي تكفي إحداها لفتح المسار، أو None إن كان المسار عاماً."""
     from core.registry import MODULES, REGISTRY
 
+    if path.startswith("/programs/referrals/"):
+        return {"health"}
     if path.startswith(("/programs/specialty/", "/app/specialty-application/")):
         from core.tenancy import get_current_company
         company = get_current_company()

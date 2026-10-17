@@ -1,10 +1,27 @@
 from django.urls import path
-from core import admin_tools, processes, workcenter
+from core import admin_tools, processes, workcenter, field, document_studio, assistant, setup_wizard
+from programs import impact_center
 
 from core import attachments, import_views, onboarding, pdf, remote_select, search, statistics, views
 from stock import tools as stock_tools
 
 urlpatterns = [
+    path("settings/getting-started/", setup_wizard.wizard, name="setup_wizard"),
+    path("assistant/", assistant.chat, name="assistant_chat"),
+    path("settings/assistant/", assistant.settings_page, name="assistant_settings"),
+    path("settings/studio/", document_studio.studio, name="document_studio"),
+    path("settings/studio/preview/", document_studio.preview, name="document_studio_preview"),
+    path("work/field/", field.app, name="field_app"),
+    path("work/field/worker.js", field.worker, name="field_worker"),
+    path("work/field/data/", field.data, name="field_data"),
+    path("work/field/sync/", field.sync, name="field_sync"),
+    path("impact/", impact_center.center, name="impact_center"),
+    path("impact/goals/new/", impact_center.goal_form, name="impact_goal_new"),
+    path("impact/goals/<int:pk>/", impact_center.detail, name="impact_goal"),
+    path("impact/goals/<int:pk>/edit/", impact_center.goal_form, name="impact_goal_edit"),
+    path("impact/measurements/<int:pk>/review/", impact_center.review, name="impact_review"),
+    path("impact/measurements/<int:pk>/evidence/", impact_center.evidence, name="impact_evidence"),
+    path("impact/programs/<int:pk>/cost/", impact_center.cost_link, name="impact_cost_link"),
     path("work/", workcenter.center, name="work_center"),
     path("work/processes/", processes.templates, name="process_templates"),
     path("work/processes/new/", processes.builder, name="process_builder_new"),

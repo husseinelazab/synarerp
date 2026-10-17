@@ -35,12 +35,16 @@ def unified(request,pk):
     section("sponsorship","الكفالات",{"beneficiary":beneficiary},"start_date")
     section("program-enrollment","البرامج والتدريب",{"beneficiary":beneficiary},"registered_at")
     section("portal-service-request","طلبات الخدمات",{"beneficiary":beneficiary},"created_at")
+    section("service-booking","حجوزات الخدمات",{"beneficiary":beneficiary},"created_at")
     section("portal-profile-update","طلبات تحديث البيانات",{"beneficiary":beneficiary},"created_at")
     section("beneficiary-follow-up","المتابعات",{"beneficiary":beneficiary},"created_at")
     students=section("quran-student","الحلقات",{"beneficiary":beneficiary},"joined_on")
     muslims=section("new-muslim","المتابعة الدعوية",{"beneficiary":beneficiary},"conversion_date")
     # Health and trip records use explicit linked person IDs, with independent section permissions.
     patients=section("health-patient","ملفات المرضى",{"beneficiary":beneficiary},None)
+    section("dawah-follow-up","المتابعات الدعوية",{"person__beneficiary":beneficiary},"due_date")
+    section("health-referral","الإحالات الصحية",{"patient__beneficiary":beneficiary},"requested_on")
+    section("quran-learning-plan","خطط الحفظ",{"student__beneficiary":beneficiary},"start_date")
     if students:
         section("quran-progress","الحفظ والمراجعة",{"student__beneficiary":beneficiary},"date")
     if muslims:

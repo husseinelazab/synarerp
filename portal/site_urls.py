@@ -1,9 +1,11 @@
 """مسارات بوابة المستفيد على موقع الجمعية (تحت /portal/)."""
 from django.urls import path
 
-from portal import site_views as views
+from portal import site_views as views, appointments
 
 urlpatterns = [
+    path("programs/", views.portal_programs, name="portal_programs"),
+    path("appointments/", appointments.appointments, name="portal_appointments"),
     path("", views.portal_login, name="portal_login"),
     path("home/", views.portal_home, name="portal_home"),
     path("aid/", views.portal_aid, name="portal_aid"),

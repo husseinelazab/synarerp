@@ -94,3 +94,9 @@ def verbose_name(obj):
     """اسم نوع السجل (عنوان المستند إن وُجد) لعرضه بجوار رقمه."""
     title = getattr(obj, "document_title", None)
     return title or obj._meta.verbose_name
+
+
+@register.simple_tag
+def document_layout(settings,kind="letter"):
+    from core.document_studio import layout
+    return layout(settings,kind)

@@ -4,7 +4,9 @@ from django.forms import inlineformset_factory, modelform_factory
 
 
 def formfield_callback(db_field, **kwargs):
-    if isinstance(db_field, models.DateField):
+    if isinstance(db_field, models.DateTimeField):
+        kwargs["widget"] = forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M")
+    elif isinstance(db_field, models.DateField):
         kwargs["widget"] = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
     elif isinstance(db_field, models.TimeField):
         kwargs["widget"] = forms.TimeInput(attrs={"type": "time"}, format="%H:%M")

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}إعدادات {% if current_company.is_nonprofit %}الجمعية{% else %}الشركة{% endif %}{% endblock %}
 {% block heading %}إعدادات {% if current_company.is_nonprofit %}الجمعية{% else %}الشركة{% endif %}{% endblock %}
-{% block content %}
+{% block content %}<div class="toolbar"><a class="btn btn-primary" href="{% url 'setup_wizard' %}">تهيئة الجهة وخطة البداية</a></div>
 <form method="post" novalidate>
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
@@ -11,7 +11,7 @@
   <div class="card"><h3>الحسابات الافتراضية</h3><div class="form-grid">
     {% for field in form %}{% if field.name|slice:":8" == "default_" and field.name != "default_tax_rate" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
   </div></div>
-  <div class="card"><h3>القائمة الجانبية</h3><p><a href="{% url 'module_labels' %}">تعديل مسميات الوحدات</a></p>
+  <div class="card"><h3>القائمة الجانبية</h3><p><a href="{% url 'module_labels' %}">تعديل مسميات الوحدات</a> · <a href="{% url 'document_studio' %}">استوديو المستندات</a></p>
     {% include "core/_field.html" with field=form.hidden_modules %}
   </div>
   <div class="form-actions"><button class="btn btn-primary">حفظ</button></div>

@@ -2,24 +2,26 @@
 {% block title %}تسجيل الدخول{% endblock %}
 {% block auth_content %}
 <div class="login-page">
+  <section class="login-intro" aria-label="مرحبًا بك في سينار"><div class="login-brand"><span class="brand-symbol">{% include "core/_icon.html" with name="grid" %}</span>{{ ERP_NAME }}</div><span class="eyebrow">مساحة واحدة، إمكانيات أكثر</span><h2>أعمالك أوضح.<br><span>وأثرك أكبر.</span></h2><p>ابدأ يومك بمساحة عمل تجمع فريقك وعملياتك، وتقرّبك من كل ما يهمك.</p><div class="login-features"><span>{% include "core/_icon.html" with name="work" %}إدارة مترابطة</span><span>{% include "core/_icon.html" with name="chart" %}رؤية أوضح</span><span>{% include "core/_icon.html" with name="shield" %}صلاحيات منظّمة</span></div></section>
   <form method="post" class="card login-card">
     {% csrf_token %}
-    <h1>{{ ERP_NAME }}</h1>
+    <h1>مرحبًا بعودتك</h1>
     <div class="login-en">{{ ERP_NAME_EN }}</div>
-    <p class="muted">نظام تخطيط موارد المؤسسات باللغة العربية</p>
+    <p class="muted">سجّل الدخول إلى مساحة عمل جهتك</p>
     {% if locked %}<div class="alert alert-error">محاولات دخول خاطئة كثيرة. حاول بعد {{ lock_minutes }} دقيقة.</div>
     {% elif form.errors %}<div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
     {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
-    <label>كود الجهة</label>
-    <input type="text" name="company_code" class="form-control" value="{{ request.POST.company_code }}" placeholder="كود الشركة أو الجمعية" autocapitalize="characters" autocomplete="organization" dir="ltr">
+    <label for="login-company">كود الجهة</label>
+    <input type="text" id="login-company" name="company_code" class="form-control" value="{{ request.POST.company_code }}" placeholder="كود الشركة أو الجمعية" autocapitalize="characters" autocomplete="organization" dir="ltr">
     <small class="muted">أدخل كود جهتك عند استخدام اسم مستخدم مشترك بين جهات مختلفة.</small>
-    <label>اسم المستخدم</label>
-    <input type="text" name="username" class="form-control" autofocus required autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" dir="ltr">
-    <label>كلمة المرور</label>
-    <input type="password" name="password" class="form-control" required autocomplete="current-password" dir="ltr">
+    <label for="login-username">اسم المستخدم</label>
+    <input type="text" id="login-username" name="username" class="form-control" autofocus required autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" dir="ltr">
+    <label for="login-password">كلمة المرور</label>
+    <div class="password-control"><input type="password" id="login-password" name="password" class="form-control" required autocomplete="current-password" dir="ltr"><button type="button" class="password-toggle" data-password-toggle aria-controls="login-password" aria-label="إظهار كلمة المرور" aria-pressed="false">{% include "core/_icon.html" with name="eye" %}</button></div>
     <input type="hidden" name="next" value="{{ next }}">
-    <button type="submit" class="btn btn-primary btn-block">دخول</button>
+    <button type="submit" class="btn btn-primary btn-block">الدخول إلى مساحة العمل {% include "core/_icon.html" with name="arrow" %}</button>
     {% if PASSWORD_RESET_ENABLED %}<p class="center small" style="margin-top:12px"><a href="{% url 'password_reset' %}">نسيت كلمة المرور؟</a></p>{% endif %}
+    <div class="login-note">{% include "core/_icon.html" with name="shield" %}استخدم حسابك وكود الجهة المخصص لك</div>
   </form>
 </div>
 {% endblock %}

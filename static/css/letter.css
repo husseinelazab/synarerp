@@ -44,3 +44,5 @@
 .correspondence-meta .correspondence-subject { align-items:flex-start; }
 .correspondence-meta .correspondence-subject dd { text-align:right; font-size:10px; line-height:1.5; }
 .issuer-signature { max-width:45mm; max-height:20mm; object-fit:contain; display:block; margin:0 auto 3mm; }
+
+.official-letter{padding:var(--studio-margin,14mm)}.association-logo{max-width:var(--studio-logo,58mm)}.correspondence-card{width:var(--studio-card,68mm)}.letter-content{font-size:var(--studio-font,15px);line-height:var(--studio-line,2)}.letter-body{line-height:var(--studio-line,2)}.identity-left .official-header{flex-direction:row-reverse}.signature-right .letter-signature{margin-right:0;margin-left:auto}.signature-center .letter-signature{margin-right:auto;margin-left:auto}.letter-verification{display:flex;align-items:center;justify-content:center;gap:3mm;margin-bottom:3mm}.letter-verification svg{width:16mm;height:16mm}.letter-verification span{font-size:9px}

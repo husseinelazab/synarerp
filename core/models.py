@@ -669,6 +669,7 @@ class PrintTemplate(models.TextChoices):
 
 
 class PrintSettings(models.Model):
+    document_layout = models.JSONField(default=dict,blank=True,editable=False)
     """شكل المستندات المطبوعة للشركة: الشعار والقالب واللون والبيانات البنكية والتذييل."""
 
     company = models.OneToOneField(Company, models.CASCADE, related_name="print_settings")
@@ -1030,3 +1031,26 @@ class ProcessEvent(TenantModel):
 
     class Meta:
         ordering = ["created_at", "pk"]
+
+
+class AssistantSettings(TenantModel):
+    enabled = models.BooleanField("تفعيل مزود الذكاء الاصطناعي",default=False)
+    model = models.CharField("اسم نموذج Anthropic",max_length=80,default="claude-sonnet-4-5")
+    api_key_encrypted = models.TextField(blank=True,editable=False)
+    consent = models.BooleanField("أوافق إرسال السؤال وملخص الأرقام المصرح بها إلى Anthropic",default=False)
+
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=["company"],name="assistant_settings_company")]
+
+
+class AssistantMessage(TenantModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,models.CASCADE,related_name="+")
+    topic = models.CharField(max_length=20)
+    question = models.CharField(max_length=2000,blank=True)
+    answer = models.TextField()
+    sources = models.JSONField(default=list)
+    provider_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering=["-created_at"]

@@ -114,10 +114,11 @@ def impact_report(request):
 
 @login_required
 def certificate(request, pk):
+    from core.models import PrintSettings
     enrollment = get_object_or_404(ProgramEnrollment.objects.select_related("program"), pk=pk,
                                    status=EnrollmentStatus.PASSED)
     return render(request, "programs/certificate.html", {
-        "e": enrollment, "company": request.company,
+        "e": enrollment, "company": request.company, "ps":PrintSettings.for_company(request.company),
         "verify_url": request.build_absolute_uri(reverse("program_verify", args=[enrollment.certificate_code]))})
 
 

@@ -3,12 +3,14 @@
   <div class="kpi"><span>المقبولون / المقاعد</span><b>{{ obj.accepted_count }} / {{ obj.capacity }}</b></div>
   <div class="kpi"><span>إجمالي المسجلين</span><b>{{ obj.enrollments.count }}</b></div>
   <div class="kpi kpi-good"><span>المجتازون</span><b>{{ m.completed }}</b>{% if m.completion_rate is not None %}<span>{{ m.completion_rate }}% إتمام</span>{% endif %}</div>
-  <div class="kpi"><span>التحسن (قبلي ← بعدي)</span><b>{% if m.improvement is not None %}{{ m.improvement }}%{% else %}—{% endif %}</b>{% if m.avg_pre is not None %}<span>{{ m.avg_pre }} ← {{ m.avg_post|default:"—" }}</span>{% endif %}</div>
+  <div class="kpi"><span>التحسن (قبلي ← بعدي)</span><b>{% if m.improvement is not None %}{{ m.improvement }}%{% else %}—{% endif %}</b>{% if m.avg_pre is not None %}<span>{{ m.paired_pre|default_if_none:"—" }} ← {{ m.paired_post|default_if_none:"—" }} · {{ m.paired_count }} قياس مزدوج</span>{% endif %}</div>
   <div class="kpi"><span>متوسط الرضا</span><b>{{ m.avg_satisfaction|default:"—" }}</b></div>
 </div>{% endwith %}
 <div class="toolbar"><div></div><div class="actions">
   <a class="btn btn-primary" href="{% url 'program_attendance' obj.pk %}">كشف الحضور والدرجات</a>
   <a class="btn" href="{% url 'program_impact' %}?from_date={{ obj.start_date|date:'Y-m-d' }}&to_date={{ obj.end_date|date:'Y-m-d' }}">تقرير الأثر</a>
+  <a class="btn" href="{% url 'impact_center' %}">لوحة النتائج والتكلفة</a>
+  {% if current_membership.can_manage %}<a class="btn" href="{% url 'impact_cost_link' obj.pk %}">ربط التكلفة المحاسبية</a>{% endif %}
   <a class="btn" href="{% url 'doc_new' 'program-enrollment' %}?program={{ obj.pk }}">+ متدرب</a></div></div>
 {% if obj.status == "open" %}
 <div class="card"><h3>رابط التسجيل العام</h3>

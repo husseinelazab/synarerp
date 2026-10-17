@@ -1,8 +1,10 @@
 from django.urls import path
 
 from beneficiaries import views, profile
+from portal import appointments
 
 urlpatterns = [
+    path("bookings/<int:pk>/review/", appointments.review, name="service_booking_review"),
     path("<int:pk>/profile/", profile.unified, name="beneficiary_unified"),
     path("", views.beneficiaries_dashboard, name="beneficiaries_dashboard"),
     path("entities/", views.entities_dashboard, name="entities_dashboard"),

@@ -1,3 +1,4 @@
+from office import verification as letter_verification
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path, re_path
@@ -15,6 +16,7 @@ admin.site.site_title = "سِينار"
 admin.site.index_title = "إدارة النظام"
 
 urlpatterns = [
+    path("verify/letter/<uuid:token>/", letter_verification.verify, name="verify_letter"),
     path("healthz/", core_views.healthz, name="healthz"),
     path(".well-known/apple-developer-merchantid-domain-association", store_views.apple_pay_domain_file,
          name="apple_pay_domain"),

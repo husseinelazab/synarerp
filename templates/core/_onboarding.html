@@ -10,6 +10,7 @@
     </form>
   </div>
   <div class="onboarding-bar" role="progressbar" aria-valuenow="{{ onboarding.percent }}" aria-valuemin="0" aria-valuemax="100"><span style="width:{{ onboarding.percent }}%"></span></div>
+  <details class="onboarding-disclosure"><summary>متابعة خطوات التجهيز {% include "core/_icon.html" with name="chevron" %}</summary>
   <ol class="onboarding-steps">
     {% for step in onboarding.steps %}
     <li class="{% if step.done %}done{% endif %}">
@@ -18,6 +19,6 @@
       {% if not step.done %}<a class="btn btn-sm" href="{{ step.url }}">{{ step.action }}</a>{% else %}<span class="muted small">تم</span>{% endif %}
     </li>
     {% endfor %}
-  </ol>
+  </ol></details>
 </section>
 {% endif %}

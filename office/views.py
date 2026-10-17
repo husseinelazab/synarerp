@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -39,8 +40,16 @@ def letter(request, pk):
 
     from stock.barcode import svg
     item = _correspondence(request, pk)
+    from core.document_studio import layout
+    ps=PrintSettings.for_company(request.company)
+    verification=""
+    if not item.is_confidential:
+        import io, qrcode, qrcode.image.svg
+        url=request.build_absolute_uri(reverse("verify_letter",args=[item.verification_uuid]))
+        buffer=io.BytesIO();qrcode.make(url,image_factory=qrcode.image.svg.SvgPathImage).save(buffer)
+        verification=buffer.getvalue().decode()
     return render(request, "office/letter.html", {"item": item, "company": request.company,
-                                                  "ps": PrintSettings.for_company(request.company), "barcode": svg(item.number, height=42),
+                                                  "ps": ps, "studio":layout(ps), "verification_qr":verification, "barcode": svg(item.number, height=42),
                                                   "attachments_count": Attachment.objects.filter(company=request.company,
                                                       doctype="correspondence", object_id=item.pk).count()})
 

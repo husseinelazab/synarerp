@@ -75,8 +75,8 @@ def portal_page(view):
 def _render(request, template, active, **context):
     context.update(active=active, beneficiary=getattr(request, "beneficiary", None), tabs=[
         ("portal_home", "ملفي", "user"), ("portal_aid", "المساعدات", "aid"),
-        ("portal_requests", "طلباتي", "doc"), ("portal_profile", "تحديث بياناتي", "contact"),
-        ("portal_documents", "المستندات", "copy")])
+        ("portal_requests", "طلباتي", "doc"), ("portal_appointments", "مواعيدي", "calendar"), ("portal_profile", "تحديث بياناتي", "contact"),
+        ("portal_documents", "المستندات", "copy"), ("portal_programs", "برامجي ومتابعتي", "book")])
     return render(request, template, context)
 
 
@@ -336,3 +336,20 @@ def portal_documents(request):
                 done = f"تم رفع {len(checked)} ملف، وسيراجعها فريق الجمعية."
     return _render(request, "portal/documents.html", "portal_documents", documents=_documents_qs(request),
                    error=error, done=done, max_files=MAX_FILES)
+
+
+@portal_page
+def portal_programs(request):
+    from programs.models import ProgramEnrollment,QuranLearningPlan,QuranProgress,DawahFollowUp,UmrahParticipant,HealthAppointment
+    company=request.site.company;beneficiary=request.beneficiary
+    enrollments=ProgramEnrollment.objects.filter(company=company,beneficiary=beneficiary).select_related("program")[:50]
+    plans=[];progress=[];followups=[];trips=[];appointments=[]
+    if company.association_specialty=="quran":
+        plans=QuranLearningPlan.objects.filter(company=company,student__beneficiary=beneficiary,active=True).select_related("student")[:30]
+        progress=QuranProgress.objects.filter(company=company,student__beneficiary=beneficiary).select_related("student").order_by("-date")[:30]
+    elif company.association_specialty=="dawah":
+        followups=DawahFollowUp.objects.filter(company=company,person__beneficiary=beneficiary).select_related("person")[:30]
+        trips=UmrahParticipant.objects.filter(company=company,participant__beneficiary=beneficiary).select_related("trip")[:30]
+    elif company.association_specialty=="health":
+        appointments=HealthAppointment.objects.filter(company=company,patient__beneficiary=beneficiary,patient__portal_visible=True).select_related("patient").order_by("-scheduled_at")[:30]
+    return _render(request,"portal/programs.html","portal_programs",enrollments=enrollments,plans=plans,progress=progress,followups=followups,trips=trips,appointments=appointments)

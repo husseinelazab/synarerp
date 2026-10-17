@@ -183,3 +183,64 @@ class ServiceRequest(TenantModel):
 
     def decline(self, user):
         self._set(ServiceStatus.REJECTED)
+
+
+class ServiceSlot(TenantModel):
+    title = models.CharField("خدمة الموعد", max_length=150)
+    location = models.CharField("المكان / رابط اللقاء", max_length=200, blank=True)
+    starts_at = models.DateTimeField("البداية")
+    ends_at = models.DateTimeField("النهاية")
+    capacity = models.PositiveSmallIntegerField("المقاعد", default=1)
+    officer = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, related_name="+", verbose_name="الموظف المسؤول")
+    published = models.BooleanField("متاح للحجز في البوابة", default=False)
+
+    class Meta:
+        verbose_name = "موعد خدمة متاح"
+        verbose_name_plural = "المواعيد المتاحة للمستفيدين"
+        ordering = ["starts_at","pk"]
+
+    def __str__(self):
+        return f"{self.title} — {self.starts_at:%Y/%m/%d %H:%M}"
+
+    def clean(self):
+        from core.models import Company, Membership
+        company_id=self.company_id or getattr(Company.current(),"pk",None)
+        if self.starts_at and self.ends_at and self.ends_at<=self.starts_at:
+            raise ValidationError({"ends_at":"النهاية يجب أن تكون بعد البداية."})
+        if not self.capacity:
+            raise ValidationError({"capacity":"حدد مقعدًا واحدًا على الأقل."})
+        if self.pk and self.capacity < self.bookings.filter(status__in=["pending","confirmed"]).count():
+            raise ValidationError({"capacity":"لا يمكن تقليل المقاعد عن الحجوزات الحالية."})
+        if self.officer_id and not Membership.objects.filter(company_id=company_id,user_id=self.officer_id,is_active=True,user__is_active=True).exists():
+            raise ValidationError({"officer":"المسؤول ليس مستخدمًا نشطًا في الجهة."})
+
+    def save(self,*args,**kwargs):
+        from django.db import transaction
+        from core.models import Company
+        if not self.company_id:
+            self.company=Company.current()
+        with transaction.atomic():
+            if self.pk:
+                ServiceSlot.objects.select_for_update().get(pk=self.pk)
+            self.full_clean()
+            return super().save(*args,**kwargs)
+
+
+class ServiceBooking(TenantModel):
+    slot = models.ForeignKey(ServiceSlot, models.PROTECT, related_name="bookings", verbose_name="الموعد")
+    beneficiary = models.ForeignKey("beneficiaries.Beneficiary", models.PROTECT, related_name="service_bookings", verbose_name="المستفيد")
+    status = models.CharField("الحالة", max_length=12, choices=[("pending","بانتظار التأكيد"),("confirmed","مؤكد"),("completed","تم اللقاء"),("rejected","مرفوض"),("cancelled","ملغى")], default="pending")
+    note = models.CharField("ملاحظة المستفيد", max_length=500, blank=True)
+    reply = models.CharField("رد ظاهر للمستفيد", max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, null=True, related_name="+")
+
+    class Meta:
+        verbose_name = "حجز خدمة"
+        verbose_name_plural = "حجوزات الخدمات"
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["company","slot","beneficiary"],condition=models.Q(status__in=["pending","confirmed"]),name="active_service_booking_once")]
+
+    def __str__(self):
+        return f"حجز {self.pk} — {self.slot.title}"

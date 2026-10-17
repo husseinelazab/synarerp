@@ -318,7 +318,7 @@ def nonprofit_modules(modules, doc, company):
         {"title": "القسائم الشرائية", "items": [doc("القسائم", "aid-voucher"), doc("عمليات القسائم", "voucher-redemption"),
                                                doc("المتاجر الشريكة", "voucher-merchant")]},
         {"title": "بوابة المستفيد", "items": [doc("طلبات تحديث البيانات", "portal-profile-update"),
-                                             doc("طلبات الخدمة", "portal-service-request")]},
+                                             doc("طلبات الخدمة", "portal-service-request"), doc("المواعيد المتاحة", "service-slot"), doc("حجوزات الخدمات", "service-booking")]},
         {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"), doc("تصنيفات وحالات التابعين", "dependent-category"),
                                       doc("معايير دراسة الحالة", "assessment-criterion")]},
     ]}
@@ -379,7 +379,7 @@ def nonprofit_modules(modules, doc, company):
     ]}
     by_key["programs"] = {"key": "programs", "label": "إدارة البرامج والتطوير", "sections": [
         {"items": [_item("لوحة البرامج", "programs_dashboard"), doc("البرامج التدريبية", "training-program"),
-                   doc("المتدربون", "program-enrollment"), _item("تقرير قياس الأثر", "program_impact")]},
+                   doc("المتدربون", "program-enrollment"), _item("تقرير قياس الأثر", "program_impact"), _item("لوحة النتائج والتكلفة", "impact_center")]},
     ]}
     by_key["excellence"] = {"key": "excellence", "label": "إدارة التميز المؤسسي", "sections": [
         {"title": "الخطة الاستراتيجية", "items": [_item("لوحة التميز المؤسسي", "excellence_dashboard"),
@@ -418,13 +418,13 @@ def nonprofit_modules(modules, doc, company):
         {"items": [_item("مركز التقارير والإحصائيات", "statistics_center")]},
     ]}
     specialties = {
-        "quran": ("الحلقات ومتابعة الحفظ", [("حلقات التحفيظ", "quran-circle"), ("طلاب الحلقات", "quran-student"), ("متابعة الحفظ والمراجعة", "quran-progress")]),
-        "dawah": ("الدعوة والمسلمون الجدد والعمرة", [("المسلمون الجدد", "new-muslim"), ("البرامج الدعوية", "dawah-activity"), ("رحلات العمرة", "umrah-trip"), ("المشاركون في العمرة", "umrah-participant")]),
-        "health": ("الخدمات الصحية", [("المرضى", "health-patient"), ("المواعيد الصحية", "health-appointment")]),
+        "quran": ("الحلقات ومتابعة الحفظ", [("حلقات التحفيظ", "quran-circle"), ("طلاب الحلقات", "quran-student"), ("متابعة الحفظ والمراجعة", "quran-progress"), ("خطط الحفظ الفردية", "quran-learning-plan")]),
+        "dawah": ("الدعوة والمسلمون الجدد والعمرة", [("المسلمون الجدد", "new-muslim"), ("البرامج الدعوية", "dawah-activity"), ("رحلات العمرة", "umrah-trip"), ("متابعات المسلمين الجدد", "dawah-follow-up"), ("تجهيزات رحلات العمرة", "umrah-checklist"), ("المشاركون في العمرة", "umrah-participant")]),
+        "health": ("الخدمات الصحية", [("المرضى", "health-patient"), ("المواعيد الصحية", "health-appointment"), ("الإحالات الصحية", "health-referral")]),
     }
     for key, (label, links) in specialties.items():
         if key == company.association_specialty:
-            by_key[key] = {"key": key, "label": label, "sections": [{"items": [_item("لوحة المتابعة وطلبات التسجيل", "specialty_dashboard")] + [doc(title, slug) for title, slug in links]}]}
+            by_key[key] = {"key": key, "label": label, "sections": [{"items": [_item("لوحة المتابعة وطلبات التسجيل", "specialty_dashboard"), _item("لوحة الأثر والنتائج", "impact_center")] + [doc(title, slug) for title, slug in links]}]}
     by_key["office"]["sections"].insert(0, {"title": "الهيكل والصلاحيات", "items": [_item("الهيكل الإداري والتنفيذي", "organization_chart"), doc("أدوار صلاحيات الجمعية", "association-role")]})
     for key, label in NONPROFIT_LABELS.items():
         if key in by_key:

@@ -4,7 +4,7 @@
 {% block content %}
 <div class="toolbar">
   <form method="get" class="filters">
-    <input type="search" name="q" value="{{ query }}" class="form-control" placeholder="بحث...">
+    <input type="search" name="q" value="{{ query }}" class="form-control" placeholder="ابحث في {{ dt.label_plural }}…" aria-label="بحث في {{ dt.label_plural }}">
     {% for k, v in choice_filters.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
     {% if dt.is_submittable %}
     <select name="status" class="form-select">
@@ -12,13 +12,13 @@
       {% for value, label in statuses %}<option value="{{ value }}" {% if status == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
     {% endif %}
-    <button class="btn">تصفية</button>
+    <button class="btn">{% include "core/_icon.html" with name="search" %} بحث</button>
   </form>
   <div class="actions">
   {% for label, url_name in dt.list_actions %}<form method="post" action="{% url url_name %}">{% csrf_token %}<button class="btn">{{ label }}</button></form>{% endfor %}
   {% if not dt.read_only %}<a class="btn" href="{% url 'doc_import' dt.slug %}">استيراد</a>{% endif %}
   <a class="btn" href="{% url 'doc_export' dt.slug %}?{{ request.GET.urlencode }}">تصدير Excel</a>
-  {% if not dt.read_only %}<a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}{% if filter_query %}?{{ filter_query }}{% endif %}">+ {% if filter_label %}{{ filter_label }}{% else %}{{ dt.label }}{% endif %} جديد</a>{% endif %}
+  {% if not dt.read_only %}<a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}{% if filter_query %}?{{ filter_query }}{% endif %}">{% include "core/_icon.html" with name="plus" %} {% if filter_label %}{{ filter_label }}{% else %}{{ dt.label }}{% endif %} جديد</a>{% endif %}
   </div>
 </div>
 <form method="post" action="{% url 'doc_bulk' dt.slug %}" id="bulk-form">
@@ -45,7 +45,7 @@
         {% if dt.is_submittable %}<td><span class="badge status-{{ row.obj.docstatus }}">{{ row.obj.get_docstatus_display }}</span></td>{% endif %}
       </tr>
     {% empty %}
-      <tr><td colspan="{{ headers|length|add:1 }}" class="muted center">لا توجد سجلات</td></tr>
+      <tr><td colspan="{{ headers|length|add:1 }}" class="muted center"><div class="list-empty">{% include "core/_icon.html" with name="search" %}<strong>{% if query %}لا توجد نتائج مطابقة{% else %}لا توجد سجلات{% endif %}</strong><span>{% if query %}جرّب كلمة أقصر أو غيّر خيارات البحث.{% else %}ستظهر {{ dt.label_plural }} هنا عند إضافتها.{% endif %}</span></div></td></tr>
     {% endfor %}
     </tbody>
   </table></div>

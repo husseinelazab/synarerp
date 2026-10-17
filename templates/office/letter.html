@@ -5,7 +5,7 @@
 <title>{{ item.number }} — {{ item.subject }}</title>
 <link rel="stylesheet" href="{% static 'css/print.css' %}">
 <link rel="stylesheet" href="{% static 'css/letter.css' %}">
-<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }</style>
+<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; --studio-margin:{{ studio.margin|default:"14" }}mm; --studio-logo:{{ studio.logo_width|default:"58" }}mm; --studio-card:{{ studio.card_width|default:"68" }}mm; --studio-font:{{ studio.font_size|default:"15" }}px; --studio-line:{{ studio.line_height|default:"2" }}; }</style>
 </head>
 <body>
 <div class="toolbar no-print">
@@ -13,7 +13,7 @@
   <button class="tb-btn tb-primary" onclick="window.print()">طباعة / حفظ PDF</button>
   <span class="tb-label">كليشة رسمية · A4</span>
 </div>
-<main class="sheet official-letter">
+<main class="sheet official-letter identity-{{ studio.identity_side|default:'right' }} signature-{{ studio.signature_side|default:'left' }}">
   <div class="letter-accent" aria-hidden="true"><i></i><i></i><i></i></div>
   {% if ps.letter_layout == "custom" and ps.letterhead %}<img class="custom-letterhead" src="{{ ps.letterhead }}" alt="كليشة {{ company.name }}">{% endif %}
   <header class="official-header">
@@ -49,6 +49,7 @@
   <footer class="official-footer">
     <div class="footer-rule" aria-hidden="true"></div>
     {% if ps.footer_text %}<p>{{ ps.footer_text }}</p>{% endif %}
+    {% if verification_qr %}<div class="letter-verification">{{ verification_qr|safe }}<span>التحقق من رقم الصادر</span></div>{% endif %}
     <div class="letter-contact">{% if company.address %}<span>{{ company.address }}</span>{% endif %}{% if company.phone %}<span dir="ltr">{{ company.phone }}</span>{% endif %}{% if company.email %}<span dir="ltr">{{ company.email }}</span>{% endif %}</div>
   </footer>
 </main>

@@ -42,3 +42,9 @@ register(DocType(
     search_fields=["full_name", "phone"], read_only=True, show_in_menu=False,
     detail_exclude=["submission_key"], detail_template="programs/_application_detail.html",
 ))
+
+from programs.models import QuranLearningPlan,DawahFollowUp,UmrahChecklist,HealthReferral
+register(DocType(slug="quran-learning-plan",model=QuranLearningPlan,module="quran",list_fields=["student","title","start_date","end_date","target_pages","active"],search_fields=["title","student__full_name"],detail_template="programs/_learning_plan.html"))
+register(DocType(slug="dawah-follow-up",model=DawahFollowUp,module="dawah",list_fields=["person","title","kind","assigned_to","due_date","completed"],search_fields=["title","person__full_name","outcome"]))
+register(DocType(slug="umrah-checklist",model=UmrahChecklist,module="dawah",list_fields=["trip","title","category","assigned_to","due_date","completed"],search_fields=["title","trip__title","notes"]))
+register(DocType(slug="health-referral",model=HealthReferral,module="health",list_fields=["patient","provider","service","requested_on","appointment_at","status"],search_fields=["patient__full_name","provider","service"],detail_template="programs/_health_referral.html"))

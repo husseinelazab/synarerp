@@ -1,8 +1,9 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load erp %}
 {% block title %}شهادة اجتياز برنامج{% endblock %}{% block heading %}شهادة اجتياز برنامج{% endblock %}
-{% block content %}
+{% block content %}{% document_layout ps "certificate" as studio %}
 <div class="toolbar"><div></div><div class="actions"><button class="btn btn-primary" onclick="window.print()">طباعة</button></div></div>
-<div class="card" style="max-width:780px;margin:auto;text-align:center;padding:3em 2em;border:3px double var(--border, #c9b37e)">
+<div class="card" style="max-width:780px;margin:auto;text-align:center;padding:{% if studio.configured %}{{ studio.margin }}mm;font-size:{{ studio.font_size }}px;line-height:{{ studio.line_height }}{% else %}3em 2em{% endif %};border:3px double var(--border, #c9b37e)">
+  {% if ps.logo %}<img src="{{ ps.logo }}" alt="شعار الجهة" style="max-width:{{ studio.logo_width }}mm;max-height:25mm">{% endif %}
   <h2>{{ company.name }}</h2>
   {% if company.license_number %}<p class="muted small">ترخيص رقم {{ company.license_number }}</p>{% endif %}
   <h1 style="margin:1em 0">شهادة اجتياز</h1>

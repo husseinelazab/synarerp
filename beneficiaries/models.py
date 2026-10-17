@@ -985,6 +985,18 @@ class DependentCategory(TenantModel):
 
 
 class BeneficiaryFollowUp(TenantModel):
+    version = models.PositiveIntegerField(default=1, editable=False)
+
+    def save(self,*args,**kwargs):
+        from django.db import transaction
+        with transaction.atomic():
+            if self.pk:
+                previous=BeneficiaryFollowUp.objects.select_for_update().get(pk=self.pk)
+                self.version=previous.version+1
+                if kwargs.get("update_fields") is not None:
+                    kwargs["update_fields"]=set(kwargs["update_fields"])|{"version"}
+            return super().save(*args,**kwargs)
+
     beneficiary = models.ForeignKey(Beneficiary, models.CASCADE, related_name="follow_ups", verbose_name="المستفيد")
     subject = models.CharField("عنوان المتابعة", max_length=200)
     notes = models.TextField("ملاحظات المتابعة", blank=True)
@@ -1010,3 +1022,17 @@ class BeneficiaryFollowUp(TenantModel):
             raise ValidationError({"beneficiary":"المستفيد لا يخص هذه الجمعية."})
         if self.assigned_to_id and not Membership.objects.filter(company_id=company_id,user_id=self.assigned_to_id,is_active=True).exists():
             raise ValidationError({"assigned_to":"المسؤول ليس مستخدمًا نشطًا بهذه الجمعية."})
+
+
+class FieldSubmission(TenantModel):
+    follow_up = models.ForeignKey(BeneficiaryFollowUp, models.PROTECT, null=True, related_name="field_submissions")
+    doctype = models.CharField(max_length=40,default="beneficiary-follow-up")
+    object_id = models.PositiveBigIntegerField(null=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, related_name="+")
+    token = models.UUIDField()
+    fingerprint = models.CharField(max_length=64)
+    result_version = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["company","token"],name="field_submission_once")]

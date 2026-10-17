@@ -15,3 +15,7 @@ register(DocType(
     search_fields=["number", "description", "beneficiary__full_name", "beneficiary__national_id",
                    "beneficiary__file_number"],
 ))
+
+from portal.models import ServiceSlot, ServiceBooking
+register(DocType(slug="service-slot",model=ServiceSlot,module="beneficiaries",list_fields=["title","starts_at","ends_at","capacity","officer","published"],search_fields=["title","location"]))
+register(DocType(slug="service-booking",model=ServiceBooking,module="beneficiaries",read_only=True,list_fields=["slot","beneficiary","status","created_at"],search_fields=["slot__title","beneficiary__full_name","beneficiary__file_number"],detail_template="portal/_booking_detail.html"))

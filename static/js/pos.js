@@ -41,41 +41,70 @@
         items = data.items || [];
         byId = {};
         items.forEach(function (i) { byId[i.id] = i; });
+        buildCatalog();
         renderGrid();
       });
   }
 
-  var productView = localStorage.getItem("synar-pos-product-view") || "list";
-  document.querySelectorAll("[data-product-view]").forEach(function (button) {
-    button.addEventListener("click", function () {
-      productView = button.dataset.productView;
-      localStorage.setItem("synar-pos-product-view", productView);
-      renderGrid();
+  var catalog = [], visibleProducts = [], activeProduct = -1, productLimit = 60;
+  function normalizeLookup(value) {
+    return String(value || "").toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+      .replace(/[أإآٱ]/g, "ا").replace(/[ة]/g, "ه").replace(/[ىئ]/g, "ي").replace(/ؤ/g, "و")
+      .replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 1632); })
+      .replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 1776); }).trim();
+  }
+  function scannerText(value) {
+    return String(value || "").trim().replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 1632); })
+      .replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 1776); });
+  }
+  function barcodeKey(value) { var code = scannerText(value); return /^0[0-9]{12}$/.test(code) && eanValid(code) ? code.slice(1) : code; }
+  function buildCatalog() {
+    catalog = [];
+    items.forEach(function (item) {
+      [null].concat(item.units || []).forEach(function (unit) {
+        var name = item.name + (unit ? " (" + unit.name + ")" : "");
+        var barcode = unit ? unit.barcode : item.barcode;
+        catalog.push({item: item, unit: unit, name: name, barcode: barcode || item.code,
+          text: normalizeLookup(name + " " + item.code + " " + (barcode || ""))});
+      });
     });
-  });
-  function renderGrid() {
-    grid.classList.toggle("product-list", productView === "list");
-    document.querySelectorAll("[data-product-view]").forEach(function (button) {
-      var active = button.dataset.productView === productView;
-      button.classList.toggle("btn-primary", active);
-      button.setAttribute("aria-pressed", String(active));
+  }
+  function selectProduct(index) {
+    activeProduct = index;
+    grid.querySelectorAll(".product").forEach(function (row, i) {
+      row.classList.toggle("selected", i === index);
     });
-    var q = search.value.trim().toLowerCase();
-    var list = items.filter(function (i) {
-      if (group && String(i.group) !== group) return false;
-      if (!q) return true;
-      return i.name.toLowerCase().indexOf(q) >= 0 || i.code.toLowerCase().indexOf(q) >= 0 || (i.barcode && i.barcode.indexOf(q) >= 0);
+    var row = grid.querySelector('.product[data-index="' + index + '"]');
+    if (row) row.scrollIntoView({block: "nearest"});
+  }
+  function renderGrid(keepLimit) {
+    if (keepLimit !== true) productLimit = 60;
+    grid.classList.add("product-list");
+    var q = normalizeLookup(search.value), words = q.split(/\s+/).filter(Boolean);
+    var list = catalog.filter(function (entry) {
+      if (group && String(entry.item.group) !== group) return false;
+      if (!q) return !entry.unit;
+      return words.every(function (word) { return entry.text.indexOf(word) >= 0; });
     });
-    if (!list.length) { grid.innerHTML = '<div class="muted">لا توجد أصناف مطابقة</div>'; return; }
-    grid.innerHTML = list.slice(0, 300).map(function (i) {
-      var out = i.stock && i.qty <= 0;
-      return '<button class="product' + (out ? " out" : "") + '" data-id="' + i.id + '">' +
-        '<span class="product-name">' + esc(i.name) + '</span>' +
-        '<span class="product-code" dir="ltr">' + esc(i.barcode || i.code) + '</span>' +
-        '<span class="product-price">' + fmt(i.rate) + config.currencyHtml + '</span>' +
-        (i.stock ? '<span class="product-qty">المتوفر: ' + i.qty + " " + esc(i.uom) + "</span>" : '<span class="product-qty">خدمة</span>') +
-        "</button>";
-    }).join("");
+    if (q) list.sort(function (a, b) {
+      function rank(entry) {
+        if (barcodeKey(entry.barcode) === barcodeKey(search.value) || normalizeLookup(entry.item.code) === q) return 0;
+        return normalizeLookup(entry.name).indexOf(q) === 0 ? 1 : 2;
+      }
+      return rank(a) - rank(b);
+    });
+    $("product-count").textContent = q ? list.length + " نتيجة مطابقة" : list.length + " منتج";
+    visibleProducts = list.slice(0, productLimit);
+    activeProduct = q && list.length ? 0 : -1;
+    if (!list.length) { grid.innerHTML = '<div class="product-empty">لا توجد مطابقات. جرّب جزءاً آخر من الاسم أو الباركود.</div>'; return; }
+    grid.innerHTML = visibleProducts.map(function (entry, index) {
+      var i = entry.item, u = entry.unit;
+      return '<button type="button" class="product' + (i.stock && i.qty <= 0 ? " out" : "") + (index === activeProduct ? " selected" : "") + '" data-id="' + i.id + '" data-index="' + index + '">' +
+        '<span class="product-name">' + esc(entry.name) + '</span>' +
+        '<span class="product-code" dir="ltr">' + esc(entry.barcode) + '</span>' +
+        '<span class="product-price">' + fmt(u ? u.rate : i.rate) + config.currencyHtml + '</span>' +
+        '<span class="product-qty">' + (i.stock ? round3(i.qty / (u ? u.factor : 1)) + " " + esc(u ? u.name : i.uom) : "خدمة") + '</span></button>';
+    }).join("") + (list.length > productLimit ? '<button type="button" class="btn" id="product-more">عرض المزيد (' + (list.length-productLimit) + ')</button>' : "");
   }
 
   // unit: وحدة تحويل (كرتون…) {uom, name, factor, rate}؛ السطر يُميَّز بالصنف والوحدة
@@ -119,24 +148,35 @@
   // البحث ومسح الباركود: Enter يضيف الصنف المطابق تماماً للباركود أو الكود
   search.addEventListener("input", renderGrid);
   search.addEventListener("keydown", function (e) {
-    if (e.key !== "Enter") return;
-    var q = search.value.trim();
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (visibleProducts.length) selectProduct(Math.max(0, Math.min(visibleProducts.length - 1, activeProduct + (e.key === "ArrowDown" ? 1 : -1))));
+      return;
+    }
+    if (e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    var q = scannerText(search.value);
     if (!q) return;
-    var match = items.find(function (i) { return i.barcode === q || i.code.toLowerCase() === q.toLowerCase(); });
+    var match = items.find(function (i) { return i.barcode && barcodeKey(i.barcode) === barcodeKey(q); });
     if (!match) {
       // باركود وحدة تحويل (كرتون…)
       for (var k = 0; k < items.length && !match; k++) {
-        var unit = (items[k].units || []).find(function (u) { return u.barcode && u.barcode === q; });
+        var unit = (items[k].units || []).find(function (u) { return u.barcode && barcodeKey(u.barcode) === barcodeKey(q); });
         if (unit) { addToCart(items[k].id, 1, unit); search.value = ""; renderGrid(); return; }
       }
+    }
+    if (!match) match = items.find(function (i) { return i.code === q; });
+    if (!match) {
+      var codes = items.filter(function (i) { return normalizeLookup(i.code) === normalizeLookup(q); });
+      if (codes.length === 1) match = codes[0];
     }
     if (!match) {
       var weighed = scaleBarcode(q);
       if (weighed) { addToCart(weighed.item.id, weighed.qty); search.value = ""; renderGrid(); return; }
     }
     if (!match) {
-      var visible = grid.querySelectorAll(".product");
-      if (visible.length === 1) match = byId[visible[0].dataset.id];
+      var entry = visibleProducts[activeProduct];
+      if (entry) { addToCart(entry.item.id, 1, entry.unit); search.value = ""; renderGrid(); return; }
     }
     if (match) { addToCart(match.id); search.value = ""; renderGrid(); }
   });
@@ -172,8 +212,13 @@
   });
 
   grid.addEventListener("click", function (e) {
+    if (e.target.closest("#product-more")) { productLimit += 60; renderGrid(true); return; }
     var card = e.target.closest(".product");
-    if (card) { addToCart(parseInt(card.dataset.id, 10)); search.focus(); }
+    if (card) {
+      var entry = visibleProducts[Number(card.dataset.index)];
+      if (entry) addToCart(entry.item.id, 1, entry.unit);
+      search.focus(); search.select();
+    }
   });
 
   cartEl.addEventListener("click", function (e) {
@@ -586,14 +631,19 @@
 
   // ---------- المرتجعات ----------
   var returnModal = $("return-modal"), rError = $("r-error"), rInvoice = null, rRefund = 0;
+  var returnSearchSeq = 0, invoiceLoadSeq = 0, returnSearchTimer;
 
   function openReturn() {
+    if (busy) return;
     if (!navigator.onLine) { alert("المرتجعات تحتاج اتصالاً بالخادم للتحقق من الفاتورة الأصلية."); return; }
     returnModal.hidden = false;
     $("r-body").hidden = true;
     $("r-confirm").disabled = true;
     rError.hidden = true;
     $("r-invoice").value = "";
+    $("r-date").value = "";
+    resetReturnSelection();
+    searchReturnInvoices();
     $("r-invoice").focus();
   }
 
@@ -615,15 +665,59 @@
     $("r-confirm").disabled = !(valid && any);
   }
 
-  function loadInvoice() {
-    var name = $("r-invoice").value.trim();
+  function resetReturnSelection() {
+    invoiceLoadSeq++;
+    rInvoice = null; rRefund = 0;
+    $("r-items").innerHTML = "";
+    $("r-body").hidden = true;
+    $("r-confirm").disabled = true;
+    $("r-matches").hidden = false;
+  }
+  function searchReturnInvoices(autoOpen) {
+    if (busy) return;
+    clearTimeout(returnSearchTimer);
+    resetReturnSelection();
+    var seq = ++returnSearchSeq, query = $("r-invoice").value.trim();
+    rError.hidden = true;
+    $("r-matches").textContent = "جارٍ البحث عن الفواتير…";
+    fetch(config.invoiceSearchUrl + "?q=" + encodeURIComponent(query) + "&date=" + encodeURIComponent($("r-date").value), {credentials: "same-origin"})
+      .then(function (r) { return r.json().then(function (data) { if (!r.ok) throw new Error(data.error || "تعذر البحث"); return data; }); })
+      .then(function (data) {
+        if (seq !== returnSearchSeq) return;
+        var list = data.invoices;
+        if (autoOpen && query) {
+          var exact = list.find(function (i) { return normalizeLookup(i.name) === normalizeLookup(query); });
+          var choice = exact || (list.length === 1 && !data.has_more ? list[0] : null);
+          if (choice && !choice.fully_returned) { loadInvoice(choice.name); return; }
+        }
+        $("r-matches").innerHTML = '<p class="muted">' + (query ? "مطابقات البحث" : "آخر فواتير البيع") +
+          (data.has_more ? " · أول 30 فاتورة؛ ضيّق البحث أو اختر التاريخ" : "") + '</p>' +
+          (list.length ? list.map(function (i) {
+            return '<button type="button" class="return-invoice" data-invoice="' + esc(i.name) + '"' + (i.fully_returned ? " disabled" : "") + '>' +
+              '<strong dir="ltr">' + esc(i.name) + '</strong><span>' + esc(i.customer) + '</span>' +
+              '<small>' + esc(i.date) + ' · ' + esc(new Date(i.time).toLocaleTimeString("ar-SA", {hour:"2-digit", minute:"2-digit"})) +
+              (i.phone ? ' · ' + esc(i.phone) : '') + '</small><b>' + fmt(num(i.grand_total)) + config.currencyHtml +
+              '</b><small>' + (i.fully_returned ? "مُرجعة بالكامل" : "اختيار للإرجاع") + '</small></button>';
+          }).join("") : '<p class="product-empty">لا توجد فواتير مطابقة. جرّب رقم العميل أو جزءاً من رقم الفاتورة أو تاريخ البيع.</p>');
+      }).catch(function (error) {
+        if (seq !== returnSearchSeq) return;
+        $("r-matches").textContent = "تعذر تحميل الفواتير.";
+        rError.textContent = error.message || "تحقق من الاتصال وأعد البحث."; rError.hidden = false;
+      });
+  }
+
+  function loadInvoice(name) {
+    resetReturnSelection();
+    var seq = ++invoiceLoadSeq;
     if (!name) return;
     rError.hidden = true;
     fetch(config.invoiceUrl + "?name=" + encodeURIComponent(name), { credentials: "same-origin" })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
+        if (seq !== invoiceLoadSeq) return;
         if (!res.ok) { rError.textContent = res.data.error; rError.hidden = false; $("r-body").hidden = true; return; }
         rInvoice = res.data;
+        $("r-matches").hidden = true;
         $("r-info").textContent = "العميل: " + rInvoice.customer + " · التاريخ: " + rInvoice.date + " · الإجمالي: " + fmt(num(rInvoice.grand_total));
         $("r-items").innerHTML = rInvoice.items.map(function (i) {
           return "<tr><td>" + esc(i.name) + "</td><td>" + i.sold + "</td><td>" + i.returnable + "</td><td>" + fmt(i.rate) +
@@ -634,13 +728,31 @@
         toggleReturnRef();
         $("r-body").hidden = false;
         updateReturnTotal();
+        var first = $("r-items").querySelector("input");
+        if (first) { first.focus(); first.select(); }
+      }).catch(function () {
+        if (seq !== invoiceLoadSeq) return;
+        rError.textContent = "تعذر تحميل تفاصيل الفاتورة. أعد اختيارها."; rError.hidden = false;
       });
   }
 
   $("open-return").addEventListener("click", openReturn);
   $("r-cancel").addEventListener("click", function () { returnModal.hidden = true; search.focus(); });
-  $("r-load").addEventListener("click", loadInvoice);
-  $("r-invoice").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); loadInvoice(); } });
+  $("r-load").addEventListener("click", function () { searchReturnInvoices(true); });
+  $("r-recent").addEventListener("click", function () { $("r-invoice").value = ""; $("r-date").value = ""; searchReturnInvoices(); });
+  $("r-date").addEventListener("change", function () { searchReturnInvoices(); });
+  $("r-change").addEventListener("click", function () { searchReturnInvoices(); $("r-invoice").focus(); });
+  $("r-invoice").addEventListener("input", function () {
+    returnSearchSeq++; resetReturnSelection();
+    clearTimeout(returnSearchTimer);
+    $("r-matches").textContent = "جارٍ البحث…";
+    returnSearchTimer = setTimeout(searchReturnInvoices, 220);
+  });
+  $("r-matches").addEventListener("click", function (e) {
+    var button = e.target.closest("[data-invoice]");
+    if (button && !button.disabled) { returnSearchSeq++; loadInvoice(button.dataset.invoice); }
+  });
+  $("r-invoice").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); searchReturnInvoices(true); } });
   $("r-items").addEventListener("input", updateReturnTotal);
   function toggleReturnRef() { $("r-card-ref").hidden = !($("r-method").value === "card" && cardMode() === "manual"); }
   $("r-method").addEventListener("change", toggleReturnRef);
@@ -648,19 +760,23 @@
   $("r-confirm").addEventListener("click", function () {
     if (busy || !rInvoice) return;
     busy = true;
+    var invoiceForReturn = rInvoice;
+    var lockedControls = Array.from(returnModal.querySelectorAll("input,select,button")).map(function (el) {
+      var state = {el: el, disabled: el.disabled}; el.disabled = true; return state;
+    });
     rError.hidden = true;
     var lines = returnLines().filter(function (l) { return l.qty > 0; });
     var method = $("r-method").value;
     // مبلغ الرد للبطاقة يُحسب نهائياً في الخادم؛ هنا التقدير المعروض نفسه لإرساله لجهاز مدى
     var refund = method === "card" ? rRefund : 0;
-    obtainCard("refund", refund, newId(), rInvoice.card)
+    obtainCard("refund", refund, newId(), invoiceForReturn.card)
       .then(function (card) {
         return fetch(config.returnUrl, {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
           body: JSON.stringify({
-            invoice: rInvoice.name,
+            invoice: invoiceForReturn.name,
             items: lines.map(function (l) { return { item: l.item, qty: l.qty }; }),
             refund_method: method,
             card: card,
@@ -686,14 +802,18 @@
             loadItems();
           }, function () { rError.textContent = "خطأ في الاتصال بالخادم."; rError.hidden = false; });
       }, function (err) { rError.textContent = err.message; rError.hidden = false; })
-      .finally(function () { busy = false; });
+      .finally(function () {
+        busy = false; lockedControls.forEach(function (state) { state.el.disabled = state.disabled; });
+        updateReturnTotal();
+      });
   });
 
   // اختصارات لوحة المفاتيح
   document.addEventListener("keydown", function (e) {
-    if (e.key === "F2") { e.preventDefault(); search.focus(); search.select(); }
-    else if (e.key === "F9") { e.preventDefault(); if (payModal.hidden) openPay(); }
-    else if (e.key === "F8") { e.preventDefault(); openReturn(); }
+    if (busy && ["F8", "F9", "Escape"].includes(e.key)) { e.preventDefault(); return; }
+    if (e.key === "F2") { e.preventDefault(); var target = returnModal.hidden ? search : $("r-invoice"); target.focus(); target.select(); }
+    else if (e.key === "F9") { e.preventDefault(); if (payModal.hidden && returnModal.hidden) openPay(); }
+    else if (e.key === "F8") { e.preventDefault(); if (payModal.hidden) openReturn(); }
     else if (e.key === "Escape") { payModal.hidden = true; returnModal.hidden = true; }
     else if (e.key === "Enter" && !payModal.hidden && document.activeElement !== $("m-confirm")) {
       e.preventDefault(); $("m-confirm").click();

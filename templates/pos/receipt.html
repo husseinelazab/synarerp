@@ -14,6 +14,9 @@
     td, th { padding: 2px 0; text-align: right; vertical-align: top; }
     .n { text-align: left; white-space: nowrap; }
     .grand td { font-weight: bold; font-size: 14px; }
+    .invoice-barcode { margin: 8px auto; width: 66mm; text-align: center; }
+    .invoice-barcode svg { display: block; width: 100%; height: 12mm; }
+    .invoice-barcode small { display: block; font-size: 10px; margin: 3px 0; }
     .qr svg { width: 44mm; height: 44mm; }
     .stamp { font-weight: bold; font-size: 14px; }
     @media screen { body { box-shadow: 0 0 6px #aaa; padding: 4mm; margin-top: 12px; } .no-print { margin-top: 8px; } }
@@ -55,6 +58,7 @@
     {% endif %}
   </table>
   <hr>
+  {% if invoice_barcode %}<div class="invoice-barcode">{{ invoice_barcode|safe }}<small dir="ltr">{{ inv.name }}</small><small>باركود الفاتورة لتسهيل الاستبدال والاسترجاع</small></div>{% endif %}
   {% if qr %}<div class="c qr">{{ qr|safe }}</div>{% endif %}
   {% if footer %}<div class="c">{{ footer }}</div>{% endif %}
   <div class="c no-print"><button onclick="window.print()">طباعة</button></div>

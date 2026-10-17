@@ -28,16 +28,14 @@
 <div class="pos-layout">
   <section class="pos-products">
     <div class="pos-search">
-      <input id="search" class="form-control" placeholder="ابحث بالاسم أو الكود أو امسح الباركود (F2)" autocomplete="off" autofocus>
+      <input id="search" class="form-control" placeholder="اكتب جزءاً من اسم المنتج أو الباركود (F2)" aria-label="بحث المنتجات" aria-controls="grid" autocomplete="off" autofocus>
     </div>
     <div class="pos-groups" id="groups">
       <button class="chip active" data-group="">الكل</button>
       {% for g in groups %}<button class="chip" data-group="{{ g.id }}">{{ g.name }}</button>{% endfor %}
     </div>
-    <div class="pos-view-switch" role="group" aria-label="طريقة عرض الأصناف">
-      <button class="btn btn-primary" type="button" data-product-view="list" aria-pressed="true">قائمة الاسم والباركود</button>
-      <button class="btn" type="button" data-product-view="cards" aria-pressed="false">بطاقات</button>
-    </div>
+    <div class="pos-result-summary"><span id="product-count" role="status" aria-live="polite"></span><small>اكتب جزءاً من الاسم أو الباركود · ↑ ↓ للتنقل وEnter للإضافة</small></div>
+    <div class="product-list-heading"><span>المنتج / الوحدة</span><span>الباركود / الكود</span><span>السعر</span><span>المتوفر</span></div>
     <div class="pos-grid product-list" id="grid"><div class="muted">جارٍ تحميل الأصناف...</div></div>
   </section>
 
@@ -105,11 +103,13 @@
   <div class="modal-box modal-wide">
     <h2>مرتجع مبيعات</h2>
     <div class="return-lookup">
-      <input id="r-invoice" class="form-control big-input" placeholder="رقم الفاتورة مثل SINV-2026-00001" autocomplete="off" dir="ltr">
-      <button class="btn btn-primary" id="r-load">بحث</button>
+      <input id="r-invoice" class="form-control big-input" placeholder="امسح باركود الفاتورة أو ابحث برقمها أو العميل أو جواله" aria-label="بحث فاتورة المرتجع" autocomplete="off">
+      <button class="btn btn-primary" id="r-load" type="button">بحث الفواتير</button>
     </div>
+    <div class="return-filters"><label>تاريخ البيع <input id="r-date" type="date" class="form-control"></label><button class="btn" type="button" id="r-recent">آخر الفواتير</button></div>
+    <div id="r-matches" class="return-matches" aria-live="polite"></div>
     <div id="r-body" hidden>
-      <div class="muted" id="r-info"></div>
+      <div class="return-selected"><div class="muted" id="r-info"></div><button class="btn" id="r-change" type="button">اختيار فاتورة أخرى</button></div>
       <table class="table">
         <thead><tr><th>الصنف</th><th>المباع</th><th>المتاح للإرجاع</th><th>السعر</th><th>كمية المرتجع</th></tr></thead>
         <tbody id="r-items"></tbody>

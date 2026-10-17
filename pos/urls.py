@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/quote/", views.quote_api, name="pos_quote"),
     path("api/sync/", views.sync_api, name="pos_sync"),
     path("sw.js", views.service_worker, name="pos_sw"),
+    path("api/invoices/", views.invoice_search_api, name="pos_invoice_search"),
     path("api/invoice/", views.invoice_api, name="pos_invoice"),
     path("api/return/", views.return_api, name="pos_return"),
     path("receipt/<int:pk>/", views.receipt, name="pos_receipt"),

@@ -7,7 +7,7 @@ from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from core.utils import currency_symbol_html
 from core.zatca import invoice_qr_svg
@@ -32,6 +32,7 @@ def terminal(request):
         "checkoutUrl": reverse("pos_checkout"),
         "quoteUrl": reverse("pos_quote"),
         "invoiceUrl": reverse("pos_invoice"),
+        "invoiceSearchUrl": reverse("pos_invoice_search"),
         "returnUrl": reverse("pos_return"),
         "taxRate": float(profile.tax_rate),
         "pricesIncludeTax": profile.prices_include_tax,
@@ -212,12 +213,53 @@ def quote_api(request):
 
 @login_required
 def receipt(request, pk):
+    from stock.barcode import svg
+
     invoice = get_object_or_404(SalesInvoice.objects.select_related("company", "customer", "pos_shift__profile"), pk=pk)
     return render(request, "pos/receipt.html", {
         "inv": invoice, "company": invoice.company, "rows": invoice.items.select_related("item", "uom"),
         "qr": invoice_qr_svg(invoice), "auto_print": request.GET.get("print") == "1",
+        "invoice_barcode": svg(invoice.name) if invoice.is_pos and invoice.is_submitted and not invoice.is_return else "",
         "footer": invoice.pos_shift.profile.receipt_footer if invoice.pos_shift_id else "",
     })
+
+
+@login_required
+@require_GET
+def invoice_search_api(request):
+    """Small, scoped result pages; no invoice number needs to be known in advance."""
+    import datetime
+    from core.permissions import scope_queryset
+    from core.search import text_query, normalize
+    from selling.models import SalesInvoiceItem
+
+    if POSShift.current_for(request.user) is None:
+        return JsonResponse({"error": "افتح وردية للبحث عن فواتير المرتجع."}, status=400)
+    invoices = scope_queryset(request, SalesInvoice, SalesInvoice.objects.filter(
+        company=request.company, docstatus=1, is_pos=True, is_return=False))
+    query = request.GET.get("q", "").strip()[:150]
+    if query:
+        invoices = invoices.filter(text_query(["name", "customer__name", "customer__phone"], query))
+    date = request.GET.get("date", "")
+    if date:
+        try:
+            invoices = invoices.filter(posting_date=datetime.date.fromisoformat(normalize(date)))
+        except ValueError:
+            return JsonResponse({"error": "تاريخ البيع غير صحيح."}, status=400)
+    rows = list(invoices.select_related("customer").order_by("-created_at", "-pk")[:31])
+    more, rows = len(rows) > 30, rows[:30]
+    ids = [row.pk for row in rows]
+    sold = SalesInvoiceItem.objects.filter(parent_id__in=ids).values("parent_id", "item_id").annotate(qty=Sum("stock_qty"))
+    returned = SalesInvoiceItem.objects.filter(parent__return_against_id__in=ids, parent__docstatus=1).values(
+        "parent__return_against_id", "item_id").annotate(qty=Sum("stock_qty"))
+    returns = {(r["parent__return_against_id"], r["item_id"]): -r["qty"] for r in returned}
+    available = {r["parent_id"] for r in sold if r["qty"] > returns.get((r["parent_id"], r["item_id"]), 0)}
+    response = JsonResponse({"invoices": [{"name": row.name, "customer": row.customer.name,
+        "phone": row.customer.phone, "date": row.posting_date.isoformat(), "time": row.created_at.isoformat(),
+        "grand_total": str(row.grand_total), "fully_returned": row.pk not in available} for row in rows],
+        "has_more": more})
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @login_required

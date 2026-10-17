@@ -3,37 +3,52 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ item.number }} — {{ item.subject }}</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'css/print.css' %}">
-<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; } .letter-body { white-space: pre-line; line-height: 2.1; font-size: 15px; margin: 2em 0; min-height: 40vh; } .letter-meta div { margin: .2em 0; } .sign { margin-top: 3em; text-align: left; }</style>
+<link rel="stylesheet" href="{% static 'css/letter.css' %}">
+<style>:root { --accent: {{ ps.accent_color|default:"#1f4e79" }}; }</style>
 </head>
 <body>
 <div class="toolbar no-print">
   <a class="tb-btn" href="{{ item.get_absolute_url }}">→ رجوع للمعاملة</a>
-  <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+  <button class="tb-btn tb-primary" onclick="window.print()">طباعة / حفظ PDF</button>
+  <span class="tb-label">كليشة رسمية · A4</span>
 </div>
-<main class="sheet">
-  {% if ps.letterhead %}<img src="{{ ps.letterhead }}" alt="كليشة {{ company.name }}" style="width:100%;max-height:180px;object-fit:contain;margin-bottom:18px">{% endif %}
-  <header class="doc-header">
-    <div class="brand">
-      {% if ps.logo %}<img class="logo" src="{{ ps.logo }}" alt="{{ company.name }}">{% endif %}
-      <div><div class="company-name">{{ company.name }}</div>
-      {% if company.license_number %}<div class="company-name-en">ترخيص رقم {{ company.license_number }}</div>{% endif %}</div>
+<main class="sheet official-letter">
+  <div class="letter-accent" aria-hidden="true"><i></i><i></i><i></i></div>
+  {% if ps.letter_layout == "custom" and ps.letterhead %}<img class="custom-letterhead" src="{{ ps.letterhead }}" alt="كليشة {{ company.name }}">{% endif %}
+  <header class="official-header">
+    <div class="association-identity">
+      {% if ps.letter_layout != "custom" or not ps.letterhead %}
+      {% if ps.logo %}<img class="association-logo" src="{{ ps.logo }}" alt="شعار {{ company.name }}">{% endif %}
+      <div class="association-name">{{ company.name }}</div>
+      {% if ps.name_en %}<div class="association-name-en" dir="ltr">{{ ps.name_en }}</div>{% endif %}
+      {% if company.license_number %}<div class="association-license">رقم الترخيص <bdi>{{ company.license_number }}</bdi></div>{% endif %}
+      {% endif %}
     </div>
-    <div class="seller letter-meta">
-      <div><span class="k">{% if item.direction == "outgoing" %}رقم الصادر{% else %}رقم القيد{% endif %}</span> <b dir="ltr">{{ item.number }}</b></div>
-      <div><span class="k">التاريخ</span> <b>{{ item.date|hijri }} — {{ item.date|date:"Y-m-d" }}</b></div>
-      <div><span class="k">المرفقات</span> <b>{{ attachments_count|default:"—" }}</b></div>
-    </div>
+    <section class="correspondence-card" aria-label="بيانات الخطاب">
+      <div class="correspondence-card-title">{% if item.direction == "outgoing" %}خطاب صادر{% elif item.direction == "incoming" %}خطاب وارد{% else %}خطاب داخلي{% endif %}</div>
+      <dl class="correspondence-meta">
+        <div><dt>{% if item.direction == "outgoing" %}رقم الصادر{% elif item.direction == "incoming" %}رقم الوارد{% else %}رقم المعاملة{% endif %}</dt><dd class="outgoing-reference" dir="ltr">{{ item.number }}</dd></div>
+        <div><dt>التاريخ الميلادي</dt><dd><bdi>{{ item.date|date:"Y/m/d" }}</bdi> م</dd></div>
+        <div><dt>التاريخ الهجري</dt><dd>{{ item.date|hijri }}</dd></div>
+        <div><dt>المرفقات</dt><dd>{% if item.attachment_description %}{{ item.attachment_description }}{% else %}{{ attachments_count }} ملف{% endif %}</dd></div>
+      </dl>
+      <div class="outgoing-barcode" aria-label="باركود رقم المعاملة">{{ barcode|safe }}<span dir="ltr">{{ item.number }}</span></div>
+    </section>
   </header>
-  {% if item.party %}<p style="margin-top:2em"><strong>المكرم / {{ item.party }}</strong> المحترم</p>{% endif %}
-  <p>السلام عليكم ورحمة الله وبركاته، وبعد:</p>
-  <p><strong>الموضوع: {{ item.subject }}</strong></p>
-  {% if ps.letter_opening %}<p>{{ ps.letter_opening }}</p>{% endif %}
-  <div style="width:170px;height:38px;margin-top:16px">{{ barcode|safe }}</div>
-  <div class="letter-body">{{ item.body }}</div>
-  <p>وتقبلوا خالص التحية والتقدير،،،</p>
-  <div class="sign">{% if item.signatory %}<strong>{{ item.signatory.get_full_name|default:item.signatory }}</strong><br>{% endif %}{{ company.name }}</div>
-  <footer class="doc-footer">{% if company.address %}{{ company.address }}{% endif %}{% if company.phone %} · <span dir="ltr">{{ company.phone }}</span>{% endif %}{% if company.email %} · {{ company.email }}{% endif %}</footer>
+  <div class="letter-rule" aria-hidden="true"></div>
+  <section class="letter-content">
+    {% if item.party %}<p class="letter-recipient"><strong>المكرم / {{ item.party }}</strong><span>المحترم</span></p>{% endif %}
+    <p>{{ ps.letter_opening|default:"السلام عليكم ورحمة الله وبركاته، وبعد:" }}</p>
+    <h1 class="letter-subject">الموضوع: {{ item.subject }}</h1>
+    <div class="letter-body">{{ item.body }}</div>
+    <p>وتقبلوا خالص التحية والتقدير،،،</p>
+    <div class="letter-signature">{% if item.signatory %}<strong>{{ item.signatory.get_full_name|default:item.signatory }}</strong>{% endif %}<span>{{ company.name }}</span></div>
+  </section>
+  <footer class="official-footer">
+    <div class="footer-rule" aria-hidden="true"></div>
+    {% if ps.footer_text %}<p>{{ ps.footer_text }}</p>{% endif %}
+    <div class="letter-contact">{% if company.address %}<span>{{ company.address }}</span>{% endif %}{% if company.phone %}<span dir="ltr">{{ company.phone }}</span>{% endif %}{% if company.email %}<span dir="ltr">{{ company.email }}</span>{% endif %}</div>
+  </footer>
 </main>
 </body></html>

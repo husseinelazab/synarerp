@@ -160,6 +160,10 @@ def services(request):
         {"icon": "volunteer", "title": "التطوع", "url": site_url(request, "site_programs") + "#volunteering",
          "description": "سجّل في الفرص التطوعية المتاحة واحصل على شهادة بساعاتك."},
     ]
+    if site.specialty_registration_available:
+        tiles.insert(0, {"icon": "member", "title": site.specialty_registration_label,
+                         "url": site_url(request, "site_specialty_register"),
+                         "description": "قدّم طلبك إلكترونياً لتراجعه الجمعية وتتواصل معك بشأن القبول والخدمة المناسبة."})
     if site.allow_membership_requests:
         tiles.append({"icon": "member", "title": "طلب العضوية", "url": site_url(request, "site_membership"),
                       "description": "انضم إلى الجمعية العمومية وشارك في مسيرة الجمعية."})

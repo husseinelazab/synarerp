@@ -420,6 +420,8 @@ def sitemap(request):
     pages = ["site_home", "site_about", "site_programs", "site_news", "site_gallery", "site_governance",
              "site_apply", "site_contact", "site_services", "site_faq", "site_videos", "site_feedback",
              "site_verify", "site_privacy"]
+    if request.site.specialty_registration_available:
+        pages.append("site_specialty_register")
     if request.site.allow_membership_requests:
         pages.append("site_membership")
     urls = [(request.build_absolute_uri(site_url(request, name)), None) for name in pages]

@@ -24,7 +24,7 @@ from core.registry import REGISTRY
 from core.tenancy import _current_user, reset_current_company, set_current_company, set_current_user
 
 RATE_LIMIT_PER_MINUTE = 120
-HIDDEN = {"company", "created_by", "password_encrypted", "secret_encrypted", "private_key", "otp_hash",
+HIDDEN = {"submission_key", "company", "created_by", "password_encrypted", "secret_encrypted", "private_key", "otp_hash",
           "receipt_fingerprint"}
 
 
@@ -151,6 +151,8 @@ def _doctype(request, slug, sub=""):
     dt = REGISTRY.get(slug)
     if dt is None:
         return None, error("نوع المستند غير موجود.", 404, "not_found")
+    if dt.read_only and request.method not in {"GET", "HEAD", "OPTIONS"}:
+        return None, error("هذا النوع يُنشأ ويُراجع من مساره المخصص فقط.", 403, "read_only")
     path = f"/app/{slug}/{sub}"
     membership = request.membership
     subscription = getattr(request.company, "subscription", None)

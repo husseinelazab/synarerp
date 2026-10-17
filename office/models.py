@@ -49,6 +49,8 @@ class Correspondence(TenantModel):
     is_confidential = models.BooleanField("سرية", default=False,
                                           help_text="لا تظهر إلا للمدير ومنشئها ومن أُحيلت إليه")
     body = models.TextField("نص الخطاب / الملخص", blank=True)
+    attachment_description = models.CharField("بيان المرفقات", max_length=100, blank=True,
+        help_text="مثل: كشف المستفيدين (3 صفحات). اتركه فارغاً لعرض عدد الملفات المرفوعة على المعاملة تلقائياً.")
     reply_to = models.ForeignKey("self", models.SET_NULL, null=True, blank=True, related_name="replies",
                                  verbose_name="رداً على")
     signatory = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, blank=True, related_name="+",

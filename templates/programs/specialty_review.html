@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="toolbar"><a class="btn" href="{% url 'specialty_dashboard' %}">العودة إلى لوحة المتابعة</a><strong>{{ application.get_status_display }}</strong></div>
+<div class="card"><h3>بيانات الطلب</h3><dl>{% for label, value in details %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl></div>
+{{ form.non_field_errors }}
+{% if application.status == 'pending' %}
+{% if can_review %}<div class="card"><h3>قرار الموظف</h3><p>القبول ينشئ السجل المعتمد، أو يربطه بالملف الذي تختاره. لا يُعدّل بيانات الملف الموجود. تحقق من تطابق الهوية والجوال قبل الربط. لطلبات العمرة تُراجع سعة الرحلة عند القبول.</p>
+<form method="post">{% csrf_token %}<div class="form-grid">{% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}</div><button class="btn btn-primary" type="submit">حفظ قرار المراجعة</button></form></div>
+{% else %}<p>يمكنك الاطلاع على الطلب. يحتاج اتخاذ القرار إلى صلاحية الاعتماد والكتابة.</p>{% endif %}
+{% else %}
+<div class="card"><h3>سجل القرار</h3><p>{{ application.get_status_display }} · {{ application.reviewed_by.get_full_name|default:application.reviewed_by.username }} · {{ application.reviewed_at }}</p><p>{{ application.review_note|linebreaksbr }}</p><p>حُفظ القرار لمنع معالجة الطلب مرتين. يمكن متابعة السجلات المعتمدة من قائمة التخصص.</p></div>
+{% endif %}
+{% if linked_records %}<div class="card"><h3>السجلات المعتمدة المرتبطة بالطلب</h3>{% for link in linked_records %}<p><a class="btn" href="{{ link.record.get_absolute_url }}">{{ link.label }} · {{ link.record }}</a></p>{% endfor %}</div>{% endif %}
+{% if schedule_form %}<div class="card"><h3>تنسيق موعد للطلب المقبول</h3><p>يمكن اعتماد الطلب أولاً ثم تنسيق موعده هنا. يُربط الموعد بالطلب ويظهر في لوحة المواعيد.</p><form method="post">{% csrf_token %}<input type="hidden" name="action" value="schedule">{{ schedule_form.non_field_errors }}<div class="form-grid">{% for field in schedule_form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}</div><button type="submit" class="btn btn-primary">حجز الموعد وربطه بالطلب</button></form></div>{% endif %}
+{% endblock %}

@@ -80,6 +80,7 @@
         <div class="nav-sub">
           <a href="{% site_url 'site_apply' %}">طلب مساعدة</a>
           <a href="{% site_url 'site_programs' %}#volunteering">التطوع</a>
+          {% if site.specialty_registration_available %}<a href="{% site_url 'site_specialty_register' %}">{{ site.specialty_registration_label }}</a>{% endif %}
           {% if site.allow_membership_requests %}<a href="{% site_url 'site_membership' %}">طلب عضوية</a>{% endif %}
           <a href="{% site_url 'site_verify' %}">التحقق من الشهادات</a>
           <a href="{% site_url 'site_feedback' %}">الشكاوى والمقترحات</a>
@@ -138,7 +139,8 @@
       <a href="{% site_url 'store_home' %}">تبرع الآن</a>
       <a href="{% site_url 'site_apply' %}">طلب مساعدة</a>
       <a href="{% site_url 'site_programs' %}#volunteering">التطوع</a>
-      {% if site.allow_membership_requests %}<a href="{% site_url 'site_membership' %}">طلب عضوية</a>{% endif %}
+      {% if site.specialty_registration_available %}<a href="{% site_url 'site_specialty_register' %}">{{ site.specialty_registration_label }}</a>{% endif %}
+          {% if site.allow_membership_requests %}<a href="{% site_url 'site_membership' %}">طلب عضوية</a>{% endif %}
       <a href="{% site_url 'site_verify' %}">التحقق من الشهادات</a>
       <a href="{% site_url 'site_feedback' %}">الشكاوى والمقترحات</a>
     </div>

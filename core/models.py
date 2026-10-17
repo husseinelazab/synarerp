@@ -641,6 +641,8 @@ class PrintSettings(models.Model):
     accent_color = models.CharField("اللون الرئيسي", max_length=7, default="#1f4e79",
                                     help_text="لون العناوين ورأس الجداول، مثل #1f4e79")
     logo = models.TextField("الشعار", blank=True, editable=False)  # data URI (PNG/JPEG/WebP) لا يحتاج خادم ملفات
+    letter_layout = models.CharField("تصميم كليشة الخطابات", max_length=10,
+        choices=[("unified", "كليشة موحدة بشعار الجمعية ولونها"), ("custom", "صورة كليشة مخصصة")], default="unified")
     letterhead = models.TextField("كليشة الخطابات", blank=True, editable=False)
     letter_opening = models.CharField("افتتاحية الخطاب", max_length=300, blank=True,
                                      default="السلام عليكم ورحمة الله وبركاته،")

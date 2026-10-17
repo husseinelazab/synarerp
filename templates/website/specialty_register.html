@@ -1,0 +1,18 @@
+{% extends "website/public_base.html" %}{% load site %}
+{% block title %}{{ request.site.specialty_registration_label }} — {{ request.site.company.name }}{% endblock %}
+{% block content %}
+{% include "website/_page_hero.html" with heading=request.site.specialty_registration_label parent="الخدمات الإلكترونية" %}
+<section class="wrap page narrow">
+{% if done %}
+<div class="notice ok" role="status"><strong>تم استلام طلبك للمراجعة.</strong><p>ستراجع الجمعية البيانات وتتواصل معك على الجوال المسجل. إرسال الطلب لا يعني القبول أو تأكيد حجز مقعد أو موعد.</p></div>
+<a href="{% site_url 'site_home' %}">العودة إلى الرئيسية</a>
+{% else %}
+<p>سجّل بيانات المستفيد دون الحاجة لزيارة الجمعية. يراجع الموظف الطلب ويحدد الحلقة أو الخدمة المناسبة. {% if request.site.company.association_specialty == "dawah" %}التسجيل في العمرة متاح من قائمة الرحلات المفتوحة ويخضع لتوفر المقاعد عند الاعتماد.{% elif request.site.company.association_specialty == "health" %}اختر الخدمة المطلوبة؛ اليوم المفضل طلب مبدئي ويحدد الموظف الموعد بعد المراجعة.{% else %}يمكنك اختيار الحلقة أو ترك اختيارها للجمعية بحسب المستوى والمقاعد المتاحة.{% endif %}</p>
+<form method="post" class="site-form">{% csrf_token %}
+{% include "website/_form_fields.html" %}
+<p><a href="{% site_url 'site_privacy' %}" target="_blank" rel="noopener">سياسة الخصوصية ومعالجة البيانات</a></p>
+<button class="btn-brand" type="submit">إرسال للمراجعة</button>
+</form>
+{% endif %}
+</section>
+{% endblock %}

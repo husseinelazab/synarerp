@@ -33,3 +33,12 @@ for slug, model, module, columns, search in [
 ]:
     register(DocType(slug=slug, model=model, module=module, list_fields=columns, search_fields=search,
                      detail_template="programs/_umrah_trip_detail.html" if slug == "umrah-trip" else ""))
+
+from programs.models import SpecialtyApplication
+
+register(DocType(
+    slug="specialty-application", model=SpecialtyApplication, module="programs",
+    list_fields=["full_name", "phone", "specialty", "created_at", "status"],
+    search_fields=["full_name", "phone"], read_only=True, show_in_menu=False,
+    detail_exclude=["submission_key"], detail_template="programs/_application_detail.html",
+))

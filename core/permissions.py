@@ -151,6 +151,11 @@ def modules_for_path(path):
     """مجموعة الوحدات التي تكفي إحداها لفتح المسار، أو None إن كان المسار عاماً."""
     from core.registry import MODULES, REGISTRY
 
+    if path.startswith(("/programs/specialty/", "/app/specialty-application/")):
+        from core.tenancy import get_current_company
+        company = get_current_company()
+        specialty = getattr(company, "association_specialty", "")
+        return {specialty} if specialty in SPECIALTY_MODULES else SPECIALTY_MODULES
     if path.startswith("/module/"):
         module = path.split("/")[2]
         return {module} if module in MODULES and module not in ("setup", "core") else None

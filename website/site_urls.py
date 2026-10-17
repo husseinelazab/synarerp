@@ -2,6 +2,7 @@
 from django.urls import include, path
 
 from store import views as store_views
+from programs.intake_views import public_registration
 from website import extra_views
 from website import public_views as views
 
@@ -17,6 +18,7 @@ urlpatterns = [
     path("gallery/<int:pk>/", views.album, name="site_album"),
     path("apply/", views.apply, name="site_apply"),
     path("contact/", views.contact, name="site_contact"),
+    path("register/", public_registration, name="site_specialty_register"),
     path("services/", extra_views.services, name="site_services"),
     path("faq/", extra_views.faq, name="site_faq"),
     path("videos/", extra_views.videos, name="site_videos"),

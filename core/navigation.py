@@ -422,7 +422,7 @@ def nonprofit_modules(modules, doc, company):
     }
     for key, (label, links) in specialties.items():
         if key == company.association_specialty:
-            by_key[key] = {"key": key, "label": label, "sections": [{"items": [doc(title, slug) for title, slug in links]}]}
+            by_key[key] = {"key": key, "label": label, "sections": [{"items": [_item("لوحة المتابعة وطلبات التسجيل", "specialty_dashboard")] + [doc(title, slug) for title, slug in links]}]}
     for key, label in NONPROFIT_LABELS.items():
         if key in by_key:
             by_key[key]["label"] = label

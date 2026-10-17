@@ -20,7 +20,7 @@ class WebsiteForm(forms.ModelForm):
         fields = ["slug", "domain", "is_published", "tagline", "hero_title", "hero_subtitle", "about", "primary_color",
                   "video_intro_url", "fundraising_license_number", "fundraising_license_expiry", "bank_accounts",
                   "whatsapp", "working_hours", "map_url", "x_url", "instagram_url", "snapchat_url", "tiktok_url",
-                  "youtube_url", "linkedin_url", "allow_membership_requests", "privacy_policy"]
+                  "youtube_url", "linkedin_url", "allow_membership_requests", "allow_specialty_registration", "privacy_policy"]
         widgets = {"primary_color": forms.TextInput(attrs={"type": "color", "style": "height:44px;width:120px;padding:4px"}),
                    "about": forms.Textarea(attrs={"rows": 4}), "bank_accounts": forms.Textarea(attrs={"rows": 3}),
                    "privacy_policy": forms.Textarea(attrs={"rows": 6}),

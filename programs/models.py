@@ -535,3 +535,46 @@ class HealthAppointment(SpecialtyRecord):
 
     def __str__(self):
         return f"{self.patient} — {self.scheduled_at}"
+
+
+class SpecialtyApplication(TenantModel):
+    """Public intake stays separate from approved operational records."""
+    reference = models.UUIDField("رقم الطلب", default=uuid.uuid4, unique=True, editable=False)
+    specialty = models.CharField("التخصص", max_length=12, choices=[("quran", "التحفيظ"), ("dawah", "الدعوة والعمرة"), ("health", "الخدمات الصحية")])
+    full_name = models.CharField("الاسم", max_length=150)
+    phone = models.CharField("الجوال / جوال ولي الأمر", max_length=30)
+    email = models.EmailField("البريد الإلكتروني", blank=True)
+    circle = models.ForeignKey(QuranCircle, models.PROTECT, null=True, blank=True, verbose_name="الحلقة المطلوبة")
+    trip = models.ForeignKey(UmrahTrip, models.PROTECT, null=True, blank=True, verbose_name="رحلة العمرة المطلوبة")
+    nationality = models.CharField("الجنسية", max_length=80, blank=True)
+    language = models.CharField("اللغة", max_length=80, blank=True)
+    birth_date = models.DateField("تاريخ الميلاد", null=True, blank=True)
+    service_needed = models.CharField("الخدمة الصحية المطلوبة", max_length=200, blank=True)
+    preferred_date = models.DateField("اليوم المفضل للخدمة", null=True, blank=True)
+    notes = models.TextField("ملاحظات مقدم الطلب", blank=True)
+    consent_at = models.DateTimeField("الموافقة على معالجة البيانات", default=timezone.now, editable=False)
+    created_at = models.DateTimeField("تاريخ التقديم", auto_now_add=True)
+    status = models.CharField("الحالة", max_length=12, choices=[("pending", "بانتظار المراجعة"), ("accepted", "مقبول"), ("rejected", "مرفوض")], default="pending", editable=False)
+    submission_key = models.CharField(max_length=64, editable=False)
+    review_note = models.TextField("ملاحظات المراجعة / سبب الرفض", blank=True, editable=False)
+    reviewed_at = models.DateTimeField("تاريخ القرار", null=True, editable=False)
+    reviewed_by = models.ForeignKey("auth.User", models.PROTECT, null=True, editable=False, verbose_name="راجع الطلب")
+    student = models.ForeignKey(QuranStudent, models.PROTECT, null=True, editable=False)
+    new_muslim = models.ForeignKey(NewMuslim, models.PROTECT, null=True, editable=False)
+    patient = models.ForeignKey(HealthPatient, models.PROTECT, null=True, editable=False)
+    participant = models.ForeignKey(UmrahParticipant, models.PROTECT, null=True, editable=False)
+    appointment = models.ForeignKey(HealthAppointment, models.PROTECT, null=True, editable=False)
+
+    class Meta:
+        verbose_name = "طلب تسجيل تخصصي"
+        verbose_name_plural = "طلبات التسجيل التخصصية"
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["company", "submission_key"], name="specialty_submission_once")]
+        indexes = [models.Index(fields=["company", "specialty", "status", "created_at"], name="specialty_review_queue")]
+
+    @classmethod
+    def scope_for_user(cls, queryset, request):
+        return queryset.filter(company=request.company, specialty=request.company.association_specialty)
+
+    def __str__(self):
+        return f"{self.full_name} — {self.get_status_display()}"

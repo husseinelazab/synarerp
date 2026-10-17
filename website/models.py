@@ -51,6 +51,23 @@ class Website(TenantModel):
     org_chart = models.TextField("الهيكل التنظيمي", blank=True, editable=False)  # data URI
     privacy_policy = models.TextField("سياسة الخصوصية", blank=True,
                                       help_text="اتركها فارغة لعرض سياسة افتراضية متوافقة مع نظام حماية البيانات الشخصية")
+    allow_specialty_registration = models.BooleanField("استقبال التسجيل في الخدمات التخصصية من الموقع", default=True)
+
+    @property
+    def specialty_registration_available(self):
+        company = self.company
+        subscription = getattr(company, "subscription", None)
+        return (self.allow_specialty_registration and company.is_nonprofit
+                and company.association_specialty in {"quran", "dawah", "health"}
+                and subscription is not None and subscription.is_valid
+                and subscription.plan.allows_module("website")
+                and subscription.plan.allows_module(company.association_specialty))
+
+    @property
+    def specialty_registration_label(self):
+        return {"quran": "التسجيل في حلقات التحفيظ", "dawah": "التسجيل في خدمات الدعوة والعمرة",
+                "health": "طلب خدمة صحية"}.get(self.company.association_specialty, "التسجيل التخصصي")
+
     allow_membership_requests = models.BooleanField("استقبال طلبات العضوية من الموقع", default=True)
 
     class Meta:

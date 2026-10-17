@@ -122,15 +122,19 @@ class PrintSettingsForm(forms.ModelForm):
         model = PrintSettings
         fields = ["template", "accent_color", "name_en", "address_en", "bilingual", "show_amount_in_words",
                   "show_signatures", "show_item_code", "show_bank_details", "bank_name", "bank_account_name", "iban",
-                  "footer_text", "sales_terms", "letter_opening"]
+                  "footer_text", "sales_terms", "letter_opening", "letter_layout"]
         widgets = {"accent_color": forms.TextInput(attrs={"type": "color", "style": "height:44px;width:120px;padding:4px"}),
                    "sales_terms": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["letter_layout"].required = False
         if not self.instance.logo:
             del self.fields["remove_logo"]
         style_form(self)
+
+    def clean_letter_layout(self):
+        return self.cleaned_data.get("letter_layout") or "unified"
 
     def clean_accent_color(self):
         import re

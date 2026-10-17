@@ -35,12 +35,14 @@ def route_correspondence(request, pk):
 
 @login_required
 def letter(request, pk):
-    from core.models import PrintSettings
+    from core.models import Attachment, PrintSettings
 
     from stock.barcode import svg
     item = _correspondence(request, pk)
     return render(request, "office/letter.html", {"item": item, "company": request.company,
-                                                  "ps": PrintSettings.for_company(request.company), "barcode": svg(item.number)})
+                                                  "ps": PrintSettings.for_company(request.company), "barcode": svg(item.number, height=42),
+                                                  "attachments_count": Attachment.objects.filter(company=request.company,
+                                                      doctype="correspondence", object_id=item.pk).count()})
 
 
 @login_required

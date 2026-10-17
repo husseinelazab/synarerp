@@ -206,7 +206,7 @@ def build_menu(request):
                                           _item("رسائل SMS وواتساب", "messaging_settings"), _item("سجل الرسائل", "message_log")]},
             {"title": "التكامل", "items": [_item("الواجهة البرمجية (API)", "api_keys")]
              + ([_item("الذكاء الاصطناعي", "ai_settings")] if includes_ai else [])},
-            {"title": "الاشتراك والبيانات", "items": [_item("الاشتراك والفوترة", "billing"),
+            {"title": "الاشتراك والبيانات", "items": [_item("الاشتراك والفوترة", "billing"), _item("مسميات الوحدات", "module_labels"),
                                                      _item("تصدير كامل البيانات", "company_export")]},
         ]
     else:
@@ -216,6 +216,8 @@ def build_menu(request):
         modules = nonprofit_modules(modules, doc, request.company)
     if request.user.is_superuser:
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [{"items": platform_items()}]})
+    for module in modules:
+        module["label"] = request.company.module_labels.get(module["key"], module["label"])
     modules = _grouped(modules, NONPROFIT_GROUPS if request.company.is_nonprofit else BUSINESS_GROUPS)
 
     # ما أغلقته باقة الشركة لا يظهر لأحد، ولا مالك الحساب
@@ -317,7 +319,7 @@ def nonprofit_modules(modules, doc, company):
                                                doc("المتاجر الشريكة", "voucher-merchant")]},
         {"title": "بوابة المستفيد", "items": [doc("طلبات تحديث البيانات", "portal-profile-update"),
                                              doc("طلبات الخدمة", "portal-service-request")]},
-        {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"),
+        {"title": "الإعداد", "items": [doc("فئات المستفيدين", "beneficiary-category"), doc("تصنيفات وحالات التابعين", "dependent-category"),
                                       doc("معايير دراسة الحالة", "assessment-criterion")]},
     ]}
     by_key["resources"] = {"key": "resources", "label": "إدارة الموارد المالية", "sections": [
@@ -423,6 +425,7 @@ def nonprofit_modules(modules, doc, company):
     for key, (label, links) in specialties.items():
         if key == company.association_specialty:
             by_key[key] = {"key": key, "label": label, "sections": [{"items": [_item("لوحة المتابعة وطلبات التسجيل", "specialty_dashboard")] + [doc(title, slug) for title, slug in links]}]}
+    by_key["office"]["sections"].insert(0, {"title": "الهيكل والصلاحيات", "items": [_item("الهيكل الإداري والتنفيذي", "organization_chart"), doc("أدوار صلاحيات الجمعية", "association-role")]})
     for key, label in NONPROFIT_LABELS.items():
         if key in by_key:
             by_key[key]["label"] = label

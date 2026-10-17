@@ -3,6 +3,7 @@
 {% block content %}
 <form method="get" class="filters card">
   <label>المستودع <select name="warehouse" class="form-select"><option value="">الكل</option>{% for w in warehouses %}<option value="{{ w.id }}" {% if selected_warehouse == w.id|stringformat:"s" %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></label>
+  <label><input type="checkbox" name="negative" value="1" {% if negative_only %}checked{% endif %}> الأرصدة السالبة فقط</label>
   <button class="btn btn-primary">عرض</button>
 </form>
 <div class="card">

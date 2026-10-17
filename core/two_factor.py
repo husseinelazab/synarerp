@@ -19,6 +19,7 @@ from core.utils import client_ip
 MAX_FAILURES = 5          # محاولات كلمة مرور خاطئة قبل الإيقاف المؤقت
 LOCK_SECONDS = 15 * 60
 MAX_CODE_ATTEMPTS = 5     # محاولات رمز خاطئة قبل العودة لصفحة الدخول
+SESSION_COMPANY = "2fa_company"
 SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES = "2fa_user", "2fa_backend", "2fa_next", "2fa_tries"
 
 
@@ -33,7 +34,9 @@ def _qr_svg(data):
 
 
 def _lock_keys(request, username):
-    return [f"login-fail:user:{(username or '').strip().lower()}", f"login-fail:ip:{client_ip(request)}"]
+    code = request.POST.get("company_code", "").strip().upper()
+    identity = f"{code}:{username}" if code else username
+    return [f"login-fail:user:{(identity or '').strip().lower()}", f"login-fail:ip:{client_ip(request)}"]
 
 
 def _code_key(username):
@@ -43,7 +46,14 @@ def _code_key(username):
 
 def is_locked(request, username):
     limits = [(key, MAX_FAILURES * (4 if ":ip:" in key else 1)) for key in _lock_keys(request, username)]
-    limits.append((_code_key(username), MAX_FAILURES * 2))
+    code_identity = username
+    company_code = request.POST.get("company_code", "").strip().upper()
+    if company_code:
+        from core.models import Membership
+        code_identity = (Membership.objects.filter(company__login_code=company_code,
+            login_key=username.strip().casefold(), is_active=True).values_list("user__username", flat=True).first()
+            or f"{company_code}:{username}")
+    limits.append((_code_key(code_identity), MAX_FAILURES * 2))
     return any((cache.get(key) or 0) >= limit for key, limit in limits)
 
 
@@ -82,14 +92,19 @@ class LoginView(auth_views.LoginView):
 
     def form_valid(self, form):
         user = form.get_user()
-        clear_failures(self.request, user.username)
+        company_id = getattr(user, "login_company_id", None)
+        clear_failures(self.request, self.request.POST.get("username", user.username))
         if UserTwoFactor.objects.filter(user=user, enabled=True).exists():
+            self.request.session[SESSION_COMPANY] = company_id
             self.request.session[SESSION_USER] = user.pk
             self.request.session[SESSION_BACKEND] = user.backend
             self.request.session[SESSION_NEXT] = self.get_redirect_url()
             self.request.session[SESSION_TRIES] = 0
             return redirect("login_verify")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if company_id:
+            self.request.session["company_id"] = company_id
+        return response
 
 
 def verify_login(request):
@@ -114,9 +129,14 @@ def verify_login(request):
             cache.delete(_code_key(user.username))
             next_url = request.session.get(SESSION_NEXT) or settings.LOGIN_REDIRECT_URL
             backend = request.session.get(SESSION_BACKEND)
-            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES):
+            company_id = request.session.get(SESSION_COMPANY)
+            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES, SESSION_COMPANY):
                 request.session.pop(key, None)
             auth_login(request, user, backend=backend)
+            if company_id:
+                from core.models import Membership
+                if Membership.objects.filter(company_id=company_id, user=user, is_active=True).exists():
+                    request.session["company_id"] = company_id
             if used_recovery:
                 messages.warning(request, f"دخلت برمز استرداد؛ تبقى لك {len(record.recovery_codes)} رمزاً. "
                                           "أنشئ رموزاً جديدة من «حسابي ← التحقق الثنائي» إن قاربت على النفاد.")
@@ -128,14 +148,14 @@ def verify_login(request):
 
         event("two_factor_failed", request, user.username)
         if is_locked(request, user.username):
-            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES):
+            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES, SESSION_COMPANY):
                 request.session.pop(key, None)
             messages.error(request, f"تجاوزت عدد المحاولات. حاول بعد {LOCK_SECONDS // 60} دقيقة.")
             return redirect("login")
         tries = request.session.get(SESSION_TRIES, 0) + 1
         request.session[SESSION_TRIES] = tries
         if tries >= MAX_CODE_ATTEMPTS:
-            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES):
+            for key in (SESSION_USER, SESSION_BACKEND, SESSION_NEXT, SESSION_TRIES, SESSION_COMPANY):
                 request.session.pop(key, None)
             record_failure(request, user.username)
             messages.error(request, "تجاوزت عدد المحاولات. سجّل الدخول من جديد.")

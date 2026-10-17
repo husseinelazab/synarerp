@@ -137,8 +137,17 @@ class SignupTests(TestCase):
             "username": "taken", "password": "Strong-Pass-123", "password2": "other", "plan": Plan.objects.first().pk,
         })
         form = response.context["form"]
-        for field in ("company_name", "email", "username", "password2"):
+        for field in ("company_name", "email", "password2"):
             self.assertIn(field, form.errors)
+        self.assertNotIn("username", form.errors)
+
+    def test_signup_accepts_username_from_another_company(self):
+        make_company("جهة الاسم السابق", "shared_name")
+        response = self.client.post("/signup/", self.signup_data("new", username="shared_name"))
+        self.assertRedirects(response, "/")
+        membership = Membership.objects.get(company__name="شركة new")
+        self.assertEqual(membership.login_name, "shared_name")
+        self.assertNotEqual(membership.user.username, "shared_name")
 
     def signup_data(self, n, **extra):
         return {"company_name": f"شركة {n}", "tax_id": "", "phone": "0500000000", "full_name": "سارة أحمد",

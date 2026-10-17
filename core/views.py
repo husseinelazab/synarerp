@@ -50,7 +50,7 @@ def module_page(request, module):
     section = next((m for m in menu() if m["key"] == module), None)
     if section is None:
         return redirect("dashboard")
-    return render(request, "core/module.html", {"section": section, "module_label": MODULES[module]})
+    return render(request, "core/module.html", {"section": section, "module_label": request.company.module_labels.get(module, MODULES[module])})
 
 
 def filtered_queryset(request, dt):
@@ -199,7 +199,7 @@ def doc_form(request, slug, pk=None):
     centers = allowed_centers(request)
     if centers is not None and "cost_center" in FormClass.base_fields:
         initial.setdefault("cost_center", sorted(centers)[0])
-    form = FormClass(request.POST or None, instance=instance, initial=initial)
+    form = FormClass(request.POST or None, request.FILES or None, instance=instance, initial=initial)
     if "represents_company" in form.fields:
         # الشركات الشقيقة: فقط ما يديره المستخدم نفسه (لا تُعرض شركات المشتركين الآخرين)
         from core.intercompany import managed_companies

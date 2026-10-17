@@ -2,6 +2,7 @@
 {% block title %}المستخدمون{% endblock %}
 {% block heading %}مستخدمو الشركة{% endblock %}
 {% block content %}
+<p>كود الجهة لتسجيل الدخول: <strong dir="ltr">{{ current_company.login_code }}</strong></p>
 <div class="toolbar">
   <span class="muted">المستخدمون النشطون: {{ active_count }}{% if max_users %} من {{ max_users }} في باقتك{% endif %}</span>
   <a class="btn btn-primary" href="{% url 'user_create' %}">+ إضافة مستخدم</a>
@@ -10,9 +11,9 @@
   <div class="table-wrap"><table class="table">
     <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th><th>التحقق الثنائي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>{% for m in members %}<tr class="{% if not m.is_active %}cancelled{% endif %}">
-      <td>{{ m.user.get_full_name|default:"—" }}</td><td dir="ltr" style="text-align:right">{{ m.user.username }}</td><td>{{ m.user.email|default:"—" }}</td>
+      <td>{{ m.user.get_full_name|default:"—" }}</td><td dir="ltr" style="text-align:right">{{ m.login_name }}</td><td>{{ m.user.email|default:"—" }}</td>
       <td>{{ m.get_role_display }}</td>
-      <td class="small">{% if m.can_manage %}كل الصلاحيات{% elif m.role == 'cashier' %}نقطة البيع{% else %}{% if m.modules %}{{ m.modules|length }} وحدة{% else %}كل الوحدات{% endif %}{% if not m.can_submit %} · مسودات فقط{% endif %}{% if m.cost_centers.exists %} · {{ m.cost_centers.count }} فرع{% endif %}{% endif %}</td>
+      <td class="small">{% if m.can_manage %}كل الصلاحيات{% elif m.role == 'cashier' %}نقطة البيع{% else %}{% if m.modules %}{{ m.modules|length }} وحدة{% else %}كل الوحدات{% endif %}{% if not m.can_submit %} · مسودات فقط{% endif %}{% if m.cost_centers.exists %} · {{ m.cost_centers.count }} فرع{% endif %}{% endif %}{% if m.role_policy %}<div>الدور: {{ m.role_policy }}</div>{% endif %}{% if m.organization_unit %}<div>الهيكل: {{ m.organization_unit }}</div>{% endif %}</td>
       <td>{% if m.user.two_factor.enabled %}<span class="badge status-1">مفعّل</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{% if m.is_active %}نشط{% else %}موقوف{% endif %}</td>
       <td>{% if m.role != 'owner' %}<a href="{% url 'user_edit' m.pk %}">إدارة</a>{% endif %}</td></tr>{% endfor %}</tbody>

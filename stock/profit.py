@@ -22,15 +22,17 @@ def _stock_costs(voucher_type, ids):
 
     if not ids:
         return {}
-    rows = (StockLedgerEntry.objects.filter(voucher_type=voucher_type, voucher_id__in=ids, is_cancelled=False)
+    rows = (StockLedgerEntry.objects.filter(voucher_type=voucher_type, voucher_id__in=ids, is_cancelled=False, negative_adjustment__isnull=True)
             .values("voucher_id", "item_id").annotate(v=Sum("stock_value_difference"), q=Sum("actual_qty")))
-    return {(r["voucher_id"], r["item_id"]): (-flt(r["v"]), -flt(r["q"], 3)) for r in rows}
+    from stock.negative import cost_corrections
+    corrections = cost_corrections(voucher_type, ids)
+    return {(r["voucher_id"], r["item_id"]): (-flt(r["v"]) + corrections.get((r["voucher_id"], r["item_id"]), 0), -flt(r["q"], 3)) for r in rows}
 
 
 def sales_lines(from_date, to_date, item_group=None, customer=None, cost_center=None, item=None):
     """أسطر المبيعات المعتمدة في الفترة مع صافي البيع وتكلفته بعملة الشركة."""
     from selling.models import SalesInvoiceItem
-    from stock.models import Bin
+    from stock.models import Bin, StockLedgerEntry
 
     qs = (SalesInvoiceItem.objects.filter(parent__docstatus=1, parent__posting_date__gte=from_date,
                                           parent__posting_date__lte=to_date)
@@ -51,6 +53,8 @@ def sales_lines(from_date, to_date, item_group=None, customer=None, cost_center=
     parent_amounts = {p["parent_id"]: flt(p["t"]) for p in SII.objects.filter(parent_id__in=parent_ids)
                       .values("parent_id").annotate(t=Sum("amount"))}
     invoice_costs = _stock_costs("sales-invoice", parent_ids)
+    pending_costs = set(StockLedgerEntry.objects.filter(voucher_type="sales-invoice", voucher_id__in=parent_ids,
+        is_cancelled=False, negative_remaining_qty__gt=0).values_list("voucher_id", "item_id"))
     dn_ids = {r.delivery_note_item.parent_id for r in rows if r.delivery_note_item_id}
     dn_costs = _stock_costs("delivery-note", dn_ids)
     # توزيع تكلفة الصنف في الفاتورة على أسطره بنسبة الكميات
@@ -64,7 +68,7 @@ def sales_lines(from_date, to_date, item_group=None, customer=None, cost_center=
         base_net = inv.base_net_total if inv.base_net_total or not inv.net_total else inv.net_total
         total = parent_amounts.get(inv.pk) or Decimal(0)
         net = flt(base_net * r.amount / total) if total else flt(0)
-        estimated = False
+        estimated = (inv.pk, r.item_id) in pending_costs
         if not r.item.is_stock_item:
             cost = flt(0)
         elif (inv.pk, r.item_id) in invoice_costs:

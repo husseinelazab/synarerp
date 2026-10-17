@@ -538,7 +538,9 @@ class SalesInvoice(InvoiceDocument):
         agg = StockLedgerEntry.objects.filter(
             voucher_type=self.doctype_slug, voucher_id=self.return_against_id, item=item, is_cancelled=False,
         ).aggregate(qty=Sum("actual_qty"), value=Sum("stock_value_difference"))
-        return agg["value"] / agg["qty"] if agg["qty"] else None
+        from stock.negative import cost_corrections
+        correction = cost_corrections(self.doctype_slug, [self.return_against_id]).get((self.return_against_id, item.pk), 0)
+        return (agg["value"] - correction) / agg["qty"] if agg["qty"] else None
 
     def _post_pos_payment(self):
         profile = self.pos_shift.profile

@@ -31,8 +31,6 @@ class SignupForm(forms.Form):
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
-        if User.objects.filter(username__iexact=username).exists():
-            raise forms.ValidationError("اسم المستخدم مستخدم من قبل.")
         User.username_validator(username)
         return username
 
@@ -75,11 +73,21 @@ class CompanySettingsForm(forms.ModelForm):
         label="إخفاء وحدات لا تستخدمها", required=False, widget=forms.CheckboxSelectMultiple,
         help_text="تختفي من القائمة الجانبية لكل المستخدمين. لا تُحذف بياناتها، وتعود بإلغاء التحديد.")
 
+    def clean_login_code(self):
+        import re
+        value = (self.cleaned_data.get("login_code") or self.instance.login_code or "").strip().upper()
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{2,19}", value):
+            raise forms.ValidationError("استخدم 3 إلى 20 حرفاً إنجليزياً أو رقماً أو شرطة لكود الجهة.")
+        if Company.objects.filter(login_code=value).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("كود الجهة مستخدم بالفعل.")
+        return value
+
     NONPROFIT_FIELDS = ("association_specialty", "license_number", "registration_date", "headquarters", "objectives", "fs_policies",
                         "eligibility_threshold", "review_period_months", "require_aid_otp")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["login_code"].required = False
         if not self.instance.is_nonprofit:
             for name in self.NONPROFIT_FIELDS:
                 self.fields.pop(name)
@@ -113,8 +121,10 @@ class MemberCreateForm(forms.Form):
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
-        if User.objects.filter(username__iexact=username).exists():
-            raise forms.ValidationError("اسم المستخدم مستخدم من قبل.")
+        from core.models import Membership
+        company = Company.current()
+        if company and Membership.objects.filter(company=company, login_key=username.casefold()).exists():
+            raise forms.ValidationError("اسم المستخدم مستخدم داخل هذه الجهة.")
         User.username_validator(username)
         return username
 
@@ -124,6 +134,8 @@ class MemberCreateForm(forms.Form):
 
 
 class MemberRoleForm(forms.Form):
+    role_policy = forms.ModelChoiceField(label="دور صلاحيات الجمعية", queryset=None, required=False)
+    organization_unit = forms.ModelChoiceField(label="الوحدة في الهيكل التنظيمي", queryset=None, required=False)
     role = forms.ChoiceField(label="الدور", choices=[c for c in Role.choices if c[0] not in (Role.OWNER, Role.EMPLOYEE)])
     modules = forms.MultipleChoiceField(
         label="الوحدات المسموحة", required=False, widget=forms.CheckboxSelectMultiple,
@@ -147,6 +159,13 @@ class MemberRoleForm(forms.Form):
         from core.permissions import company_modules
 
         super().__init__(*args, **kwargs)
+        from hr.models import AssociationRole, OrganizationUnit
+        company = Company.current()
+        self.fields["role_policy"].queryset = AssociationRole.objects.filter(company=company)
+        self.fields["organization_unit"].queryset = OrganizationUnit.objects.filter(company=company)
+        if not company or not company.is_nonprofit:
+            self.fields.pop("role_policy")
+            self.fields.pop("organization_unit")
         modules = company_modules(Company.current())
         self.fields["modules"].choices = modules
         from core.permissions import PERMISSION_MODULES

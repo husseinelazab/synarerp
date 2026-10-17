@@ -84,7 +84,7 @@
 <!-- قائمة المركز المالي -->
 <div class="page">
   <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة المركز المالي</div>
-    <div>كما في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+    <div>كما في {{ end|date:"j F Y" }}م</div></div>
   <table><thead><tr><th style="text-align:right"></th><th>إيضاح</th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
     <tr class="group"><td colspan="4">الموجودات</td></tr>
     {% for s in position.assets %}
@@ -112,7 +112,7 @@
 <!-- قائمة الأنشطة -->
 <div class="page landscape">
   <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة الأنشطة</div>
-    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م</div></div>
   <table><thead><tr><th style="text-align:right">البيان</th><th>إيضاح</th>{% for c in activities.columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
     {% for s in activities.sections %}
       <tr class="group"><td colspan="7">{{ s.title }}</td></tr>
@@ -131,7 +131,7 @@
 <!-- قائمة التغيرات في صافي الأصول -->
 <div class="page landscape">
   <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة التغيرات في صافي الأصول</div>
-    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م</div></div>
   <table><thead><tr><th style="text-align:right">البيان</th>{% for c in changes.columns %}<th class="num">صافي الأصول {{ c }}</th>{% endfor %}<th class="num">الإجمالي</th></tr></thead><tbody>
     {% for b in changes.blocks %}
       <tr class="group"><td colspan="5">{{ b.label }}</td></tr>
@@ -144,7 +144,7 @@
 <!-- قائمة التدفقات النقدية -->
 <div class="page">
   <div class="head"><div class="lh">{% if ps.logo %}<img src="{{ ps.logo }}" alt="">{% endif %}<div><h1>{{ company.name }}</h1>{% if company.license_number %}<div class="reg">مسجلة بالمركز الوطني لتنمية القطاع غير الربحي برقم ({{ company.license_number }})</div>{% endif %}</div></div><div class="title">قائمة التدفقات النقدية</div>
-    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م (جميع المبالغ بالريال السعودي)</div></div>
+    <div>عن السنة المالية المنتهية في {{ end|date:"j F Y" }}م</div></div>
   <table><thead><tr><th style="text-align:right"></th><th class="num">{{ cur }}</th><th class="num">{{ pri }}</th></tr></thead><tbody>
     <tr class="group"><td colspan="3">التدفقات النقدية من الأنشطة التشغيلية</td></tr>
     <tr><td>التغير في صافي الأصول</td><td class="num">{{ flows.change_in_net_assets|acct }}</td><td class="num">{{ flows_prior.change_in_net_assets|acct }}</td></tr>

@@ -10,7 +10,7 @@ register(DocType(
     list_fields=["file_number", "full_name", "national_id", "category", "status", "phone", "city", "next_review_date"],
     search_fields=["file_number", "full_name", "national_id", "phone", "members__full_name", "members__national_id"],
     child=ChildTable(FamilyMember, ["full_name", "national_id", "relation", "gender", "birth_date", "education",
-                                    "health_status", "monthly_income"],
+                                    "health_status", "monthly_income", "categories"],
                      label="أفراد الأسرة", min_rows=0, help="أفراد الأسرة المقيمون مع رب الأسرة ودخل كل منهم."),
     detail_template="beneficiaries/_beneficiary_detail.html",
 ))
@@ -83,3 +83,6 @@ register(DocType(
     detail_exclude=["otp_hash", "otp_attempts", "otp_sent_at", "receipt_fingerprint", "received_at", "receipt_method",
                     "receipt_note", "confirmed_by"],
 ))
+
+from beneficiaries.models import DependentCategory
+register(DocType(slug="dependent-category", model=DependentCategory, module="beneficiaries", list_fields=["name", "disabled"], search_fields=["name"]))

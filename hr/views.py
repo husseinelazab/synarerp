@@ -479,7 +479,7 @@ def portal_access(request, pk):
     membership = (Membership.objects.filter(user=employee.user, company=request.company).first()
                   if employee.user_id else None)
     form = style_form(PortalAccessForm(request.POST or None, initial={
-        "username": employee.user.username if employee.user_id else employee.employee_number.lower()}))
+        "username": membership.login_name if membership else employee.employee_number.lower()}))
     if employee.user_id:
         form.fields["username"].disabled = True
     if request.method == "POST":
@@ -498,17 +498,17 @@ def portal_access(request, pk):
                     user.save(update_fields=["password"])
                     messages.success(request, "تم تغيير كلمة مرور الموظف.")
                 else:
-                    if User.objects.filter(username=data["username"]).exists():
+                    if Membership.objects.filter(company=request.company, login_key=data["username"].casefold()).exists():
                         form.add_error("username", "اسم المستخدم مستخدم مسبقاً.")
                         return render(request, "hr/portal_access.html", {"form": form, "employee": employee})
                     first, _, last = employee.full_name.partition(" ")
-                    user = User.objects.create_user(data["username"], employee.email, data["password"],
-                                                    first_name=first, last_name=last)
+                    from core.scoped_auth import create_company_user
+                    user = create_company_user(request.company, data["username"], employee.email, data["password"], first_name=first, last_name=last)
                     employee.user = user
                     employee.save(update_fields=["user"])
-                    messages.success(request, f"تم إنشاء حساب الموظف «{user.username}». يدخل من صفحة تسجيل الدخول نفسها.")
+                    messages.success(request, f"تم إنشاء حساب الموظف «{data['username']}». يدخل بكود الجهة واسم المستخدم من صفحة تسجيل الدخول نفسها.")
                 if membership is None:
-                    Membership.objects.create(user=user, company=request.company, role=Role.EMPLOYEE)
+                    Membership.objects.create(user=user, company=request.company, role=Role.EMPLOYEE, login_name=data["username"])
             return redirect(employee.get_absolute_url())
     return render(request, "hr/portal_access.html", {"form": form, "employee": employee, "membership": membership})
 

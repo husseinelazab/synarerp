@@ -92,3 +92,10 @@ register(DocType(
     child=ChildTable(AppraisalScore, ["criterion", "weight", "score", "comment"], label="المعايير والدرجات", min_rows=0,
                      help="اترك الجدول فارغاً لتُجلب معايير النموذج عند الحفظ، ثم أدخل درجة من 1 (ضعيف) إلى 5 (ممتاز) لكل معيار."),
 ))
+
+from hr.models import AssociationRole, OrganizationUnit
+from hr.organization_forms import AssociationRoleForm
+register(DocType(slug="association-role", model=AssociationRole, module="office", form_class=AssociationRoleForm,
+    list_fields=["name", "can_submit", "can_delete", "can_export"], search_fields=["name"]))
+register(DocType(slug="organization-unit", model=OrganizationUnit, module="office",
+    list_fields=["name", "kind", "parent", "responsible_name", "job_title", "role_policy"], search_fields=["name", "responsible_name"]))

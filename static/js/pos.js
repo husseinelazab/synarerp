@@ -135,6 +135,15 @@
       }).join("");
     }
     renderTotals();
+    var required = {};
+    cart.forEach(function (line) { required[line.id] = (required[line.id] || 0) + line.qty * (line.factor || 1); });
+    var warnings = Object.keys(required).filter(function (id) { return byId[id] && byId[id].stock && required[id] > byId[id].qty; }).map(function (id) {
+      var item = byId[id];
+      return esc(item.name) + ": الرصيد " + item.qty + " ← بعد البيع " + round3(item.qty - required[id]) +
+        (item.negative_allowed ? " · تكلفة تقديرية لحين التسوية" : " · البيع بالسالب غير مسموح");
+    });
+    $("negative-stock-warning").hidden = !warnings.length;
+    $("negative-stock-warning").innerHTML = warnings.join("<br>");
   }
 
   function renderTotals() {
@@ -273,6 +282,11 @@
 
   function renderQuote() {
     var box = $("m-promos"), pts = $("m-points-info");
+    var stockWarnings = quoteData && quoteData.stock_warnings || [];
+    $("m-stock-warning").hidden = !stockWarnings.length;
+    $("m-stock-warning").innerHTML = stockWarnings.map(function (w) {
+      return esc(w.name) + ": " + w.available + " ← " + w.after + (w.allowed ? " · بيع بالسالب بتكلفة تقديرية" : " · لا يمكن البيع: راجع الرصيد أو التتبع أو تكلفة الشراء");
+    }).join("<br>");
     $("m-grand").innerHTML = fmt(due()) + config.currencyHtml;
     if (!quoteData) { box.hidden = true; pts.textContent = ""; return; }
     var lines = quoteData.lines.filter(function (l) { return l.rule; }).map(function (l) {
@@ -341,7 +355,7 @@
     out.classList.toggle("neg", change < 0);
     var credit = $("m-credit").checked;
     var registered = $("customer").value && Number($("customer").value) !== Number(config.defaultCustomer);
-    $("m-confirm").disabled = busy || (credit ? (!registered || !navigator.onLine) : change < 0);
+    $("m-confirm").disabled = busy || !!(quoteData && (quoteData.stock_warnings || []).some(function (w) { return !w.allowed; })) || (credit ? (!registered || !navigator.onLine) : change < 0);
     $("m-card-ref").hidden = !(cardMode() === "manual" && num(cardEl.value) > 0);
   }
 

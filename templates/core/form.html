@@ -2,7 +2,7 @@
 {% block title %}{% if instance %}تعديل {{ instance }}{% else %}{% firstof type_title.0 dt.label %} جديد{% endif %}{% endblock %}
 {% block heading %}{% if instance %}تعديل {% firstof type_title.0 dt.label %}: {{ instance }}{% else %}{% firstof type_title.0 dt.label %} جديد{% endif %}{% endblock %}
 {% block content %}
-<form method="post" class="doc-form" novalidate>
+<form method="post" class="doc-form"{% if form.is_multipart %} enctype="multipart/form-data"{% endif %} novalidate>
   {% csrf_token %}
   {% if is_return %}<div class="alert alert-info">مرتجع من الفاتورة <a href="{{ instance.return_against.get_absolute_url }}">{{ instance.return_against }}</a> — عدّل الكميات المرتجعة فقط (تُحفظ سالبة)، أما الأسعار والضريبة والخصم فتُحسب من الفاتورة الأصلية.</div>{% endif %}
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}

@@ -1,4 +1,6 @@
 """منطق البيع في نقطة البيع: إنشاء فاتورة مبيعات مبسطة واعتمادها في عملية واحدة."""
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -178,5 +180,20 @@ def quote(shift, lines, customer_id=None, discount=0, coupon_code="", loyalty_po
             "points": points_balance(customer) if program else None,
             "point_value": float(program.point_value) if program else 0,
         }
+        from stock.models import Bin
+        required = {}
+        for row in invoice.items.select_related("item"):
+            if row.item.is_stock_item:
+                entry = required.setdefault(row.item_id, [row.item, Decimal(0)])
+                entry[1] += row.stock_qty
+        balances = {b.item_id:b for b in Bin.objects.filter(warehouse=profile.warehouse, item_id__in=required)}
+        result["stock_warnings"] = []
+        for item_id, (item, qty) in required.items():
+            balance = balances.get(item_id)
+            actual = balance.actual_qty if balance else Decimal(0)
+            if qty > actual:
+                cost = balance.valuation_rate if balance and balance.valuation_rate > 0 else item.buying_rate
+                allowed = profile.allow_negative_stock and not item.has_batch_no and not item.has_serial_no and cost > 0
+                result["stock_warnings"].append({"name":item.name,"available":float(actual),"after":float(actual-qty),"allowed":allowed})
         transaction.set_rollback(True)
     return result

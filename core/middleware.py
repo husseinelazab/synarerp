@@ -20,7 +20,7 @@ EMPLOYEE_PREFIXES = ("/me/", "/api/options/", "/switch-company/", "/account/")
 # مسموحة قبل تفعيل التحقق الثنائي الإلزامي
 TWO_FACTOR_SAFE_PREFIXES = ("/account/", "/switch-company/", "/billing/")
 # صفحات الإدارة لمالك الحساب والمدير فقط
-MANAGER_PREFIXES = ("/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/", "/app/approval-rule/",
+MANAGER_PREFIXES = ("/app/association-role/", "/app/organization-unit/", "/app/pos-profile/", "/settings/", "/billing/", "/einvoice/settings/", "/hr/settings/", "/app/approval-rule/",
                     "/app/fiscal-year/")
 
 
@@ -67,7 +67,7 @@ class TenantMiddleware:
         user = request.user
         company_id = request.session.get(SESSION_KEY)
         memberships = Membership.objects.filter(user=user, is_active=True).select_related(
-            "company", "company__subscription__plan")
+            "company", "company__subscription__plan", "role_policy")
         membership = memberships.filter(company_id=company_id).first() if company_id else None
         if membership is None and user.is_superuser and company_id:
             # مدير المنصة يدخل أي شركة لأغراض الدعم الفني بصلاحية المالك (دون حفظ عضوية)

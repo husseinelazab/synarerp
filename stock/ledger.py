@@ -78,14 +78,17 @@ def rebuild_fifo(item, warehouse):
     from stock.models import StockLedgerEntry
 
     b = _locked_bin(item, warehouse)
-    queue = []
+    queue, running = [], Decimal(0)
     for sle in StockLedgerEntry.objects.filter(item=item, warehouse=warehouse, is_cancelled=False).order_by("id"):
         if sle.actual_qty > 0:
-            queue.append([str(sle.actual_qty), str(sle.incoming_rate)])
+            positive = max(Decimal(0), running + sle.actual_qty) - max(Decimal(0), running)
+            if positive:
+                queue.append([str(positive), str(sle.incoming_rate)])
         elif sle.actual_qty < 0:
-            queue, _cost = fifo_consume(queue, -sle.actual_qty)
-        elif sle.stock_value_difference and queue:
+            queue, _cost = fifo_consume(queue, min(-sle.actual_qty, max(Decimal(0), running)))
+        elif sle.stock_value_difference and queue and not hasattr(sle, "negative_adjustment"):
             queue = fifo_spread(queue, sle.stock_value_difference)
+        running += sle.actual_qty
     b.fifo_queue = queue
     b.save(update_fields=["fifo_queue"])
 
@@ -106,7 +109,10 @@ def _post(doc, item, warehouse, qty, incoming_rate, batch):
     old_qty, old_value = flt(b.actual_qty, 3), flt(b.stock_value)
     new_qty = old_qty + qty
 
-    if new_qty < 0:
+    from stock.negative import permits_negative
+    deficit_qty = max(Decimal(0), -new_qty) - max(Decimal(0), -old_qty) if qty < 0 else Decimal(0)
+    deficit_value = Decimal(0)
+    if qty < 0 and new_qty < 0 and not permits_negative(doc, item, warehouse):
         raise ValidationError(
             f"الرصيد غير كافٍ: المتاح من «{item.name}» في «{warehouse}» هو {old_qty} والمطلوب {-qty}."
         )
@@ -115,10 +121,20 @@ def _post(doc, item, warehouse, qty, incoming_rate, batch):
         new_value = flt(old_value + qty * rate)
         b.valuation_rate = flt(new_value / new_qty, 6) if new_qty else flt(rate, 6)
         if item.valuation_method == "fifo":
-            b.fifo_queue = fifo_seed(b, old_qty, old_value) + [[str(qty), str(rate)]]
+            b.fifo_queue = (fifo_seed(b, old_qty, old_value) + [[str(qty), str(rate)]] if old_qty >= 0 else
+                            [[str(new_qty), str(rate)]] if new_qty > 0 else [])
     else:
         rate = Decimal(0)
-        if item.valuation_method == "fifo" and qty:
+        if deficit_qty:
+            provisional_rate = b.valuation_rate if b.valuation_rate > 0 else item.buying_rate
+            if provisional_rate <= 0:
+                raise ValidationError(f"حدد سعر شراء تقديرياً للصنف «{item.name}» قبل السماح ببيعه بالسالب.")
+            deficit_value = flt(deficit_qty * provisional_rate)
+            new_value = flt((old_value if old_qty < 0 else Decimal(0)) - deficit_value)
+            b.valuation_rate = flt(new_value / new_qty, 6)
+            if item.valuation_method == "fifo":
+                b.fifo_queue = []
+        elif item.valuation_method == "fifo" and qty:
             queue, consumed = fifo_consume(fifo_seed(b, old_qty, old_value), -qty)
             b.fifo_queue = queue
             new_value = flt(old_value - consumed) if new_qty else flt(0)
@@ -143,8 +159,16 @@ def _post(doc, item, warehouse, qty, incoming_rate, batch):
         voucher_type=doc.doctype_slug,
         voucher_no=doc.name,
         voucher_id=doc.pk,
-        batch=batch,
+        batch=batch, negative_issued_qty=deficit_qty, negative_remaining_qty=deficit_qty,
+        negative_remaining_value=deficit_value,
     )
+    if qty > 0 and old_qty < 0:
+        from stock.negative import settle_receipt
+        b.stock_value = settle_receipt(doc, doc._last_sle, new_value)
+        b.valuation_rate = flt(b.stock_value / new_qty, 6) if new_qty else flt(rate, 6)
+        b.save(update_fields=["stock_value", "valuation_rate"])
+        doc._last_sle.valuation_rate = b.valuation_rate
+        doc._last_sle.save(update_fields=["valuation_rate"])
     return difference
 
 
@@ -181,6 +205,13 @@ def cancel_stock_ledger_entries(doc):
     entries = StockLedgerEntry.all_objects.filter(
         voucher_type=doc.doctype_slug, voucher_id=doc.pk, is_cancelled=False
     ).select_related("item", "warehouse", "batch").order_by("-id")
+    entries = list(entries)
+    # Lock bins before allocation records, as in posting.
+    for item_id, warehouse_id in sorted({(sle.item_id, sle.warehouse_id) for sle in entries}):
+        from stock.models import Bin
+        Bin.all_objects.select_for_update().get(item_id=item_id, warehouse_id=warehouse_id)
+    from stock.negative import prepare_cancellation
+    restoring_deficit = prepare_cancellation(doc, entries)
     for sle in entries:
         if sle.batch_id:
             from stock.batches import locked_batch_bin
@@ -193,17 +224,17 @@ def cancel_stock_ledger_entries(doc):
             bb.save()
         b = _locked_bin(sle.item, sle.warehouse)
         b.actual_qty = flt(b.actual_qty - sle.actual_qty, 3)
-        if b.actual_qty < 0:
+        if b.actual_qty < 0 and sle.actual_qty > 0 and not restoring_deficit:
             raise ValidationError(
                 f"لا يمكن الإلغاء: سيصبح رصيد «{sle.item.name}» في «{sle.warehouse}» سالباً."
             )
-        b.stock_value = flt(b.stock_value - sle.stock_value_difference) if b.actual_qty else flt(0)
+        b.stock_value = flt(b.stock_value - sle.stock_value_difference) if b.actual_qty or restoring_deficit else flt(0)
         if b.actual_qty:
             b.valuation_rate = flt(b.stock_value / b.actual_qty, 6)
         b.save()
-    ids = list(entries.values_list("id", flat=True))
+    ids = [sle.pk for sle in entries]
     touched = {(sle.item, sle.warehouse) for sle in entries if sle.item.valuation_method == "fifo"}
-    entries.update(is_cancelled=True)
+    StockLedgerEntry.all_objects.filter(pk__in=ids).update(is_cancelled=True, negative_remaining_qty=0, negative_remaining_value=0)
     for item, warehouse in touched:
         rebuild_fifo(item, warehouse)
     from stock import serials

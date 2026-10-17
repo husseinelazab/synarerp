@@ -11,7 +11,7 @@
   <div class="card"><h3>الحسابات الافتراضية</h3><div class="form-grid">
     {% for field in form %}{% if field.name|slice:":8" == "default_" and field.name != "default_tax_rate" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
   </div></div>
-  <div class="card"><h3>القائمة الجانبية</h3>
+  <div class="card"><h3>القائمة الجانبية</h3><p><a href="{% url 'module_labels' %}">تعديل مسميات الوحدات</a></p>
     {% include "core/_field.html" with field=form.hidden_modules %}
   </div>
   <div class="form-actions"><button class="btn btn-primary">حفظ</button></div>

@@ -10,6 +10,9 @@
     {% if locked %}<div class="alert alert-error">محاولات دخول خاطئة كثيرة. حاول بعد {{ lock_minutes }} دقيقة.</div>
     {% elif form.errors %}<div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
     {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}
+    <label>كود الجهة</label>
+    <input type="text" name="company_code" class="form-control" value="{{ request.POST.company_code }}" placeholder="كود الشركة أو الجمعية" autocapitalize="characters" autocomplete="organization" dir="ltr">
+    <small class="muted">أدخل كود جهتك عند استخدام اسم مستخدم مشترك بين جهات مختلفة.</small>
     <label>اسم المستخدم</label>
     <input type="text" name="username" class="form-control" autofocus required autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" dir="ltr">
     <label>كلمة المرور</label>

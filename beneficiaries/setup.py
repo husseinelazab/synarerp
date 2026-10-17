@@ -55,6 +55,10 @@ def ensure_aid_programs(company):
 
 
 def ensure_nonprofit_setup(company):
+    from beneficiaries.models import DependentCategory
+    for label in ("طالب", "موظف", "ذو إعاقة", "يتيم", "أرمل / أرملة", "متقاعد", "عاطل عن العمل"):
+        DependentCategory.objects.get_or_create(company=company, name=label)
+
     """تُنشأ مرة واحدة: لا تعدّل ولا تكرر ما أضافته الجهة أو حذفته بعد ذلك.
 
     دليل الحسابات الموحد للجهات غير الربحية يُؤسس عند إنشاء الجمعية (core.provisioning).

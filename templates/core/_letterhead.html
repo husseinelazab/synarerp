@@ -19,7 +19,6 @@
   <div class="lh-meta">
     {% if from_date and to_date %}<div>عن الفترة من {{ from_date|date:"Y/m/d" }} إلى {{ to_date|date:"Y/m/d" }}</div>
     {% elif as_of %}<div>كما في {{ as_of|date:"Y/m/d" }}</div>{% elif to_date %}<div>حتى {{ to_date|date:"Y/m/d" }}</div>{% endif %}
-    <div>المبالغ بالريال السعودي</div>
   </div>
 </header>
 {% endwith %}

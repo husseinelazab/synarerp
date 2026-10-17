@@ -37,6 +37,7 @@ def terminal(request):
         "taxRate": float(profile.tax_rate),
         "pricesIncludeTax": profile.prices_include_tax,
         "allowDiscount": profile.allow_discount,
+        "allowNegativeStock": profile.allow_negative_stock,
         "maxDiscountPercent": float(profile.max_discount_percent),
         "allowRateChange": profile.allow_rate_change,
         "defaultCustomer": profile.default_customer_id,
@@ -117,7 +118,8 @@ def items_api(request):
     shift = POSShift.current_for(request.user)
     if shift is None:
         return JsonResponse({"error": "لا توجد وردية مفتوحة."}, status=400)
-    stock = dict(Bin.objects.filter(warehouse=shift.profile.warehouse).values_list("item_id", "actual_qty"))
+    balances = {b.item_id: b for b in Bin.objects.filter(warehouse=shift.profile.warehouse)}
+    stock = {key: b.actual_qty for key, b in balances.items()}
     import datetime
 
     from django.db.models import Q
@@ -149,6 +151,8 @@ def items_api(request):
         {
             "id": i.id, "code": i.code, "name": i.name, "barcode": i.barcode, "group": i.item_group_id,
             "uom": i.uom.name, "stock": i.is_stock_item,
+            "negative_allowed": shift.profile.allow_negative_stock and not i.has_batch_no and not i.has_serial_no and
+                ((balances[i.id].valuation_rate if i.id in balances and balances[i.id].valuation_rate > 0 else i.buying_rate) > 0),
             "rate": prices.get((i.id, None), float(i.selling_rate)),
             "qty": float(stock.get(i.id, 0)), "plu": i.plu if i.is_weighed else None,
             "zero_vat": i.vat_category in ("Z", "E", "O"),

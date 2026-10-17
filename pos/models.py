@@ -34,6 +34,8 @@ class POSProfile(TenantModel):
                                     verbose_name="مركز التكلفة / الفرع")
     tax_rate = models.DecimalField("نسبة الضريبة %", max_digits=5, decimal_places=2, default=15)
     prices_include_tax = models.BooleanField("الأسعار شاملة الضريبة", default=True)
+    allow_negative_stock = models.BooleanField("السماح بالبيع بالسالب", default=False,
+        help_text="للأصناف غير المتتبعة فقط. يلزم سعر تكلفة معروف، وتُسوّى فروقات التكلفة عند التوريد أو الجرد.")
     allow_discount = models.BooleanField("السماح بالخصم", default=True)
     max_discount_percent = models.DecimalField("أقصى نسبة خصم %", max_digits=5, decimal_places=2, default=10)
     allow_rate_change = models.BooleanField("السماح بتعديل السعر", default=False)

@@ -1578,3 +1578,77 @@ class AttendancePunch(TenantModel):
 
     def __str__(self):
         return f"{self.pin} {self.punched_at:%Y-%m-%d %H:%M}"
+
+
+class AssociationRole(TenantModel):
+    name = models.CharField("اسم دور الصلاحيات", max_length=100)
+    modules = models.JSONField("الوحدات المسموحة", default=list, blank=True)
+    can_submit = models.BooleanField("اعتماد المستندات", default=True)
+    can_cancel = models.BooleanField("إلغاء المستندات", default=True)
+    can_delete = models.BooleanField("حذف السجلات", default=True)
+    can_export = models.BooleanField("تصدير البيانات", default=True)
+    hide_costs = models.BooleanField("إخفاء التكاليف", default=False)
+    denied_doctypes = models.JSONField("مستندات محجوبة", default=list, blank=True)
+    read_only_doctypes = models.JSONField("مستندات للاطلاع فقط", default=list, blank=True)
+
+    class Meta:
+        verbose_name = "دور صلاحيات للجمعية"
+        verbose_name_plural = "أدوار صلاحيات الجمعية"
+        constraints = [tenant_unique("name", model_label="associationrole")]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        from core.models import Company
+        if not self.company_id:
+            self.company = Company.current()
+        if self.company_id and not self.company.is_nonprofit:
+            raise ValidationError("هذه الأدوار مخصصة للجمعيات.")
+
+
+class OrganizationUnit(TenantModel):
+    name = models.CharField("اسم الوحدة / الوظيفة", max_length=150)
+    kind = models.CharField("التصنيف", max_length=15, choices=[("assembly", "الجمعية العمومية"), ("board", "مجلس الإدارة"),
+        ("committee", "لجنة"), ("executive", "إدارة تنفيذية"), ("department", "إدارة / قسم"), ("position", "وظيفة")])
+    parent = models.ForeignKey("self", models.PROTECT, null=True, blank=True, related_name="children", verbose_name="يتبع")
+    responsible_name = models.CharField("اسم المسؤول", max_length=150, blank=True)
+    job_title = models.CharField("المسمى الوظيفي", max_length=150, blank=True)
+    role_policy = models.ForeignKey(AssociationRole, models.PROTECT, null=True, blank=True, verbose_name="دور الصلاحيات المقترح")
+    notes = models.TextField("المهام والمسؤوليات", blank=True)
+
+    class Meta:
+        verbose_name = "وحدة هيكل تنظيمي"
+        verbose_name_plural = "الهيكل الإداري والتنفيذي"
+        ordering = ["name"]
+        constraints = [tenant_unique("name", model_label="organizationunit")]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        from core.models import Company
+        from django.db import transaction
+        with transaction.atomic():
+            if not self.company_id:
+                self.company = Company.current()
+            self.company = Company.objects.select_for_update().get(pk=self.company_id)
+            if self.parent_id:
+                self.parent = OrganizationUnit.objects.get(pk=self.parent_id, company_id=self.company_id)
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+    def clean(self):
+        from core.models import Company
+        if not self.company_id:
+            self.company = Company.current()
+        if self.company_id and not self.company.is_nonprofit:
+            raise ValidationError("الهيكل مخصص للجمعيات.")
+        seen, parent = {self.pk} if self.pk else set(), self.parent
+        while parent:
+            if parent.company_id != self.company_id or parent.pk in seen:
+                raise ValidationError({"parent": "لا يمكن ربط الهيكل بجهة أخرى أو إنشاء تبعية دائرية."})
+            seen.add(parent.pk)
+            parent = parent.parent
+        if self.role_policy_id and self.role_policy.company_id != self.company_id:
+            raise ValidationError({"role_policy": "دور الصلاحيات لا يخص الجمعية."})

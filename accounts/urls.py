@@ -1,8 +1,10 @@
 from django.urls import path
+from accounts import chart_cleanup
 
 from accounts import bank, budget, opening_views, reconcile, reports, statements
 
 urlpatterns = [
+    path("chart-of-accounts/cleanup/", chart_cleanup.cleanup, name="chart_cleanup"),
     path("bank-reconciliation/", bank.bank_reconciliation, name="bank_reconciliation"),
     path("reconcile/", reconcile.reconcile_tool, name="payment_reconcile"),
     path("opening/", opening_views.opening_wizard, name="opening_wizard"),

@@ -69,11 +69,11 @@ def signup(request):
         data = form.cleaned_data
         first, _, last = data["full_name"].partition(" ")
         with transaction.atomic():
-            user = User.objects.create_user(data["username"], data["email"], data["password"],
-                                            first_name=first, last_name=last)
-            company = provision_company(data["company_name"], owner=user, tax_id=data["tax_id"],
-                                        phone=data["phone"], plan=data["plan"],
-                                        organization_type=data["organization_type"])
+            from core.scoped_auth import create_company_user
+            company = provision_company(data["company_name"], tax_id=data["tax_id"], phone=data["phone"],
+                                        plan=data["plan"], organization_type=data["organization_type"])
+            user = create_company_user(company, data["username"], data["email"], data["password"], first_name=first, last_name=last)
+            Membership.objects.create(user=user, company=company, role=Role.OWNER, login_name=data["username"])
         key = _signup_key(request)
         if cache.add(key, 1, SIGNUP_WINDOW_SECONDS) is False:
             cache.incr(key)
@@ -126,7 +126,7 @@ def company_settings(request):
 @login_required
 def users_list(request):
     # حسابات بوابة الموظفين تُدار من صفحة الموظف
-    members = request.company.memberships.exclude(role="employee").select_related("user").order_by("-is_active", "id")
+    members = request.company.memberships.exclude(role="employee").select_related("user", "role_policy", "organization_unit").order_by("-is_active", "id")
     subscription = getattr(request.company, "subscription", None)
     return render(request, "settings/users.html", {
         "members": members, "max_users": subscription.plan.max_users if subscription else None,
@@ -146,10 +146,10 @@ def user_create(request):
         else:
             first, _, last = data["full_name"].partition(" ")
             with transaction.atomic():
-                user = User.objects.create_user(data["username"], data["email"], data["password"],
-                                                first_name=first, last_name=last)
-                Membership.objects.create(user=user, company=request.company, role=data["role"])
-            messages.success(request, f"تمت إضافة المستخدم «{user.username}».")
+                from core.scoped_auth import create_company_user
+                user = create_company_user(request.company, data["username"], data["email"], data["password"], first_name=first, last_name=last)
+                Membership.objects.create(user=user, company=request.company, role=data["role"], login_name=data["username"])
+            messages.success(request, f"تمت إضافة المستخدم «{data['username']}».")
             return redirect("users_list")
     return render(request, "settings/user_form.html", {"form": form, "title": "إضافة مستخدم"})
 
@@ -165,6 +165,7 @@ def user_edit(request, pk):
         return redirect("users_list")
     form = MemberRoleForm(request.POST or None, initial={
         "role": member.role, "modules": member.modules, "can_submit": member.can_submit,
+        "role_policy": member.role_policy_id, "organization_unit": member.organization_unit_id,
         "cost_centers": list(member.cost_centers.all()), "can_cancel": member.can_cancel,
         "can_delete": member.can_delete, "can_export": member.can_export, "hide_costs": member.hide_costs,
         "denied_doctypes": member.denied_doctypes, "read_only_doctypes": member.read_only_doctypes})
@@ -187,6 +188,10 @@ def user_edit(request, pk):
                       "denied_doctypes", "read_only_doctypes"]
             for name in fields:
                 setattr(member, name, data[name])
+            if request.company.is_nonprofit:
+                for name in ("role_policy", "organization_unit"):
+                    setattr(member, name, data.get(name))
+                    fields.append(name)
             member.save(update_fields=fields)
             member.cost_centers.set(data["cost_centers"])
             messages.success(request, "تم تحديث دور المستخدم وصلاحياته.")

@@ -4,6 +4,7 @@
 <div class="toolbar"><span class="muted small">دليل الحسابات السعودي الموحد · {{ rows|length }} حساباً</span><div class="actions">
   <a class="btn" href="{% url 'doc_import' 'account' %}">استيراد</a>
   <a class="btn" href="{% url 'doc_export' 'account' %}">تصدير Excel</a>
+  {% if current_membership.can_manage and not current_company.is_nonprofit %}<a class="btn btn-danger" href="{% url 'chart_cleanup' %}">حذف الحسابات القديمة غير المستخدمة</a>{% endif %}
   <a class="btn btn-primary" href="{% url 'doc_new' 'account' %}">+ حساب جديد</a></div></div>
 {% if unified_missing and current_membership.can_manage %}
 <div class="posting-banner draft"><div><strong>ينقص دليلك {{ unified_missing }} حساباً من دليل الحسابات الموحد ({{ unified_total }} حساباً).</strong><br>

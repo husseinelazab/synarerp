@@ -1,9 +1,11 @@
 from django.urls import path
+from core import admin_tools
 
 from core import attachments, import_views, onboarding, pdf, remote_select, search, statistics, views
 from stock import tools as stock_tools
 
 urlpatterns = [
+    path("settings/modules/", admin_tools.module_labels, name="module_labels"),
     path("", views.dashboard, name="dashboard"),
     path("search/", search.global_search, name="global_search"),
     path("search/suggest/", search.search_suggest, name="search_suggest"),

@@ -1,9 +1,10 @@
 from core.registry import DocType, register
+from office.forms import CorrespondenceForm
 from office.models import (AdminRequest, AdminRequestType, ArchiveCategory, ArchiveDocument, Circular,
                            Correspondence)
 
 register(DocType(
-    slug="correspondence", model=Correspondence, module="documents",
+    slug="correspondence", model=Correspondence, module="documents", form_class=CorrespondenceForm,
     list_fields=["number", "direction", "date", "subject", "party", "priority", "assigned_to", "status"],
     search_fields=["number", "subject", "party", "external_reference", "body"],
     detail_template="office/_correspondence_detail.html", type_field="direction",

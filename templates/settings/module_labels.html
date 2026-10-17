@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block heading %}مسميات الوحدات{% endblock %}{% block title %}مسميات الوحدات{% endblock %}
+{% block content %}<div class="card"><p>غيّر المسميات الظاهرة لمستخدمي هذه الجهة. ترك الاسم فارغاً يعيد المسمى الافتراضي؛ الصلاحيات والبيانات مرتبطة بالوحدة نفسها.</p><form method="post">{% csrf_token %}{{ form.non_field_errors }}<div class="form-grid">{% for field in form %}{% include "core/_field.html" %}{% endfor %}</div><button class="btn btn-primary">حفظ المسميات</button></form></div>{% endblock %}

@@ -21,6 +21,7 @@
     <button class="btn" id="open-return">مرتجع (F8)</button>
     <a class="btn" href="{% url 'pos_shift_report' shift.pk %}" target="_blank">ملخص الوردية</a>
     <a class="btn" href="{% url 'pos_close_shift' %}">إغلاق الوردية</a>
+    {% if current_membership.can_manage %}<a class="btn" href="{% url 'stock_balance' %}?negative=1" target="_blank">الأرصدة السالبة</a>{% endif %}
     <a class="btn" href="{% url 'dashboard' %}">النظام</a>
   </div>
 </header>
@@ -46,6 +47,7 @@
         {% for c in customers %}<option value="{{ c.id }}" {% if c.id == profile.default_customer_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
       </select>
     </div>
+    <div id="negative-stock-warning" class="alert alert-warning" role="alert" hidden></div>
     <div class="cart-lines" id="cart"></div>
     <div class="cart-totals">
       <div class="total-line"><span>الإجمالي</span><span id="t-total">0.00</span></div>
@@ -69,6 +71,7 @@
     <h2>الدفع</h2>
     <div class="pay-due">المطلوب: <strong id="m-grand">0.00</strong></div>
     <div class="promo-box" id="m-promos" hidden></div>
+    <div id="m-stock-warning" class="alert alert-warning" role="alert" hidden></div>
     <div class="pay-extras">
       <div class="field"><label>كود الكوبون</label><input id="m-coupon" class="form-control" maxlength="40" autocomplete="off" dir="ltr"></div>
       <div class="field"><label>استبدال نقاط الولاء</label><input id="m-points" type="number" min="0" step="1" class="form-control" placeholder="0"><span class="muted small" id="m-points-info"></span></div>

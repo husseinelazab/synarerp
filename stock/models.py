@@ -141,6 +141,8 @@ class Item(TenantModel):
     def clean(self):
         super().clean()
         self._validate_barcode()
+        if self.pk and (self.has_batch_no or self.has_serial_no or not self.is_stock_item) and Bin.all_objects.filter(item_id=self.pk, actual_qty__lt=0).exists():
+            raise ValidationError("سوِّ الأرصدة السالبة قبل تغيير التتبع أو تحويل الصنف إلى غير مخزني.")
         if self.has_serial_no and (self.has_batch_no or not self.is_stock_item or self.is_weighed):
             raise ValidationError({"has_serial_no": "الأرقام التسلسلية لصنف مخزني لا يُتتبع بالتشغيلات ولا يُباع بالوزن."})
         if self.barcode and self.company_id and ItemUOM.all_objects.filter(
@@ -504,6 +506,9 @@ class Bin(TenantModel):
 
 
 class StockLedgerEntry(TenantModel):
+    negative_issued_qty = models.DecimalField("كمية بيع بالسالب", max_digits=18, decimal_places=3, default=0, editable=False)
+    negative_remaining_qty = models.DecimalField("نقص لم تسوَّ تكلفته", max_digits=18, decimal_places=3, default=0, editable=False)
+    negative_remaining_value = models.DecimalField("قيمة النقص التقديرية", max_digits=18, decimal_places=2, default=0, editable=False)
     posting_date = models.DateField("التاريخ", db_index=True)
     item = models.ForeignKey(Item, models.PROTECT, related_name="ledger_entries", verbose_name="الصنف")
     warehouse = models.ForeignKey(Warehouse, models.PROTECT, verbose_name="المستودع")
@@ -944,3 +949,18 @@ class SerialNo(TenantModel):
         from django.utils import timezone
 
         return bool(self.warranty_expiry and self.warranty_expiry >= timezone.localdate())
+
+
+class NegativeStockSettlement(TenantModel):
+    issue = models.ForeignKey(StockLedgerEntry, models.PROTECT, related_name="negative_settlements", verbose_name="حركة البيع بالسالب")
+    receipt = models.ForeignKey(StockLedgerEntry, models.PROTECT, related_name="negative_allocations", verbose_name="حركة تغطية النقص")
+    adjustment = models.OneToOneField(StockLedgerEntry, models.PROTECT, null=True, related_name="negative_adjustment", verbose_name="حركة تسوية القيمة")
+    quantity = models.DecimalField("الكمية المسواة", max_digits=18, decimal_places=3)
+    provisional_value = models.DecimalField("التكلفة التقديرية", max_digits=18, decimal_places=2)
+    actual_value = models.DecimalField("التكلفة بعد التسوية", max_digits=18, decimal_places=2)
+    difference = models.DecimalField("فرق تكلفة المبيعات", max_digits=18, decimal_places=2)
+    is_cancelled = models.BooleanField("ملغاة", default=False)
+
+    class Meta:
+        verbose_name = "تسوية تكلفة بيع بالسالب"
+        verbose_name_plural = "تسويات تكلفة البيع بالسالب"

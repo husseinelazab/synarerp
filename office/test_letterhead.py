@@ -62,3 +62,22 @@ class UnifiedLetterheadTests(TestCase):
         invalid = PrintSettingsForm(data={"template": "classic", "accent_color": "#16765c", "letter_layout": "injected"}, instance=self.ps)
         self.assertFalse(invalid.is_valid())
         self.assertIn("letter_layout", invalid.errors)
+
+    def test_subject_salutation_issuer_and_validated_signature(self):
+        import base64
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from office.forms import CorrespondenceForm
+        image = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
+        with tenant_context(self.company):
+            form = CorrespondenceForm(data={"direction":"outgoing","priority":"normal","party":"الجهة المستلمة","subject":"موضوع داخل الصادر","body":"مضمون الخطاب", "date":"2026-10-17","salutation":"سعادة /", "issuer_name":"أحمد محمد", "issuer_title":"المدير التنفيذي"}, files={"signature_file":SimpleUploadedFile("signature.png",image,content_type="image/png")},instance=self.letter)
+            self.assertTrue(form.is_valid(),form.errors)
+            letter = form.save()
+            self.assertTrue(letter.signature.startswith("data:image/png;base64,"))
+            invalid = CorrespondenceForm(data=form.data,files={"signature_file":SimpleUploadedFile("signature.svg",b"<svg/>",content_type="image/svg+xml")},instance=letter)
+            self.assertFalse(invalid.is_valid())
+        page=self.client.get(self.url)
+        for value in ["موضوع داخل الصادر","سعادة /","أحمد محمد","المدير التنفيذي",letter.signature]:
+            self.assertContains(page,value)
+        self.assertNotContains(page,"المبالغ بالريال السعودي")
+        html=page.content.decode()
+        self.assertLess(html.index("موضوع داخل الصادر"),html.index('class="outgoing-barcode"'))

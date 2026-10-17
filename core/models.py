@@ -38,7 +38,20 @@ class AssociationSpecialty(models.TextChoices):
     HEALTH = "health", "جمعية صحية"
 
 
+def new_company_code():
+    import uuid
+    return "ORG-" + uuid.uuid4().hex[:8].upper()
+
+
 class Company(models.Model):
+    login_code = models.CharField("كود الجهة للدخول", max_length=20, unique=True, default=new_company_code,
+        help_text="يُستخدم مع اسم المستخدم وكلمة المرور، ويمكن مشاركة الكود مع مستخدمي الجهة.")
+    module_labels = models.JSONField("مسميات الوحدات", default=dict, blank=True, editable=False)
+
+    def save(self, *args, **kwargs):
+        self.login_code = (self.login_code or new_company_code()).strip().upper()
+        return super().save(*args, **kwargs)
+
     name = models.CharField("اسم الشركة", max_length=150, unique=True)
     organization_type = models.CharField(
         "نوع المنشأة", max_length=10, choices=OrganizationType.choices, default=OrganizationType.BUSINESS,
@@ -363,6 +376,23 @@ class Role(models.TextChoices):
 
 
 class Membership(models.Model):
+    role_policy = models.ForeignKey("hr.AssociationRole", models.PROTECT, null=True, blank=True, verbose_name="دور صلاحيات الجمعية")
+    organization_unit = models.ForeignKey("hr.OrganizationUnit", models.PROTECT, null=True, blank=True, verbose_name="الوحدة في الهيكل التنظيمي")
+    login_name = models.CharField("اسم المستخدم داخل الجهة", max_length=150, blank=True)
+    login_key = models.CharField(max_length=150, editable=False, default="")
+
+    def save(self, *args, **kwargs):
+        for name in ("role_policy", "organization_unit"):
+            if getattr(self, name + "_id") and getattr(self, name).company_id != self.company_id:
+                raise ValidationError("الهيكل ودور الصلاحيات يجب أن يخصا نفس الجمعية.")
+        if not self.login_name:
+            self.login_name = self.user.username
+        self.login_name = self.login_name.strip()
+        self.login_key = self.login_name.casefold()
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | {"login_name", "login_key"}
+        return super().save(*args, **kwargs)
+
     """عضوية مستخدم في شركة مع دوره فيها. المستخدم الواحد قد ينتمي لعدة شركات."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships", verbose_name="المستخدم")
@@ -389,7 +419,8 @@ class Membership(models.Model):
     class Meta:
         verbose_name = "عضوية"
         verbose_name_plural = "أعضاء الشركات"
-        constraints = [models.UniqueConstraint(fields=["user", "company"], name="membership_user_company")]
+        constraints = [models.UniqueConstraint(fields=["user", "company"], name="membership_user_company"),
+                       models.UniqueConstraint(fields=["company", "login_key"], name="membership_login_per_company")]
 
     def __str__(self):
         return f"{self.user} @ {self.company} ({self.get_role_display()})"
@@ -399,19 +430,19 @@ class Membership(models.Model):
         return self.role in (Role.OWNER, Role.ADMIN)
 
     def allows_module(self, key):
-        return self.can_manage or not self.modules or key in self.modules
+        return self.can_manage or ((not self.modules or key in self.modules) and (not self.role_policy_id or not self.role_policy.modules or key in self.role_policy.modules))
 
     @property
     def may_submit(self):
-        return self.can_manage or self.can_submit
+        return self.can_manage or (self.can_submit and (not self.role_policy_id or self.role_policy.can_submit))
 
     def doctype_access(self, slug):
         """none / read / write لنوع مستند."""
         if self.can_manage:
             return "write"
-        if slug in (self.denied_doctypes or []):
+        if slug in (self.denied_doctypes or []) or (self.role_policy_id and slug in self.role_policy.denied_doctypes):
             return "none"
-        if slug in (self.read_only_doctypes or []):
+        if slug in (self.read_only_doctypes or []) or (self.role_policy_id and slug in self.role_policy.read_only_doctypes):
             return "read"
         return "write"
 
@@ -419,8 +450,13 @@ class Membership(models.Model):
         """cancel / delete / export / costs."""
         if self.can_manage:
             return True
-        return {"cancel": self.can_submit and self.can_cancel, "delete": self.can_delete,
-                "export": self.can_export, "costs": not self.hide_costs}.get(action, True)
+        local = {"cancel": self.can_submit and self.can_cancel, "delete": self.can_delete,
+                 "export": self.can_export, "costs": not self.hide_costs}.get(action, True)
+        if not self.role_policy_id:
+            return local
+        policy = self.role_policy
+        return local and {"cancel": policy.can_submit and policy.can_cancel, "delete": policy.can_delete,
+                          "export": policy.can_export, "costs": not policy.hide_costs}.get(action, True)
 
     def allowed_cost_center_ids(self):
         """None = كل الفروع؛ وإلا مجموعة مراكز التكلفة المسموحة."""

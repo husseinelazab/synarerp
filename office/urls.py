@@ -1,8 +1,9 @@
 from django.urls import path
 
-from office import views
+from office import views, organization
 
 urlpatterns = [
+    path("organization/", organization.chart, name="organization_chart"),
     path("", views.my_desk, name="my_desk"),
     path("circular/<int:pk>/ack/", views.acknowledge_circular, name="acknowledge_circular"),
     path("documents/", views.documents_dashboard, name="documents_dashboard"),

@@ -15,6 +15,9 @@ def stock_balance(request):
     bins = Bin.objects.select_related("item", "item__uom", "warehouse").exclude(actual_qty=0, stock_value=0)
     if warehouse:
         bins = bins.filter(warehouse_id=warehouse)
+    negative_only = request.GET.get("negative") == "1"
+    if negative_only:
+        bins = bins.filter(actual_qty__lt=0)
     from stock.reservation import reserved_map
 
     bins = list(bins.order_by("item__code", "warehouse__name"))
@@ -23,7 +26,7 @@ def stock_balance(request):
         b.reserved_qty = reserved.get((b.item_id, b.warehouse_id), 0)
         b.available_qty = b.actual_qty - b.reserved_qty
     return render(request, "reports/stock_balance.html", {
-        "title": "أرصدة المخزون", "bins": bins,
+        "title": "متابعة الأرصدة السالبة" if negative_only else "أرصدة المخزون", "bins": bins, "negative_only": negative_only,
         "warehouses": Warehouse.objects.all(), "selected_warehouse": warehouse,
         "total_value": sum(b.stock_value for b in bins),
     })

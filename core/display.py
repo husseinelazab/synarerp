@@ -22,6 +22,8 @@ def display_value(obj, field_name):
     if field_name == "doctype" and hasattr(obj, "doctype_label"):
         return obj.doctype_label
     value = getattr(obj, field_name)
+    if field.many_to_many:
+        return "، ".join(str(row) for row in value.all()) or "—"
     if value is None or value == "":
         return "—"
     if isinstance(field, models.BooleanField):

@@ -32,18 +32,19 @@
         <div><dt>التاريخ الميلادي</dt><dd><bdi>{{ item.date|date:"Y/m/d" }}</bdi> م</dd></div>
         <div><dt>التاريخ الهجري</dt><dd>{{ item.date|hijri }}</dd></div>
         <div><dt>المرفقات</dt><dd>{% if item.attachment_description %}{{ item.attachment_description }}{% else %}{{ attachments_count }} ملف{% endif %}</dd></div>
+        <div class="correspondence-subject"><dt>الموضوع</dt><dd>{{ item.subject }}</dd></div>
       </dl>
       <div class="outgoing-barcode" aria-label="باركود رقم المعاملة">{{ barcode|safe }}<span dir="ltr">{{ item.number }}</span></div>
     </section>
   </header>
   <div class="letter-rule" aria-hidden="true"></div>
   <section class="letter-content">
-    {% if item.party %}<p class="letter-recipient"><strong>المكرم / {{ item.party }}</strong><span>المحترم</span></p>{% endif %}
+    {% if item.party %}<p class="letter-recipient"><strong>{{ item.salutation }} {{ item.party }}</strong><span>المحترم</span></p>{% endif %}
     <p>{{ ps.letter_opening|default:"السلام عليكم ورحمة الله وبركاته، وبعد:" }}</p>
-    <h1 class="letter-subject">الموضوع: {{ item.subject }}</h1>
+
     <div class="letter-body">{{ item.body }}</div>
     <p>وتقبلوا خالص التحية والتقدير،،،</p>
-    <div class="letter-signature">{% if item.signatory %}<strong>{{ item.signatory.get_full_name|default:item.signatory }}</strong>{% endif %}<span>{{ company.name }}</span></div>
+    <div class="letter-signature">{% if item.signature %}<img src="{{ item.signature }}" class="issuer-signature" alt="توقيع المصدر">{% endif %}{% if item.issuer_name %}<strong>{{ item.issuer_name }}</strong>{% elif item.signatory %}<strong>{{ item.signatory.get_full_name|default:item.signatory }}</strong>{% endif %}{% if item.issuer_title %}<span>{{ item.issuer_title }}</span>{% endif %}<span>{{ company.name }}</span></div>
   </section>
   <footer class="official-footer">
     <div class="footer-rule" aria-hidden="true"></div>

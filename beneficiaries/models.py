@@ -219,6 +219,7 @@ class Relation(models.TextChoices):
 
 
 class FamilyMember(models.Model):
+    categories = models.ManyToManyField("DependentCategory", blank=True, verbose_name="التصنيفات والحالات", related_name="members")
     parent = models.ForeignKey(Beneficiary, models.CASCADE, related_name="members")
     full_name = models.CharField("الاسم", max_length=150)
     national_id = models.CharField("رقم الهوية", max_length=10, blank=True, validators=[validate_national_id])
@@ -968,3 +969,16 @@ class VoucherRedemption(SubmittableDocument):
         from beneficiaries.vouchers import reverse_redemption
 
         reverse_redemption(self)
+
+
+class DependentCategory(TenantModel):
+    name = models.CharField("تصنيف التابع / حالته", max_length=80)
+    disabled = models.BooleanField("موقوف", default=False)
+
+    class Meta:
+        verbose_name = "تصنيف تابع"
+        verbose_name_plural = "تصنيفات وحالات التابعين"
+        constraints = [tenant_unique("name", model_label="dependentcategory")]
+
+    def __str__(self):
+        return self.name

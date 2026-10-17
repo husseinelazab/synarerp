@@ -11,7 +11,7 @@ from decimal import Decimal
 from functools import wraps
 
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, models, transaction
 from django.db.models import ProtectedError, Q, Sum
@@ -104,6 +104,9 @@ def serialize(obj, child=None):
             data[f"{field.name}_display"] = str(getattr(obj, field.name))
         elif field.choices:
             data[f"{field.name}_display"] = getattr(obj, f"get_{field.name}_display")()
+    for field in obj._meta.many_to_many:
+        if field.editable and field.name not in HIDDEN:
+            data[field.name] = list(getattr(obj, field.name).values_list("pk", flat=True))
     if child is not None:
         related = child.model._meta.get_field(child.fk_name).remote_field.related_name
         data[related] = [serialize(row) for row in getattr(obj, related).all()]
@@ -113,7 +116,10 @@ def serialize(obj, child=None):
 def field_schema(model, names):
     result = []
     for name in names:
-        f = model._meta.get_field(name)
+        try:
+            f = model._meta.get_field(name)
+        except FieldDoesNotExist:
+            continue
         kind = ("link" if f.is_relation else "decimal" if isinstance(f, models.DecimalField)
                 else "date" if isinstance(f, models.DateField) else "boolean" if isinstance(f, models.BooleanField)
                 else "integer" if isinstance(f, models.IntegerField) else "text")
@@ -175,6 +181,8 @@ def _form_value(value):
         return "on"
     if value is False or value is None:
         return ""
+    if isinstance(value, (list, tuple)):
+        return [str(getattr(v, "pk", v)) for v in value]
     return str(value)
 
 
@@ -182,7 +190,10 @@ def _defaults(model, names):
     """القيم الافتراضية للحقول (كما تظهر معبأة في الشاشات) لمن لم يرسلها في JSON."""
     result = {}
     for name in names:
-        field = model._meta.get_field(name)
+        try:
+            field = model._meta.get_field(name)
+        except FieldDoesNotExist:
+            continue
         if field.has_default():
             value = field.get_default()
             result[name] = value.pk if hasattr(value, "pk") else value

@@ -2,10 +2,13 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from core.models import Company
+from core.models import Company, OrganizationType
 
 
 class Plan(models.Model):
+    organization_type = models.CharField("تصنيف الباقة", max_length=10, choices=OrganizationType.choices,
+                                         default=OrganizationType.BUSINESS)
+    is_active = models.BooleanField("باقة نشطة", default=True)
     code = models.SlugField("الرمز", unique=True)
     name = models.CharField("اسم الباقة", max_length=100)
     description = models.CharField("الوصف", max_length=255, blank=True)
@@ -29,6 +32,11 @@ class Plan(models.Model):
         return self.name
 
     def allows_module(self, key):
+        from core.permissions import COMMERCIAL_MODULES, NONPROFIT_MODULES
+        if self.organization_type == OrganizationType.BUSINESS and key in NONPROFIT_MODULES:
+            return False
+        if self.organization_type == OrganizationType.NONPROFIT and key in COMMERCIAL_MODULES:
+            return False
         if key == "pos":
             return self.includes_pos
         return key not in (self.closed_modules or [])

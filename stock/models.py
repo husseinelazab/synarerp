@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 
 from accounts.ledger import cancel_gl_entries, make_gl_entries
 from core.models import SubmittableDocument, TenantModel
@@ -92,12 +92,37 @@ class Item(TenantModel):
         verbose_name = "صنف"
         verbose_name_plural = "الأصناف"
         ordering = ["code"]
-        constraints = [tenant_unique("code", model_label="item"), tenant_unique("plu", model_label="item")]
+        constraints = [tenant_unique("code", model_label="item"), tenant_unique("plu", model_label="item"),
+                       models.UniqueConstraint(fields=["company", "barcode"], condition=~models.Q(barcode=""),
+                                               name="item_barcode_per_company")]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
 
     def save(self, *args, **kwargs):
+        from core.models import Company
+        with transaction.atomic():
+            if not self.company_id:
+                self.company = Company.current()
+            Company.objects.select_for_update().get(pk=self.company_id)
+            self._validate_barcode()
+            return self._save_item(*args, **kwargs)
+
+    def _validate_barcode(self):
+        self.barcode = (self.barcode or "").strip()
+        from core.models import Company
+        company = self.company_id or getattr(Company.current(), 'pk', None)
+        if self.barcode and company:
+            candidates = {self.barcode}
+            if self.barcode.isdigit() and len(self.barcode) == 12:
+                candidates.add("0" + self.barcode)
+            elif len(self.barcode) == 13 and self.barcode.startswith("0"):
+                candidates.add(self.barcode[1:])
+            if (Item.all_objects.filter(company_id=company, barcode__in=candidates).exclude(pk=self.pk).exists()
+                    or ItemUOM.all_objects.filter(company_id=company, barcode__in=candidates).exists()):
+                raise ValidationError({"barcode": "هذا الباركود مستخدم لصنف أو وحدة أخرى داخل المنشأة."})
+
+    def _save_item(self, *args, **kwargs):
         # تسجيل تغيّر سعري البيع والشراء (من التعديل اليدوي أو الاستيراد أو آخر شراء)
         old = None
         if self.pk:
@@ -115,6 +140,7 @@ class Item(TenantModel):
 
     def clean(self):
         super().clean()
+        self._validate_barcode()
         if self.has_serial_no and (self.has_batch_no or not self.is_stock_item or self.is_weighed):
             raise ValidationError({"has_serial_no": "الأرقام التسلسلية لصنف مخزني لا يُتتبع بالتشغيلات ولا يُباع بالوزن."})
         if self.barcode and self.company_id and ItemUOM.all_objects.filter(
@@ -219,7 +245,9 @@ class ItemUOM(TenantModel):
         verbose_name = "وحدة تحويل"
         verbose_name_plural = "وحدات التحويل"
         ordering = ["item__code", "factor"]
-        constraints = [tenant_unique("item", "uom", model_label="itemuom")]
+        constraints = [tenant_unique("item", "uom", model_label="itemuom"),
+                       models.UniqueConstraint(fields=["company", "barcode"], condition=~models.Q(barcode=""),
+                                               name="itemuom_barcode_per_company")]
 
     def __str__(self):
         return f"{self.item.name} — {self.uom} = {flt(self.factor, 6).normalize():f} {self.item.uom}"
@@ -232,10 +260,25 @@ class ItemUOM(TenantModel):
             raise ValidationError({"uom": "هذه هي الوحدة الأساسية للصنف؛ اختر وحدة أخرى."})
         if self.barcode:
             company = self.company_id or (self.item.company_id if self.item_id else None)
-            clash = Item.all_objects.filter(company_id=company, barcode=self.barcode).exists() or \
-                ItemUOM.all_objects.filter(company_id=company, barcode=self.barcode).exclude(pk=self.pk).exists()
+            candidates = {self.barcode.strip()}
+            if self.barcode.isdigit() and len(self.barcode) == 12:
+                candidates.add("0" + self.barcode)
+            elif len(self.barcode) == 13 and self.barcode.startswith("0"):
+                candidates.add(self.barcode[1:])
+            clash = Item.all_objects.filter(company_id=company, barcode__in=candidates).exists() or \
+                ItemUOM.all_objects.filter(company_id=company, barcode__in=candidates).exclude(pk=self.pk).exists()
             if clash:
                 raise ValidationError({"barcode": "هذا الباركود مستخدم لصنف أو وحدة أخرى."})
+
+    def save(self, *args, **kwargs):
+        from core.models import Company
+        with transaction.atomic():
+            if not self.company_id:
+                self.company_id = self.item.company_id
+            Company.objects.select_for_update().get(pk=self.company_id)
+            self.barcode = (self.barcode or "").strip()
+            self.clean()
+            return super().save(*args, **kwargs)
 
     @property
     def effective_selling_rate(self):
@@ -781,6 +824,14 @@ class StockCount(SubmittableDocument):
             raise ValidationError(f"لا يوجد صنف بهذا الباركود: {code}")
         if scale_qty is not None:  # باركود ميزان: الكمية = الوزن (مضروباً في عدد العبوات المدخل)
             qty = flt(scale_qty, 3) * flt(qty, 3)
+        return self.record_scan(item, qty, user, code)
+
+    def record_scan(self, item, qty, user=None, code=""):
+        from django.db.models import Sum
+        if not self.is_draft:
+            raise ValidationError("الجرد معتمد أو ملغى؛ لا يمكن تعديله.")
+        if item.company_id != self.company_id:
+            raise ValidationError("الصنف لا يخص منشأة الجرد.")
         if not item.is_stock_item:
             raise ValidationError(f"«{item.name}» ليس صنفاً مخزنياً.")
         if self.item_group_id and item.item_group_id != self.item_group_id:
@@ -829,6 +880,7 @@ class StockCountScan(models.Model):
     item = models.ForeignKey(Item, models.PROTECT, related_name="+", verbose_name="الصنف")
     qty = models.DecimalField("الكمية", max_digits=18, decimal_places=3, default=1)
     code = models.CharField("الكود الممسوح", max_length=60, blank=True)
+    request_id = models.CharField("معرف القراءة", max_length=64, blank=True, editable=False)
     user = models.ForeignKey("auth.User", models.SET_NULL, null=True, related_name="+", verbose_name="بواسطة")
     created_at = models.DateTimeField("الوقت", auto_now_add=True)
 
@@ -836,6 +888,8 @@ class StockCountScan(models.Model):
         verbose_name = "قراءة جرد"
         verbose_name_plural = "قراءات الجرد"
         ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["parent", "request_id"], condition=~models.Q(request_id=""),
+                                               name="stock_count_scan_request_once")]
 
 
 class StockCountItem(models.Model):

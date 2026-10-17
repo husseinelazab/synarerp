@@ -27,6 +27,11 @@
       {% for field in form %}{% if field.name in "show_bank_details bank_name bank_account_name iban sales_terms" %}{% include "core/_field.html" %}{% endif %}{% endfor %}
     </div>
   </div>
+  <div class="card"><h3>الخطابات الرسمية وكليشة الجمعية</h3>
+    {% if obj.letterhead %}<img src="{{ obj.letterhead }}" alt="الكليشة الحالية" style="max-height:140px;max-width:100%">{% endif %}
+    <div class="form-grid">{% for field in form %}{% if field.name in "letterhead_file remove_letterhead letter_opening" %}{% include "core/_field.html" %}{% endif %}{% endfor %}</div>
+    <p class="muted">تظهر الكليشة في الخطابات الرسمية مع رقم الصادر والباركود؛ لكل جمعية كليشتها المستقلة.</p>
+  </div>
   <div class="form-actions">
     <button class="btn btn-primary btn-lg">حفظ الإعدادات</button>
     {% if sample %}<a class="btn" target="_blank" href="{% url 'doc_print' 'sales-invoice' sample.pk %}">معاينة على آخر فاتورة مبيعات</a>{% endif %}

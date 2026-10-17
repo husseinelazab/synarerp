@@ -18,13 +18,24 @@ DEFAULT_PLANS = [
 
 
 def ensure_default_plans():
+    from core.models import OrganizationType
     for data in DEFAULT_PLANS:
         Plan.objects.get_or_create(code=data["code"], defaults=data)
+        nonprofit = dict(data, code="nonprofit-" + data["code"], name="الجمعيات — " + data["name"],
+                         description="للجمعيات: المحاسبة والحوكمة والمستفيدون والبرامج المتخصصة",
+                         organization_type=OrganizationType.NONPROFIT, includes_pos=False)
+        Plan.objects.get_or_create(code=nonprofit["code"], defaults=nonprofit)
 
 
-def default_trial_plan():
+def default_trial_plan(company=None):
+    from core.models import OrganizationType
     ensure_default_plans()
-    return Plan.objects.get(code="pro")
+    kind = company.organization_type if company else OrganizationType.BUSINESS
+    plans = Plan.objects.filter(is_active=True, organization_type=kind)
+    plan = plans.filter(code="nonprofit-pro" if kind == OrganizationType.NONPROFIT else "pro").first() or plans.first()
+    if plan is None:
+        raise ValidationError("لا توجد باقة نشطة لهذا النوع من المنشآت. تواصل مع إدارة المنصة.")
+    return plan
 
 
 def add_months(date, months):
@@ -34,7 +45,9 @@ def add_months(date, months):
 
 
 def start_subscription(company, plan=None):
-    plan = plan or default_trial_plan()
+    plan = plan or default_trial_plan(company)
+    if not plan.is_active or plan.organization_type != company.organization_type:
+        raise ValidationError("الباقة غير نشطة أو لا تخص نوع المنشأة.")
     return Subscription.objects.create(
         company=company, plan=plan, status=SubscriptionStatus.TRIAL,
         period_end=timezone.localdate() + datetime.timedelta(days=plan.trial_days),
@@ -44,6 +57,8 @@ def start_subscription(company, plan=None):
 @transaction.atomic
 def record_payment(subscription, plan, months, amount, method="bank", reference="", user=None):
     """تسجيل دفعة اشتراك وتمديد الصلاحية من نهاية الفترة الحالية (أو من اليوم إن كانت منتهية)."""
+    if not plan.is_active or plan.organization_type != subscription.company.organization_type:
+        raise ValidationError("اختر باقة نشطة تخص نوع المنشأة.")
     if months <= 0:
         raise ValidationError("عدد الأشهر يجب أن يكون أكبر من صفر.")
     today = timezone.localdate()

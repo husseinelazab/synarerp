@@ -1,0 +1,8 @@
+<div class="card">
+  <div class="toolbar"><h3>قائمة المشاركين · المقاعد المتبقية: {{ obj.seats_remaining }}</h3>
+    <a class="btn btn-primary" href="{% url 'doc_new' 'umrah-participant' %}?trip={{ obj.pk }}">إضافة مشارك من المسلمين الجدد</a>
+    <a class="btn" href="{% url 'umrah_manifest' obj.pk %}" target="_blank">طباعة كشف الرحلة</a>
+  </div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>المشارك</th><th>اللغة</th><th>الجوال</th><th>الحالة</th></tr></thead>
+  <tbody>{% for row in obj.participants.all %}<tr><td><a href="{{ row.get_absolute_url }}">{{ row.participant }}</a></td><td>{{ row.participant.language }}</td><td dir="ltr">{{ row.participant.phone }}</td><td>{{ row.get_status_display }}</td></tr>{% empty %}<tr><td colspan="4">لم يُسجل مشاركون بعد.</td></tr>{% endfor %}</tbody></table></div>
+</div>

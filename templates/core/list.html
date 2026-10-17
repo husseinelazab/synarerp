@@ -21,12 +21,26 @@
   {% if not dt.read_only %}<a class="btn btn-primary" href="{% url 'doc_new' dt.slug %}{% if filter_query %}?{{ filter_query }}{% endif %}">+ {% if filter_label %}{{ filter_label }}{% else %}{{ dt.label }}{% endif %} جديد</a>{% endif %}
   </div>
 </div>
+<form method="post" action="{% url 'doc_bulk' dt.slug %}" id="bulk-form">
+{% csrf_token %}
+{% if can_bulk %}
+<div class="bulk-toolbar card">
+  <span id="selected-count" role="status">لم تُحدد سجلات</span>
+  <span class="muted small">التحديد يخص الصفحة الحالية فقط</span>
+  <select name="action" class="form-select" aria-label="الإجراء الجماعي"><option value="">اختر إجراءً</option>
+    {% if can_disable %}<option value="disable">إيقاف المحدد</option><option value="enable">تفعيل المحدد</option>{% endif %}
+    {% if can_delete %}<option value="delete">حذف المحدد</option>{% endif %}
+  </select>
+  <button class="btn" id="bulk-submit" disabled>تنفيذ على المحدد</button>
+</div>
+{% endif %}
 <div class="card">
   <div class="table-wrap"><table class="table table-hover no-search">
-    <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}{% if dt.is_submittable %}<th>الحالة</th>{% endif %}</tr></thead>
+    <thead><tr>{% if can_bulk %}<th><input type="checkbox" id="select-all" aria-label="تحديد كل سجلات الصفحة"></th>{% endif %}{% for h in headers %}<th>{{ h }}</th>{% endfor %}{% if dt.is_submittable %}<th>الحالة</th>{% endif %}</tr></thead>
     <tbody>
     {% for row in rows %}
       <tr class="clickable" data-href="{% url 'doc_detail' dt.slug row.obj.pk %}">
+        {% if can_bulk %}<td><input type="checkbox" name="selected" value="{{ row.obj.pk }}" aria-label="تحديد {{ row.obj }}"></td>{% endif %}
         {% for cell in row.cells %}<td>{% if forloop.first %}<a href="{% url 'doc_detail' dt.slug row.obj.pk %}">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}
         {% if dt.is_submittable %}<td><span class="badge status-{{ row.obj.docstatus }}">{{ row.obj.get_docstatus_display }}</span></td>{% endif %}
       </tr>
@@ -43,4 +57,5 @@
   </div>
   {% endif %}
 </div>
+</form>
 {% endblock %}

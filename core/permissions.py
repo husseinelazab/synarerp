@@ -25,6 +25,9 @@ PERMISSION_MODULES = [
     ("beneficiaries", "إدارة التقييم والمتابعة (المستفيدون)"),
     ("entities", "إدارة الجهات المستفيدة"),
     ("programs", "إدارة البرامج والتطوير (التدريب والتأهيل)"),
+    ("quran", "الحلقات ومتابعة الحفظ"),
+    ("dawah", "الدعوة والمسلمون الجدد والعمرة"),
+    ("health", "المرضى والمواعيد الصحية"),
     ("excellence", "إدارة التميز المؤسسي (الخطة الاستراتيجية ومؤشرات الأداء)"),
     ("relations", "إدارة العلاقات العامة والإعلام"),
     ("fleet", "إدارة الحركة والصيانة"),
@@ -34,7 +37,8 @@ PERMISSION_MODULES = [
 ]
 
 # وحدات الجهات غير الربحية: لا تظهر للمنشآت التجارية ولا تُفتح لها
-NONPROFIT_MODULES = {"funds", "resources", "members", "governance", "awqaf", "grants", "volunteering", "office", "documents",
+SPECIALTY_MODULES = {"quran", "dawah", "health"}
+NONPROFIT_MODULES = {"quran", "dawah", "health", "funds", "resources", "members", "governance", "awqaf", "grants", "volunteering", "office", "documents",
                      "beneficiaries", "entities", "programs", "excellence", "relations", "fleet", "statistics",
                      "website", "store"}
 # الوحدات التجارية التي لا تظهر في قائمة الجهة غير الربحية
@@ -65,14 +69,20 @@ def company_modules(company):
     """الوحدات التي تخص نوع المنشأة لاختيار صلاحيات المستخدمين، بمسمياتها لدى هذا النوع."""
     if company is not None and company.is_nonprofit:
         return [(key, NONPROFIT_LABELS.get(key, label)) for key, label in PERMISSION_MODULES
-                if key not in COMMERCIAL_MODULES]
+                if key not in COMMERCIAL_MODULES and (key not in SPECIALTY_MODULES or key == company.association_specialty)]
     return [(key, label) for key, label in PERMISSION_MODULES if key not in NONPROFIT_MODULES]
 
 
 def company_allows_path(company, path):
     """وحدات الجمعيات لا تُفتح للمنشأة التجارية."""
     modules = modules_for_path(path)
-    return not modules or not modules <= NONPROFIT_MODULES or company.is_nonprofit
+    if not modules:
+        return True
+    if company.is_nonprofit:
+        if modules <= SPECIALTY_MODULES:
+            return company.association_specialty in modules
+        return not modules <= COMMERCIAL_MODULES
+    return not modules <= NONPROFIT_MODULES
 
 # الوحدات التي يمكن فتحها أو إغلاقها في الباقات (المحاسبة أساس النظام فلا تُغلق)
 CORE_MODULES = {"accounts"}
@@ -113,6 +123,7 @@ PATH_MODULES = [
     ("/volunteering/", "volunteering"),
     ("/office/documents/", "documents"),
     ("/office/", "office"),
+    ("/programs/umrah/", "dawah"),
     ("/programs/", "programs"),
     ("/excellence/", "excellence"),
     ("/relations/", "relations"),
@@ -138,8 +149,11 @@ SHARED_DOCTYPES = {"exchange-rate": {"accounts"},
 
 def modules_for_path(path):
     """مجموعة الوحدات التي تكفي إحداها لفتح المسار، أو None إن كان المسار عاماً."""
-    from core.registry import REGISTRY
+    from core.registry import MODULES, REGISTRY
 
+    if path.startswith("/module/"):
+        module = path.split("/")[2]
+        return {module} if module in MODULES and module not in ("setup", "core") else None
     if path.startswith("/app/"):
         slug = path.split("/")[2]
         if slug in SHARED_DOCTYPES:
@@ -174,7 +188,7 @@ def path_allowed(membership, path):
         access = membership.doctype_access(slug)
         if access == "none":
             return False
-        if access == "read" and len(parts) > 3 and (parts[3] in ("new", "import") or
+        if access == "read" and len(parts) > 3 and (parts[3] in ("new", "import", "bulk") or
                                                      (len(parts) > 4 and parts[4] not in ("", "print", "attachments"))):
             return False  # الاطلاع فقط: لا إنشاء ولا تعديل ولا إجراءات
         if len(parts) > 3 and parts[3] == "export" and not membership.may("export"):

@@ -13,6 +13,7 @@
   <button class="tb-btn tb-primary" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
 </div>
 <main class="sheet">
+  {% if ps.letterhead %}<img src="{{ ps.letterhead }}" alt="كليشة {{ company.name }}" style="width:100%;max-height:180px;object-fit:contain;margin-bottom:18px">{% endif %}
   <header class="doc-header">
     <div class="brand">
       {% if ps.logo %}<img class="logo" src="{{ ps.logo }}" alt="{{ company.name }}">{% endif %}
@@ -20,7 +21,7 @@
       {% if company.license_number %}<div class="company-name-en">ترخيص رقم {{ company.license_number }}</div>{% endif %}</div>
     </div>
     <div class="seller letter-meta">
-      <div><span class="k">الرقم</span> <b dir="ltr">{{ item.number }}</b></div>
+      <div><span class="k">{% if item.direction == "outgoing" %}رقم الصادر{% else %}رقم القيد{% endif %}</span> <b dir="ltr">{{ item.number }}</b></div>
       <div><span class="k">التاريخ</span> <b>{{ item.date|hijri }} — {{ item.date|date:"Y-m-d" }}</b></div>
       <div><span class="k">المرفقات</span> <b>{{ attachments_count|default:"—" }}</b></div>
     </div>
@@ -28,6 +29,8 @@
   {% if item.party %}<p style="margin-top:2em"><strong>المكرم / {{ item.party }}</strong> المحترم</p>{% endif %}
   <p>السلام عليكم ورحمة الله وبركاته، وبعد:</p>
   <p><strong>الموضوع: {{ item.subject }}</strong></p>
+  {% if ps.letter_opening %}<p>{{ ps.letter_opening }}</p>{% endif %}
+  <div style="width:170px;height:38px;margin-top:16px">{{ barcode|safe }}</div>
   <div class="letter-body">{{ item.body }}</div>
   <p>وتقبلوا خالص التحية والتقدير،،،</p>
   <div class="sign">{% if item.signatory %}<strong>{{ item.signatory.get_full_name|default:item.signatory }}</strong><br>{% endif %}{{ company.name }}</div>

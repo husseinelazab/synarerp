@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Sum
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -127,7 +127,9 @@ def _document_rows(doc):
 # ---------------- الجرد بالماسح ----------------
 
 def _count(request, pk):
-    return get_object_or_404(StockCount.objects.select_related("warehouse", "item_group"), pk=pk)
+    from core.permissions import scope_queryset
+    return get_object_or_404(scope_queryset(request, StockCount,
+                            StockCount.objects.select_related("warehouse", "item_group")), pk=pk)
 
 
 @login_required
@@ -151,6 +153,8 @@ def count_scan_api(request, pk):
     count = _count(request, pk)
     if request.method == "GET":
         return JsonResponse(_totals_payload(count))
+    if request.membership and request.membership.doctype_access("stock-count") != "write":
+        return HttpResponseForbidden("هذه الصلاحية للاطلاع فقط.")
     try:
         data = json.loads(request.body or "{}")
     except json.JSONDecodeError:
@@ -158,6 +162,7 @@ def count_scan_api(request, pk):
     action = data.get("action", "scan")
     try:
         with transaction.atomic():
+            count = StockCount.objects.select_for_update().get(pk=count.pk)
             if action == "undo":
                 last = count.scans.filter(user=request.user).order_by("-id").first()
                 if last is None:
@@ -171,18 +176,34 @@ def count_scan_api(request, pk):
                 item = get_object_or_404(Item, pk=data.get("item"))
                 current = flt(count.scans.filter(item=item).aggregate(t=Sum("qty"))["t"] or 0, 3)
                 target = flt(Decimal(str(data.get("qty"))), 3)
-                if target < 0:
+                if not target.is_finite() or target < 0:
                     raise ValidationError("الكمية لا تكون سالبة.")
                 if target == current:
                     result = {"item": {"name": item.name}, "total": float(current)}
                 else:
-                    item, total = count.scan(item.barcode or item.code, target - current, request.user)
+                    item, total = count.record_scan(item, target - current, request.user, "manual")
                     result = {"item": {"id": item.id, "name": item.name}, "total": float(total)}
-            else:
-                qty = Decimal(str(data.get("qty") or 1))
-                item, total = count.scan(data.get("code", ""), qty, request.user)
+            elif action == "scan":
+                qty = Decimal(str(data.get("qty", 1)))
+                if not qty.is_finite() or qty <= 0:
+                    raise ValidationError("أدخل كمية موجبة صالحة للمسح.")
+                request_id = str(data.get("request_id") or "")
+                if len(request_id) > 64:
+                    raise ValidationError("معرف القراءة غير صالح.")
+                previous = count.scans.filter(request_id=request_id).select_related("item").first() if request_id else None
+                if previous:
+                    item = previous.item
+                    total = count.scans.filter(item=item).aggregate(t=Sum("qty"))["t"]
+                else:
+                    item, total = count.scan(data.get("code", ""), qty, request.user)
+                    reading = count.scans.order_by("-id").first()
+                    if request_id:
+                        reading.request_id = request_id
+                        reading.save(update_fields=["request_id"])
                 result = {"item": {"id": item.id, "name": item.name, "code": item.code}, "total": float(total),
-                          "qty": float(qty)}
+                          "qty": float(previous.qty if previous else reading.qty)}
+            else:
+                raise ValidationError("إجراء غير صالح.")
     except (ValidationError, InvalidOperation, ValueError) as exc:
         return JsonResponse({"error": _error(exc) if isinstance(exc, ValidationError) else "كمية غير صالحة."},
                             status=400)
@@ -194,8 +215,12 @@ def count_scan_api(request, pk):
 @require_POST
 def count_apply(request, pk):
     count = _count(request, pk)
+    if request.membership and request.membership.doctype_access("stock-count") != "write":
+        return HttpResponseForbidden("هذه الصلاحية للاطلاع فقط.")
     try:
-        n = count.apply_scans(zero_unscanned=bool(request.POST.get("zero_unscanned")))
+        with transaction.atomic():
+            count = StockCount.objects.select_for_update().get(pk=count.pk)
+            n = count.apply_scans(zero_unscanned=bool(request.POST.get("zero_unscanned")))
         messages.success(request, f"نُقلت نتائج المسح ({n} صنف) إلى الجرد. راجع الفروقات ثم اعتمد الجرد.")
     except ValidationError as exc:
         messages.error(request, _error(exc))
@@ -341,7 +366,9 @@ def generate_barcodes(request):
     if membership is None or not membership.can_manage:
         messages.error(request, "توليد الباركود متاح لمدير الشركة فقط.")
         return redirect("stock_labels")
+    from stock.models import ItemUOM
     used = set(Item.objects.exclude(barcode="").values_list("barcode", flat=True))
+    used.update(ItemUOM.objects.exclude(barcode="").values_list("barcode", flat=True))
     count = 0
     with transaction.atomic():
         for item in Item.objects.filter(disabled=False, barcode="").order_by("id"):

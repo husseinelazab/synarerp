@@ -97,6 +97,9 @@ def doc_list(request, slug):
     ]
     return render(request, "core/list.html", {
         "dt": dt,
+        "can_disable": any(f.name == "disabled" for f in dt.model._meta.fields),
+        "can_bulk": not dt.read_only and (not request.membership or request.membership.doctype_access(slug) == "write"),
+        "can_delete": not request.membership or request.membership.may("delete"),
         "headers": [field_label(dt.model, f) for f in dt.list_fields],
         "rows": rows,
         "page": page,
@@ -108,6 +111,45 @@ def doc_list(request, slug):
         "filter_label": " / ".join(dict(dt.model._meta.get_field(k).choices)[v] for k, v in choice_filters.items()),
         "type_title": dt.type_titles.get(choice_filters.get(dt.type_field)) if dt.type_field else None,
     })
+
+
+@login_required
+@require_POST
+def doc_bulk(request, slug):
+    from core.permissions import require_action
+    dt = get_doctype(slug)
+    try:
+        if dt.read_only or (request.membership and request.membership.doctype_access(slug) != "write"):
+            raise ValidationError("هذه القائمة للقراءة فقط.")
+        ids = set(request.POST.getlist("selected"))
+        if not ids or len(ids) > 100 or any(not value.isdigit() for value in ids):
+            raise ValidationError("حدد من سجل واحد إلى 100 سجل في الصفحة الحالية.")
+        action = request.POST.get("action")
+        if action not in ("delete", "disable", "enable"):
+            raise ValidationError("إجراء غير صالح.")
+        require_action(request, "delete" if action == "delete" else "write")
+        with transaction.atomic():
+            objects = list(_scoped(request, dt).select_for_update().filter(pk__in=ids))
+            if len(objects) != len(ids):
+                raise ValidationError("بعض السجلات غير متاحة لك. لم يُنفذ الإجراء.")
+            for obj in objects:
+                if action == "delete":
+                    if dt.is_submittable and not obj.is_draft:
+                        raise ValidationError("يمكن حذف المسودات فقط؛ لم يُحذف أي سجل.")
+                    object_id = obj.pk
+                    obj.delete()
+                    Attachment.objects.filter(doctype=slug, object_id=object_id).delete()
+                else:
+                    if not any(f.name == "disabled" for f in dt.model._meta.fields):
+                        raise ValidationError("الإيقاف غير متاح لهذه القائمة.")
+                    obj.disabled = action == "disable"
+                    obj.save(update_fields=["disabled"])
+    except (ValidationError, ProtectedError) as exc:
+        messages.error(request, _error_text(exc) if isinstance(exc, ValidationError)
+                       else "لا يمكن حذف سجلات مرتبطة بمستندات؛ لم يُحذف أي سجل.")
+    else:
+        messages.success(request, f"تم تنفيذ الإجراء على {len(objects)} سجل.")
+    return redirect("doc_list", slug=slug)
 
 
 @login_required

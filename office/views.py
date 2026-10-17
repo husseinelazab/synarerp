@@ -37,9 +37,10 @@ def route_correspondence(request, pk):
 def letter(request, pk):
     from core.models import PrintSettings
 
+    from stock.barcode import svg
     item = _correspondence(request, pk)
     return render(request, "office/letter.html", {"item": item, "company": request.company,
-                                                  "ps": PrintSettings.for_company(request.company)})
+                                                  "ps": PrintSettings.for_company(request.company), "barcode": svg(item.number)})
 
 
 @login_required

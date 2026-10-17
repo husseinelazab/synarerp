@@ -19,6 +19,23 @@
     });
   });
 
+  var bulk = document.getElementById("bulk-form");
+  if (bulk && document.getElementById("select-all")) {
+    var all = document.getElementById("select-all");
+    var checks = Array.from(bulk.querySelectorAll('[name="selected"]'));
+    function selection() {
+      var count = checks.filter(function (c) { c.closest("tr").classList.toggle("selected-row", c.checked); return c.checked; }).length;
+      all.checked = checks.length > 0 && count === checks.length;
+      all.indeterminate = count > 0 && count < checks.length;
+      document.getElementById("selected-count").textContent = "المحدد: " + count;
+      document.getElementById("bulk-submit").disabled = count === 0 || !bulk.elements.action.value;
+    }
+    all.addEventListener("change", function () { checks.forEach(function (c) { c.checked = all.checked; }); selection(); });
+    bulk.addEventListener("change", selection);
+    bulk.addEventListener("submit", function (e) {
+      if (!checks.some(function (c) { return c.checked; }) || !bulk.elements.action.value || !confirm("تأكيد تنفيذ الإجراء على السجلات المحددة؟")) e.preventDefault();
+    });
+  }
   var table = document.querySelector(".child-table");
   if (!table) return;
 

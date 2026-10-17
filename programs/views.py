@@ -183,3 +183,18 @@ def public_verify(request, code):
         certificate_code=code.upper(), status=EnrollmentStatus.PASSED).first()
     return render_public(request, "programs/public_verify.html", "programs/_public_verify_body.html",
                          "التحقق من شهادة تدريب", {"e": enrollment, "code": code}, parent="الخدمات الإلكترونية")
+
+
+@login_required
+def umrah_manifest(request, pk):
+    from django.core.exceptions import PermissionDenied
+    from core.models import PrintSettings
+    from programs.models import UmrahTrip
+    if request.membership and any(request.membership.doctype_access(slug) == "none"
+                                  for slug in ("umrah-trip", "umrah-participant", "new-muslim")):
+        raise PermissionDenied
+    trip = get_object_or_404(UmrahTrip.objects.filter(company=request.company), pk=pk)
+    return render(request, "programs/umrah_manifest.html", {
+        "trip": trip, "company": request.company, "ps": PrintSettings.for_company(request.company),
+        "participants": trip.participants.exclude(status="cancelled").select_related("participant").order_by("participant__full_name"),
+    })

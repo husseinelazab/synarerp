@@ -24,6 +24,7 @@ urlpatterns = [
     path("api/item/lookup/", stock_tools.lookup_api, name="item_lookup"),
     path("api/options/<str:token>/", remote_select.remote_options, name="remote_options"),
     path("app/<slug:slug>/", views.doc_list, name="doc_list"),
+    path("app/<slug:slug>/bulk/", views.doc_bulk, name="doc_bulk"),
     path("app/<slug:slug>/new/", views.doc_form, name="doc_new"),
     path("app/<slug:slug>/import/", import_views.import_page, name="doc_import"),
     path("app/<slug:slug>/import/<int:pk>/", import_views.import_job, name="doc_import_job"),

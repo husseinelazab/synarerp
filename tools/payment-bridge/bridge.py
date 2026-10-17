@@ -185,6 +185,7 @@ def make_handler(driver, allowed_origins, lock):
             # جهاز مدى ينفّذ عملية واحدة في كل مرة
             if not lock.acquire(blocking=False):
                 return self._send(409, {"status": "error", "message": "جهاز الدفع مشغول بعملية أخرى"})
+            status = 200
             try:
                 if path == "/void":
                     result = driver.void(str(data.get("rrn") or ""), str(data.get("auth_code") or ""))
@@ -199,13 +200,15 @@ def make_handler(driver, allowed_origins, lock):
                         result = driver.refund(amount, reference, str(data.get("original_rrn") or ""),
                                                str(data.get("original_auth_code") or ""))
             except TerminalError as exc:
-                return self._send(200, {"status": "error", "message": str(exc)})
+                result = {"status": "error", "message": str(exc)}
             except Exception:  # noqa: BLE001 — لا نكشف تفاصيل داخلية للمتصفح
-                return self._send(500, {"status": "error", "message": "خطأ في الاتصال بجهاز الدفع"})
+                status = 500
+                result = {"status": "error", "message": "خطأ في الاتصال بجهاز الدفع"}
             finally:
                 lock.release()
+            # The terminal is free before any response is visible to the next caller, including errors.
             result.setdefault("terminal_id", driver.terminal_id)
-            self._send(200, result)
+            self._send(status, result)
 
     return Handler
 

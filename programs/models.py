@@ -6,7 +6,8 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 
 from beneficiaries.models import Gender, validate_national_id
 from core.models import TenantModel
@@ -310,3 +311,227 @@ class SessionAttendance(TenantModel):
 
     def __str__(self):
         return f"{self.enrollment.full_name} — {self.session}"
+
+
+class SpecialtyRecord(TenantModel):
+    """Records remain inside the association and its selected specialty, including direct writes."""
+    specialty = ""
+
+    class Meta:
+        abstract = True
+
+    def clean(self):
+        super().clean()
+        if not self.company_id:
+            from core.models import Company
+            self.company = Company.current()
+        if self.company_id and (not self.company.is_nonprofit or self.company.association_specialty != self.specialty):
+            raise ValidationError("هذا السجل مخصص لجمعية من التخصص المحدد.")
+        for field in self._meta.fields:
+            if field.many_to_one and field.name != "company" and getattr(self, field.attname):
+                related = getattr(self, field.name)
+                if hasattr(related, "company_id") and related.company_id != self.company_id:
+                    raise ValidationError({field.name: "السجل المختار لا يخص هذه الجمعية."})
+
+    def save(self, *args, **kwargs):
+        from core.models import Company
+        with transaction.atomic():
+            if not self.company_id:
+                self.company = Company.current()
+            self.company = Company.objects.select_for_update().get(pk=self.company_id)
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+
+class QuranCircle(SpecialtyRecord):
+    specialty = "quran"
+    name = models.CharField("اسم الحلقة", max_length=150)
+    teacher = models.CharField("المعلم / المعلمة", max_length=150)
+    location = models.CharField("المسجد / المقر", max_length=200, blank=True)
+    schedule = models.CharField("أيام ومواعيد الحلقة", max_length=200, blank=True)
+    capacity = models.PositiveSmallIntegerField("عدد المقاعد", default=20, validators=[MinValueValidator(1)])
+    disabled = models.BooleanField("موقوفة", default=False)
+
+    class Meta:
+        verbose_name = "حلقة تحفيظ"
+        verbose_name_plural = "حلقات التحفيظ"
+
+    def __str__(self):
+        return self.name
+
+
+class QuranStudent(SpecialtyRecord):
+    specialty = "quran"
+    full_name = models.CharField("اسم الطالب", max_length=150)
+    circle = models.ForeignKey(QuranCircle, models.PROTECT, verbose_name="الحلقة")
+    guardian_phone = models.CharField("جوال ولي الأمر", max_length=30, blank=True)
+    joined_on = models.DateField("تاريخ الالتحاق", default=timezone.localdate)
+    disabled = models.BooleanField("موقوف", default=False)
+
+    class Meta:
+        verbose_name = "طالب حلقة"
+        verbose_name_plural = "طلاب الحلقات"
+
+    def __str__(self):
+        return self.full_name
+
+    def clean(self):
+        super().clean()
+        if self.circle_id and not self.disabled:
+            self.circle = QuranCircle.all_objects.get(pk=self.circle_id)
+            if self.circle.disabled:
+                raise ValidationError({"circle": "الحلقة موقوفة."})
+            if QuranStudent.all_objects.filter(circle_id=self.circle_id, disabled=False).exclude(pk=self.pk).count() >= self.circle.capacity:
+                raise ValidationError({"circle": "اكتمل عدد مقاعد الحلقة."})
+
+
+class QuranProgress(SpecialtyRecord):
+    specialty = "quran"
+    student = models.ForeignKey(QuranStudent, models.PROTECT, verbose_name="الطالب")
+    date = models.DateField("التاريخ")
+    memorization = models.CharField("الحفظ الجديد (السورة والآيات)", max_length=250, blank=True)
+    revision = models.CharField("المراجعة", max_length=250, blank=True)
+    attended = models.BooleanField("حاضر", default=True)
+    score = models.PositiveSmallIntegerField("التقييم من 100", default=100, validators=[MaxValueValidator(100)])
+    notes = models.TextField("ملاحظات المعلم", blank=True)
+
+    class Meta:
+        verbose_name = "متابعة حفظ"
+        verbose_name_plural = "متابعة الحفظ والمراجعة"
+        constraints = [models.UniqueConstraint(fields=["company", "student", "date"], name="quran_student_daily_progress")]
+
+    def __str__(self):
+        return f"{self.student} — {self.date}"
+
+
+class NewMuslim(SpecialtyRecord):
+    specialty = "dawah"
+    full_name = models.CharField("الاسم", max_length=150)
+    phone = models.CharField("الجوال", max_length=30, blank=True)
+    nationality = models.CharField("الجنسية", max_length=80, blank=True)
+    language = models.CharField("اللغة", max_length=80)
+    conversion_date = models.DateField("تاريخ الإسلام", null=True, blank=True)
+    mentor = models.CharField("الداعية / المتابع", max_length=150, blank=True)
+    notes = models.TextField("خطة المتابعة", blank=True)
+
+    class Meta:
+        verbose_name = "مسلم جديد"
+        verbose_name_plural = "المسلمون الجدد"
+
+    def __str__(self):
+        return self.full_name
+
+
+class DawahActivity(SpecialtyRecord):
+    specialty = "dawah"
+    title = models.CharField("عنوان البرنامج الدعوي", max_length=200)
+    date = models.DateField("التاريخ")
+    preacher = models.CharField("الداعية", max_length=150)
+    language = models.CharField("اللغة", max_length=80)
+    location = models.CharField("المكان", max_length=200)
+    participants = models.PositiveIntegerField("عدد المستفيدين", default=0)
+    new_muslims_count = models.PositiveIntegerField("عدد المسلمين الجدد", default=0)
+    notes = models.TextField("التقرير والمتابعة", blank=True)
+
+    class Meta:
+        verbose_name = "برنامج دعوي"
+        verbose_name_plural = "البرامج الدعوية"
+
+    def __str__(self):
+        return self.title
+
+
+class UmrahTrip(SpecialtyRecord):
+    specialty = "dawah"
+    title = models.CharField("اسم الرحلة", max_length=200)
+    departure_date = models.DateField("تاريخ الذهاب")
+    return_date = models.DateField("تاريخ العودة")
+    supervisor = models.CharField("المشرف", max_length=150)
+    supervisor_phone = models.CharField("جوال المشرف", max_length=30, blank=True)
+    departure_point = models.CharField("نقطة التجمع", max_length=200)
+    capacity = models.PositiveIntegerField("المقاعد المتاحة", default=40, validators=[MinValueValidator(1)])
+    frequency = models.CharField("دورية البرنامج", max_length=12, choices=[("once", "رحلة واحدة"), ("monthly", "شهرياً"), ("quarterly", "كل ثلاثة أشهر"), ("custom", "حسب خطة الجمعية")], default="once")
+    transport = models.CharField("الحافلة / شركة النقل", max_length=200, blank=True)
+    accommodation = models.CharField("السكن", max_length=200, blank=True)
+    status = models.CharField("الحالة", max_length=12, choices=[("open", "التسجيل مفتوح"), ("closed", "التسجيل مغلق"), ("completed", "منفذة"), ("cancelled", "ملغاة")], default="open")
+    notes = models.TextField("برنامج الرحلة والتعليمات", blank=True)
+
+    class Meta:
+        verbose_name = "رحلة عمرة"
+        verbose_name_plural = "رحلات العمرة الدورية"
+        ordering = ["-departure_date"]
+
+    def __str__(self):
+        return f"{self.title} — {self.departure_date}"
+
+    @property
+    def seats_remaining(self):
+        return max(0, self.capacity - self.participants.exclude(status="cancelled").count())
+
+    def clean(self):
+        super().clean()
+        if self.departure_date and self.return_date and self.return_date < self.departure_date:
+            raise ValidationError({"return_date": "العودة لا تسبق الذهاب."})
+        if self.pk and self.capacity and self.participants.exclude(status="cancelled").count() > self.capacity:
+            raise ValidationError({"capacity": "عدد المسجلين أكبر من عدد المقاعد الجديد."})
+
+
+class UmrahParticipant(SpecialtyRecord):
+    specialty = "dawah"
+    trip = models.ForeignKey(UmrahTrip, models.PROTECT, related_name="participants", verbose_name="الرحلة")
+    participant = models.ForeignKey(NewMuslim, models.PROTECT, verbose_name="المشارك من المسلمين الجدد")
+    status = models.CharField("الحالة", max_length=12, choices=[("registered", "مسجل"), ("confirmed", "مؤكد"), ("attended", "حضر الرحلة"), ("absent", "لم يحضر"), ("cancelled", "ملغى")], default="registered")
+    notes = models.TextField("متطلبات المشارك / ملاحظات", blank=True)
+
+    class Meta:
+        verbose_name = "مشارك في العمرة"
+        verbose_name_plural = "المشاركون في رحلات العمرة"
+        constraints = [models.UniqueConstraint(fields=["trip", "participant"], name="umrah_trip_participant_once")]
+
+    def __str__(self):
+        return f"{self.participant} — {self.trip}"
+
+    def clean(self):
+        super().clean()
+        if self.trip_id and self.status != "cancelled":
+            self.trip = UmrahTrip.all_objects.get(pk=self.trip_id)
+            if self._state.adding and self.trip.status != "open":
+                raise ValidationError({"trip": "التسجيل في الرحلة مغلق."})
+            if self.trip.participants.exclude(pk=self.pk).exclude(status="cancelled").count() >= self.trip.capacity:
+                raise ValidationError({"trip": "اكتملت مقاعد الرحلة."})
+
+
+
+class HealthPatient(SpecialtyRecord):
+    specialty = "health"
+    file_number = models.CharField("رقم الملف", max_length=50)
+    full_name = models.CharField("اسم المريض", max_length=150)
+    phone = models.CharField("الجوال", max_length=30, blank=True)
+    birth_date = models.DateField("تاريخ الميلاد", null=True, blank=True)
+    service_needed = models.CharField("الخدمة المطلوبة", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "مريض"
+        verbose_name_plural = "ملفات المرضى"
+        constraints = [models.UniqueConstraint(fields=["company", "file_number"], name="health_patient_file_per_company")]
+
+    def __str__(self):
+        return f"{self.file_number} — {self.full_name}"
+
+
+class HealthAppointment(SpecialtyRecord):
+    specialty = "health"
+    patient = models.ForeignKey(HealthPatient, models.PROTECT, verbose_name="المريض")
+    scheduled_at = models.DateTimeField("الموعد")
+    clinician = models.CharField("الطبيب / الممارس", max_length=150)
+    clinic = models.CharField("العيادة / التخصص", max_length=150)
+    status = models.CharField("الحالة", max_length=12, choices=[("scheduled", "محجوز"), ("attended", "حضر"), ("absent", "لم يحضر"), ("cancelled", "ملغى")], default="scheduled")
+    notes = models.TextField("ملاحظات إدارية", blank=True)
+
+    class Meta:
+        verbose_name = "موعد صحي"
+        verbose_name_plural = "المواعيد الصحية"
+        ordering = ["scheduled_at"]
+
+    def __str__(self):
+        return f"{self.patient} — {self.scheduled_at}"

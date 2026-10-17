@@ -22,7 +22,7 @@ def build_lines(invoice, profile, lines):
     price_list = pos_price_list(profile, invoice.customer)
     for line in lines:
         try:
-            item = Item.objects.get(pk=line.get("item"), disabled=False)
+            item = Item.objects.get(pk=line.get("item"), company_id=profile.company_id, disabled=False)
         except (Item.DoesNotExist, ValueError, TypeError):
             raise ValidationError("صنف غير موجود أو موقوف.")
         qty = flt(line.get("qty"), 3)
@@ -37,7 +37,7 @@ def build_lines(invoice, profile, lines):
 
 
 def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid_card=0, offline_id="",
-             offline_at=None, card=None, coupon_code="", loyalty_points=0, apply_rules=True):
+             offline_at=None, card=None, coupon_code="", loyalty_points=0, apply_rules=True, credit_sale=False):
     """lines: قائمة من {"item": id, "qty": رقم, "rate": رقم اختياري}.
 
     offline_id: معرّف البيع من الجهاز عند البيع دون اتصال؛ إن سبقت مزامنته تُعاد نفس الفاتورة.
@@ -54,12 +54,18 @@ def checkout(shift, user, lines, customer_id=None, discount=0, paid_cash=0, paid
     if not lines:
         raise ValidationError("السلة فارغة.")
     profile = shift.profile
-    customer = Customer.objects.get(pk=customer_id) if customer_id else profile.default_customer
+    customer = Customer.objects.get(pk=customer_id, company_id=profile.company_id, disabled=False) if customer_id else profile.default_customer
+    if credit_sale and (not customer_id or customer.pk == profile.default_customer_id):
+        raise ValidationError("اختر عميلاً مسجلاً للشراء بالآجل؛ العميل النقدي الافتراضي غير مسموح.")
+    if credit_sale and offline_id:
+        raise ValidationError("البيع الآجل يتطلب اتصالاً للتحقق من ائتمان العميل.")
     discount = flt(discount)
 
     with transaction.atomic():
+        # Serialize credit checks for the same customer across cashiers.
+        customer = Customer.objects.select_for_update().get(pk=customer.pk, company_id=profile.company_id, disabled=False)
         invoice = SalesInvoice.objects.create(
-            company=profile.company, customer=customer, is_pos=True, pos_shift=shift, created_by=user,
+            company=profile.company, customer=customer, is_pos=True, pos_credit_sale=credit_sale, pos_shift=shift, created_by=user,
             update_stock=True, warehouse=profile.warehouse, tax_rate=profile.tax_rate, cost_center=profile.cost_center,
             prices_include_tax=profile.prices_include_tax, discount_amount=discount,
             offline_id=offline_id or "", offline_at=offline_at, price_list=pos_price_list(profile, customer),
@@ -116,13 +122,15 @@ def pos_return(shift, user, invoice_name, lines, refund_method="cash", card=None
         raise ValidationError("حدد كمية واحدة على الأقل للإرجاع.")
 
     with transaction.atomic():
+        original = SalesInvoice.objects.select_for_update().get(pk=original.pk, company_id=shift.profile.company_id)
         ret = original.make_return(user, quantities)
         ret.is_pos, ret.pos_shift, ret.warehouse = True, shift, shift.profile.warehouse
         ret.calculate_totals()
         if refund_method not in ("cash", "card"):
             raise ValidationError("طريقة الرد غير صحيحة.")
-        ret.paid_card = ret.grand_total if refund_method == "card" else flt(0)
-        ret.paid_cash = ret.grand_total - ret.paid_card
+        refund_total = flt(ret.grand_total + min(max(original.outstanding_amount, flt(0)), -ret.grand_total))
+        ret.paid_card = refund_total if refund_method == "card" else flt(0)
+        ret.paid_cash = refund_total - ret.paid_card
         card_data = None
         if ret.paid_card:
             profile = shift.profile
@@ -143,7 +151,7 @@ def quote(shift, lines, customer_id=None, discount=0, coupon_code="", loyalty_po
     if not shift or not shift.is_open:
         raise ValidationError("يجب فتح وردية قبل البيع.")
     profile = shift.profile
-    customer = Customer.objects.get(pk=customer_id) if customer_id else profile.default_customer
+    customer = Customer.objects.get(pk=customer_id, company_id=profile.company_id, disabled=False) if customer_id else profile.default_customer
     with transaction.atomic():
         # فاتورة مؤقتة تُحسب ثم تُلغى المعاملة كاملة فلا يُحفظ شيء ولا يُستهلك رقم
         invoice = SalesInvoice.objects.create(

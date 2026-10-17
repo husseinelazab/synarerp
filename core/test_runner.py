@@ -25,6 +25,7 @@ class SynarTestRunner(DiscoverRunner):
             rls.RUNTIME = False
             for connection in connections.all():
                 if rls.enabled(connection):
-                    with connection.cursor() as cursor:
-                        cursor.execute("RESET ROLE")  # حذف قاعدة الاختبار يحتاج المالك
+                    # Forked workers may have invalidated the parent's libpq session.
+                    # Reconnect as the owner rather than issuing SQL on that inherited socket.
+                    connection.close()
         super().teardown_databases(old_config, **kwargs)

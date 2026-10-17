@@ -5,6 +5,7 @@
 <div class="total-line"><span>صافي المبيعات شامل الضريبة (بعد المرتجعات)</span><strong>{{ summary.grand|money }}</strong></div>
 <div class="total-line"><span>الخصومات</span><strong>{{ summary.discount|money }}</strong></div>
 <div class="total-line"><span>ضريبة القيمة المضافة</span><strong>{{ summary.tax|money }}</strong></div>
+<div class="total-line"><span>المتبقي على العملاء (آجل)</span><strong>{{ summary.credit|money }}</strong></div>
 <div class="total-line"><span>المحصّل نقداً</span><strong>{{ summary.cash|money }}</strong></div>
 <div class="total-line"><span>المحصّل بالبطاقات</span><strong>{{ summary.card|money }}</strong></div>
 <div class="total-line"><span>عمليات جهاز الدفع الموثقة ({{ summary.card_tx_count }})</span><strong>{{ summary.card_tx_total|money }}</strong></div>

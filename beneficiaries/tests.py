@@ -19,7 +19,7 @@ from saas.tests import make_company
 def make_nonprofit(name, username, role=Role.OWNER):
     ensure_default_plans()
     user = User.objects.create_user(username, f"{username}@example.com", "pass12345")
-    company = provision_company(name, plan=Plan.objects.get(code="pro"), organization_type="nonprofit")
+    company = provision_company(name, plan=Plan.objects.get(code="nonprofit-pro"), organization_type="nonprofit")
     Membership.objects.create(user=user, company=company, role=role)
     return company, user
 
@@ -65,7 +65,7 @@ class NonprofitSetupTests(TestCase):
             "company_name": "جمعية الإحسان", "organization_type": "nonprofit", "tax_id": "", "phone": "0500000000",
             "full_name": "مدير الجمعية", "email": "ihsan@example.com", "username": "ihsan",
             "password": "Strong-pass-2026", "password2": "Strong-pass-2026",
-            "plan": Plan.objects.get(code="pro").pk})
+            "plan": Plan.objects.get(code="nonprofit-pro").pk})
         self.assertEqual(response.status_code, 302)
         company = Membership.objects.get(user__username="ihsan").company
         self.assertTrue(company.is_nonprofit)

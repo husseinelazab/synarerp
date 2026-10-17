@@ -50,6 +50,7 @@
     {% if inv.is_pos %}
     {% if inv.paid_cash %}<tr><td>{% if inv.is_return %}رُدّ نقداً{% else %}نقداً{% endif %}</td><td class="n">{{ inv.paid_cash|abs|money }}</td></tr>{% endif %}
     {% if inv.paid_card %}<tr><td>{% if inv.is_return %}رُدّ للبطاقة{% else %}بطاقة{% endif %}</td><td class="n">{{ inv.paid_card|abs|money }}</td></tr>{% endif %}
+    {% if inv.outstanding_amount > 0 %}<tr class="grand"><td>المتبقي على حساب العميل (آجل)</td><td class="n">{{ inv.outstanding_amount|money }}</td></tr>{% endif %}
     {% if inv.change_amount %}<tr><td>الباقي</td><td class="n">{{ inv.change_amount|money }}</td></tr>{% endif %}
     {% endif %}
   </table>

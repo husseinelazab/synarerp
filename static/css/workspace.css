@@ -1,0 +1,27 @@
+@font-face{font-family:Tajawal;src:url('../fonts/tajawal/Tajawal-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:Tajawal;src:url('../fonts/tajawal/Tajawal-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+:root{--primary:#0f766e;--primary-light:#e6f5f1;--success:#15803d;--bg:#f3f6f8;--text:#172d3b;--muted:#607481;--border:#e0e8ec;--sidebar:#102c36;--radius:16px}
+.sidebar{background:linear-gradient(170deg,#102c36,#174c50);box-shadow:-8px 0 30px #142e3810}
+.brand{padding:24px;font-size:26px;letter-spacing:.5px}
+.nav-group-title{color:#a1c9c8;letter-spacing:.4px}
+.nav-module summary.current,.nav-item.active{background:#ffffff16;border-radius:10px}
+.card{border:1px solid var(--border);box-shadow:0 5px 20px #19384705;border-radius:var(--radius)}
+.page-header{padding-block:24px;border-bottom:1px solid var(--border);margin-bottom:24px}
+h1{font-weight:700;letter-spacing:-.5px}
+.btn{border-radius:10px;min-height:40px;transition:background .15s,box-shadow .15s}
+.btn-primary,.btn-success{box-shadow:0 3px 8px #0f766e18}
+.form-control,.form-select{border-radius:10px;min-height:42px;background:#fbfdfe}
+.form-control:focus,.form-select:focus{outline:2px solid #0f766e45;outline-offset:1px;border-color:#0f766e}
+.table th{background:#f7fafb;color:#536b77;font-size:13px;letter-spacing:.1px;padding-block:15px}
+.table td{padding-block:15px;border-bottom-color:#edf1f3}
+.table-hover tbody tr:hover,.table tbody tr.selected-row{background:#edf8f5}
+.bulk-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 18px;margin-bottom:12px}
+.bulk-toolbar .form-select{width:auto;min-width:180px;margin-inline-start:auto}
+input[type=checkbox]{accent-color:var(--primary);width:18px;height:18px;cursor:pointer}
+.scan-box{border-top:4px solid var(--primary)}
+.scan-inputs{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+#scan-code{flex:1;min-width:200px;font-size:22px;letter-spacing:1px}
+#scan-pending{padding-block:12px}
+:focus-visible{outline:3px solid #0d948885;outline-offset:3px}
+@media(max-width:760px){.bulk-toolbar .form-select{width:100%;margin:0}.bulk-toolbar{gap:8px}.card{border-radius:12px}.main{padding-inline:12px}.table td,.table th{padding-inline:10px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}

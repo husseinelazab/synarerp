@@ -106,6 +106,9 @@ class EmailSettingsForm(forms.ModelForm):
 
 
 class PrintSettingsForm(forms.ModelForm):
+    letterhead_file = forms.FileField(label="كليشة الجمعية (رأس الخطاب)", required=False,
+                                     help_text="صورة PNG أو JPG أو WebP حتى 500 كيلوبايت، بعرض ورقة الخطاب.")
+    remove_letterhead = forms.BooleanField(label="حذف الكليشة الحالية", required=False)
     logo_file = forms.FileField(label="الشعار", required=False,
                                 help_text="صورة PNG أو JPG أو WebP بحجم 500 كيلوبايت كحد أقصى. يُفضّل خلفية شفافة.")
     remove_logo = forms.BooleanField(label="حذف الشعار الحالي", required=False)
@@ -119,7 +122,7 @@ class PrintSettingsForm(forms.ModelForm):
         model = PrintSettings
         fields = ["template", "accent_color", "name_en", "address_en", "bilingual", "show_amount_in_words",
                   "show_signatures", "show_item_code", "show_bank_details", "bank_name", "bank_account_name", "iban",
-                  "footer_text", "sales_terms"]
+                  "footer_text", "sales_terms", "letter_opening"]
         widgets = {"accent_color": forms.TextInput(attrs={"type": "color", "style": "height:44px;width:120px;padding:4px"}),
                    "sales_terms": forms.Textarea(attrs={"rows": 3})}
 
@@ -144,9 +147,13 @@ class PrintSettingsForm(forms.ModelForm):
         return iban
 
     def clean_logo_file(self):
-        import base64
+        return self._clean_brand_image(self.cleaned_data.get("logo_file"))
 
-        upload = self.cleaned_data.get("logo_file")
+    def clean_letterhead_file(self):
+        return self._clean_brand_image(self.cleaned_data.get("letterhead_file"))
+
+    def _clean_brand_image(self, upload):
+        import base64
         if not upload:
             return None
         if upload.size > self.MAX_LOGO:
@@ -162,6 +169,10 @@ class PrintSettingsForm(forms.ModelForm):
 
     def save(self, commit=True):
         obj = super().save(commit=False)
+        if self.cleaned_data.get("remove_letterhead"):
+            obj.letterhead = ""
+        if self.cleaned_data.get("letterhead_file"):
+            obj.letterhead = self.cleaned_data["letterhead_file"]
         if self.cleaned_data.get("remove_logo"):
             obj.logo = ""
         if self.cleaned_data.get("logo_file"):

@@ -20,10 +20,13 @@ class SignupForm(forms.Form):
                                help_text="بالأحرف الإنجليزية والأرقام، وتستخدمه لتسجيل الدخول")
     password = forms.CharField(label="كلمة المرور", widget=forms.PasswordInput)
     password2 = forms.CharField(label="تأكيد كلمة المرور", widget=forms.PasswordInput)
-    plan = forms.ModelChoiceField(label="الباقة", queryset=Plan.objects.filter(is_public=True), empty_label=None)
+    plan = forms.ModelChoiceField(label="الباقة", queryset=Plan.objects.filter(is_public=True, is_active=True), empty_label=None)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        plans = list(self.fields["plan"].queryset.all())
+        self.fields["plan"].choices = [(label, [(p.pk, p.name) for p in plans if p.organization_type == kind])
+                                         for kind, label in OrganizationType.choices]
         style_form(self)
 
     def clean_username(self):
@@ -50,6 +53,9 @@ class SignupForm(forms.Form):
 
     def clean(self):
         data = super().clean()
+        plan = data.get("plan")
+        if plan and plan.organization_type != data.get("organization_type", "business"):
+            self.add_error("plan", "اختر باقة من تصنيف نوع منشأتك.")
         if data.get("password") and data.get("password") != data.get("password2"):
             self.add_error("password2", "كلمتا المرور غير متطابقتين.")
         elif data.get("password"):
@@ -69,7 +75,7 @@ class CompanySettingsForm(forms.ModelForm):
         label="إخفاء وحدات لا تستخدمها", required=False, widget=forms.CheckboxSelectMultiple,
         help_text="تختفي من القائمة الجانبية لكل المستخدمين. لا تُحذف بياناتها، وتعود بإلغاء التحديد.")
 
-    NONPROFIT_FIELDS = ("license_number", "registration_date", "headquarters", "objectives", "fs_policies",
+    NONPROFIT_FIELDS = ("association_specialty", "license_number", "registration_date", "headquarters", "objectives", "fs_policies",
                         "eligibility_threshold", "review_period_months", "require_aid_otp")
 
     def __init__(self, *args, **kwargs):
@@ -77,6 +83,9 @@ class CompanySettingsForm(forms.ModelForm):
         if not self.instance.is_nonprofit:
             for name in self.NONPROFIT_FIELDS:
                 self.fields.pop(name)
+        if self.instance.pk:
+            self.fields["organization_type"].disabled = True
+            self.fields["organization_type"].help_text = "النوع ثابت لعزل البيانات. أنشئ حساب منشأة مستقلاً للنوع الآخر."
         from core.permissions import hideable_modules
 
         self.fields["hidden_modules"].choices = hideable_modules(self.instance)
@@ -163,7 +172,11 @@ class RecordPaymentForm(forms.Form):
     reference = forms.CharField(label="المرجع (رقم الحوالة...)", required=False)
 
     def __init__(self, *args, **kwargs):
+        company = kwargs.pop("company", None)
         super().__init__(*args, **kwargs)
+        self.fields["plan"].queryset = Plan.objects.filter(is_active=True)
+        if company is not None:
+            self.fields["plan"].queryset = self.fields["plan"].queryset.filter(organization_type=company.organization_type)
         style_form(self)
 
 
@@ -174,7 +187,7 @@ class PlanForm(forms.ModelForm):
 
     class Meta:
         model = Plan
-        fields = ["name", "code", "description", "price_monthly", "price_yearly", "max_users", "trial_days",
+        fields = ["name", "code", "organization_type", "is_active", "description", "price_monthly", "price_yearly", "max_users", "trial_days",
                   "modules", "includes_ai", "is_public", "sort_order"]
 
     def __init__(self, *args, **kwargs):
@@ -186,6 +199,12 @@ class PlanForm(forms.ModelForm):
                                           if self.instance.pk is None or self.instance.allows_module(key)]
         style_form(self)
         self.fields["modules"].widget.attrs.pop("class", None)
+
+    def clean(self):
+        data = super().clean()
+        if self.instance.pk and self.instance.subscription_set.exclude(company__organization_type=data.get("organization_type")).exists():
+            self.add_error("organization_type", "لا يمكن تغيير التصنيف مع وجود مشتركين من نوع آخر.")
+        return data
 
     def save(self, commit=True):
         from core.permissions import PLAN_MODULES

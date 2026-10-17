@@ -50,8 +50,10 @@
   <section id="pricing" class="l-pricing">
     <div class="l-wrap">
       <h2>باقات واضحة تناسب حجم منشأتك</h2>
+      {% for category, category_plans in plan_groups %}
+      <h3>{{ category }}</h3>
       <div class="l-plans">
-        {% for plan in plans %}
+        {% for plan in category_plans %}
         <div class="card l-plan {% if plan.code == 'pro' %}featured{% endif %}">
           {% if plan.code == 'pro' %}<div class="l-badge">الأكثر طلباً</div>{% endif %}
           <h3>{{ plan.name }}</h3>
@@ -68,6 +70,7 @@
         </div>
         {% endfor %}
       </div>
+      {% endfor %}
       <p class="muted center">الأسعار لا تشمل ضريبة القيمة المضافة.</p>
     </div>
   </section>

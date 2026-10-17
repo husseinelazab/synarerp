@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/erp.css' %}">
   <link rel="stylesheet" href="{% static 'css/currency.css' %}">
+  <link rel="stylesheet" href="{% static 'css/workspace.css' %}">
   <link rel="stylesheet" href="{% static 'css/pos.css' %}">
 </head>
 <body class="pos-body">
@@ -33,7 +34,11 @@
       <button class="chip active" data-group="">الكل</button>
       {% for g in groups %}<button class="chip" data-group="{{ g.id }}">{{ g.name }}</button>{% endfor %}
     </div>
-    <div class="pos-grid" id="grid"><div class="muted">جارٍ تحميل الأصناف...</div></div>
+    <div class="pos-view-switch" role="group" aria-label="طريقة عرض الأصناف">
+      <button class="btn btn-primary" type="button" data-product-view="list" aria-pressed="true">قائمة الاسم والباركود</button>
+      <button class="btn" type="button" data-product-view="cards" aria-pressed="false">بطاقات</button>
+    </div>
+    <div class="pos-grid product-list" id="grid"><div class="muted">جارٍ تحميل الأصناف...</div></div>
   </section>
 
   <aside class="pos-cart">
@@ -70,6 +75,8 @@
       <div class="field"><label>كود الكوبون</label><input id="m-coupon" class="form-control" maxlength="40" autocomplete="off" dir="ltr"></div>
       <div class="field"><label>استبدال نقاط الولاء</label><input id="m-points" type="number" min="0" step="1" class="form-control" placeholder="0"><span class="muted small" id="m-points-info"></span></div>
     </div>
+    <label class="check"><input type="checkbox" id="m-credit"> بيع آجل للعميل المحدد</label>
+    <p class="muted small">اختر عميلاً مسجلاً غير العميل النقدي. المتبقي يُسجل على حسابه مع التحقق من حد الائتمان، ويتطلب اتصالاً.</p>
     <div class="field"><label>نقداً</label><input id="m-cash" type="number" min="0" step="0.01" class="form-control big-input"></div>
     <div class="field"><label>بطاقة (مدى / فيزا)</label><input id="m-card" type="number" min="0" step="0.01" class="form-control big-input" value="0"></div>
     <div class="quick-pay">

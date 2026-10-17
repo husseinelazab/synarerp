@@ -1,0 +1,11 @@
+{% load static %}<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف {{ trip.title }}</title>
+<link rel="stylesheet" href="{% static 'css/print.css' %}"></head><body>
+<div class="toolbar no-print"><button onclick="window.print()">طباعة / حفظ PDF</button></div>
+<main class="sheet">{% if ps.letterhead %}<img src="{{ ps.letterhead }}" alt="كليشة الجمعية" style="width:100%;max-height:150px;object-fit:contain">{% endif %}
+<h1>{{ company.name }}</h1><h2>كشف المشاركين في {{ trip.title }}</h2>
+<p>الذهاب: {{ trip.departure_date|date:"Y-m-d" }} · العودة: {{ trip.return_date|date:"Y-m-d" }}</p>
+<p>المشرف: {{ trip.supervisor }} · {{ trip.supervisor_phone }} · نقطة التجمع: {{ trip.departure_point }}</p>
+<p>النقل: {{ trip.transport }} · السكن: {{ trip.accommodation }}</p>
+<table><thead><tr><th>#</th><th>الاسم</th><th>الجنسية</th><th>اللغة</th><th>الجوال</th><th>الحالة</th></tr></thead><tbody>
+{% for row in participants %}<tr><td>{{ forloop.counter }}</td><td>{{ row.participant }}</td><td>{{ row.participant.nationality }}</td><td>{{ row.participant.language }}</td><td dir="ltr">{{ row.participant.phone }}</td><td>{{ row.get_status_display }}</td></tr>{% empty %}<tr><td colspan="6">لا يوجد مشاركون</td></tr>{% endfor %}
+</tbody></table><p>{{ trip.notes|linebreaksbr }}</p></main></body></html>

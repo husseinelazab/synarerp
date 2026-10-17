@@ -171,6 +171,7 @@ def checkout_api(request):
         invoice = checkout(
             POSShift.current_for(request.user), request.user, data.get("items") or [],
             customer_id=data.get("customer"), discount=data.get("discount") or 0,
+            credit_sale=data.get("credit_sale") is True,
             paid_cash=data.get("paid_cash") or 0, paid_card=data.get("paid_card") or 0, card=data.get("card"),
             coupon_code=data.get("coupon") or "", loyalty_points=_int(data.get("loyalty_points")),
         )
@@ -180,6 +181,7 @@ def checkout_api(request):
         "name": invoice.name,
         "grand_total": str(invoice.grand_total),
         "change": str(invoice.change_amount),
+        "outstanding": str(invoice.outstanding_amount),
         "receipt_url": reverse("pos_receipt", args=[invoice.pk]),
     })
 
@@ -235,6 +237,7 @@ def invoice_api(request):
     return JsonResponse({
         "name": invoice.name, "customer": str(invoice.customer), "date": invoice.posting_date.isoformat(),
         "grand_total": str(invoice.grand_total), "paid_card": str(invoice.paid_card), "factor": factor,
+        "outstanding": str(invoice.outstanding_amount),
         # مرجع عملية البطاقة الأصلية لإرسال الاسترداد لنفس العملية عبر جهاز مدى
         "card": {"rrn": card_tx.rrn, "auth_code": card_tx.auth_code} if card_tx else None,
         "items": [
@@ -260,7 +263,8 @@ def return_api(request):
     except ValidationError as exc:
         return JsonResponse({"error": _error(exc)}, status=400)
     return JsonResponse({
-        "name": ret.name, "refund": str(-ret.grand_total),
+        "name": ret.name, "refund": str(-ret.paid_cash - ret.paid_card),
+        "credit_settled": str(ret.applied_to_original),
         "refund_cash": str(-ret.paid_cash), "refund_card": str(-ret.paid_card),
         "receipt_url": reverse("pos_receipt", args=[ret.pk]),
     })
@@ -310,7 +314,8 @@ def service_worker(request):
     from django.template.loader import render_to_string
     from django.templatetags.static import static
 
-    assets = [static(path) for path in ("css/erp.css", "css/currency.css", "css/pos.css", "js/pos.js",
+    assets = [static(path) for path in ("css/erp.css", "css/currency.css", "css/workspace.css", "css/pos.css", "js/pos.js",
+                                         "fonts/tajawal/Tajawal-Regular.ttf", "fonts/tajawal/Tajawal-Bold.ttf",
                                          "fonts/saudi-riyal/saudi_riyal.woff2", "fonts/saudi-riyal/saudi_riyal_bold.woff2")]
     body = render_to_string("pos/sw.js", {"assets": assets, "version": settings.SYNAR_POS_CACHE_VERSION})
     response = HttpResponse(body, content_type="application/javascript")

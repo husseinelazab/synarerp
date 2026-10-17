@@ -2,20 +2,25 @@
 {% block title %}الباقات والوحدات{% endblock %}
 {% block heading %}الباقات والوحدات{% endblock %}
 {% block content %}
+<nav class="toolbar" aria-label="تصنيف الباقات">
+<a class="btn {% if organization_type == 'business' %}btn-primary{% endif %}" href="?organization_type=business">الشركات والمؤسسات</a>
+<a class="btn {% if organization_type == 'nonprofit' %}btn-primary{% endif %}" href="?organization_type=nonprofit">الجمعيات</a>
+</nav>
+<a class="btn" href="?organization_type={{ organization_type }}&archived=1">الباقات المحذوفة من العرض</a>
 <div class="toolbar">
   <p class="muted">افتح أو أغلق الوحدات لكل باقة؛ يسري التغيير فوراً على كل الشركات المشتركة فيها: الوحدة المغلقة تختفي من قائمتها ولا تُفتح صفحاتها.</p>
   <a class="btn btn-primary" href="{% url 'platform_plan_new' %}">باقة جديدة</a>
 </div>
 <div class="card">
   <div class="table-wrap"><table class="table">
-    <thead><tr><th>الباقة</th>{% for p in plans %}<th class="center"><a href="{% url 'platform_plan_edit' p.pk %}">{{ p.name }}</a>{% if not p.is_public %}<div class="muted small">مخفية</div>{% endif %}</th>{% endfor %}</tr></thead>
+    <thead><tr><th>الباقة</th>{% for p in plans %}<th class="center"><a href="{% url 'platform_plan_edit' p.pk %}">{{ p.name }}</a>{% if not p.is_active %}<div class="badge">محذوفة من العرض</div>{% endif %}{% if not p.is_public %}<div class="muted small">مخفية</div>{% endif %}</th>{% endfor %}</tr></thead>
     <tbody>
       <tr><td>السعر الشهري / السنوي</td>{% for p in plans %}<td class="center">{{ p.price_monthly|money }} / {{ p.price_yearly|money }}</td>{% endfor %}</tr>
       <tr><td>الحد الأقصى للمستخدمين</td>{% for p in plans %}<td class="center">{{ p.max_users }}</td>{% endfor %}</tr>
       <tr><td>الشركات المشتركة</td>{% for p in plans %}<td class="center">{{ p.companies }}</td>{% endfor %}</tr>
       <tr><td>المحاسبة</td>{% for p in plans %}<td class="center ok">✓</td>{% endfor %}</tr>
       {% for label, flags in matrix %}<tr><td>{{ label }}</td>{% for on in flags %}<td class="center">{% if on %}<span class="ok">✓</span>{% else %}<span class="muted">مغلقة</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
-      <tr><td></td>{% for p in plans %}<td class="center"><a class="btn btn-sm" href="{% url 'platform_plan_edit' p.pk %}">تعديل</a></td>{% endfor %}</tr>
+      <tr><td></td>{% for p in plans %}<td class="center"><a class="btn btn-sm" href="{% url 'platform_plan_edit' p.pk %}">تعديل</a>{% if p.is_active %}<form method="post" action="{% url 'platform_plan_archive' p.pk %}" onsubmit="return confirm('إزالة الباقة من العرض والاشتراكات الجديدة؟')">{% csrf_token %}<button class="btn btn-danger-outline">حذف من العرض</button></form>{% endif %}</td>{% endfor %}</tr>
     </tbody>
   </table></div>
 </div>

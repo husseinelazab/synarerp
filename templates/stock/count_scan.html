@@ -14,9 +14,12 @@
   <div class="scan-inputs">
     <label class="scan-qty"><span>الكمية</span><input id="scan-qty" type="number" min="0.001" step="any" value="1" class="form-control big-input"></label>
     <input id="scan-code" class="form-control big-input" placeholder="امسح الباركود هنا…" autocomplete="off" autofocus dir="ltr">
+    <button type="button" class="btn btn-primary" id="scan-add">إضافة القراءة</button>
     <button type="button" class="btn" id="scan-camera" hidden>📷 الكاميرا</button>
     <button type="button" class="btn" id="scan-undo">↶ تراجع عن آخر مسح</button>
   </div>
+  <button type="button" class="btn btn-warning" id="scan-retry" hidden>إعادة إرسال القراءات المعلقة</button>
+  <div class="muted" id="scan-pending" role="status" aria-live="polite"></div>
   <div class="scan-last" id="scan-last" hidden></div>
 </div>
 
@@ -33,7 +36,7 @@
   </div>
 </div>
 
-<form method="post" action="{% url 'stock_count_apply' count.pk %}" class="card" onsubmit="return confirm('نقل نتائج المسح إلى الجرد؟')">
+<form method="post" action="{% url 'stock_count_apply' count.pk %}" class="card" id="apply-scans">
   {% csrf_token %}
   <h3>إنهاء المسح</h3>
   <label class="check"><input type="checkbox" name="zero_unscanned"> الأصناف التي لم تُمسح تُعتبر كميتها <b>صفراً</b> (جرد كامل للمستودع{% if count.item_group %} أو المجموعة{% endif %})</label>
@@ -49,7 +52,7 @@
   var csrf = "{{ csrf_token }}";
   var codeEl = document.getElementById("scan-code"), qtyEl = document.getElementById("scan-qty");
   var lastEl = document.getElementById("scan-last"), rowsEl = document.getElementById("scan-rows");
-  var filterEl = document.getElementById("scan-filter"), rows = [], lastItem = null, busy = false, queue = [];
+  var filterEl = document.getElementById("scan-filter"), rows = [], lastItem = null, busy = false, paused = false, queue = [];
 
   function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
   function fmtQty(n) { return (Math.round(n * 1000) / 1000).toLocaleString("en-US"); }
@@ -78,13 +81,13 @@
 
   function apply(data) {
     if (data.rows) { rows = data.rows; render(); }
-    var total = rows.reduce(function (s, r) { return s + r.qty; }, 0);
-    document.getElementById("scan-summary").textContent = "(" + rows.length + " صنف · " + fmtQty(total) + " قطعة · " + (data.reads || 0) + " قراءة)";
+    document.getElementById("scan-summary").textContent = "(" + rows.length + " صنف · " + (data.reads || 0) + " قراءة)";
   }
 
   // القراءات تُرسل بالترتيب حتى لو مسح الكاشير بسرعة
   function next() {
-    if (busy || !queue.length) return;
+    document.getElementById("scan-pending").textContent = queue.length ? "قراءات في الانتظار: " + queue.length : "كل القراءات مرسلة";
+    if (paused || busy || !queue.length) return;
     busy = true;
     var job = queue.shift();
     post(job).then(function (res) {
@@ -101,18 +104,44 @@
       apply(res.data);
     }).catch(function () {
       SynarScan.beep(false);
-      show(false, "✗ انقطع الاتصال؛ أعد مسح آخر صنف.");
+      paused = true;
+      codeEl.disabled = true;
+      document.getElementById("scan-add").disabled = true;
+      if (job.action !== "undo") {
+        queue.unshift(job);
+        document.getElementById("scan-retry").hidden = false;
+        show(false, "✗ انقطع الاتصال. القراءات محفوظة في هذه الصفحة؛ أعد الإرسال عند عودة الاتصال دون إعادة المسح.");
+      } else {
+        show(false, "✗ تعذر تأكيد التراجع. حدّث الصفحة وراجع آخر كمية قبل أي تراجع جديد.");
+      }
     }).finally(function () { busy = false; next(); });
   }
 
   function submitCode(text) {
     if (!text.trim()) return;
-    var parsed = SynarScan.parse(text, parseFloat(qtyEl.value) || 1);
-    queue.push({ action: "scan", code: parsed.code, qty: parsed.qty });
+    if (codeEl.disabled) return;
+    var qty = Number(qtyEl.value);
+    if (!Number.isFinite(qty) || qty <= 0) { show(false, "أدخل كمية موجبة صحيحة."); return; }
+    var parsed = SynarScan.parse(text, qty);
+    queue.push({ action: "scan", code: parsed.code, qty: parsed.qty,
+      request_id: self.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2) });
     qtyEl.value = 1;
     next();
   }
 
+  document.getElementById("scan-retry").addEventListener("click", function () {
+    paused = false; this.hidden = true; codeEl.disabled = false;
+    document.getElementById("scan-add").disabled = false; next(); codeEl.focus();
+  });
+  window.addEventListener("beforeunload", function (event) {
+    if (busy || queue.length || paused) { event.preventDefault(); event.returnValue = ""; }
+  });
+  document.getElementById("scan-add").addEventListener("click", function () { submitCode(codeEl.value); codeEl.value = ""; codeEl.focus(); });
+  document.getElementById("apply-scans").addEventListener("submit", function (event) {
+    if (busy || queue.length || codeEl.disabled || codeEl.value.trim()) {
+      event.preventDefault(); alert("أرسل القراءات المعلقة وراجع حالة الاتصال قبل نقل النتائج.");
+    } else if (!confirm("نقل نتائج المسح إلى الجرد؟")) event.preventDefault();
+  });
   codeEl.addEventListener("keydown", function (e) {
     if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); submitCode(codeEl.value); codeEl.value = ""; }
   });

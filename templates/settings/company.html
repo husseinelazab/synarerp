@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}إعدادات الشركة{% endblock %}
-{% block heading %}إعدادات الشركة{% endblock %}
+{% block title %}إعدادات {% if current_company.is_nonprofit %}الجمعية{% else %}الشركة{% endif %}{% endblock %}
+{% block heading %}إعدادات {% if current_company.is_nonprofit %}الجمعية{% else %}الشركة{% endif %}{% endblock %}
 {% block content %}
 <form method="post" novalidate>
   {% csrf_token %}

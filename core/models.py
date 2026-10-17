@@ -31,11 +31,20 @@ class OrganizationType(models.TextChoices):
     NONPROFIT = "nonprofit", "جهة غير ربحية (جمعية / مؤسسة أهلية / وقف)"
 
 
+class AssociationSpecialty(models.TextChoices):
+    GENERAL = "general", "جمعية عامة"
+    QURAN = "quran", "جمعية تحفيظ القرآن"
+    DAWAH = "dawah", "جمعية دعوية"
+    HEALTH = "health", "جمعية صحية"
+
+
 class Company(models.Model):
     name = models.CharField("اسم الشركة", max_length=150, unique=True)
     organization_type = models.CharField(
         "نوع المنشأة", max_length=10, choices=OrganizationType.choices, default=OrganizationType.BUSINESS,
         help_text="الجهة غير الربحية تظهر لها وحدات الجمعيات (المستفيدون، الجهات المستفيدة…) بمسمياتها بدل الوحدات التجارية")
+    association_specialty = models.CharField("تخصص الجمعية", max_length=10,
+                                             choices=AssociationSpecialty.choices, default=AssociationSpecialty.GENERAL)
     license_number = models.CharField("رقم الترخيص", max_length=30, blank=True,
                                       help_text="رقم ترخيص الجمعية من المركز الوطني لتنمية القطاع غير الربحي")
     eligibility_threshold = models.PositiveSmallIntegerField(
@@ -632,6 +641,9 @@ class PrintSettings(models.Model):
     accent_color = models.CharField("اللون الرئيسي", max_length=7, default="#1f4e79",
                                     help_text="لون العناوين ورأس الجداول، مثل #1f4e79")
     logo = models.TextField("الشعار", blank=True, editable=False)  # data URI (PNG/JPEG/WebP) لا يحتاج خادم ملفات
+    letterhead = models.TextField("كليشة الخطابات", blank=True, editable=False)
+    letter_opening = models.CharField("افتتاحية الخطاب", max_length=300, blank=True,
+                                     default="السلام عليكم ورحمة الله وبركاته،")
     name_en = models.CharField("اسم الشركة بالإنجليزية", max_length=150, blank=True)
     address_en = models.CharField("العنوان بالإنجليزية", max_length=250, blank=True)
     bilingual = models.BooleanField("عناوين عربية وإنجليزية", default=True,

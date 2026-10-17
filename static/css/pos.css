@@ -77,3 +77,12 @@
 .promo-box{background:#f0f7ee;border:1px solid #cfe6c8;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:14px;line-height:1.8}
 .pay-extras{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pay-extras .field{margin:0}
+
+/* Compact barcode-first product selection. */
+.pos-view-switch { display:flex; gap:8px; padding:0 16px 12px; }
+.pos-grid.product-list { display:flex; flex-direction:column; gap:6px; align-content:initial; }
+.product-list .product { display:flex; flex-direction:row; justify-content:space-between; align-items:center; min-height:58px; text-align:right; padding:14px 18px; border-radius:12px; }
+.product-list .product-name { font-size:16px; font-weight:700; }
+.product-list .product-code { font-family:monospace; color:#64748b; margin:0; }
+.product-list .product-price,.product-list .product-qty { display:none; }
+.product:focus-visible { outline:3px solid #0d9488; outline-offset:2px; }

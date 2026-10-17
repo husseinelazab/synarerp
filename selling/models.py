@@ -293,6 +293,7 @@ class SalesInvoice(InvoiceDocument):
     pos_shift = models.ForeignKey(
         "pos.POSShift", models.PROTECT, null=True, blank=True, related_name="invoices", editable=False, verbose_name="الوردية"
     )
+    pos_credit_sale = models.BooleanField("بيع آجل من نقطة البيع", default=False, editable=False)
     paid_cash = models.DecimalField("المدفوع نقداً", max_digits=18, decimal_places=2, default=0, editable=False)
     paid_card = models.DecimalField("المدفوع بالبطاقة", max_digits=18, decimal_places=2, default=0, editable=False)
     change_amount = models.DecimalField("المبلغ المرتجع (الباقي)", max_digits=18, decimal_places=2, default=0, editable=False)
@@ -406,8 +407,9 @@ class SalesInvoice(InvoiceDocument):
             if self.is_return:
                 if self.paid_cash > 0 or self.paid_card > 0 or self.change_amount:
                     raise ValidationError("مبالغ الرد في المرتجع يجب أن تكون سالبة.")
-                if flt(self.paid_cash + self.paid_card) != self.grand_total:
-                    raise ValidationError("مبلغ الرد يجب أن يساوي قيمة المرتجع.")
+                applied = min(max(self.return_against.outstanding_amount, flt(0)), -self.grand_total) if self.return_against_id else flt(0)
+                if flt(self.paid_cash + self.paid_card) != flt(self.grand_total + applied):
+                    raise ValidationError("مبلغ الرد يجب أن يساوي قيمة المرتجع بعد تسوية المتبقي على الفاتورة الأصلية.")
                 if self.return_against and not self.return_against.is_pos:
                     raise ValidationError("مرتجع نقطة البيع يكون لفواتير نقطة البيع فقط.")
                 return
@@ -415,7 +417,11 @@ class SalesInvoice(InvoiceDocument):
                 raise ValidationError("مبالغ الدفع لا يمكن أن تكون سالبة.")
             if self.paid_card > self.amount_due:
                 raise ValidationError("مبلغ البطاقة لا يمكن أن يتجاوز إجمالي الفاتورة.")
-            if flt(self.paid_cash + self.paid_card) < self.amount_due:
+            if self.pos_credit_sale:
+                if (self.customer_id == self.pos_shift.profile.default_customer_id or self.customer.disabled
+                        or self.customer.company_id != self.company_id):
+                    raise ValidationError("البيع الآجل متاح لعميل مسجل من قائمة العملاء، ولا يشمل العميل النقدي الافتراضي.")
+            elif flt(self.paid_cash + self.paid_card) < self.amount_due:
                 raise ValidationError("المبلغ المدفوع أقل من إجمالي الفاتورة.")
 
     def _validate_loyalty(self):
@@ -540,9 +546,9 @@ class SalesInvoice(InvoiceDocument):
             {"account": profile.cash_account, "debit": self.cash_received},
             {"account": profile.card_account, "debit": self.paid_card},
             {"account": self.company.require_account("default_receivable_account"),
-             "credit": self.amount_due, "customer": self.customer},
+             "credit": self.cash_received + self.paid_card, "customer": self.customer},
         ], remarks=f"{'رد مرتجع' if self.is_return else 'تحصيل'} نقطة البيع - {self.pos_shift}")
-        self.outstanding_amount = 0
+        self.outstanding_amount = flt(self.amount_due + (self.applied_to_original if self.is_return else 0) - self.cash_received - self.paid_card)
         self.save(update_fields=["outstanding_amount"])
 
     def before_cancel(self):

@@ -3,6 +3,7 @@ from django.urls import path
 from saas import views
 
 urlpatterns = [
+    path("platform/plans/<int:pk>/archive/", views.platform_plan_archive, name="platform_plan_archive"),
     path("signup/", views.signup, name="signup"),
     path("switch-company/<int:pk>/", views.switch_company, name="switch_company"),
     path("billing/", views.billing, name="billing"),

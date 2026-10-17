@@ -60,9 +60,8 @@ class HiddenModulesTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.company, cls.owner = make_company("جمعية القائمة", "hide_owner")
-        cls.company.organization_type = "nonprofit"
-        cls.company.save(update_fields=["organization_type"])
+        from beneficiaries.tests import make_nonprofit
+        cls.company, cls.owner = make_nonprofit("جمعية القائمة", "hide_owner")
 
     @staticmethod
     def form_data(form):

@@ -111,7 +111,7 @@ class POSShift(TenantModel):
         invoices = self.invoices.filter(docstatus=DocStatus.SUBMITTED)
         agg = invoices.aggregate(
             count=Count("id"), grand=Sum("grand_total"), tax=Sum("tax_amount"), net=Sum("net_total"),
-            discount=Sum("discount_amount"), cash=Sum(F("paid_cash") - F("change_amount")), card=Sum("paid_card"),
+            discount=Sum("discount_amount"), credit=Sum("outstanding_amount"), cash=Sum(F("paid_cash") - F("change_amount")), card=Sum("paid_card"),
         )
         data = {k: flt(v) if k != "count" else v for k, v in agg.items()}
         returns = invoices.filter(is_return=True).aggregate(count=Count("id"), total=Sum("grand_total"))

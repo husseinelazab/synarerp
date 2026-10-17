@@ -45,7 +45,21 @@
       });
   }
 
+  var productView = localStorage.getItem("synar-pos-product-view") || "list";
+  document.querySelectorAll("[data-product-view]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      productView = button.dataset.productView;
+      localStorage.setItem("synar-pos-product-view", productView);
+      renderGrid();
+    });
+  });
   function renderGrid() {
+    grid.classList.toggle("product-list", productView === "list");
+    document.querySelectorAll("[data-product-view]").forEach(function (button) {
+      var active = button.dataset.productView === productView;
+      button.classList.toggle("btn-primary", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     var q = search.value.trim().toLowerCase();
     var list = items.filter(function (i) {
       if (group && String(i.group) !== group) return false;
@@ -57,7 +71,7 @@
       var out = i.stock && i.qty <= 0;
       return '<button class="product' + (out ? " out" : "") + '" data-id="' + i.id + '">' +
         '<span class="product-name">' + esc(i.name) + '</span>' +
-        '<span class="product-code">' + esc(i.code) + '</span>' +
+        '<span class="product-code" dir="ltr">' + esc(i.barcode || i.code) + '</span>' +
         '<span class="product-price">' + fmt(i.rate) + config.currencyHtml + '</span>' +
         (i.stock ? '<span class="product-qty">المتوفر: ' + i.qty + " " + esc(i.uom) + "</span>" : '<span class="product-qty">خدمة</span>') +
         "</button>";
@@ -246,7 +260,7 @@
         if (!res.ok) { quoteData = null; renderQuote(); $("m-promos").hidden = false; $("m-promos").innerHTML = '<div class="text-danger">' + esc(res.data.error) + "</div>"; return; }
         quoteData = res.data;
         renderQuote();
-        cashEl.value = due().toFixed(2);
+        cashEl.value = $("m-credit").checked ? 0 : due().toFixed(2);
         cardEl.value = 0;
         updateChange();
       })
@@ -260,6 +274,7 @@
       alert("الخصم يتجاوز الحد المسموح (" + config.maxDiscountPercent + "%).");
       return;
     }
+    $("m-credit").checked = false;
     quoteData = null;
     renderQuote();
     requestQuote();
@@ -279,10 +294,17 @@
     label.textContent = change < 0 ? "المتبقي على العميل: " : "الباقي للعميل: ";
     out.innerHTML = fmt(Math.abs(change)) + config.currencyHtml;
     out.classList.toggle("neg", change < 0);
-    $("m-confirm").disabled = change < 0;
+    var credit = $("m-credit").checked;
+    var registered = $("customer").value && Number($("customer").value) !== Number(config.defaultCustomer);
+    $("m-confirm").disabled = busy || (credit ? (!registered || !navigator.onLine) : change < 0);
     $("m-card-ref").hidden = !(cardMode() === "manual" && num(cardEl.value) > 0);
   }
 
+  $("m-credit").addEventListener("change", function () {
+    if (this.checked) { cashEl.value = 0; cardEl.value = 0; }
+    updateChange();
+  });
+  $("customer").addEventListener("change", updateChange);
   cashEl.addEventListener("input", updateChange);
   cardEl.addEventListener("input", updateChange);
   $("pay").addEventListener("click", openPay);
@@ -374,6 +396,9 @@
 
   $("m-confirm").addEventListener("click", function () {
     if (busy) return;
+    if ($("m-credit").checked && (!navigator.onLine || Number($("customer").value) === Number(config.defaultCustomer))) {
+      showSaleError("البيع الآجل يتطلب اتصالاً واختيار عميل مسجل غير العميل النقدي."); return;
+    }
     busy = true;
     errEl.hidden = true;
     var t = totals(), cardAmount = num(cardEl.value), clientId = newId();
@@ -396,6 +421,7 @@
       body: JSON.stringify({
         customer: $("customer").value,
         discount: t.discount,
+        credit_sale: $("m-credit").checked,
         paid_cash: num(cashEl.value),
         paid_card: num(cardEl.value),
         card: card,
@@ -419,9 +445,9 @@
         }
         payModal.hidden = true;
         $("d-title").textContent = "✓ تمت عملية البيع";
-        $("d-change-label").textContent = "الباقي للعميل: ";
+        $("d-change-label").textContent = num(res.data.outstanding) > 0 ? "المتبقي على حساب العميل: " : "الباقي للعميل: ";
         $("d-name").textContent = res.data.name;
-        $("d-change").innerHTML = fmt(num(res.data.change)) + config.currencyHtml;
+        $("d-change").innerHTML = fmt(num(res.data.outstanding) > 0 ? num(res.data.outstanding) : num(res.data.change)) + config.currencyHtml;
         $("d-print").href = res.data.receipt_url + "?print=1";
         $("d-print").onclick = null;
         $("done-modal").hidden = false;
@@ -444,6 +470,10 @@
   }
 
   function saveOffline(t, card, clientId) {
+    if ($("m-credit").checked) {
+      showSaleError("تعذر تأكيد البيع الآجل بسبب الاتصال. راجع آخر فواتير العميل قبل إعادة المحاولة؛ لم يُحفظ بيع آجل دون اتصال.");
+      return;
+    }
     var sale = {
       client_id: clientId || newId(), card: card || null, created_at: new Date().toISOString(), customer: $("customer").value,
       customer_name: $("customer").selectedOptions[0] ? $("customer").selectedOptions[0].text : "",
@@ -580,7 +610,7 @@
       if (l.qty > 0) any = true;
       total += l.qty * l.rate;
     });
-    rRefund = round2(total * (rInvoice ? rInvoice.factor : 0));
+    rRefund = round2(Math.max(0, total * (rInvoice ? rInvoice.factor : 0) - num(rInvoice && rInvoice.outstanding)));
     $("r-total").textContent = fmt(rRefund);
     $("r-confirm").disabled = !(valid && any);
   }

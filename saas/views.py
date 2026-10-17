@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.middleware import SESSION_KEY
-from core.models import Company, Membership, Role
+from core.models import Company, Membership, Role, OrganizationType
 from core.provisioning import provision_company
 from core.utils import client_ip
 from saas.backups import backup_status
@@ -32,8 +32,11 @@ def _error(exc):
 # ---------------- الصفحات العامة ----------------
 
 def landing(request):
-    ensure_default_plans()
-    return render(request, "saas/landing.html", {"plans": Plan.objects.filter(is_public=True)})
+    plans = Plan.objects.filter(is_public=True, is_active=True)
+    return render(request, "saas/landing.html", {
+        "plans": plans,
+        "plan_groups": [(label, plans.filter(organization_type=kind)) for kind, label in OrganizationType.choices],
+    })
 
 
 # حد التسجيل من عنوان IP واحد: كل تسجيل يبني شركة كاملة (شجرة حسابات وإعدادات)، فلا يُترك مفتوحاً للبرامج الآلية
@@ -50,10 +53,11 @@ def _signup_key(request):
 def signup(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
-    ensure_default_plans()
     initial = {}
     if request.GET.get("plan"):
-        initial["plan"] = Plan.objects.filter(code=request.GET["plan"]).first()
+        initial["plan"] = Plan.objects.filter(code=request.GET["plan"], is_active=True, is_public=True).first()
+        if initial["plan"]:
+            initial["organization_type"] = initial["plan"].organization_type
     form = SignupForm(request.POST or None, initial=initial)
     if request.method == "POST":
         if request.POST.get(SIGNUP_HONEYPOT):
@@ -102,7 +106,7 @@ def billing(request):
     return render(request, "saas/billing.html", {
         "subscription": subscription,
         "payments": subscription.payments.all() if subscription else [],
-        "plans": Plan.objects.filter(is_public=True),
+        "plans": Plan.objects.filter(is_public=True, is_active=True, organization_type=request.company.organization_type),
         "users_count": active_user_count(request.company),
         "instructions": settings.SYNAR_BILLING_INSTRUCTIONS,
         "support": settings.SYNAR_SUPPORT_CONTACT,
@@ -236,7 +240,7 @@ def _isolation_status():
 def platform_company(request, pk):
     company = get_object_or_404(Company.objects.select_related("subscription__plan"), pk=pk)
     subscription = getattr(company, "subscription", None)
-    form = RecordPaymentForm(request.POST or None, initial={"plan": subscription.plan if subscription else None})
+    form = RecordPaymentForm(request.POST or None, company=company, initial={"plan": subscription.plan if subscription else None})
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "payment" and form.is_valid():
@@ -265,13 +269,16 @@ def platform_company(request, pk):
 
 @user_passes_test(_superuser)
 def platform_plans(request):
-    ensure_default_plans()
     from core.permissions import PLAN_MODULES
 
-    plans = list(Plan.objects.annotate(companies=Count("subscription")))
+    kind = request.GET.get("organization_type", "business")
+    if kind not in ("business", "nonprofit"):
+        kind = "business"
+    archived = request.GET.get("archived") == "1"
+    plans = list(Plan.objects.filter(organization_type=kind, is_active=not archived).annotate(companies=Count("subscription")))
     matrix = [(label, [p.allows_module(key) for p in plans]) for key, label in PLAN_MODULES]
     matrix.append(("قراءة الفواتير بالذكاء الاصطناعي", [p.includes_ai for p in plans]))
-    return render(request, "platform/plans.html", {"plans": plans, "matrix": matrix})
+    return render(request, "platform/plans.html", {"plans": plans, "matrix": matrix, "organization_type": kind})
 
 
 @user_passes_test(_superuser)
@@ -284,3 +291,14 @@ def platform_plan_edit(request, pk=None):
         return redirect("platform_plans")
     return render(request, "settings/user_form.html", {
         "form": form, "title": f"الباقة: {plan}" if plan else "باقة جديدة", "back_url": "platform_plans"})
+
+
+@user_passes_test(_superuser)
+@require_POST
+def platform_plan_archive(request, pk):
+    plan = get_object_or_404(Plan, pk=pk)
+    plan.is_active = False
+    plan.is_public = False
+    plan.save(update_fields=["is_active", "is_public"])
+    messages.success(request, "حُذفت الباقة من العرض والاشتراكات الجديدة؛ حُفظ سجل المشتركين والمدفوعات السابق.")
+    return redirect("platform_plans")

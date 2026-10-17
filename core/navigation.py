@@ -26,6 +26,9 @@ ICONS = {
     "entities": '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     "platform": '<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/>',
     "manufacturing": '<path d="M3 21V10l5 3V10l5 3V7l8 4v10z"/><path d="M7 17h2M12 17h2M17 17h2"/>',
+    "quran": '<path d="M3 4h7a2 2 0 0 1 2 2v15a4 4 0 0 0-4-2H3zM21 4h-7a2 2 0 0 0-2 2v15a4 4 0 0 1 4-2h5z"/>',
+    "dawah": '<path d="M4 21V9l8-6 8 6v12M9 21v-7h6v7M2 21h20"/>',
+    "health": '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/>',
     "programs": '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5M22 9v6"/>',
     "excellence": '<circle cx="12" cy="9" r="6"/><path d="M8.5 14l-1.5 8 5-3 5 3-1.5-8"/>',
     "relations": '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12"/>',
@@ -210,7 +213,7 @@ def build_menu(request):
         settings_sections = [{"items": [doc("السنوات المالية", "fiscal-year"), doc("أسعار الصرف", "exchange-rate")]}]
     modules.append({"key": "settings", "label": "الإعدادات", "sections": settings_sections})
     if request.company.is_nonprofit:
-        modules = nonprofit_modules(modules, doc)
+        modules = nonprofit_modules(modules, doc, request.company)
     if request.user.is_superuser:
         modules.append({"key": "platform", "label": "إدارة المنصة", "sections": [{"items": platform_items()}]})
     modules = _grouped(modules, NONPROFIT_GROUPS if request.company.is_nonprofit else BUSINESS_GROUPS)
@@ -248,7 +251,7 @@ def build_menu(request):
 # مجموعات القائمة الجانبية: عنوان صغير فوق كل مجموعة وحدات متقاربة، بالترتيب المعروض
 NONPROFIT_GROUPS = [
     ("العمل اليومي", ["office", "documents"]),
-    ("الخدمات والبرامج", ["beneficiaries", "entities", "programs", "volunteering", "projects"]),
+    ("الخدمات والبرامج", ["beneficiaries", "entities", "programs", "quran", "dawah", "health", "volunteering", "projects"]),
     ("الموارد والمالية", ["resources", "grants", "accounts", "awqaf", "stock"]),
     ("الحوكمة والتميز", ["members", "governance", "excellence", "relations"]),
     ("القنوات الرقمية", ["store", "website"]),
@@ -281,10 +284,10 @@ def _keys(module):
 
 # ترتيب وحدات الجهة غير الربحية
 NONPROFIT_ORDER = ["office", "members", "hr", "documents", "accounts", "resources", "grants", "awqaf", "projects", "entities", "beneficiaries", "governance",
-                   "volunteering", "stock", "programs", "excellence", "relations", "fleet", "statistics", "website", "store", "settings"]
+                   "volunteering", "stock", "programs", "quran", "dawah", "health", "excellence", "relations", "fleet", "statistics", "website", "store", "settings"]
 
 
-def nonprofit_modules(modules, doc):
+def nonprofit_modules(modules, doc, company):
     """قائمة الجهة غير الربحية: الوحدات بمسميات أنظمة الجمعيات، دون الوحدات التجارية، مع وحدات المستفيدين."""
     from core.permissions import COMMERCIAL_MODULES, NONPROFIT_LABELS
 
@@ -412,6 +415,14 @@ def nonprofit_modules(modules, doc):
     by_key["statistics"] = {"key": "statistics", "label": "إدارة التقارير والإحصائيات", "sections": [
         {"items": [_item("مركز التقارير والإحصائيات", "statistics_center")]},
     ]}
+    specialties = {
+        "quran": ("الحلقات ومتابعة الحفظ", [("حلقات التحفيظ", "quran-circle"), ("طلاب الحلقات", "quran-student"), ("متابعة الحفظ والمراجعة", "quran-progress")]),
+        "dawah": ("الدعوة والمسلمون الجدد والعمرة", [("المسلمون الجدد", "new-muslim"), ("البرامج الدعوية", "dawah-activity"), ("رحلات العمرة", "umrah-trip"), ("المشاركون في العمرة", "umrah-participant")]),
+        "health": ("الخدمات الصحية", [("المرضى", "health-patient"), ("المواعيد الصحية", "health-appointment")]),
+    }
+    for key, (label, links) in specialties.items():
+        if key == company.association_specialty:
+            by_key[key] = {"key": key, "label": label, "sections": [{"items": [doc(title, slug) for title, slug in links]}]}
     for key, label in NONPROFIT_LABELS.items():
         if key in by_key:
             by_key[key]["label"] = label

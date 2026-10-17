@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}إنشاء حساب{% endblock %}
+{% block title %}إنشاء حساب
+{% endblock %}
 {% block auth_content %}
 <div class="login-page">
   <form method="post" class="card login-card signup-card" novalidate>
@@ -23,4 +24,20 @@
     <p class="center muted">لديك حساب؟ <a href="{% url 'login' %}">تسجيل الدخول</a> · <a href="/">الرئيسية</a></p>
   </form>
 </div>
+<script>
+(function () {
+  var kind = document.getElementById("id_organization_type"), plans = document.getElementById("id_plan");
+  function filter() {
+    Array.from(plans.querySelectorAll("optgroup")).forEach(function (group, index) {
+      var visible = index === (kind.value === "nonprofit" ? 1 : 0);
+      group.hidden = !visible; group.disabled = !visible;
+      Array.from(group.children).forEach(function (option) { option.disabled = !visible; });
+    });
+    if (!plans.selectedOptions.length || plans.selectedOptions[0].disabled) {
+      var first = plans.querySelector("option:not(:disabled)"); plans.value = first ? first.value : "";
+    }
+  }
+  kind.addEventListener("change", filter); filter();
+})();
+</script>
 {% endblock %}

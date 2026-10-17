@@ -15,3 +15,21 @@ register(DocType(
     search_fields=["full_name", "national_id", "phone", "program__title"],
     detail_template="programs/_enrollment_detail.html",
 ))
+
+
+from programs.models import (QuranCircle, QuranStudent, QuranProgress, NewMuslim, DawahActivity,
+                             UmrahTrip, UmrahParticipant, HealthPatient, HealthAppointment)
+
+for slug, model, module, columns, search in [
+    ("quran-circle", QuranCircle, "quran", ["name", "teacher", "location", "schedule", "capacity"], ["name", "teacher"]),
+    ("quran-student", QuranStudent, "quran", ["full_name", "circle", "guardian_phone", "joined_on"], ["full_name", "guardian_phone"]),
+    ("quran-progress", QuranProgress, "quran", ["student", "date", "memorization", "revision", "attended", "score"], ["student__full_name"]),
+    ("new-muslim", NewMuslim, "dawah", ["full_name", "language", "nationality", "conversion_date", "mentor"], ["full_name", "phone", "language"]),
+    ("dawah-activity", DawahActivity, "dawah", ["title", "date", "preacher", "language", "participants"], ["title", "preacher"]),
+    ("umrah-trip", UmrahTrip, "dawah", ["title", "departure_date", "return_date", "supervisor", "capacity", "status"], ["title", "supervisor"]),
+    ("umrah-participant", UmrahParticipant, "dawah", ["trip", "participant", "status"], ["participant__full_name", "trip__title"]),
+    ("health-patient", HealthPatient, "health", ["file_number", "full_name", "phone", "service_needed"], ["file_number", "full_name", "phone"]),
+    ("health-appointment", HealthAppointment, "health", ["patient", "scheduled_at", "clinician", "clinic", "status"], ["patient__full_name", "clinician"]),
+]:
+    register(DocType(slug=slug, model=model, module=module, list_fields=columns, search_fields=search,
+                     detail_template="programs/_umrah_trip_detail.html" if slug == "umrah-trip" else ""))

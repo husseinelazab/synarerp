@@ -982,3 +982,31 @@ class DependentCategory(TenantModel):
 
     def __str__(self):
         return self.name
+
+
+class BeneficiaryFollowUp(TenantModel):
+    beneficiary = models.ForeignKey(Beneficiary, models.CASCADE, related_name="follow_ups", verbose_name="المستفيد")
+    subject = models.CharField("عنوان المتابعة", max_length=200)
+    notes = models.TextField("ملاحظات المتابعة", blank=True)
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, related_name="+", verbose_name="المسؤول")
+    due_date = models.DateField("موعد المتابعة", null=True, blank=True)
+    completed = models.BooleanField("مكتملة", default=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.SET_NULL, null=True, related_name="+", editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "متابعة مستفيد"
+        verbose_name_plural = "متابعات المستفيدين"
+        ordering = ["completed", "due_date", "-pk"]
+
+    def __str__(self):
+        return self.subject
+
+    def clean(self):
+        super().clean()
+        from core.models import Company, Membership
+        company_id=self.company_id or getattr(Company.current(),"pk",None)
+        if self.beneficiary_id and self.beneficiary.company_id!=company_id:
+            raise ValidationError({"beneficiary":"المستفيد لا يخص هذه الجمعية."})
+        if self.assigned_to_id and not Membership.objects.filter(company_id=company_id,user_id=self.assigned_to_id,is_active=True).exists():
+            raise ValidationError({"assigned_to":"المسؤول ليس مستخدمًا نشطًا بهذه الجمعية."})

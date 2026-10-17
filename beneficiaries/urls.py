@@ -1,8 +1,9 @@
 from django.urls import path
 
-from beneficiaries import views
+from beneficiaries import views, profile
 
 urlpatterns = [
+    path("<int:pk>/profile/", profile.unified, name="beneficiary_unified"),
     path("", views.beneficiaries_dashboard, name="beneficiaries_dashboard"),
     path("entities/", views.entities_dashboard, name="entities_dashboard"),
     path("aid/<int:pk>/send-otp/", views.aid_send_otp, name="aid_send_otp"),

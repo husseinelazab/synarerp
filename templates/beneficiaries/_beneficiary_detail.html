@@ -1,4 +1,5 @@
 {% load erp %}
+<div class="toolbar"><a class="btn btn-primary" href="{% url 'beneficiary_unified' obj.pk %}">فتح الملف الموحد للأسرة والخدمات</a></div>
 <div class="kpis">
   <div class="kpi"><span>الحالة</span><b>{{ obj.get_status_display }}</b></div>
   <div class="kpi"><span>عدد أفراد الأسرة</span><b>{{ obj.family_size }}</b></div>

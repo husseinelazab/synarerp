@@ -361,6 +361,7 @@ class QuranCircle(SpecialtyRecord):
 
 
 class QuranStudent(SpecialtyRecord):
+    beneficiary = models.ForeignKey("beneficiaries.Beneficiary", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="ربط بملف مستفيد", help_text="ربط صريح بالملف الموحد؛ لا تُدمج الملفات اعتمادًا على تشابه الأسماء.")
     specialty = "quran"
     full_name = models.CharField("اسم الطالب", max_length=150)
     circle = models.ForeignKey(QuranCircle, models.PROTECT, verbose_name="الحلقة")
@@ -405,6 +406,7 @@ class QuranProgress(SpecialtyRecord):
 
 
 class NewMuslim(SpecialtyRecord):
+    beneficiary = models.ForeignKey("beneficiaries.Beneficiary", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="ربط بملف مستفيد", help_text="ربط صريح بالملف الموحد؛ لا تُدمج الملفات اعتمادًا على تشابه الأسماء.")
     specialty = "dawah"
     full_name = models.CharField("الاسم", max_length=150)
     phone = models.CharField("الجوال", max_length=30, blank=True)
@@ -503,6 +505,7 @@ class UmrahParticipant(SpecialtyRecord):
 
 
 class HealthPatient(SpecialtyRecord):
+    beneficiary = models.ForeignKey("beneficiaries.Beneficiary", models.PROTECT, null=True, blank=True, related_name="+", verbose_name="ربط بملف مستفيد", help_text="ربط صريح بالملف الموحد؛ لا تُدمج الملفات اعتمادًا على تشابه الأسماء.")
     specialty = "health"
     file_number = models.CharField("رقم الملف", max_length=50)
     full_name = models.CharField("اسم المريض", max_length=150)

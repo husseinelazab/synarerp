@@ -1,10 +1,18 @@
 from django.urls import path
-from core import admin_tools
+from core import admin_tools, processes, workcenter
 
 from core import attachments, import_views, onboarding, pdf, remote_select, search, statistics, views
 from stock import tools as stock_tools
 
 urlpatterns = [
+    path("work/", workcenter.center, name="work_center"),
+    path("work/processes/", processes.templates, name="process_templates"),
+    path("work/processes/new/", processes.builder, name="process_builder_new"),
+    path("work/processes/<int:pk>/edit/", processes.builder, name="process_builder"),
+    path("work/processes/<int:pk>/start/", processes.start, name="process_start"),
+    path("work/requests/", processes.case_list, name="process_list"),
+    path("work/requests/<int:pk>/", processes.detail, name="process_detail"),
+    path("work/requests/<int:pk>/act/", processes.act, name="process_act"),
     path("settings/modules/", admin_tools.module_labels, name="module_labels"),
     path("", views.dashboard, name="dashboard"),
     path("search/", search.global_search, name="global_search"),

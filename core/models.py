@@ -958,3 +958,75 @@ class Attachment(TenantModel):
     def for_object(cls, obj):
         return cls.objects.filter(doctype=obj.doctype_slug, object_id=obj.pk).defer("content").select_related(
             "uploaded_by")
+
+
+class ProcessTemplate(TenantModel):
+    name = models.CharField("اسم الإجراء", max_length=150)
+    module = models.CharField("الوحدة", max_length=40)
+    description = models.TextField("إرشادات الإجراء", blank=True)
+    enabled = models.BooleanField("مفعل", default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(fields=["company", "name"], name="process_template_name_company")]
+
+    def __str__(self):
+        return self.name
+
+
+class ProcessStage(models.Model):
+    template = models.ForeignKey(ProcessTemplate, models.CASCADE, related_name="stages")
+    position = models.PositiveSmallIntegerField("الترتيب", default=1)
+    name = models.CharField("اسم المرحلة", max_length=120)
+    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, null=True, blank=True, related_name="+", verbose_name="موظف محدد")
+    role = models.CharField("أو الدور المسؤول", max_length=10, choices=[("manager", "مدير أو مالك"), ("owner", "المالك")], blank=True)
+    days = models.PositiveSmallIntegerField("مدة الإنجاز بالأيام", default=3)
+    min_amount = models.DecimalField("تنفذ عندما تبلغ القيمة", max_digits=18, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["position", "pk"]
+
+
+class ProcessCase(TenantModel):
+    template = models.ForeignKey(ProcessTemplate, models.PROTECT, related_name="cases")
+    title = models.CharField("عنوان الطلب", max_length=200)
+    description = models.TextField("تفاصيل الطلب", blank=True)
+    amount = models.DecimalField("قيمة الطلب", max_digits=18, decimal_places=2, default=0)
+    beneficiary = models.ForeignKey("beneficiaries.Beneficiary", models.PROTECT, null=True, blank=True, related_name="process_cases")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, related_name="+")
+    module = models.CharField(max_length=40)
+    snapshot = models.JSONField(default=list)
+    current_step = models.PositiveSmallIntegerField(default=0)
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, null=True, blank=True, related_name="+")
+    assigned_role = models.CharField(max_length=10, blank=True)
+    status = models.CharField(max_length=12, choices=[("active", "قيد الإجراء"), ("done", "مكتمل"), ("rejected", "مرفوض"), ("cancelled", "ملغى")], default="active")
+    due_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def get_absolute_url(self):
+        return reverse("process_detail", args=[self.pk])
+
+    @property
+    def step_name(self):
+        return self.snapshot[self.current_step]["name"] if self.current_step < len(self.snapshot) else "انتهى الإجراء"
+
+    @property
+    def overdue(self):
+        return self.status == "active" and self.due_date and self.due_date < timezone.localdate()
+
+
+class ProcessEvent(TenantModel):
+    case = models.ForeignKey(ProcessCase, models.CASCADE, related_name="events")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT, related_name="+")
+    stage_name = models.CharField(max_length=120, blank=True)
+    action = models.CharField(max_length=12, choices=[("start", "فتح الطلب"), ("approve", "إنجاز / موافقة"), ("reject", "رفض"), ("cancel", "إلغاء")])
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]

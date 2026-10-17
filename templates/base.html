@@ -9,16 +9,19 @@
   <link rel="stylesheet" href="{% static 'css/erp.css' %}">
   <link rel="stylesheet" href="{% static 'css/currency.css' %}">
   <link rel="stylesheet" href="{% static 'css/workspace.css' %}">
+  <link rel="stylesheet" href="{% static 'css/work-center.css' %}">
 </head>
 <body>
 {% if user.is_authenticated %}
 <div class="layout">
   <aside class="sidebar" id="sidebar">
+    <button type="button" class="sidebar-dismiss" aria-label="إغلاق القائمة" onclick="document.getElementById('sidebar').classList.remove('open')">×</button>
     <a class="brand" href="{% url 'dashboard' %}">{{ ERP_NAME }}<small>{{ ERP_NAME_EN }}</small></a>
     <div class="nav-filter"><input type="search" id="nav-filter" placeholder="ابحث في القائمة…" aria-label="ابحث في القائمة" autocomplete="off"></div>
     <nav class="side-nav">
       {% if current_membership %}
       <a href="{% url 'dashboard' %}" class="nav-top {% if request.path == '/' %}active{% endif %}"><svg viewBox="0 0 24 24">{{ home_icon|safe }}</svg>لوحة التحكم</a>
+      {% if current_membership.role != "cashier" and current_membership.role != "employee" %}<a href="{% url 'work_center' %}" class="nav-top">مركز عملي</a>{% endif %}
       {% endif %}
       {% for module in nav_modules %}
       {% ifchanged module.group %}{% if module.group %}<div class="nav-group-title">{{ module.group }}</div>{% endif %}{% endifchanged %}

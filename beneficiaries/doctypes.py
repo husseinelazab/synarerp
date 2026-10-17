@@ -86,3 +86,9 @@ register(DocType(
 
 from beneficiaries.models import DependentCategory
 register(DocType(slug="dependent-category", model=DependentCategory, module="beneficiaries", list_fields=["name", "disabled"], search_fields=["name"]))
+
+from beneficiaries.models import BeneficiaryFollowUp
+register(DocType(slug="beneficiary-follow-up",model=BeneficiaryFollowUp,module="beneficiaries",
+    list_fields=["beneficiary","subject","assigned_to","due_date","completed"],
+    form_fields=["beneficiary","subject","notes","assigned_to","due_date","completed"],
+    search_fields=["subject","beneficiary__full_name","notes"]))
